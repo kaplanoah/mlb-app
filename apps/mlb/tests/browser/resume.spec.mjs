@@ -264,3 +264,17 @@ test("a deploy found mid-drag reloads the page once the drag ends", async ({ pag
     await page.clock.runFor(15 * 1000);
   });
 });
+
+test("a page coming back says it's updating until the store answers", async ({ page }) => {
+  const app = await openApp(page);
+  const stamp = page.locator("#stamp");
+  await expect(stamp).toBeVisible();
+  const release = await app.holdStore();
+
+  await sleepUnannounced(page, 31);
+  await page.clock.runFor(2000);
+
+  await expect(stamp).toContainText("Updating...");
+  release();
+  await expect(stamp).not.toContainText("Updating...");
+});

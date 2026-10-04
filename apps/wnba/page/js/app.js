@@ -1,3 +1,4 @@
+import { renderCatchUpLines, startCatchUpNote } from "#shared/catch-up-note.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { setHtml } from "#shared/html.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
@@ -34,7 +35,7 @@ const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(
 function renderStamp() {
   const problem = describeStampProblem(session);
   const lines = renderStampLines(session.season, Date.now());
-  fillStamp(findElement("stamp"), lines, problem ? [problem] : []);
+  fillStamp(findElement("stamp"), [...lines, ...renderCatchUpLines()], problem ? [problem] : []);
 }
 
 function renderAll() {
@@ -116,6 +117,7 @@ async function boot() {
   startDiagnostics();
   session.db = createWorkerStore();
   drawLastSeen();
+  startCatchUpNote(session.db, renderStamp);
   keepLastSeen(readShown);
   await loadSeason();
   redrawEased(drawLoadedSeason);
