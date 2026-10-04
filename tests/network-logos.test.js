@@ -13,10 +13,10 @@ const LOGO_FOLDER = new URL("../shared/page/networks/", import.meta.url);
 const renderNetworksLine = (networks) => String(renderNetworks(networks, { hasEnded: false }));
 
 test("a channel's logo is found by any name the feeds give it, whatever its case", () => {
-  const logos = listNetworkLogos(["NBC", "peacock", "prime video", "USA Net"]);
+  const logos = listNetworkLogos(["NBC", "nbcsn", "peacock", "prime video", "USA Net"]);
   assert.deepEqual(
     logos.map((logo) => typeof logo === "object" && logo.name),
-    ["NBC", "Peacock", "Prime Video", "USA Network"],
+    ["NBC", "NBCSN", "Peacock", "Prime Video", "USA Network"],
   );
 });
 
