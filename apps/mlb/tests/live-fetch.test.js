@@ -5,7 +5,7 @@ import { UPSTREAM_TIMEOUT_MS } from "../../../shared/worker/upstream.js";
 
 const SNAPSHOT = { version: 1, season: 2026 };
 
-globalThis.location = /** @type {any} */ ({ href: "https://mlb-live.example/k3y/" });
+globalThis.location = /** @type {any} */ ({ href: "https://mlb-app.example/k3y/" });
 
 test("the page reads the snapshot from the Worker that serves it", async () => {
   const requested = [];
@@ -14,7 +14,7 @@ test("the page reads the snapshot from the Worker that serves it", async () => {
     return new Response(JSON.stringify(SNAPSHOT));
   };
   assert.deepEqual(await fetchLive(2026), SNAPSHOT);
-  assert.deepEqual(requested, ["https://mlb-live.example/k3y/snapshot?season=2026"]);
+  assert.deepEqual(requested, ["https://mlb-app.example/k3y/snapshot?season=2026"]);
 });
 
 test("an error from the Worker keeps its reason, and an unexpected answer says so", async () => {

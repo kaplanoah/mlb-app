@@ -9,7 +9,7 @@ them.
 
 | App  | Folder       | Worker     |
 | ---- | ------------ | ---------- |
-| MLB  | `apps/mlb/`  | `mlb-live` |
+| MLB  | `apps/mlb/`  | `mlb-app`  |
 | WNBA | `apps/wnba/` | `wnba-app` |
 
 ### MLB

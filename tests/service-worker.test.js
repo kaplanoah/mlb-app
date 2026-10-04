@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
 
-const SCOPE = "https://mlb-live.example.workers.dev/k3y/";
+const SCOPE = "https://mlb-app.example.workers.dev/k3y/";
 const OLD_ENDPOINT = "https://web.push.apple.com/old";
 const NEW_ENDPOINT = "https://web.push.apple.com/new";
 

@@ -210,7 +210,7 @@ function createTestServer(options) {
   return {
     mlb,
     requestPitcher: (query) =>
-      server.servePitcher(new URL(`https://mlb-live.example/k3y/pitcher${query}`)),
+      server.servePitcher(new URL(`https://mlb-app.example/k3y/pitcher${query}`)),
     advanceClock: (milliseconds) => {
       now += milliseconds;
     },
@@ -273,7 +273,7 @@ test("the speeds of a full league of starters come in batches of 30", async () =
     return Response.json(describePerson(1, [["FF", 0.5, 95.0]]));
   };
   const server = createPitcherServer({ fetchImpl, now: () => 0 });
-  await server.servePitcher(new URL("https://mlb-live.example/k3y/pitcher?id=1&season=2026"));
+  await server.servePitcher(new URL("https://mlb-app.example/k3y/pitcher?id=1&season=2026"));
   const batches = calls
     .filter((url) => url.includes("/api/v1/people?"))
     .map((url) => new URL(url).searchParams.get("personIds").split(",").length);

@@ -43,7 +43,7 @@ function createTestServer(options = {}) {
     mlb,
     server,
     requestSnapshot: (query = "?season=2026") =>
-      server.serveSnapshot(new URL(`https://mlb-live.example/k3y/snapshot${query}`)),
+      server.serveSnapshot(new URL(`https://mlb-app.example/k3y/snapshot${query}`)),
     advanceClock: (milliseconds) => {
       now += milliseconds;
     },
@@ -175,7 +175,7 @@ test("the deployable bundle builds and exports the Worker and its store", async 
 
 const importBundle = async (script) => import(`data:text/javascript,${encodeURIComponent(script)}`);
 const requestVersion = (bundle) =>
-  bundle.default.fetch(new Request("https://mlb-live.example/k3y/version.json"), {
+  bundle.default.fetch(new Request("https://mlb-app.example/k3y/version.json"), {
     APP_KEY: "k3y",
   });
 

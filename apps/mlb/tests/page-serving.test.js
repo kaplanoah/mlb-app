@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import worker from "../worker/src/index.js";
 
 const ENV = { APP_KEY: "k3y" };
-const ORIGIN = "https://mlb-live.example";
+const ORIGIN = "https://mlb-app.example";
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47];
 
 /** @param {string} path @param {{ env?: { APP_KEY?: string }, method?: string }} [options] */

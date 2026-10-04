@@ -34,7 +34,7 @@ function startStore() {
       }
     }
   );
-  const store = createWorkerStore(new URL("https://mlb-live.example/k3y/"));
+  const store = createWorkerStore(new URL("https://mlb-app.example/k3y/"));
   const openSocket = () => sockets.at(-1).listeners.open();
   return { store, reads, sockets, openSocket };
 }
@@ -44,8 +44,8 @@ afterEach(() => mock.timers.reset());
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const HANDSHAKE_WAIT_MS = 3 * 1000;
-const SEASON_URL = "https://mlb-live.example/k3y/store/seasons/2026";
-const READINGS_URL = "https://mlb-live.example/k3y/store/readings-2026?limit=10";
+const SEASON_URL = "https://mlb-app.example/k3y/store/seasons/2026";
+const READINGS_URL = "https://mlb-app.example/k3y/store/readings-2026?limit=10";
 
 test("watches started before the socket opens read once each, as it opens", () => {
   const { store, reads, openSocket } = startStore();

@@ -9,7 +9,7 @@ import { createDurableObjectContext } from "../../../tests/durable-object-contex
 import { createBrowserKeys, readPushMessage } from "../../../tests/push-reader.js";
 
 const APP_KEY = "k3y";
-const ORIGIN = "https://mlb-live.example.workers.dev";
+const ORIGIN = "https://mlb-app.example.workers.dev";
 const ENDPOINT = "https://web.push.apple.com/QGuQyavXutnMH";
 
 const EVENING = JSON.parse(

@@ -5,7 +5,7 @@ import { SeasonStore } from "../worker/src/store.js";
 import { createDurableObjectContext } from "../../../tests/durable-object-context.js";
 
 const APP_KEY = "k3y";
-const ORIGIN = "https://mlb-live.example";
+const ORIGIN = "https://mlb-app.example";
 
 function createFakeStore() {
   const { ctx, stored, sockets } = createDurableObjectContext();

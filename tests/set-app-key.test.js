@@ -27,9 +27,9 @@ test("a new key is stored as a secret, and the page's address is printed", async
     log: (line) => printed.push(line),
     makeKey: () => "n3wkey",
   });
-  assert.equal(url, "https://mlb-live.example-subdomain.workers.dev/n3wkey/");
+  assert.equal(url, "https://mlb-app.example-subdomain.workers.dev/n3wkey/");
   const put = cloudflare.calls.find((call) => call.init.method === "PUT");
-  assert.equal(put.url, `${API}/scripts/mlb-live/secrets`);
+  assert.equal(put.url, `${API}/scripts/mlb-app/secrets`);
   assert.deepEqual(JSON.parse(put.init.body), {
     name: "APP_KEY",
     text: "n3wkey",
