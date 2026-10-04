@@ -1,4 +1,4 @@
-name = "mlb-live"
+name = "mlb-app"
 main = "dist/worker.mjs"
 compatibility_date = "2026-09-01"
 # npm run build -- mlb bundles dist/worker.mjs with esbuild (worker/build.mjs); deploys build it themselves.

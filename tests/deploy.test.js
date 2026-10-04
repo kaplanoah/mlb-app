@@ -6,7 +6,7 @@ const loadDeployModule = () => import("../worker/deploy.mjs");
 const ENV = { CLOUDFLARE_ACCOUNT_ID: "acct123" };
 
 const API = "https://api.cloudflare.com/client/v4";
-const WORKER_URL = "https://mlb-live.example-subdomain.workers.dev/";
+const WORKER_URL = "https://mlb-app.example-subdomain.workers.dev/";
 const ROBOTS_URL = `${WORKER_URL}robots.txt`;
 const LIVE_VERSIONS = [{ version_id: "v-live", percentage: 100 }];
 const LIVE_DEPLOYMENTS = [
@@ -63,7 +63,7 @@ function createFakeCloudflare({
     let result = {};
     if (url.endsWith("/workers/subdomain")) result = { subdomain: "example-subdomain" };
     if (url.endsWith("/workers/scripts"))
-      result = isNew ? [] : [{ id: "mlb-live", migration_tag: migrationTag }];
+      result = isNew ? [] : [{ id: "mlb-app", migration_tag: migrationTag }];
     if (isDeployments && init.method === "GET") result = { deployments: LIVE_DEPLOYMENTS };
     if (url.endsWith("/versions/v-live"))
       result = { id: "v-live", annotations: liveCommit ? { "workers/message": liveCommit } : {} };
@@ -78,7 +78,7 @@ const describeCalls = (calls) =>
 test("the name and compatibility date come from wrangler.toml", async () => {
   const { readAppWorkerConfig, readWorkerConfig } = await loadDeployModule();
   assert.deepEqual(readAppWorkerConfig("mlb"), {
-    name: "mlb-live",
+    name: "mlb-app",
     compatibilityDate: "2026-09-01",
   });
   assert.throws(() => readWorkerConfig('name = "x"'), /compatibility_date/);
@@ -98,11 +98,11 @@ test("upload, route, and the Worker URL", async () => {
   });
   assert.equal(url, WORKER_URL);
   assert.deepEqual(describeCalls(cloudflare.calls), [
-    "GET /accounts/acct123/workers/scripts/mlb-live/deployments",
-    "GET /accounts/acct123/workers/scripts/mlb-live/versions/v-live",
+    "GET /accounts/acct123/workers/scripts/mlb-app/deployments",
+    "GET /accounts/acct123/workers/scripts/mlb-app/versions/v-live",
     "GET /accounts/acct123/workers/scripts",
-    "PUT /accounts/acct123/workers/scripts/mlb-live",
-    "POST /accounts/acct123/workers/scripts/mlb-live/subdomain",
+    "PUT /accounts/acct123/workers/scripts/mlb-app",
+    "POST /accounts/acct123/workers/scripts/mlb-app/subdomain",
     "GET /accounts/acct123/workers/subdomain",
     `GET ${ROBOTS_URL}`,
   ]);
@@ -177,7 +177,7 @@ test("every change since the live version counts, not just the last merge's", as
   });
   assert.equal(url, WORKER_URL);
   assert.ok(
-    describeCalls(cloudflare.calls).includes("PUT /accounts/acct123/workers/scripts/mlb-live"),
+    describeCalls(cloudflare.calls).includes("PUT /accounts/acct123/workers/scripts/mlb-app"),
   );
 });
 
@@ -273,7 +273,7 @@ test("a token is sent only when one is in the environment", async () => {
 
 test("a refusal names the step and Cloudflare's reason; no account ID is caught first", async () => {
   const { deploy } = await loadDeployModule();
-  const cloudflare = createFakeCloudflare({ refuse: "/scripts/mlb-live/subdomain" });
+  const cloudflare = createFakeCloudflare({ refuse: "/scripts/mlb-app/subdomain" });
   await assert.rejects(
     deploy({
       app: "mlb",
@@ -365,7 +365,7 @@ test("a request that carried no token says why, unless the script sent one itsel
     (/** @type {Error} */ error) =>
       /live version failed: 9106/.test(error.message) && !/No token reached/.test(error.message),
   );
-  const cloudflare = createFakeCloudflare({ refuse: "/scripts/mlb-live" });
+  const cloudflare = createFakeCloudflare({ refuse: "/scripts/mlb-app" });
   await assert.rejects(
     deploy({
       app: "mlb",
@@ -442,7 +442,7 @@ test("a Worker that doesn't answer puts the live version back", async () => {
   );
   const calls = describeCalls(cloudflare.calls);
   assert.equal(calls.filter((call) => call === `GET ${ROBOTS_URL}`).length, 12);
-  assert.equal(calls.at(-1), "POST /accounts/acct123/workers/scripts/mlb-live/deployments");
+  assert.equal(calls.at(-1), "POST /accounts/acct123/workers/scripts/mlb-app/deployments");
   assert.deepEqual(JSON.parse(cloudflare.calls.at(-1).init.body), {
     strategy: "percentage",
     versions: LIVE_VERSIONS,
@@ -490,7 +490,7 @@ test("a failed check says so when there's nothing to go back to, or going back f
   );
   assert.ok(
     !describeCalls(brandNew.calls).some((call) =>
-      call.startsWith("POST /accounts/acct123/workers/scripts/mlb-live/deployments"),
+      call.startsWith("POST /accounts/acct123/workers/scripts/mlb-app/deployments"),
     ),
   );
 
@@ -510,7 +510,7 @@ test("a failed check says so when there's nothing to go back to, or going back f
 
 test("a step that fails after the upload puts the live version back", async () => {
   const { deploy } = await loadDeployModule();
-  const cloudflare = createFakeCloudflare({ refuse: "/mlb-live/subdomain" });
+  const cloudflare = createFakeCloudflare({ refuse: "/mlb-app/subdomain" });
   await assert.rejects(
     deploy({
       app: "mlb",
@@ -523,7 +523,7 @@ test("a step that fails after the upload puts the live version back", async () =
     /workers.dev route failed: 10000: Authentication error, so the earlier version is live again/,
   );
   const calls = describeCalls(cloudflare.calls);
-  assert.equal(calls.at(-1), "POST /accounts/acct123/workers/scripts/mlb-live/deployments");
+  assert.equal(calls.at(-1), "POST /accounts/acct123/workers/scripts/mlb-app/deployments");
   assert.deepEqual(JSON.parse(cloudflare.calls.at(-1).init.body).versions, LIVE_VERSIONS);
 });
 

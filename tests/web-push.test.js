@@ -55,7 +55,7 @@ test("the VAPID token names the push service, expires, and verifies with the sen
   const authorization = await WebPush.createVapidAuthorization({
     endpoint: "https://web.push.apple.com/QGuQyavXutnMH",
     signingKey,
-    subject: "https://mlb-live.example.workers.dev",
+    subject: "https://mlb-app.example.workers.dev",
     now,
   });
   const [, token, key] = authorization.match(/^vapid t=([^,]+), k=(.+)$/);
@@ -70,7 +70,7 @@ test("the VAPID token names the push service, expires, and verifies with the sen
   assert.deepEqual(JSON.parse(new TextDecoder().decode(decode(claims))), {
     aud: "https://web.push.apple.com",
     exp: now / 1000 + 12 * 60 * 60,
-    sub: "https://mlb-live.example.workers.dev",
+    sub: "https://mlb-app.example.workers.dev",
   });
   const publicKey = await crypto.subtle.importKey(
     "raw",
@@ -95,7 +95,7 @@ test("a push goes to the endpoint encrypted, with the push service's headers", a
     subscription: { endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys },
     message: { title: "Hello" },
     signingKey: await WebPush.createSigningKey(),
-    subject: "https://mlb-live.example.workers.dev",
+    subject: "https://mlb-app.example.workers.dev",
     now: Date.now(),
     fetchImpl: async (url, init) => {
       sent.push({ url, init });
