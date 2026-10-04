@@ -1,4 +1,5 @@
 import { findSeriesBetween, isEliminated, nameSeries } from "./bracket.js";
+import { renderCatchUpLines } from "#shared/catch-up-note.js";
 import { nameDay } from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { fillStamp, renderStampLine, renderStampWhen } from "#shared/stamp.js";
@@ -70,7 +71,11 @@ function renderStampLines() {
 
 export function renderStamp() {
   const problems = [session.liveProblem, session.saveProblem].filter(Boolean);
-  fillStamp(document.getElementById("stamp"), renderStampLines(), problems);
+  fillStamp(
+    document.getElementById("stamp"),
+    [...renderStampLines(), ...renderCatchUpLines()],
+    problems,
+  );
 }
 
 // The failure is already on the stamp, so a rejected save needs nothing more here.
