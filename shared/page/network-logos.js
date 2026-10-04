@@ -29,6 +29,7 @@ const CHANNELS = [
   { name: "ESPN", file: "espn.svg", names: [], scale: 0.81, nudge: -0.02 },
   { name: "ESPN2", file: "espn2.svg", names: [], scale: 0.81, nudge: -0.02 },
   { name: "NBC", file: "nbc.svg", names: [], hasDarkVersion: true, scale: 0.94, nudge: 0.08 },
+  { name: "Peacock", file: "peacock.svg", names: [], hasDarkVersion: true },
   { name: "Prime Video", file: "prime-video.png", names: [], scale: 1.14, nudge: -0.04 },
   { name: "USA Network", file: "usa.png", names: ["USA Net"], scale: 0.94 },
 ];
