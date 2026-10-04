@@ -10,7 +10,12 @@ import { renderGameList } from "../page/js/games-view.js";
 import { html } from "../../../shared/page/html.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { formatStampName } from "../page/js/stamp.js";
-import { findUpdateGame, renderEntryText, renderUpdateText } from "../page/js/updates.js";
+import {
+  findUpdateGame,
+  listFreshUpdates,
+  renderEntryText,
+  renderUpdateText,
+} from "../page/js/updates.js";
 import { normalizeSpaces, stripTags } from "../../../tests/text.js";
 import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
 
@@ -95,6 +100,43 @@ test("update log: a seed pass, with the game behind it", () => {
     text,
     "Padres passed the Phillies for the NL 5 seed &mdash; Phillies lost to the Brewers 4-1",
   );
+});
+
+const clinchDivision = (team, div, at, ended) => ({
+  kind: "berth",
+  team,
+  what: "division",
+  div,
+  at,
+  ...(ended && { ended }),
+});
+const listFreshTeams = () =>
+  listFreshUpdates().flatMap((group) => group.map((entry) => entry.team));
+
+test("Updates box: before its first dismissal, only the 24 hours up to the newest update", () => {
+  session.state = {
+    teams: {},
+    log: [
+      clinchDivision("TB", "AL East", "2026-09-27T23:00:00Z"),
+      clinchDivision("LAD", "NL West", "2026-09-27T01:00:00Z"),
+      clinchDivision("MIL", "NL Central", "2026-09-26T22:00:00Z"),
+      clinchDivision("CWS", "AL Central", "2026-09-27T23:00:00Z", "2026-09-20T02:00:00Z"),
+    ],
+  };
+  assert.deepEqual(listFreshTeams(), ["TB", "LAD"]);
+});
+
+test("Updates box: after a dismissal, everything noticed since, however long ago it happened", () => {
+  session.state = {
+    teams: {},
+    seenAt: "2026-09-27T00:00:00Z",
+    log: [
+      clinchDivision("TB", "AL East", "2026-09-27T23:00:00Z"),
+      clinchDivision("MIL", "NL Central", "2026-09-26T22:00:00Z"),
+      clinchDivision("CWS", "AL Central", "2026-09-27T23:00:00Z", "2026-09-20T02:00:00Z"),
+    ],
+  };
+  assert.deepEqual(listFreshTeams(), ["TB", "CWS"]);
 });
 
 test("series names", () => {

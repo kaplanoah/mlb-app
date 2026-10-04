@@ -245,3 +245,98 @@ test("a read the Worker turns away for want of the access code reloads the page"
   assert.equal(reloads, 1);
   delete globalThis.location;
 });
+
+const RECONNECT_FIRST_MS = 1000;
+const failRead = (read) => read.resolve(new Response("", { status: 503 }));
+
+test("a socket that hangs, and whose reads fail, gives way to a new one that reads again", async () => {
+  const { store, reads, sockets } = startStore();
+  store.doc("seasons/2026").onSnapshot(
+    () => {},
+    () => {},
+  );
+  mock.timers.tick(HANDSHAKE_WAIT_MS);
+  failRead(reads[0]);
+  await settle();
+
+  assert.ok(sockets[0].isClosed);
+  mock.timers.tick(RECONNECT_FIRST_MS);
+  assert.equal(sockets.length, 2);
+  assert.deepEqual(
+    reads.map((read) => read.url),
+    [SEASON_URL, SEASON_URL],
+  );
+});
+
+test("reads that fail once the socket opens start over with a new socket, waiting longer each time", async () => {
+  const { store, reads, sockets, openSocket } = startStore();
+  store.doc("seasons/2026").onSnapshot(
+    () => {},
+    () => {},
+  );
+  openSocket();
+  failRead(reads[0]);
+  await settle();
+  mock.timers.tick(RECONNECT_FIRST_MS);
+  assert.equal(sockets.length, 2);
+  openSocket();
+  failRead(reads.at(-1));
+  await settle();
+
+  mock.timers.tick(RECONNECT_FIRST_MS);
+  assert.equal(sockets.length, 2);
+  mock.timers.tick(RECONNECT_FIRST_MS);
+  assert.equal(sockets.length, 3);
+});
+
+test("a store is caught up once its socket is open and every watched document has been read", async () => {
+  const { store, reads, openSocket } = startStore();
+  const changes = [];
+  store.watchCatchUp((isCaughtUp) => changes.push(isCaughtUp));
+  store.doc("seasons/2026").onSnapshot(() => {});
+  store
+    .collection("readings-2026")
+    .limit(10)
+    .onSnapshot(() => {});
+  openSocket();
+  reads[0].answer({ data: {} });
+  await settle();
+  assert.deepEqual(changes, [false]);
+
+  reads[1].answer({ docs: [] });
+  await settle();
+
+  assert.deepEqual(changes, [false, true]);
+});
+
+test("reads that answer before the socket opens leave the store behind until it opens", async () => {
+  const { store, reads, openSocket } = startStore();
+  const changes = [];
+  store.watchCatchUp((isCaughtUp) => changes.push(isCaughtUp));
+  store.doc("seasons/2026").onSnapshot(() => {});
+  mock.timers.tick(HANDSHAKE_WAIT_MS);
+  reads[0].answer({ data: {} });
+  await settle();
+  assert.deepEqual(changes, [false]);
+
+  openSocket();
+  reads[1].answer({ data: {} });
+  await settle();
+
+  assert.deepEqual(changes, [false, true]);
+});
+
+test("a socket that closes leaves the store behind, and coming back puts it behind anew", async () => {
+  const { store, reads, sockets, openSocket } = startStore();
+  const changes = [];
+  store.doc("seasons/2026").onSnapshot(() => {});
+  openSocket();
+  reads[0].answer({ data: {} });
+  await settle();
+  store.watchCatchUp((isCaughtUp) => changes.push(isCaughtUp));
+
+  sockets[0].close();
+  store.catchUp();
+
+  assert.deepEqual(changes, [true, false, false]);
+});

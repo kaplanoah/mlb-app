@@ -1,5 +1,6 @@
 import { renderBracket, watchBracketSpace } from "./bracket-view.js";
 import { listRankedOrder } from "./clubs.js";
+import { startCatchUpNote } from "#shared/catch-up-note.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
@@ -199,6 +200,7 @@ async function boot() {
   startDiagnostics();
   session.db = createWorkerStore();
   drawLastSeen();
+  startCatchUpNote(session.db, renderStamp);
   keepLastSeen(readShown);
   const [years] = await Promise.all([listYears(), loadActiveSeason()]);
   fillYearPicker(years);

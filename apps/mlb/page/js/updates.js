@@ -27,10 +27,13 @@ export const renderUpdateText = (entries) => describeUpdate(entries, readTextCon
 
 // Freshness goes by when a change was noticed; the list shows when it happened, which for a
 // group is when its last game ended.
-const findHappenedAt = (group) =>
-  Math.max(...group.map((entry) => Date.parse(entry.ended || entry.at)));
+const readHappenedAt = (entry) => Date.parse(entry.ended || entry.at);
+
+const findHappenedAt = (group) => Math.max(...group.map(readHappenedAt));
 
 const readNoticedAt = (entry) => Date.parse(entry.at);
+
+const FIRST_VISIT_SPAN_MS = 24 * 60 * 60 * 1000;
 
 const readSeenAt = () => (session.state.seenAt ? Date.parse(session.state.seenAt) : 0);
 
@@ -38,12 +41,23 @@ const isCurrentSeason = () => session.activeYear === readSeasonYear();
 
 const listFreshReleaseNotes = () => listFreshNotes(RELEASE_NOTES, readSeenAt());
 
-function listFreshUpdates() {
+// Until its first dismissal, the box lists the day of updates up to the newest, not the whole
+// season, which a new store notices all at once.
+function listFirstVisitEntries(entries) {
+  const newest = Math.max(...entries.map(readHappenedAt));
+  return entries.filter((entry) => newest - readHappenedAt(entry) < FIRST_VISIT_SPAN_MS);
+}
+
+function listUnseenEntries(entries) {
   const seen = readSeenAt();
-  const fresh = (session.state.log || []).filter(
-    (entry) => entry && (!seen || readNoticedAt(entry) > seen) && renderEntryText(entry),
-  );
-  return groupUpdates(fresh).sort(
+  return seen
+    ? entries.filter((entry) => readNoticedAt(entry) > seen)
+    : listFirstVisitEntries(entries);
+}
+
+export function listFreshUpdates() {
+  const described = (session.state.log || []).filter((entry) => entry && renderEntryText(entry));
+  return groupUpdates(listUnseenEntries(described)).sort(
     (first, second) => findHappenedAt(second) - findHappenedAt(first),
   );
 }
