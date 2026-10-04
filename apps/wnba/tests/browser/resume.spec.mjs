@@ -110,6 +110,34 @@ test("a page hidden a minute closes its socket, and opens another when it's show
   await expect.poll(() => app.countOpenSockets()).toBe(1);
 });
 
+// The phone can show the page again without a visibilitychange, and the hidden page's timers
+// come due only once it's back.
+/** @param {import("@playwright/test").Page} page */
+const showUnannounced = (page) =>
+  page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    dispatchEvent(new Event("focus"));
+  });
+
+test("a page shown again without saying so keeps the socket it opens", async ({ page }) => {
+  const app = await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const row = page.locator('[data-game="1042600132"]');
+  await expect(row).toBeVisible();
+  await setHidden(page, true);
+  await page.clock.runFor(30 * 1000);
+
+  await showUnannounced(page);
+  await page.clock.runFor(30 * 1000);
+  await app.changeSeason((season) => {
+    const game = season.games.find((each) => each.id === "1042600132");
+    Object.assign(game, { state: "live", status: "Q2 5:10", period: 2, clock: "5:10" });
+    return season;
+  });
+
+  await expect(row.locator(".game-status .clock")).toHaveText("Q2 5:10");
+});
+
 test("a page turns over to the season the store says is current", async ({ page }) => {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
