@@ -64,6 +64,7 @@ export async function reloadIfReplaced() {
 // a page that was hidden or asleep catches up.
 function catchUpOnReturn() {
   if (document.hidden) return;
+  clearTimeout(pauseTimer);
   const awayMs = Date.now() - activeAt;
   const hasBeenAway = wasHidden || awayMs >= ASLEEP_MS;
   activeAt = Date.now();
@@ -94,10 +95,16 @@ export function watchTimeAway(watcher) {
   awayWatchers.push(watcher);
 }
 
+// A phone freezes timers while it suspends the page, so the pause can come due only once the page
+// is back, after it opened a new socket that the pause would close.
+function pauseIfHidden() {
+  if (document.hidden) pause();
+}
+
 function noteHidden() {
   activeAt = Date.now();
   wasHidden = true;
-  pauseTimer = setTimeout(pause, HIDDEN_PAUSE_MS);
+  pauseTimer = setTimeout(pauseIfHidden, HIDDEN_PAUSE_MS);
 }
 
 // iOS doesn't always report a home-screen page coming back, so every sign of it counts. `pause`
