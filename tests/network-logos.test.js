@@ -38,7 +38,7 @@ test("a square badge is drawn taller than a long wordmark, so the two look about
   const [abc, espn] = listLogos(["ABC", "ESPN"]);
   assert.ok(abc.scale > 1 && espn.scale < 1);
   const line = renderNetworksLine(["ABC", "ESPN"]);
-  assert.match(line, new RegExp(`alt="ABC" style="--logo-scale: ${abc.scale}"`));
+  assert.match(line, new RegExp(`alt="ABC" style="--logo-scale: ${abc.scale}; --logo-nudge: `));
   assert.match(line, new RegExp(`alt="ESPN" style="--logo-scale: ${espn.scale}; --logo-nudge: `));
 });
 
@@ -80,9 +80,9 @@ test("the line of channels shows each logo, its dark version beside it, and name
 });
 
 test("a logo whose weight sits low is nudged up, one whose weight sits high is nudged down, and one centered isn't", () => {
-  const [nbc, espn, abc] = listLogos(["NBC", "ESPN", "ABC"]);
+  const [nbc, espn, usa] = listLogos(["NBC", "ESPN", "USA Network"]);
   assert.ok(nbc.nudge > 0 && espn.nudge < 0);
-  assert.equal(abc.nudge, undefined);
+  assert.equal(usa.nudge, undefined);
   assert.match(renderNetworksLine(["NBC"]), /style="--logo-scale: [\d.]+; --logo-nudge: [\d.]+"/);
 });
 

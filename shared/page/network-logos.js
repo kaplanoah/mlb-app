@@ -24,14 +24,21 @@ import { html } from "./html.js";
 
 /** @type {Channel[]} */
 const CHANNELS = [
-  { name: "ABC", file: "abc.png", names: [], hasDarkVersion: true, scale: 1.18 },
+  { name: "ABC", file: "abc.png", names: [], hasDarkVersion: true, scale: 1.22, nudge: 0.02 },
   { name: "CNBC", file: "cnbc.svg", names: [], hasDarkVersion: true, scale: 1.24, nudge: 0.04 },
   { name: "ESPN", file: "espn.svg", names: [], scale: 0.81, nudge: -0.02 },
   { name: "ESPN2", file: "espn2.svg", names: [], scale: 0.81, nudge: -0.02 },
   { name: "NBC", file: "nbc.svg", names: [], hasDarkVersion: true, scale: 0.94, nudge: 0.08 },
-  { name: "NBCSN", file: "nbcsn.png", names: [], hasDarkVersion: true, scale: 0.94, nudge: 0.08 },
-  { name: "Peacock", file: "peacock.svg", names: [], hasDarkVersion: true, scale: 0.92 },
-  { name: "Prime Video", file: "prime-video.png", names: [], scale: 1.14, nudge: -0.04 },
+  { name: "NBCSN", file: "nbcsn.png", names: [], hasDarkVersion: true, scale: 1.06, nudge: -0.04 },
+  {
+    name: "Peacock",
+    file: "peacock.svg",
+    names: [],
+    hasDarkVersion: true,
+    scale: 1.14,
+    nudge: -0.02,
+  },
+  { name: "Prime Video", file: "prime-video.png", names: [], scale: 1.14, nudge: -0.06 },
   { name: "USA Network", file: "usa.png", names: ["USA Net"], scale: 0.94 },
 ];
 
