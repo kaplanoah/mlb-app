@@ -13,19 +13,19 @@ const LOGO_FOLDER = new URL("../shared/page/networks/", import.meta.url);
 const renderNetworksLine = (networks) => String(renderNetworks(networks, { hasEnded: false }));
 
 test("a channel's logo is found by any name the feeds give it, whatever its case", () => {
-  const logos = listNetworkLogos(["NBC", "prime video", "USA Net"]);
+  const logos = listNetworkLogos(["NBC", "peacock", "prime video", "USA Net"]);
   assert.deepEqual(
     logos.map((logo) => typeof logo === "object" && logo.name),
-    ["NBC", "Prime Video", "USA Network"],
+    ["NBC", "Peacock", "Prime Video", "USA Network"],
   );
 });
 
 test("two names for one channel show its logo once, and a channel with no logo keeps its name", () => {
   const [usa, ...rest] = /** @type {any[]} */ (
-    listNetworkLogos(["USA Network", "USA Net", "Peacock", "ION"])
+    listNetworkLogos(["USA Network", "USA Net", "ION", "WNBA League Pass"])
   );
   assert.equal(usa.name, "USA Network");
-  assert.deepEqual(rest, ["Peacock", "ION"]);
+  assert.deepEqual(rest, ["ION", "WNBA League Pass"]);
 });
 
 test("a logo that works on one background has a version for the other", () => {
@@ -65,7 +65,7 @@ test("every logo is a PNG or a plain drawing: no scripts, links, or anything it 
 });
 
 test("the line of channels shows each logo, its dark version beside it, and names without one, apart by space alone", () => {
-  const line = renderNetworksLine(["NBC", "ESPN", "Peacock"]);
+  const line = renderNetworksLine(["NBC", "ESPN", "ION"]);
   const images = [...line.matchAll(/<img class="([^"]*)" src="([^"]*)" alt="([^"]*)"/g)].map(
     ([, classes, source, alt]) => [classes, source, alt],
   );
@@ -74,7 +74,7 @@ test("the line of channels shows each logo, its dark version beside it, and name
     ["network-logo for-dark", "shared/networks/nbc-dark.svg", "NBC"],
     ["network-logo", "shared/networks/espn.svg", "ESPN"],
   ]);
-  assert.match(line, /<span class="network-name">Peacock<\/span>/);
+  assert.match(line, /<span class="network-name">ION<\/span>/);
   assert.doesNotMatch(line, /class="sep"/);
   assert.match(line, /^<div class="networks" role="group" aria-label="Where to watch">/);
 });
