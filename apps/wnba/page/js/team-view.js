@@ -16,7 +16,8 @@ import { TEAMS } from "./teams.js";
 /** @typedef {import("./series.js").Series} Series */
 /** @typedef {import("./standings-view.js").StandingsRow} StandingsRow */
 /** @typedef {{ seed: number | null, round: number, isOut: boolean, isChampion: boolean }} Run */
-/** @typedef {{ team: string, id: number, firstName: string, lastName: string, games: number, points: number, rebounds: number, assists: number }} Leader */
+/** @typedef {{ team: string, id: number, firstName: string, lastName: string, games: number, minutes?: number, points: number, rebounds: number, assists: number, fieldGoalShare?: number | null }} Leader */
+/** @typedef {{ label: string, title: string, read: (leader: Leader) => string, isQuiet?: boolean }} LeaderColumn */
 /** @typedef {{ series?: Series[], standings?: StandingsRow[], games?: Game[], leaders?: Leader[] }} Season */
 /** @typedef {{ record: string | null, pointsFor: number | null, pointsAgainst: number | null, margin: number | null, home: string | null, road: string | null }} PhaseStats */
 
@@ -35,31 +36,60 @@ const findPlace = (game, team) =>
 export const findTeamLeaders = (season, team) =>
   (season?.leaders ?? []).filter((leader) => leader.team === team);
 
-/** @param {number} value */
-const formatAverage = (value) => value.toFixed(1);
+// A leader saved without her minutes or shooting shows a dash until the season's next update.
+/** @param {number | null | undefined} value */
+const formatAverage = (value) => (value == null ? "-" : value.toFixed(1));
+
+/** @param {number | null | undefined} share */
+const formatPercentage = (share) => (share == null ? "-" : (share * 100).toFixed(1));
+
+/** @type {LeaderColumn[]} */
+const SCORING_COLUMNS = [
+  { label: "Pts", title: "Points per game", read: (leader) => formatAverage(leader.points) },
+  { label: "Reb", title: "Rebounds per game", read: (leader) => formatAverage(leader.rebounds) },
+  { label: "Ast", title: "Assists per game", read: (leader) => formatAverage(leader.assists) },
+];
+
+// A team's own sheet adds how well each scorer shoots and how much she plays.
+/** @type {LeaderColumn[]} */
+const TEAM_SHEET_COLUMNS = [
+  ...SCORING_COLUMNS,
+  {
+    label: "FG%",
+    title: "Field goal percentage",
+    read: (leader) => formatPercentage(leader.fieldGoalShare),
+  },
+  {
+    label: "Min",
+    title: "Minutes per game",
+    read: (leader) => formatAverage(leader.minutes),
+    isQuiet: true,
+  },
+];
 
 /**
  * A table of players' averages a game, under a heading over their names.
  * @param {import("#shared/html.js").Markup | string} heading
  * @param {Leader[]} leaders
+ * @param {LeaderColumn[]} [columns]
  */
-export const renderLeaderTable = (heading, leaders) =>
+export const renderLeaderTable = (heading, leaders, columns = SCORING_COLUMNS) =>
   html`<table class="players tabular">
     <thead>
       <tr>
         <th scope="col">${heading}</th>
-        <th scope="col" title="Points per game">Pts</th>
-        <th scope="col" title="Rebounds per game">Reb</th>
-        <th scope="col" title="Assists per game">Ast</th>
+        ${columns.map((column) => html`<th scope="col" title="${column.title}">${column.label}</th>`)}
       </tr>
     </thead>
     <tbody>
       ${leaders.map(
         (leader) => html`<tr>
           <th scope="row"><span class="first-name">${leader.firstName}</span> ${leader.lastName}</th>
-          <td>${formatAverage(leader.points)}</td>
-          <td>${formatAverage(leader.rebounds)}</td>
-          <td>${formatAverage(leader.assists)}</td>
+          ${columns.map((column) =>
+            column.isQuiet
+              ? html`<td class="minutes">${column.read(leader)}</td>`
+              : html`<td>${column.read(leader)}</td>`,
+          )}
         </tr>`,
       )}
     </tbody>
@@ -68,7 +98,11 @@ export const renderLeaderTable = (heading, leaders) =>
 /** @param {Leader[]} leaders */
 const renderLeadingScorers = (leaders) =>
   leaders.length > 0 &&
-  renderSheetPart("Leading scorers", renderLeaderTable("Player", leaders), "Per game");
+  renderSheetPart(
+    "Leading scorers",
+    renderLeaderTable("Player", leaders, TEAM_SHEET_COLUMNS),
+    "Per game",
+  );
 
 const OTHER_PLACE = { home: "away", away: "home" };
 

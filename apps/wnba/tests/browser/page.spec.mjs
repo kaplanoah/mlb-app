@@ -1192,6 +1192,44 @@ test.describe("a team's sheet", () => {
   });
 });
 
+test("a team's leading scorers set their minutes a step back, a smaller step in Walnut", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+  const minutes = page.locator("#teamDialog table.players td.minutes").first();
+  await expect(minutes).toHaveText("32.6");
+  const readColors = () =>
+    minutes.evaluate((cell) => {
+      const probe = document.createElement("span");
+      cell.closest("dialog")?.append(probe);
+      /** @param {string} token */
+      const readToken = (token) => {
+        probe.style.color = `var(${token})`;
+        return getComputedStyle(probe).color;
+      };
+      const colors = {
+        minutes: getComputedStyle(cell).color,
+        dim: readToken("--ink-dim"),
+        mid: readToken("--ink-mid"),
+      };
+      probe.remove();
+      return colors;
+    });
+
+  for (const [theme, token] of /** @type {const} */ ([
+    ["light", "dim"],
+    ["dark", "mid"],
+  ])) {
+    await page.emulateMedia({ colorScheme: theme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const colors = await readColors();
+    expect(colors.minutes, theme).toBe(colors[token]);
+  }
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 360, height: 780 }, contextOptions: { reducedMotion: "reduce" } });
 

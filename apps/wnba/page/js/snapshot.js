@@ -230,9 +230,11 @@ function listTeamLeaders(players, team, count) {
       id: row.PLAYER_ID,
       ...splitName(row.PLAYER_NAME),
       games: row.GP,
+      minutes: row.MIN,
       points: row.PTS,
       rebounds: row.REB,
       assists: row.AST,
+      fieldGoalShare: row.FG_PCT,
     }));
 }
 
