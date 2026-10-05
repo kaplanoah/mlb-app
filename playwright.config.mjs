@@ -18,6 +18,9 @@ export default defineConfig({
   retries: 0,
   // Each test stands alone, so CI's shards split the tests evenly rather than file by file.
   fullyParallel: true,
+  // The tests are bound by the CPU, and a browser per core keeps CI's busier than Playwright's
+  // default of one per two.
+  workers: process.env.CI ? "100%" : undefined,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {

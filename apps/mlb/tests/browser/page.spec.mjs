@@ -7,6 +7,7 @@ import {
   buildSnapshotWithStarters,
   chooseSeason,
   EVENING_FIXTURE,
+  matchPath,
 } from "./harness.mjs";
 import { createReading } from "../../page/js/readings.js";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
@@ -2280,10 +2281,7 @@ test("the page reopens on the tab it was last on", async ({ page }) => {
 
 test("the page shows the tab it was last on before its modules have loaded", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("lastTab", "games"));
-  await page.route(
-    (url) => url.pathname === "/js/app.js",
-    (route) => route.abort(),
-  );
+  await page.route(matchPath("/js/app.js"), (route) => route.abort());
 
   await openApp(page);
 

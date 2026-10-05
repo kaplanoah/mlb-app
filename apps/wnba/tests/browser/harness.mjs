@@ -15,6 +15,7 @@ import {
   createTestStore,
   connectToStore,
   loadPageAt,
+  matchPath,
   openLockedPage,
 } from "../../../../tests/browser/harness.mjs";
 import { holdStore } from "../../../../tests/browser/hold-store.mjs";
@@ -34,7 +35,7 @@ const LEAD = JSON.parse(
   readFileSync(new URL("../fixtures/2026-10-01-espn-lead.json", import.meta.url), "utf8"),
 );
 
-export { test, expect, GAMES, NOW };
+export { test, expect, matchPath, GAMES, NOW };
 
 /**
  * The league's answers to the game sheet's routes, from the recorded box scores and schedule, with
@@ -71,17 +72,29 @@ async function answerFromWorker(route, serve) {
   await route.fulfill({ status: answer.status, json: await answer.json() });
 }
 
+// Each test starts from the same snapshot, which takes far longer to build than to copy.
+const afternoonSnapshots = new Map();
+
+/** @param {number} season */
+function readAfternoonSnapshot(season) {
+  if (!afternoonSnapshots.has(season))
+    afternoonSnapshots.set(
+      season,
+      buildSnapshot(
+        {
+          ...AFTERNOON.responses,
+          players: GAMES.preview.players,
+          networks: Object.values(ESPN_SCOREBOARD.answers),
+        },
+        { season, now: Date.parse(NOW) },
+      ),
+    );
+  return structuredClone(afternoonSnapshots.get(season));
+}
+
 /** The Worker's store, already updated once from the afternoon's feeds. */
 async function createAfternoonStore() {
-  const loadSnapshot = async (season) =>
-    buildSnapshot(
-      {
-        ...AFTERNOON.responses,
-        players: GAMES.preview.players,
-        networks: Object.values(ESPN_SCOREBOARD.answers),
-      },
-      { season, now: Date.parse(NOW) },
-    );
+  const loadSnapshot = async (season) => readAfternoonSnapshot(season);
   const testStore = createTestStore(SeasonStore, { loadSnapshot, now: NOW });
   await testStore.store.alarm();
   // The news runs beside the update, and finishes before the page opens, so it never overwrites
@@ -108,17 +121,12 @@ export async function openApp(page, { league = {}, isShowingUpdates = false } = 
   const boxScores = createBoxScoreServer({ fetchImpl });
   const previews = createPreviewServer({ fetchImpl, now: () => Date.parse(NOW) });
   const leads = createLeadServer({ fetchImpl });
-  await page.route(
-    (url) => url.pathname === "/lead",
-    (route) => answerFromWorker(route, leads.serveLead),
+  await page.route(matchPath("/lead"), (route) => answerFromWorker(route, leads.serveLead));
+  await page.route(matchPath("/box-score"), (route) =>
+    answerFromWorker(route, boxScores.serveBoxScore),
   );
-  await page.route(
-    (url) => url.pathname === "/box-score",
-    (route) => answerFromWorker(route, boxScores.serveBoxScore),
-  );
-  await page.route(
-    (url) => url.pathname === "/preview",
-    (route) => answerFromWorker(route, previews.servePreview),
+  await page.route(matchPath("/preview"), (route) =>
+    answerFromWorker(route, previews.servePreview),
   );
   await loadPageAt(page, NOW);
 

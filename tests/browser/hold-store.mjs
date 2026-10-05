@@ -1,3 +1,4 @@
+import { matchPath } from "./harness.mjs";
 import { holdRequests } from "./hold-requests.mjs";
 
 /**
@@ -5,4 +6,4 @@ import { holdRequests } from "./hold-requests.mjs";
  * @param {import("@playwright/test").Page} page
  * @returns {Promise<() => void>}
  */
-export const holdStore = (page) => holdRequests(page, (url) => url.pathname.startsWith("/store/"));
+export const holdStore = (page) => holdRequests(page, matchPath("/store/"));

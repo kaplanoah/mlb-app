@@ -79,6 +79,13 @@ export default [
           message:
             "Wait for what the page shows with expect, or move the page's clock with page.clock.",
         },
+        {
+          // Playwright asks the test about every request a function might match.
+          selector:
+            "CallExpression[callee.property.name=/^(route|unroute)$/][arguments.0.type=/FunctionExpression$/]",
+          message:
+            "Match the route with a pattern, like matchPath's from tests/browser/harness.mjs.",
+        },
       ],
     },
   },

@@ -1,4 +1,4 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
@@ -1651,10 +1651,7 @@ test.describe("on a phone", () => {
 
 test("the page shows the tab it was last on before its modules have loaded", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("lastTab", "standings"));
-  await page.route(
-    (url) => url.pathname === "/js/app.js",
-    (route) => route.abort(),
-  );
+  await page.route(matchPath("/js/app.js"), (route) => route.abort());
 
   await openApp(page);
 

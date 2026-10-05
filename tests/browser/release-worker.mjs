@@ -1,5 +1,6 @@
 import { createAppWorker } from "../../shared/worker/app-worker.js";
 import { listBundledFiles } from "../../worker/build.mjs";
+import { TEST_SERVER } from "./harness.mjs";
 
 const APP_KEY = "test-key";
 const answerNothing = () => new Response(null, { status: 500 });
@@ -28,15 +29,12 @@ export function buildReleaseServer(app, release) {
  * @param {(url: URL) => Promise<Response>} serve
  */
 export async function servePageFiles(page, serve) {
-  await page.route(
-    (url) => url.hostname === "127.0.0.1",
-    async (route) => {
-      const answer = await serve(new URL(route.request().url()));
-      await route.fulfill({
-        status: answer.status,
-        headers: Object.fromEntries(answer.headers),
-        body: Buffer.from(await answer.arrayBuffer()),
-      });
-    },
-  );
+  await page.route(TEST_SERVER, async (route) => {
+    const answer = await serve(new URL(route.request().url()));
+    await route.fulfill({
+      status: answer.status,
+      headers: Object.fromEntries(answer.headers),
+      body: Buffer.from(await answer.arrayBuffer()),
+    });
+  });
 }

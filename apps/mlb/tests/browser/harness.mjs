@@ -9,6 +9,7 @@ import {
   createTestStore,
   connectToStore,
   loadPageAt,
+  matchPath,
   openLockedPage,
 } from "../../../../tests/browser/harness.mjs";
 import { holdStore } from "../../../../tests/browser/hold-store.mjs";
@@ -44,7 +45,7 @@ export function buildSnapshotWithStarters() {
   return buildFixtureSnapshot(fixture);
 }
 
-export { test, expect };
+export { test, expect, matchPath };
 
 const isWriteRequest = (request) => request.method() !== "GET";
 
@@ -99,50 +100,37 @@ export async function openApp(
   const { context, store: seasonStore } = testStore;
 
   const openSockets = await connectToStore(page, testStore);
-  await page.route(
-    (url) => url.pathname === "/snapshot",
-    (route) => {
-      harness.snapshotRequests++;
-      const season = new URL(route.request().url()).searchParams.get("season");
-      const snapshot = snapshotsBySeason[season];
-      if (!liveAvailable || !snapshot)
-        return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
-      return route.fulfill({ json: harness.transformSnapshot(structuredClone(snapshot)) });
-    },
-  );
-  await page.route(
-    (url) => url.pathname === "/pitcher",
-    (route) => {
-      const pitcher = pitchers[Number(new URL(route.request().url()).searchParams.get("id"))];
-      if (!pitcher)
-        return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
-      return route.fulfill({ json: pitcher });
-    },
-  );
-  await page.route(
-    (url) => url.pathname === "/rotation",
-    (route) => {
-      const rotation = rotations[new URL(route.request().url()).searchParams.get("club")];
-      if (!rotation)
-        return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
-      return route.fulfill({ json: rotation });
-    },
-  );
-  await page.route(
-    (url) => url.pathname.startsWith("/store/"),
-    (route) => {
-      const url = new URL(route.request().url());
-      if (!isWriteRequest(route.request())) harness.storeReads.push(url.pathname + url.search);
-      if (harness.failWrites && isWriteRequest(route.request()))
-        return route.fulfill({ status: 503, json: { error: { code: "unavailable" } } });
-      // A captive portal answers in place of the Worker.
-      const isDocumentRead =
-        route.request().method() === "GET" && /^\/store\/[^/]+\/[^/]+$/.test(url.pathname);
-      if (portalReadsDocuments && isDocumentRead)
-        return route.fulfill({ contentType: "text/html", body: "<h1>Sign in to Wi-Fi</h1>" });
-      return route.fallback();
-    },
-  );
+  await page.route(matchPath("/snapshot"), (route) => {
+    harness.snapshotRequests++;
+    const season = new URL(route.request().url()).searchParams.get("season");
+    const snapshot = snapshotsBySeason[season];
+    if (!liveAvailable || !snapshot)
+      return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
+    return route.fulfill({ json: harness.transformSnapshot(structuredClone(snapshot)) });
+  });
+  await page.route(matchPath("/pitcher"), (route) => {
+    const pitcher = pitchers[Number(new URL(route.request().url()).searchParams.get("id"))];
+    if (!pitcher) return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
+    return route.fulfill({ json: pitcher });
+  });
+  await page.route(matchPath("/rotation"), (route) => {
+    const rotation = rotations[new URL(route.request().url()).searchParams.get("club")];
+    if (!rotation)
+      return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
+    return route.fulfill({ json: rotation });
+  });
+  await page.route(matchPath("/store/"), (route) => {
+    const url = new URL(route.request().url());
+    if (!isWriteRequest(route.request())) harness.storeReads.push(url.pathname + url.search);
+    if (harness.failWrites && isWriteRequest(route.request()))
+      return route.fulfill({ status: 503, json: { error: { code: "unavailable" } } });
+    // A captive portal answers in place of the Worker.
+    const isDocumentRead =
+      route.request().method() === "GET" && /^\/store\/[^/]+\/[^/]+$/.test(url.pathname);
+    if (portalReadsDocuments && isDocumentRead)
+      return route.fulfill({ contentType: "text/html", body: "<h1>Sign in to Wi-Fi</h1>" });
+    return route.fallback();
+  });
   await loadPageAt(page, now);
 
   return {

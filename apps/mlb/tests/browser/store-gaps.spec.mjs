@@ -1,4 +1,4 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
@@ -13,7 +13,7 @@ test("a reload keeps the live scores it last showed while the store sends them a
 }) => {
   await openApp(page);
   await expect(findLiveLine(page)).toBeVisible();
-  const release = await holdRequests(page, (url) => url.pathname.endsWith("/store/live/2026"));
+  const release = await holdRequests(page, matchPath("/store/live/2026"));
 
   await page.reload();
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
