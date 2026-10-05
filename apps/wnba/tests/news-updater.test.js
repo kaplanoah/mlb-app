@@ -201,17 +201,17 @@ test("a story older than ten days is forgotten", async () => {
   assert.equal(storage.stored.has("story:old"), false);
 });
 
-test("the news is read every half hour by day and every three hours overnight, Eastern", () => {
+test("the news is read every fifteen minutes by day and hourly overnight, Eastern", () => {
   const job = createNewsJob();
-  assert.equal(job.chooseDelay(Date.parse("2026-10-05T14:00:00Z")), 30 * 60 * 1000);
-  assert.equal(job.chooseDelay(Date.parse("2026-10-05T07:00:00Z")), 3 * 60 * 60 * 1000);
+  assert.equal(job.chooseDelay(Date.parse("2026-10-05T14:00:00Z")), 15 * 60 * 1000);
+  assert.equal(job.chooseDelay(Date.parse("2026-10-05T07:00:00Z")), 60 * 60 * 1000);
 });
 
 test("an overnight wait ends at 7 a.m. Eastern, in and out of daylight time", () => {
   const job = createNewsJob();
-  assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:00:00Z")), 60 * 60 * 1000);
+  assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:30:00Z")), 30 * 60 * 1000);
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:45:00Z")), 15 * 60 * 1000);
-  assert.equal(job.chooseDelay(Date.parse("2027-01-10T11:30:00Z")), 30 * 60 * 1000);
+  assert.equal(job.chooseDelay(Date.parse("2027-01-10T11:40:00Z")), 20 * 60 * 1000);
 });
 
 const createStory = (fields) => ({

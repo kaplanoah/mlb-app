@@ -22,8 +22,8 @@ const SHOWN_MS = 7 * DAY_MS;
 const KEPT_MS = 10 * DAY_MS;
 const USAGE_DAYS = 30;
 const MORNING_HOUR = 7;
-const DAY_DELAY_MS = 30 * MINUTE_MS;
-const NIGHT_DELAY_MS = 3 * 60 * MINUTE_MS;
+const DAY_DELAY_MS = 15 * MINUTE_MS;
+const NIGHT_DELAY_MS = 60 * MINUTE_MS;
 const LABEL_BATCH = 12;
 const LABELS_PER_RUN = 24;
 const GROUPS_PER_RUN = 20;
@@ -55,8 +55,8 @@ const STATUS_KEY = "news/status";
  */
 
 /**
- * The wait between runs: every half hour from 7 a.m. Eastern to midnight, and every three hours
- * overnight, but never past 7 a.m., when a morning reader comes for what was written overnight.
+ * The wait between runs: every fifteen minutes from 7 a.m. Eastern to midnight, and hourly overnight,
+ * but never past 7 a.m., when a morning reader comes for what was written overnight.
  */
 function chooseNewsDelay(now) {
   const { hour } = readEasternDay(now);
