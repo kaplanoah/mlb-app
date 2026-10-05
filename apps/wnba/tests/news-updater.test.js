@@ -82,7 +82,9 @@ function createRun({ env = ENV, now = NOW } = {}) {
   const storage = createJobStorage();
   const docs = createDocs();
   const job = createNewsJob();
-  const runJob = (fetchImpl) => job.run({ docs, storage, env, fetchImpl, now: () => now });
+  const loadSnapshot = async () => ({});
+  const runJob = (fetchImpl) =>
+    job.run({ docs, storage, loadSnapshot, env, fetchImpl, now: () => now });
   return { storage, docs, runJob };
 }
 

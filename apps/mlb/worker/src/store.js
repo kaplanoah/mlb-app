@@ -4,6 +4,7 @@ import PAGE_FILES from "#page-files/mlb";
 import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
 import { findNotableUpdates, listNotifications } from "./notifications.js";
+import { createPastSeasonsJob } from "./past-seasons.js";
 import * as SeasonUpdater from "./season-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
 
@@ -22,4 +23,5 @@ export const SeasonStore = createSeasonStore({
     const context = { teams: snapshot.teams, standings: snapshot.standings };
     return updates.length ? listNotifications(updates, context) : [];
   },
+  backgroundJobs: { pastSeasons: createPastSeasonsJob() },
 });

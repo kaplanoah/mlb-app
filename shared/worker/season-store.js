@@ -13,9 +13,10 @@ import { describeError, respondError, respondJson } from "./responses.js";
 
 /**
  * What a league's own work gets from the store: its documents, storage of its own under keys the
- * store's paths can't name, the Worker's secrets, and the clock.
+ * store's paths can't name, the store's reading of the league, the Worker's secrets, and the clock.
  * @typedef {object} JobContext
  * @property {any} docs
+ * @property {(season: number) => Promise<any>} loadSnapshot
  * @property {{ get: (key: string) => Promise<any>, put: (key: string, value: any) => Promise<void>, delete: (key: string) => Promise<boolean>, list: (prefix: string) => Promise<Map<string, any>> }} storage
  * @property {Record<string, any>} env
  * @property {typeof fetch} fetchImpl
@@ -306,6 +307,7 @@ export function createSeasonStore(league) {
         await job.run({
           docs: this.docs,
           storage: this.createJobStorage(name),
+          loadSnapshot: this.loadSnapshot,
           env: this.env,
           fetchImpl: this.fetchImpl,
           now: this.now,

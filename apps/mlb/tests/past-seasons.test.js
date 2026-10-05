@@ -1,0 +1,101 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { buildSnapshot } from "../page/js/snapshot.js";
+import { createPastSeasonsJob } from "../worker/src/past-seasons.js";
+
+const FINAL_2025 = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2025-final.json`, "utf8"),
+);
+const SNAPSHOT_2025 = buildSnapshot(FINAL_2025.responses, {
+  season: FINAL_2025.season,
+  now: Date.parse(FINAL_2025.now),
+});
+
+// A past season as the store kept it while it was current: its field and updates, no standings.
+const FOLLOWED_2025 = {
+  year: 2025,
+  teams: SNAPSHOT_2025.teams,
+  series: SNAPSHOT_2025.series,
+  log: [],
+};
+
+/** @param {Record<string, any>} stored */
+function createDocs(stored) {
+  const documents = new Map(Object.entries(stored));
+  return {
+    documents,
+    read: async (key) => documents.get(key) ?? null,
+    list: async (collection) =>
+      [...documents].filter(([key]) => key.startsWith(`${collection}/`)).map(([, doc]) => doc),
+    write: async (key, doc) => {
+      documents.set(key, doc);
+    },
+    remove: async (key) => {
+      documents.delete(key);
+    },
+  };
+}
+
+/**
+ * @param {Record<string, any>} stored
+ * @param {any} [snapshot] what MLB answers for 2025
+ */
+async function runJob(stored, snapshot = SNAPSHOT_2025) {
+  const docs = createDocs(stored);
+  const loads = [];
+  const loadSnapshot = async (season) => {
+    loads.push(season);
+    return structuredClone(snapshot);
+  };
+  await createPastSeasonsJob().run({
+    docs,
+    loadSnapshot,
+    storage: /** @type {any} */ ({}),
+    env: {},
+    fetchImpl: fetch,
+    now: () => Date.parse("2026-10-05T12:00:00Z"),
+  });
+  return { documents: docs.documents, loads };
+}
+
+test("a past season saved without its standings is read from MLB and saved whole", async () => {
+  const { documents, loads } = await runJob({
+    "live/current": { season: 2026 },
+    "seasons/2025": FOLLOWED_2025,
+    "seasons/2026": { year: 2026 },
+  });
+
+  assert.deepEqual(loads, [2025]);
+  const record = documents.get("seasons/2025");
+  assert.deepEqual(record.standings, SNAPSHOT_2025.standings);
+  assert.deepEqual(record.series, SNAPSHOT_2025.series);
+  assert.equal(record.updatedAt, SNAPSHOT_2025.asOf);
+});
+
+test("a whole past season, and the current one, aren't read again", async () => {
+  const whole = { ...FOLLOWED_2025, standings: SNAPSHOT_2025.standings };
+  const { documents, loads } = await runJob({
+    "live/current": { season: 2026 },
+    "seasons/2025": whole,
+    "seasons/2026": { year: 2026 },
+  });
+
+  assert.deepEqual(loads, []);
+  assert.deepEqual(documents.get("seasons/2025"), whole);
+});
+
+test("a past season MLB answers only in part is left for the next run", async () => {
+  const { documents } = await runJob(
+    { "live/current": { season: 2026 }, "seasons/2025": FOLLOWED_2025 },
+    { ...SNAPSHOT_2025, missing: ["standings"] },
+  );
+
+  assert.deepEqual(documents.get("seasons/2025"), FOLLOWED_2025);
+});
+
+test("until the store names the current season, no season counts as past", async () => {
+  const { loads } = await runJob({ "seasons/2025": FOLLOWED_2025 });
+
+  assert.deepEqual(loads, []);
+});

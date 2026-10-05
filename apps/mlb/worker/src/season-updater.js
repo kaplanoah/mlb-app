@@ -101,6 +101,14 @@ export async function saveSnapshot(docs, snapshot) {
   await saveLive(docs, year, snapshot);
 }
 
+// A season before the current one, read whole, is saved in its record as the current one is, with
+// the updates its readings still rebuild.
+export async function savePastSeason(docs, snapshot) {
+  const year = snapshot.season;
+  const parts = Readings.sortParts(await docs.list(Readings.nameReadingsCollection(year)));
+  await saveSeason(docs, year, snapshot, parts);
+}
+
 // The updates the page would list: the saved log with what the readings rebuild.
 export async function readUpdates(docs, year) {
   const doc = await docs.read(nameSeasonKey(year));
