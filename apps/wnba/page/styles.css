@@ -151,14 +151,16 @@
   --dot-shadow: color-mix(in srgb, var(--shadow-ink) 62%, transparent);
   --dot-light: rgba(255, 255, 255, 0.15);
   --glass-light: 255, 255, 255;
-  --glass-saturation: 160%;
+  /* The lifted pill boosts again what the bar already boosted, so more than this turns it red. */
+  --glass-saturation: 125%;
   --glass-pill: rgba(255, 255, 255, 0.11);
   --glass-solid: rgba(42, 31, 24, 0.94);
   --glass-contrast: #000000;
-  --pager-track: rgba(255, 255, 255, 0.07);
-  --pager-track-edge: rgba(255, 255, 255, 0.06);
-  --pager-thumb: rgba(255, 255, 255, 0.11);
-  --pager-thumb-edge: rgba(255, 255, 255, 0.14);
+  /* Tinted cream, since plain white over the walnut reads grey. */
+  --pager-track: rgba(255, 214, 170, 0.06);
+  --pager-track-edge: rgba(255, 214, 170, 0.06);
+  --pager-thumb: rgba(255, 214, 170, 0.12);
+  --pager-thumb-edge: rgba(255, 226, 196, 0.16);
   --logos-for-light: none;
   --logos-for-dark: inline;
   color-scheme: dark;
