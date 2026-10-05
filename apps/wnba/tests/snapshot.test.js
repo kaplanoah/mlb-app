@@ -224,13 +224,13 @@ test("each team's standing has its points a game, for and against, and its home 
   );
 });
 
-test("each team's three leading scorers are those with the most points a game who played most of its games", () => {
+test("each team's five leading scorers are those with the most points a game who played most of its games", () => {
   const { leaders } = buildAfternoon();
-  assert.equal(leaders.length, 45);
+  assert.equal(leaders.length, 75);
   const indiana = leaders.filter((leader) => leader.team === "IND");
   assert.deepEqual(
     indiana.map((leader) => `${leader.firstName} ${leader.lastName}`),
-    ["Kelsey Mitchell", "Caitlin Clark", "Aliyah Boston"],
+    ["Kelsey Mitchell", "Caitlin Clark", "Aliyah Boston", "Sophie Cunningham", "Monique Billings"],
   );
   assert.deepEqual(
     leaders.find((leader) => leader.team === "LVA"),
@@ -253,7 +253,7 @@ test("each team's three leading scorers are those with the most points a game wh
   mitchell[column.GP] = 10;
   const fewGames = buildAfternoon({ ...RESPONSES, players }).leaders;
   assert.ok(!fewGames.some((leader) => leader.lastName === "Mitchell"));
-  assert.equal(fewGames.filter((leader) => leader.team === "IND").length, 3);
+  assert.equal(fewGames.filter((leader) => leader.team === "IND").length, 5);
 });
 
 test("without the players' averages, there are no top scorers, and the feed is missing", () => {

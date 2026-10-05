@@ -528,7 +528,7 @@ test("a team's sheet shows its playoffs, then its regular season across from the
         "Regular season Dream 30-14 League 91.3 PPG 87.1 84.5 Opp PPG 87.1 +6.9 Margin 0.0 " +
         "15-7 Home 178-152 15-7 Road 152-178 Last 10 9-1 Streak W 5 " +
         "Leading scorers Per game Player Pts Reb Ast Allisha Gray 19.0 3.5 2.6 Rhyne Howard 17.7 3.8 3.7 " +
-        "Angel Reese 16.4 12.1 2.8 Titles None yet",
+        "Angel Reese 16.4 12.1 2.8 Jordin Canada 11.6 3.5 7.3 DeWanna Bonner 10.4 6.0 1.6 Titles None yet",
     );
     assert.match(
       readTeam(SEASON, "DAL").body,

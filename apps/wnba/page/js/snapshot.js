@@ -236,8 +236,8 @@ function listTeamLeaders(players, team, count) {
     }));
 }
 
-// A team's sheet and a game's preview each show a team's leading three.
-const LEADERS_PER_TEAM = 3;
+// A team's sheet shows its leading five, and a game's preview the first three of them.
+const LEADERS_PER_TEAM = 5;
 
 const listLeaders = (players) =>
   Object.keys(TEAMS).flatMap((team) =>

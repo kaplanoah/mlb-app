@@ -217,7 +217,7 @@ test("a preview compares the season stats from the saved standings, the visitors
   assert.deepEqual(readTapeBars(markup, "Road Home"), ["59", "lead 68"]);
 });
 
-test("a preview lists each team's three saved leading scorers, best first", () => {
+test("a preview lists the first three of each team's saved leading scorers, best first", () => {
   const [fever, aces] = listRows(renderFeverAtAces(), "players");
   assert.deepEqual(fever, [
     "Fever Pts Reb Ast",
