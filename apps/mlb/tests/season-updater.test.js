@@ -6,7 +6,10 @@ import { OFF_DAY_CHECK_MS } from "#shared/poll-schedule.js";
 import { createReading } from "../page/js/readings.js";
 import { loadCurrentSnapshot } from "../worker/src/season-updater.js";
 import { SeasonStore } from "../worker/src/store.js";
-import { createDurableObjectContext } from "../../../tests/durable-object-context.js";
+import {
+  createDurableObjectContext,
+  fireNextAlarm,
+} from "../../../tests/durable-object-context.js";
 
 const EVENING = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-09-24-evening.json`, "utf8"),
@@ -26,8 +29,9 @@ function createUpdatingStore({ stored = {}, snapshot = SNAPSHOT, now = NOW } = {
   };
   const sent = [];
   context.ctx.acceptWebSocket({ send: (message) => sent.push(JSON.parse(message)) });
-  const store = new SeasonStore(context.ctx, {}, { loadSnapshot, now: () => now });
-  return { store, context, harness, sent, read: (key) => context.stored.get(key) ?? null };
+  const clock = { now };
+  const store = new SeasonStore(context.ctx, {}, { loadSnapshot, now: () => clock.now });
+  return { store, context, clock, harness, sent, read: (key) => context.stored.get(key) ?? null };
 }
 
 test("the first request starts the updates, and later ones leave the alarm alone", async () => {
@@ -73,7 +77,7 @@ test("an update saves the season, standings, and a reading, and tells open pages
 });
 
 test("an update keeps what the page saved, and writes nothing when nothing changed", async () => {
-  const { store, sent, read } = createUpdatingStore({
+  const { store, sent, read, context, clock } = createUpdatingStore({
     stored: { "seasons/2026": { year: 2026, ranking: ["NYY", "LAD"], seenAt: "2026-09-24" } },
   });
   await store.alarm();
@@ -81,22 +85,22 @@ test("an update keeps what the page saved, and writes nothing when nothing chang
   assert.equal(read("seasons/2026").seenAt, "2026-09-24");
 
   sent.length = 0;
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.deepEqual(sent, []);
 });
 
 test("the live scores are saved for the page, and saved again only when more than their time changed", async () => {
-  const { store, harness, sent, read } = createUpdatingStore();
+  const { store, harness, sent, read, context, clock } = createUpdatingStore();
   await store.alarm();
   assert.deepEqual(read("live/2026"), SNAPSHOT);
 
   sent.length = 0;
   harness.snapshot = { ...SNAPSHOT, asOf: "2026-09-25T00:45:13.489Z" };
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.deepEqual(sent, []);
 
   harness.snapshot = { ...SNAPSHOT, missing: ["wildCardRank"] };
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.deepEqual(
     sent.map((message) => message.path),
     ["live/2026", "live/status"],
@@ -105,11 +109,11 @@ test("the live scores are saved for the page, and saved again only when more tha
 });
 
 test("a change in the field is saved as a new change in today's reading", async () => {
-  const { store, harness, read } = createUpdatingStore();
+  const { store, harness, read, context, clock } = createUpdatingStore();
   await store.alarm();
   const { PHI, ...teams } = SNAPSHOT.teams;
   harness.snapshot = { ...SNAPSHOT, teams: { ...teams, NYM: { ...PHI, w: 83, l: 76 } } };
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
 
   assert.equal(read(`readings-2026/${TODAY}-01`).changes.length, 1);
   assert.ok("NYM" in read("seasons/2026").teams);
@@ -120,11 +124,11 @@ test("standings MLB sent empty leave the saved field, standings, and readings al
   const responses = structuredClone(EVENING.responses);
   responses.standings.records = [];
   const empty = MLBSnapshot.buildSnapshot(responses, { season: 2026, now: NOW });
-  const { store, harness, read } = createUpdatingStore();
+  const { store, harness, read, context, clock } = createUpdatingStore();
   await store.alarm();
   const saved = { season: read("seasons/2026"), standings: read("standings/2026") };
   harness.snapshot = empty;
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
 
   assert.deepEqual(read("seasons/2026"), saved.season);
   assert.deepEqual(read("standings/2026"), saved.standings);
@@ -170,7 +174,7 @@ test("readings older than two weeks go, and their updates stay in the saved log"
 });
 
 test("when MLB can't be read, the status says why and the retries back off", async () => {
-  const { store, context, harness, read } = createUpdatingStore();
+  const { store, context, harness, read, clock } = createUpdatingStore();
   harness.failure = new Error("MLB Stats API answered 503 for /api/v1/standings");
   await store.alarm();
 
@@ -182,13 +186,13 @@ test("when MLB can't be read, the status says why and the retries back off", asy
     at: new Date(NOW).toISOString(),
   });
   assert.equal(context.alarm.at, NOW + 30e3);
-  await store.alarm();
-  assert.equal(context.alarm.at, NOW + 60e3);
+  await fireNextAlarm(store, context, clock);
+  assert.equal(context.alarm.at, clock.now + 60e3);
 
   harness.failure = null;
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.equal(read("live/status").error, "");
-  assert.equal(context.alarm.at, NOW + MLBSnapshot.POLL_LIVE_MS);
+  assert.equal(context.alarm.at, clock.now + MLBSnapshot.POLL_LIVE_MS);
 });
 
 test("the status names the fields MLB stopped sending", async () => {

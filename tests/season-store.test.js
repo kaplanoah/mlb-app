@@ -1,7 +1,7 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { createSeasonStore } from "../shared/worker/season-store.js";
-import { createDurableObjectContext } from "./durable-object-context.js";
+import { createDurableObjectContext, fireNextAlarm } from "./durable-object-context.js";
 
 const ORIGIN = "https://app.example";
 
@@ -140,12 +140,6 @@ test("a store that can't read its league says why and waits longer after each fa
 
 const MINUTE_MS = 60 * 1000;
 
-/** Moves the clock to the store's alarm, as Cloudflare does by firing it then. */
-async function fireNextAlarm(store, context, clock) {
-  clock.now = await context.ctx.storage.getAlarm();
-  await store.alarm();
-}
-
 /**
  * A store with the clock at `clock.now`, and pages that open through `openPage`.
  * @param {Partial<typeof QUIET_LEAGUE>} league
@@ -165,14 +159,14 @@ function createWatchedStore(league) {
 }
 
 test("with no page open, a store updates at most every fifty seconds", async () => {
-  const { context, store, openPage } = createWatchedStore({ choosePollDelay: () => 15_000 });
+  const { context, clock, store, openPage } = createWatchedStore({ choosePollDelay: () => 15_000 });
 
   await store.alarm();
   assert.equal(context.alarm.at, NOW + 50_000);
 
   await openPage();
-  await store.alarm();
-  assert.equal(context.alarm.at, NOW + 15_000);
+  await fireNextAlarm(store, context, clock);
+  assert.equal(context.alarm.at, clock.now + 15_000);
 });
 
 test("a page that opens brings the next update to when an open page would have had it", async () => {
