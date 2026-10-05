@@ -1,28 +1,18 @@
 // What this device keeps for each season: its ranking, and when it last dismissed the Updates box.
 
-import { keepOnDevice, readFromDevice } from "#shared/device-storage.js";
-
-const RANKINGS_KEY = "rankings";
-const SEEN_AT_KEY = "updatesSeenAt";
+import { createViewerChoice } from "#shared/device-storage.js";
 
 const isPlainObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 
 /**
- * @param {string} key
+ * @param {unknown} stored
  * @returns {Record<string, unknown>}
  */
-function readSeasons(key) {
-  const kept = readFromDevice(key);
-  return isPlainObject(kept) ? /** @type {Record<string, unknown>} */ (kept) : {};
-}
+const readSeasons = (stored) =>
+  isPlainObject(stored) ? /** @type {Record<string, unknown>} */ (stored) : {};
 
-/**
- * @param {string} key
- * @param {number} year
- * @param {unknown} value
- */
-const keepForSeason = (key, year, value) =>
-  keepOnDevice(key, { ...readSeasons(key), [year]: value });
+const rankings = createViewerChoice("rankings", readSeasons);
+const seenAtBySeason = createViewerChoice("updatesSeenAt", readSeasons);
 
 /**
  * The clubs this device dragged into order for a season, or none before its first drag.
@@ -30,7 +20,7 @@ const keepForSeason = (key, year, value) =>
  * @returns {string[]}
  */
 export function readRanking(year) {
-  const ranking = readSeasons(RANKINGS_KEY)[year];
+  const ranking = rankings.read()[year];
   return Array.isArray(ranking) ? ranking.filter((id) => typeof id === "string") : [];
 }
 
@@ -38,14 +28,14 @@ export function readRanking(year) {
  * @param {number} year
  * @param {string[]} order
  */
-export const keepRanking = (year, order) => keepForSeason(RANKINGS_KEY, year, order);
+export const keepRanking = (year, order) => rankings.keep({ ...rankings.read(), [year]: order });
 
 /**
  * When this device last dismissed a season's Updates box, or 0 before its first dismissal.
  * @param {number} year
  */
 export function readSeenAt(year) {
-  const seenAt = readSeasons(SEEN_AT_KEY)[year];
+  const seenAt = seenAtBySeason.read()[year];
   return typeof seenAt === "number" && seenAt > 0 ? seenAt : 0;
 }
 
@@ -53,4 +43,14 @@ export function readSeenAt(year) {
  * @param {number} year
  * @param {number} at
  */
-export const keepSeenAt = (year, at) => keepForSeason(SEEN_AT_KEY, year, at);
+export const keepSeenAt = (year, at) =>
+  seenAtBySeason.keep({ ...seenAtBySeason.read(), [year]: at });
+
+/**
+ * Calls `onChange` whenever this device's ranking or dismissal changes, in this tab or another.
+ * @param {() => void} onChange
+ */
+export function watchKeptChoices(onChange) {
+  rankings.watch(onChange);
+  seenAtBySeason.watch(onChange);
+}

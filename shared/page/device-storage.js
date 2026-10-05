@@ -1,26 +1,39 @@
-// What a viewer chooses on a page, like a ranking or a dismissal, kept on their own device as JSON
-// under a key. Nobody signs in, and people share a page's address, so the page saves nothing of a
-// viewer's to the store. Storage can refuse access, as in a private window, and then what's kept
-// lasts until the page reloads.
+// What a viewer chooses on a page, like a ranking, a dismissal, or a theme, kept on their own
+// device as JSON under its key. Nobody signs in, and people share a page's address, so the page
+// saves nothing of a viewer's to the store. Every choice is listed, so carrying a viewer's choices
+// between their devices can find them all, and each tells the page when something other than the
+// page itself, like another tab, changes it. Storage can refuse access, as in a private window, and
+// then a choice lasts until the page reloads.
 
+/**
+ * @template T
+ * @typedef {object} ViewerChoice
+ * @property {() => T} read the choice as the device keeps it, or its default
+ * @property {(value: T) => void} keep
+ * @property {(onChange: () => void) => () => void} watch calls `onChange` whenever another tab
+ *   changes the choice, and returns a way to stop
+ */
+
+/** @type {Set<string>} */
+const viewerChoiceKeys = new Set();
 /** @type {Map<string, unknown>} */
 const keptInMemory = new Map();
+/** @type {Map<string, Set<() => void>>} */
+const watchersByKey = new Map();
+let isWatchingOtherTabs = false;
 
+// A value a device kept as plain text, like a theme's name, reads as that text.
 /** @param {string} text */
 function parseKept(text) {
   try {
     return JSON.parse(text);
   } catch {
-    return null;
+    return text;
   }
 }
 
-/**
- * What this device keeps under `key`, or null when it keeps nothing there.
- * @param {string} key
- * @returns {unknown}
- */
-export function readFromDevice(key) {
+/** @param {string} key */
+function readStored(key) {
   let text;
   try {
     text = localStorage.getItem(key);
@@ -32,9 +45,9 @@ export function readFromDevice(key) {
 
 /**
  * @param {string} key
- * @param {unknown} value any value JSON can hold
+ * @param {unknown} value
  */
-export function keepOnDevice(key, value) {
+function store(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
     keptInMemory.delete(key);
@@ -42,3 +55,50 @@ export function keepOnDevice(key, value) {
     keptInMemory.set(key, value);
   }
 }
+
+/** @param {string | null} key */
+function tellWatchers(key) {
+  const keys = key === null ? [...watchersByKey.keys()] : [key];
+  for (const each of keys) for (const onChange of watchersByKey.get(each) ?? []) onChange();
+}
+
+// Another tab's change to storage comes as an event, with no key when it cleared it all.
+function watchOtherTabs() {
+  if (isWatchingOtherTabs || typeof addEventListener !== "function") return;
+  isWatchingOtherTabs = true;
+  addEventListener("storage", (event) => tellWatchers(event.key));
+}
+
+/**
+ * @param {string} key
+ * @param {() => void} onChange
+ */
+function watchKey(key, onChange) {
+  watchOtherTabs();
+  if (!watchersByKey.has(key)) watchersByKey.set(key, new Set());
+  const watchers = /** @type {Set<() => void>} */ (watchersByKey.get(key));
+  watchers.add(onChange);
+  return () => {
+    watchers.delete(onChange);
+  };
+}
+
+/**
+ * A choice the viewer makes, kept on this device under `key`.
+ * @template T
+ * @param {string} key
+ * @param {(stored: unknown) => T} readValue the choice from what's stored, null when nothing is,
+ *   with its default for anything it doesn't recognize
+ * @returns {ViewerChoice<T>}
+ */
+export function createViewerChoice(key, readValue) {
+  viewerChoiceKeys.add(key);
+  return {
+    read: () => readValue(readStored(key)),
+    keep: (value) => store(key, value),
+    watch: (onChange) => watchKey(key, onChange),
+  };
+}
+
+/** The keys of every choice the page has made. */
+export const listViewerChoices = () => [...viewerChoiceKeys];

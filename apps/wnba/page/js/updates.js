@@ -5,7 +5,7 @@
 
 import { countDaysBetween, readEasternDay } from "#shared/days.js";
 import { isTouchDevice } from "#shared/device.js";
-import { keepOnDevice, readFromDevice } from "#shared/device-storage.js";
+import { createViewerChoice } from "#shared/device-storage.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
 import { renderTeamName } from "./clubs.js";
 import { readGameDay } from "./days.js";
@@ -17,16 +17,10 @@ import { describeWin, isPlayoffFinal } from "./win-text.js";
 /** @typedef {import("./games-view.js").Game} Game */
 /** @typedef {{ at: number, leagueDay: string, day: Date | null, endedNextDay: boolean, text: import("#shared/html.js").Markup, action: import("#shared/html.js").Markup | false }} PlayoffWin */
 
-const SEEN_KEY = "updatesSeenAt";
-
 // Null when this device has never dismissed the box.
-function readSeenAt() {
-  const seenAt = readFromDevice(SEEN_KEY);
-  return typeof seenAt === "number" && seenAt > 0 ? seenAt : null;
-}
-
-/** @param {number} at */
-const saveSeenAt = (at) => keepOnDevice(SEEN_KEY, at);
+const seenAt = createViewerChoice("updatesSeenAt", (stored) =>
+  typeof stored === "number" && stored > 0 ? stored : null,
+);
 
 // The feeds give no time a game ended but the Worker's first sight of it final, so a game found
 // final without being seen live goes by its start.
@@ -87,10 +81,10 @@ function findLatestDayStart(wins) {
 // postseason, and keeps that start, so nothing that finishes later is skipped.
 /** @param {PlayoffWin[]} wins newest first */
 function readOrStartSeenAt(wins) {
-  const seenAt = readSeenAt();
-  if (seenAt != null || !wins.length) return seenAt ?? 0;
+  const kept = seenAt.read();
+  if (kept != null || !wins.length) return kept ?? 0;
   const start = findLatestDayStart(wins);
-  saveSeenAt(start);
+  seenAt.keep(start);
   return start;
 }
 
@@ -99,8 +93,8 @@ const findPanel = () => /** @type {HTMLElement} */ (document.getElementById("upd
 /** The playoff games finished since this device last dismissed the box, newest first. */
 export function listFreshUpdates() {
   const wins = listPlayoffWins(session.season);
-  const seenAt = readOrStartSeenAt(wins);
-  return wins.filter((win) => win.at > seenAt);
+  const freshAfter = readOrStartSeenAt(wins);
+  return wins.filter((win) => win.at > freshAfter);
 }
 
 /** The release notes out since this device last dismissed the box. */
@@ -111,9 +105,15 @@ const listFreshReleaseNotes = () =>
 // dismissal doesn't depend on this device's clock.
 function dismissUpdates() {
   const times = [...listFreshUpdates(), ...listFreshReleaseNotes()].map((item) => item.at);
-  if (times.length) saveSeenAt(Math.max(...times));
+  if (times.length) seenAt.keep(Math.max(...times));
   drawUpdates();
 }
+
+/**
+ * Calls `onChange` whenever another tab dismisses the box.
+ * @param {() => void} onChange
+ */
+export const watchDismissals = (onChange) => seenAt.watch(onChange);
 
 export function drawUpdates() {
   const isShown = isTouchDevice() && !isPastSeason();
