@@ -6,8 +6,9 @@
  * refine these rules.
  *
  * Beside chrome.css's --card, --divider, --ink, --accent, --focus-ring, and --radius, and sheet.css's
- * --sheet-part-head, an app's :root defines this token:
+ * --sheet-part-head, an app's :root defines these tokens:
  *   --ink-mid              text between --ink and --ink-dim, for the note and the labels
+ *   --ink-hover            a team's name under the pointer, --ink with enough of --accent to see
  */
 
 /* The button only clears the browser's own look, so a team's name keeps the type of wherever it
@@ -31,11 +32,11 @@ body.kbd .team-open:focus {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
-/* Under the pointer, a team's name takes a little of the accent, over whatever color it had. */
+/* Under the pointer, a team's name takes some of the accent, over whatever color it had. */
 @media (hover: hover) {
   .team-open:hover,
   .team-open:hover .team-name {
-    color: color-mix(in srgb, var(--ink) 75%, var(--accent));
+    color: var(--ink-hover);
   }
 }
 

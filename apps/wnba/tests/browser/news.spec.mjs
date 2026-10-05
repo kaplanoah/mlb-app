@@ -372,7 +372,7 @@ async function readSettledStyle(link) {
 }
 
 for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
-  test(`under the mouse, a headline and a Read button turn plainly toward orange, with no underline or new border, in ${colorScheme}`, async ({
+  test(`under the mouse, a headline and a Read button turn plainly toward orange, with no underline or new border, as a team's name does, in ${colorScheme}`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme });
@@ -387,6 +387,9 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     const headlineHovered = await readSettledStyle(headline);
     await button.hover();
     const buttonHovered = await readSettledStyle(button);
+    const teamName = film.locator(".news-teams .team-name").first();
+    await teamName.hover();
+    const teamNameHovered = await readSettledStyle(teamName);
 
     for (const [atRest, hovered] of [
       [headlineAtRest, headlineHovered],
@@ -399,6 +402,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
       expect(hovered.underline).toBe("none");
     }
     expect(buttonHovered.border).toEqual(buttonAtRest.border);
+    expect(teamNameHovered.color).toEqual(headlineHovered.color);
   });
 }
 

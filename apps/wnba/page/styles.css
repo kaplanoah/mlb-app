@@ -78,7 +78,8 @@
   --teal: #0b6b63;
   --teal-ink: #ffffff;
   --ink-mid: color-mix(in srgb, var(--ink-dim) 55%, var(--ink));
-  /* Maple's dark ink needs more of the orange than Walnut's light ink to show it changed. */
+  /* A link or team's name under the mouse. Maple's dark ink needs more of the orange than
+     Walnut's light ink to show it changed. */
   --ink-hover: color-mix(in srgb, var(--ink) 50%, var(--orange));
   /* Bracket and game cards sit most of the way from the floor to a sheet, so they stand out
      without glare. */

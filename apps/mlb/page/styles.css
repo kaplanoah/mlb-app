@@ -35,6 +35,7 @@
   --ink: #f1ead4;
   --ink-dim: #7fa88f;
   --ink-mid: color-mix(in srgb, var(--ink-dim) 55%, var(--ink));
+  --ink-hover: color-mix(in srgb, var(--ink) 75%, var(--accent));
   --divider: #1e3a2b;
   --gold: #f4c15c;
   --gold-ink: #12200f;
