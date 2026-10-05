@@ -1816,6 +1816,31 @@ h4.news-title {
   background: var(--tile);
 }
 
+/* On a wide screen, Walnut's selected tab reads a step heavier on its bright orange. Each tab's
+   label keeps room for itself at both weights, in hidden copies under it, so choosing a tab never
+   changes its width. */
+@media (min-width: 780px) {
+  :root[data-theme="dark"] .tab-list button.active {
+    font-weight: 500;
+  }
+  :root[data-theme="dark"] .tab-label {
+    display: inline-grid;
+  }
+  :root[data-theme="dark"] .tab-label::before,
+  :root[data-theme="dark"] .tab-label::after {
+    content: attr(data-label);
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+  :root[data-theme="dark"] .tab-label::before {
+    font-weight: 400;
+  }
+  :root[data-theme="dark"] .tab-label::after {
+    font-weight: 500;
+  }
+}
+
 /* The Home Screen bar and box show the icon the theme showing would give the Home Screen. */
 .home-screen-icon {
   background-image: url(icon-light-180.png);
