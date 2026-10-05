@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { session } from "../page/js/session.js";
 import { listFreshUpdates, listPlayoffWins } from "../page/js/updates.js";
+import { checkInTimeZone, EASTERN } from "../../../tests/time-zone.js";
 
 const AFTERNOON = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-09-30-afternoon.json`, "utf8"),
@@ -163,3 +164,25 @@ test("a final that ends after midnight counts on the day it started", () => {
 
   assert.deepEqual(readFreshWins({ ...SEASON, games }), [...TUESDAY_WINS].reverse());
 });
+
+test("a final names the viewer's day it started on, and says when it ended past midnight", () =>
+  checkInTimeZone(EASTERN, () => {
+    const isFeverGame2 = (game) =>
+      game.number === 2 && [game.away.team, game.home.team].includes("IND");
+    const feverGame2 = SEASON.games.find(isFeverGame2);
+    const startDay = new Date(feverGame2.start).toDateString();
+    const games = SEASON.games.map((game) =>
+      game === feverGame2 ? { ...game, end: "2026-09-30T04:30:00Z" } : game,
+    );
+    const win = listPlayoffWins({ ...SEASON, games }).find(
+      (candidate) => candidate.at === Date.parse("2026-09-30T04:30:00Z"),
+    );
+
+    assert.equal(win?.day?.toDateString(), startDay);
+    assert.notEqual(new Date(win.at).toDateString(), startDay);
+    assert.equal(win.endedNextDay, true);
+    assert.equal(
+      listPlayoffWins(SEASON).some((other) => other.endedNextDay),
+      false,
+    );
+  }));

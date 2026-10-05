@@ -2,6 +2,7 @@
 
 import { addDays, readEasternDay } from "#shared/days.js";
 import * as PollSchedule from "#shared/poll-schedule.js";
+import { NIGHT_END_HOUR } from "./dates.js";
 
 export const MLB_API = "https://statsapi.mlb.com";
 
@@ -619,8 +620,6 @@ function listClubGames(games, day, summarize) {
       .map((game) => ({ date: game.date, ...summarize(game) }));
   return { previous: listGamesOn(played, previousDates), next: listGamesOn(ahead, nextDates) };
 }
-
-const NIGHT_END_HOUR = 6;
 
 // Before 6am Eastern, today is still last night while any of last night's games is unfinished.
 // Once they're all final, last night stays alongside until 6am, since its games still explain
