@@ -1827,8 +1827,10 @@ h4.news-title {
   :root[data-theme="dark"] .tab-list button.active {
     font-weight: 500;
   }
+  /* Its hidden copies come first and last, so the label lines up by its top, not their baselines. */
   :root[data-theme="dark"] .tab-label {
     display: inline-grid;
+    vertical-align: top;
   }
   :root[data-theme="dark"] .tab-label::before,
   :root[data-theme="dark"] .tab-label::after {
