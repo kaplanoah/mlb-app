@@ -19,6 +19,27 @@ test("a return names how long the page was away", () => {
   assert.equal(describeTimeAway(135 * MINUTE_MS), "Back after 2 h 15 min");
 });
 
+test("a copied step from before its record started, like a first paint, shows how long before", () =>
+  checkInTimeZone(EASTERN, () => {
+    const now = new Date("2026-10-03T23:00:00Z");
+    const records = [
+      {
+        at: Date.parse("2026-10-03T22:42:00Z"),
+        how: "Reloaded",
+        tab: "Games",
+        lines: [
+          { ms: -40, text: "First paint" },
+          { ms: 0, text: "Shows stamp 40/18px" },
+        ],
+      },
+    ];
+
+    assert.equal(
+      normalizeSpaces(writeRecordsAsText(records, now)),
+      ["Today 6:42 PM, Reloaded, Games", "-40 First paint", "+0 Shows stamp 40/18px"].join("\n"),
+    );
+  }));
+
 test("copied records list each open, newest first, with its steps and any dip", () =>
   checkInTimeZone(EASTERN, () => {
     const now = new Date("2026-10-03T23:00:00Z");

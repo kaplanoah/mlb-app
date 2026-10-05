@@ -115,6 +115,7 @@ function catchUp() {
 }
 
 async function boot() {
+  startDiagnostics();
   startAppearance();
   watchReturns({ catchUp, pause: () => session.db.pause() });
   trackKeyboardFocus();
@@ -127,7 +128,6 @@ async function boot() {
   startHomeScreen();
   startBracket();
   startStandings();
-  startDiagnostics();
   session.db = createWorkerStore();
   drawLastSeen();
   startCatchUpNote(session.db, renderStamp);

@@ -10,6 +10,7 @@ import {
 } from "./harness.mjs";
 import { createReading } from "../../page/js/readings.js";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
+import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 
@@ -2330,6 +2331,20 @@ for (const { screen, viewport } of [
     });
   });
 }
+
+test("every font the page's views draw with is preloaded", async ({ page }) => {
+  await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+  await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Games" }).click();
+  for (const list of ["Previous", "Today", "Next"]) {
+    await page.getByRole("tab", { name: list }).click();
+    await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await expect(page.locator("table.st tbody tr").first()).toBeVisible();
+
+  expect(await listFontsNotPreloaded(page)).toEqual([]);
+});
 
 test("Chivo Mono draws 6% smaller than its size, so it looks as big as Barlow", async ({
   page,
