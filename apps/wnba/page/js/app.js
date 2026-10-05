@@ -6,12 +6,13 @@ import { setHtml } from "#shared/html.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
-import { fillGameLists, startGamePager } from "#shared/game-pager.js";
+import { fillGameLists, startGamePager, startGamesOn } from "#shared/game-pager.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
 import { startPageTabs } from "#shared/page-tabs.js";
 import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
+import { fillSeasonPicker } from "#shared/season-picker.js";
 import { isReadableSeason } from "#shared/season-reader.js";
 import { startServiceWorker } from "#shared/service-worker.js";
 import { startSettingsSheet } from "#shared/settings-sheet.js";
@@ -27,8 +28,8 @@ import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
-import { loadSeason, startSeasonData } from "./season-data.js";
-import { session } from "./session.js";
+import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
+import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
@@ -42,8 +43,12 @@ const wideScreen = matchMedia("(min-width: 900px)");
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
+// The store's status is about the current season's updates, so a past season's page leaves it out.
 function renderStamp() {
-  const problem = describeStampProblem(session);
+  const problem = describeStampProblem({
+    status: isPastSeason() ? null : session.status,
+    problem: session.problem,
+  });
   const lines = renderStampLines(session.season, Date.now());
   fillStamp(findElement("stamp"), [...renderCatchUpLines(), ...lines], problem ? [problem] : []);
 }
@@ -111,6 +116,36 @@ const renderShownTeam = (team) =>
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };
 
+const findSeasonPicker = () => /** @type {HTMLSelectElement} */ (findElement("seasonPicker"));
+
+async function listSeasonYears() {
+  try {
+    return await loadSeasonYears();
+  } catch {
+    return [];
+  }
+}
+
+/** @param {string[]} years */
+const fillSeasonList = (years) => fillSeasonPicker(findSeasonPicker(), years, session.year);
+
+// A season that's over has no games today or ahead, so its Games view starts on its results.
+const startGamesForSeason = () => startGamesOn(isPastSeason() ? "previous" : "today");
+
+/** @param {number} year */
+async function switchSeason(year) {
+  await showYear(year);
+  startGamesForSeason();
+  renderAll();
+}
+
+// A new current season changes what the header says, and the picker lists it.
+async function showNewCurrentYear() {
+  startGamesForSeason();
+  renderAll();
+  fillSeasonList(await listSeasonYears());
+}
+
 async function reloadSeason() {
   await loadSeason();
   showNewData();
@@ -137,6 +172,9 @@ async function boot() {
   startOpenedStories(findElement("newsList"), drawNews);
   wideScreen.addEventListener("change", drawNews);
   startHomeScreen();
+  findSeasonPicker().addEventListener("change", () =>
+    switchSeason(Number(findSeasonPicker().value)),
+  );
   startBracket();
   startStandings();
   session.db = createWorkerStore();
@@ -149,9 +187,11 @@ async function boot() {
   startSeasonData({
     showChange: showNewData,
     showStamp: renderStamp,
+    showCurrentYear: showNewCurrentYear,
     showUnreadable: reloadIfReplaced,
   });
-  await loadSeason();
+  const [years] = await Promise.all([listSeasonYears(), loadSeason()]);
+  fillSeasonList(years);
   redrawEased(drawLoadedSeason);
   watchNews(() => redrawEased(drawNews));
   refreshClockEveryMinute();
