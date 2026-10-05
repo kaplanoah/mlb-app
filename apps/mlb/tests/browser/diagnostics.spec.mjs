@@ -71,7 +71,6 @@ test("with Diagnostics on, a reload is recorded with what the store sent", async
   await page.reload();
   await expect(page.locator("#bracketWrap")).toContainText("Phillies");
   await page.clock.runFor(RECORD_MS + 1000);
-  await openSettings(page);
 
   const record = page.locator("#diagnostics .diagnostics-record").first();
   await expect(record.locator("summary")).toContainText("Steady");
@@ -91,7 +90,6 @@ test("a reload's first reading is what the page put back from its last showing, 
   await page.reload();
   await expect(page.locator("#bracketWrap")).toContainText("Phillies");
   await page.clock.runFor(RECORD_MS + 1000);
-  await openSettings(page);
 
   const record = page.locator("#diagnostics .diagnostics-record").first();
   await expect(record).toContainText(/Shows .*gamePager \d+\/\d+px/);

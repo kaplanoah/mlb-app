@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { html } from "../shared/page/html.js";
 import { renderSheetPart } from "../shared/page/sheet-part.js";
+import { listOpenSheets, reopenSheets } from "../shared/page/sheet.js";
 import {
   refreshTeamSheet,
   renderTeamDetail,
@@ -19,6 +20,7 @@ function createPage() {
   );
   globalThis.getComputedStyle = /** @type {any} */ (() => ({ height: "400px" }));
   const dialog = Object.assign(new EventTarget(), {
+    id: "teamDialog",
     open: false,
     scrollTop: 0,
     showModal() {
@@ -28,6 +30,7 @@ function createPage() {
       dialog.open = false;
       dialog.dispatchEvent(new Event("close"));
     },
+    removeAttribute() {},
     querySelector: () => ({ classList: { toggle: () => {} } }),
   });
   const elements = {
@@ -170,6 +173,25 @@ test("a tap on the titles' button lists them all until the sheet shows another t
   tapTeam(page.document, "BOS");
   assert.equal(readBody(), "Titles 7 | 2018, 2013, 2007 and 4 more");
   page.dialog.close();
+});
+
+test("a sheet a reload put back open shows its team again, with every title if they were listed, and one the league doesn't know closes", () => {
+  const readBody = () => readText(page.elements.teamBody.innerHTML);
+  tapTeam(page.document, "BOS");
+  tapInBody(page.elements.teamBody, true);
+  const saved = listOpenSheets();
+  tapTeam(page.document, "NYY");
+  page.dialog.close();
+
+  page.dialog.open = true;
+  reopenSheets(saved);
+  assert.equal(page.dialog.open, true);
+  assert.equal(readBody(), "Titles 7 | 2018, 2013, 2007, 2004, 1918, 1916, 1915");
+  page.dialog.close();
+
+  page.dialog.open = true;
+  reopenSheets([{ id: "teamDialog", scrollTop: 0, subject: { team: "XYZ" } }]);
+  assert.equal(page.dialog.open, false);
 });
 
 test("a sheet's part has its title, and a note across from it only when it has one", () => {

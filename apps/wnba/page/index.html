@@ -180,12 +180,6 @@
     <div id="newsList" data-last-drawn></div>
   </section>
 
-  <script>
-    openLastTab();
-    showLastDrawn();
-    watchSlowLoad();
-  </script>
-
   <dialog id="settingsDialog" class="settings-panel" aria-labelledby="settingsTitle">
     <div class="settings-body">
       <div class="sheet-top">
@@ -205,23 +199,7 @@
         </div>
       </div>
       <div class="settings-controls grouped">
-        <div class="control-row" id="notifyRow" hidden>
-          <span class="control-label">
-            <span id="notifyTitle">Notifications</span>
-            <span class="control-note" id="notifyNote" role="status"></span>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            class="switch"
-            id="notifySwitch"
-            aria-checked="false"
-            aria-labelledby="notifyTitle"
-            hidden
-          >
-            <span class="switch-knob" aria-hidden="true"></span>
-          </button>
-        </div>
+        <div class="control-row" id="notifyRow" hidden data-last-drawn></div>
         <div class="settings-group" role="group" aria-labelledby="newsSettingsTitle">
           <h3 class="settings-group-label" id="newsSettingsTitle">News</h3>
           <div class="control-row">
@@ -290,7 +268,7 @@
       </div>
       <div class="home-screen-tip" id="homeScreenTip" hidden></div>
       <footer class="settings-footer">
-        <p class="settings-version" id="versionNote" hidden></p>
+        <p class="settings-version" id="versionNote" hidden data-last-drawn></p>
         <p class="settings-version">Includes data from NBA.com</p>
         <p class="settings-version">&copy; 2026 Noah Kaplan</p>
       </footer>
@@ -319,8 +297,8 @@
         <span class="sheet-grabber" aria-hidden="true"></span>
         <div class="sheet-head">
           <div class="sheet-title">
-            <h2 id="gameTitle">Game</h2>
-            <p class="sheet-note" id="gameWhen"></p>
+            <h2 id="gameTitle" data-last-drawn>Game</h2>
+            <p class="sheet-note" id="gameWhen" data-last-drawn></p>
           </div>
           <button type="button" class="sheet-done" id="gameDoneBtn">
             <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
@@ -332,7 +310,7 @@
           </button>
         </div>
       </div>
-      <div class="game-sheet-body" id="gameBody"></div>
+      <div class="game-sheet-body" id="gameBody" data-last-drawn></div>
     </div>
   </dialog>
 
@@ -342,8 +320,8 @@
         <span class="sheet-grabber" aria-hidden="true"></span>
         <div class="sheet-head">
           <div class="sheet-title">
-            <h2 id="teamTitle">Team</h2>
-            <p class="sheet-note" id="teamNote"></p>
+            <h2 id="teamTitle" data-last-drawn>Team</h2>
+            <p class="sheet-note" id="teamNote" data-last-drawn></p>
           </div>
           <button type="button" class="sheet-done" id="teamDoneBtn">
             <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
@@ -355,9 +333,15 @@
           </button>
         </div>
       </div>
-      <div class="team-sheet-body" id="teamBody"></div>
+      <div class="team-sheet-body" id="teamBody" data-last-drawn></div>
     </div>
   </dialog>
+
+  <script>
+    openLastTab();
+    showLastDrawn();
+    watchSlowLoad();
+  </script>
 
   <svg class="svg-defs" aria-hidden="true">
     <filter

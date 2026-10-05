@@ -47,6 +47,9 @@ export function buildSnapshotWithStarters() {
 
 export { test, expect, matchPath };
 
+// A phone's screen and touch, where the Updates box shows.
+export const ON_A_PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+
 const isWriteRequest = (request) => request.method() !== "GET";
 
 /**
@@ -148,6 +151,11 @@ export async function openApp(
     writeWhileAway: (path, data) => context.ctx.storage.put(path, data),
     lockBracket: () => lockBracket(seasonStore.docs.write),
     lockBracketWhileAway: () => lockBracket((path, data) => context.ctx.storage.put(path, data)),
+    /** @param {(live: any) => any} change */
+    changeLiveWhileAway: async (change) => {
+      const path = `live/${EVENING_FIXTURE.season}`;
+      await context.ctx.storage.put(path, change(structuredClone(await readDocument(path))));
+    },
     holdStore: () => holdStore(page),
     // What the Worker's alarm does on its own schedule.
     updateFromWorker: () => testStore.fireAlarm(),

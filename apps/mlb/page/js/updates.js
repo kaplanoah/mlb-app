@@ -2,6 +2,7 @@ import { renderClub, renderRankTag } from "./clubs.js";
 import { isPastMidnight, readMlbDay } from "./dates.js";
 import { describeEntry, describeUpdate } from "./entry-text.js";
 import { readCalendarDate } from "#shared/days.js";
+import { isTouchDevice } from "#shared/device.js";
 import { html } from "#shared/html.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
 import { keepSeenAt, readSeenAt } from "./kept-on-device.js";
@@ -122,11 +123,14 @@ function describeUpdateGroup(group) {
 /** What the box lists, newest first. */
 export const listUpdates = () => listFreshUpdates().map(describeUpdateGroup);
 
+// Each device keeps its own dismissal, so the box shows only on phones and tablets, not again on
+// each computer.
 export function renderUpdates() {
-  const updates = isCurrentSeason() ? listUpdates() : [];
+  const isShown = isTouchDevice() && isCurrentSeason();
+  const updates = isShown ? listUpdates() : [];
   showUpdates(/** @type {HTMLElement} */ (document.getElementById("updates")), updates, {
     dismiss: dismissUpdates,
-    notes: isCurrentSeason() ? listFreshReleaseNotes() : [],
+    notes: isShown ? listFreshReleaseNotes() : [],
     today: readCalendarDate(readMlbDay(Date.now())),
   });
 }

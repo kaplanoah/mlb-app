@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../page/js/snapshot.js";
 import { OFF_DAY_CHECK_MS } from "#shared/poll-schedule.js";
-import { createReading } from "../page/js/readings.js";
+import { composeLog, createReading, sortParts } from "../page/js/readings.js";
 import { loadCurrentSnapshot } from "../worker/src/season-updater.js";
 import { SeasonStore } from "../worker/src/store.js";
 import {
@@ -45,14 +45,22 @@ test("the first request starts the updates, and later ones leave the alarm alone
   assert.equal(context.alarm.at, NOW + 5000);
 });
 
-test("an update saves the season, standings, and a reading, and tells open pages", async () => {
+test("an update saves the whole season in its record, and a reading, and tells open pages", async () => {
   const { store, context, sent, read } = createUpdatingStore();
   await store.alarm();
 
   const season = read("seasons/2026");
-  assert.deepEqual(season.teams, SNAPSHOT.teams);
-  assert.deepEqual(season.series, SNAPSHOT.series);
-  assert.deepEqual(Object.keys(season).sort(), ["log", "projected", "series", "teams", "year"]);
+  assert.deepEqual(season, {
+    year: 2026,
+    updatedAt: SNAPSHOT.asOf,
+    teams: SNAPSHOT.teams,
+    series: SNAPSHOT.series,
+    projected: SNAPSHOT.projected,
+    springStart: SNAPSHOT.springStart,
+    standings: SNAPSHOT.standings,
+    slate: SNAPSHOT.slate,
+    log: [],
+  });
   assert.deepEqual(read("standings/2026").divisions, SNAPSHOT.standings.divisions);
   assert.deepEqual(read(`readings-2026/${TODAY}-01`).start, createReading(SNAPSHOT));
   assert.deepEqual(read("live/status"), {
@@ -64,8 +72,8 @@ test("an update saves the season, standings, and a reading, and tells open pages
   assert.deepEqual(
     sent.map((message) => message.path),
     [
-      "seasons/2026",
       `readings-2026/${TODAY}-01`,
+      "seasons/2026",
       "standings/2026",
       "live/2026",
       "live/current",
@@ -102,6 +110,31 @@ test("the live scores are saved for the page, and saved again only when more tha
     ["live/2026", "live/status"],
   );
   assert.deepEqual(read("live/2026").missing, ["wildCardRank"]);
+});
+
+test("a read without the standings or the day's games leaves them in the record as they were", async () => {
+  const { store, harness, read, context, clock } = createUpdatingStore();
+  await store.alarm();
+  const saved = read("seasons/2026");
+
+  const later = "2026-09-25T00:45:13.489Z";
+  harness.snapshot = { ...SNAPSHOT, asOf: later, standings: null, slate: null, springStart: null };
+  await fireNextAlarm(store, context, clock);
+
+  assert.deepEqual(read("seasons/2026"), saved);
+});
+
+test("the record's updates are what the readings rebuild, so rebuilding them again changes nothing", async () => {
+  const { store, harness, read, context, clock } = createUpdatingStore();
+  await store.alarm();
+  const { PHI, ...teams } = SNAPSHOT.teams;
+  harness.snapshot = { ...SNAPSHOT, teams: { ...teams, NYM: { ...PHI, w: 83, l: 76 } } };
+  await fireNextAlarm(store, context, clock);
+
+  const { log } = read("seasons/2026");
+  const parts = sortParts([read(`readings-2026/${TODAY}-01`)]);
+  assert.ok(log.some((entry) => entry.kind === "field" && entry.in === "NYM"));
+  assert.deepEqual(composeLog(log, parts), log);
 });
 
 test("a change in the field is saved as a new change in today's reading", async () => {

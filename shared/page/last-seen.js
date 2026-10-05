@@ -1,27 +1,38 @@
 // A page that loads again, after a deploy or after the phone dropped it, would show empty views
 // until the store answers, so it first draws what it showed when it was last on screen: the
-// markup of each part it draws whole, which show-last-drawn.js puts back before the first paint,
-// with the pictures from other sites in it, which the service worker keeps, and the season, which
-// the page draws from once its modules load.
+// markup of each part it draws whole and the sheets it showed, which show-last-drawn.js puts back
+// before the first paint, with the pictures from other sites in it, which the service worker
+// keeps, and the season, which the page draws from once its modules load, before its sheets take
+// back what they showed.
 
 import { keepImages } from "./service-worker.js";
+import { listOpenSheets, reopenSheets } from "./sheet.js";
 
 const LAST_SEEN_KEY = "lastSeen";
 const LAST_DRAWN_KEY = "lastDrawn";
+const OPEN_SHEETS_KEY = "openSheets";
 // Another site's picture can count as several megabytes toward the storage the page's copy needs,
 // so only the first ones, which a load opens on, are kept.
 const KEPT_IMAGE_COUNT = 12;
 
 // Storage can be empty or refuse access, as in a private window, so the page never depends on it.
 
-/** @returns {any} */
-export function readLastSeen() {
+/**
+ * @param {string} key
+ * @returns {any}
+ */
+function readItem(key) {
   try {
-    return JSON.parse(localStorage.getItem(LAST_SEEN_KEY) ?? "null");
+    return JSON.parse(localStorage.getItem(key) ?? "null");
   } catch {
     return null;
   }
 }
+
+export const readLastSeen = () => readItem(LAST_SEEN_KEY);
+
+/** Has the sheets the page showed when it was last on screen show again what they showed. */
+export const reopenLastSheets = () => reopenSheets(readItem(OPEN_SHEETS_KEY));
 
 /**
  * The child indexes that lead from `part` down to `element`.
@@ -42,12 +53,14 @@ const readScrolls = (part) =>
     .filter((element) => element.scrollLeft > 0)
     .map((element) => ({ path: readPath(part, element), left: element.scrollLeft }));
 
-// A part's classes can come from its code rather than its markup, like a pager's.
+// A part's classes and colors can come from its code rather than its markup, like a pager's
+// classes and a game sheet's teams' colors.
 /** @param {HTMLElement} part */
 const readDrawnPart = (part) => ({
   markup: part.innerHTML,
   hidden: part.hidden,
   classes: part.className,
+  style: part.getAttribute("style"),
   scrolls: readScrolls(part),
 });
 
@@ -90,6 +103,7 @@ function saveLastSeen(readShown) {
   if (!shown) return;
   saveItem(LAST_SEEN_KEY, shown);
   saveItem(LAST_DRAWN_KEY, readDrawnParts());
+  saveItem(OPEN_SHEETS_KEY, listOpenSheets());
   keepImages(listDrawnImages());
 }
 

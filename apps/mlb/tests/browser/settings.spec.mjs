@@ -7,6 +7,7 @@ import {
   swipeSheetDown,
   matchPath,
 } from "./harness.mjs";
+import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 
 const PHONE = { width: 390, height: 844 };
 const RELEASE = { version: "2.13.0", commit: "abc1234", builtAt: "2026-09-28T00:10:41Z" };
@@ -34,6 +35,30 @@ test("the sliders button opens settings, and Done, Escape, or the backdrop close
 
   await openSettings(page);
   await page.mouse.click(5, 5);
+  await expect(settings).toBeHidden();
+});
+
+test("settings open on a reload show again, with the season, notifications, and ranking, before the page's code arrives", async ({
+  page,
+}) => {
+  await openApp(page);
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await openSettings(page);
+  await expect(settings.locator("#rankList .rank-item")).toHaveCount(12);
+  const notifications = settings.locator("#notifyRow");
+  await expect(notifications).toBeVisible();
+  const note = await notifications.locator("#notifyNote").textContent();
+  const release = await holdRequests(page, matchPath("/js/app.js"));
+
+  await page.reload({ waitUntil: "commit" });
+
+  await expect(settings).toBeVisible();
+  await expect(notifications.locator("#notifyNote")).toHaveText(note);
+  await expect(settings.locator("#rankList .rank-item")).toHaveCount(12);
+  await expect(settings.getByRole("combobox", { name: "Season" })).toHaveValue("2026");
+  release();
+  await expect(page.locator("#bracketWrap")).toContainText("Phillies");
+  await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toBeHidden();
 });
 

@@ -1,4 +1,3 @@
-import * as LogChanges from "../../page/js/changes.js";
 import { isSameJson } from "#shared/compare.js";
 import { readEasternDay } from "#shared/days.js";
 import * as Readings from "../../page/js/readings.js";
@@ -22,22 +21,40 @@ export async function loadCurrentSnapshot(loadSnapshot, now) {
 
 const nameSeasonKey = (year) => `seasons/${year}`;
 
-function collectChangedFields(doc, snapshot) {
-  const log = LogChanges.mergeLog(doc.log, snapshot.log);
-  const fields = {};
-  if (MLBSnapshot.hasKnownField(snapshot)) {
-    if (!isSameJson(doc.teams, snapshot.teams)) fields.teams = snapshot.teams;
-    if (!isSameJson(doc.series, snapshot.series)) fields.series = snapshot.series;
-    if (doc.projected !== snapshot.projected) fields.projected = snapshot.projected;
-  }
+const SAVED_FIELDS = ["teams", "series", "projected", "springStart", "standings", "slate"];
+
+// A field is saved only when the feed it comes from answered, so a partial read leaves it as the
+// last full one had it.
+function listAnsweredFields(snapshot) {
+  const hasField = MLBSnapshot.hasKnownField(snapshot);
+  const answered = {
+    teams: hasField,
+    series: hasField,
+    projected: hasField,
+    springStart: !!snapshot.springStart,
+    standings: !!snapshot.standings,
+    slate: !!snapshot.slate,
+  };
+  return SAVED_FIELDS.filter((field) => answered[field]);
+}
+
+function collectChangedFields(doc, snapshot, log) {
+  const changed = listAnsweredFields(snapshot).filter(
+    (field) => !isSameJson(doc[field], snapshot[field]),
+  );
+  const fields = Object.fromEntries(changed.map((field) => [field, snapshot[field]]));
   if (!isSameJson(doc.log, log)) fields.log = log;
   return fields;
 }
 
-async function saveSeason(docs, year, snapshot) {
+// The season's one record, which the page reads whole: its field, standings, games, and updates,
+// rebuilt from the readings as each update saves them.
+async function saveSeason(docs, year, snapshot, parts) {
   const doc = (await docs.read(nameSeasonKey(year))) ?? { year };
-  const fields = collectChangedFields(doc, snapshot);
-  if (Object.keys(fields).length) await docs.write(nameSeasonKey(year), { ...doc, ...fields });
+  const log = Readings.composeLog(doc.log ?? [], parts, snapshot.log);
+  const fields = collectChangedFields(doc, snapshot, log);
+  if (!Object.keys(fields).length) return;
+  await docs.write(nameSeasonKey(year), { ...doc, ...fields, updatedAt: snapshot.asOf });
 }
 
 // A snapshot without standings came from a partial answer, not a change in them.
@@ -52,13 +69,9 @@ async function saveReading(docs, year, snapshot) {
   return Readings.sortParts([...parts.filter((part) => part.id !== changed.id), changed]);
 }
 
-// The expired parts' updates move into the saved log before their readings go.
+// The season's record already holds the expired parts' updates, so the parts can go.
 async function removeExpiredReadings(docs, year, snapshot, parts) {
   const expired = Readings.findExpiredParts(parts, Readings.readReadingDay(snapshot));
-  if (!expired.length) return;
-  const doc = (await docs.read(nameSeasonKey(year))) ?? { year };
-  const log = LogChanges.mergeLog(doc.log, Readings.rebuildLog(expired));
-  if (!isSameJson(doc.log, log)) await docs.write(nameSeasonKey(year), { ...doc, log });
   const collection = Readings.nameReadingsCollection(year);
   for (const part of expired) await docs.remove(`${collection}/${part.id}`);
 }
@@ -81,8 +94,8 @@ async function saveLive(docs, year, snapshot) {
 
 export async function saveSnapshot(docs, snapshot) {
   const year = snapshot.season;
-  await saveSeason(docs, year, snapshot);
   const parts = await saveReading(docs, year, snapshot);
+  await saveSeason(docs, year, snapshot, parts);
   await removeExpiredReadings(docs, year, snapshot, parts);
   await saveStandings(docs, year, snapshot);
   await saveLive(docs, year, snapshot);

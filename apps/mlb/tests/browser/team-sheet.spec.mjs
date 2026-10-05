@@ -6,6 +6,7 @@ import {
   buildFixtureSnapshot,
   buildSnapshotWithStarters,
   EVENING_FIXTURE,
+  ON_A_PHONE,
 } from "./harness.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
@@ -42,6 +43,23 @@ test("a club's name in a game's row opens its sheet, and the rest of the row ope
   await expect(teamSheet).toBeHidden();
 });
 
+test("a club's sheet open on a reload shows again, and its Done closes it", async ({ page }) => {
+  const gameButton = await showGames(page);
+  await gameButton
+    .locator("xpath=..")
+    .getByRole("button", { name: "Team details: Astros" })
+    .click();
+  const teamSheet = page.locator("#teamDialog");
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
+
+  await page.reload();
+
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
+  await expect(teamSheet.locator("#teamNote")).toContainText("AL West");
+  await teamSheet.getByRole("button", { name: "Done" }).click();
+  await expect(teamSheet).toBeHidden();
+});
+
 // The White Sox clinching with their 9-1 win at Kansas City, one of the evening's finals.
 function buildSnapshotWithClinch() {
   const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
@@ -65,35 +83,34 @@ async function showClinch(page) {
   return update;
 }
 
-test("an update about a game opens its matchup, and a club's name in it opens the club's sheet", async ({
-  page,
-}) => {
-  const update = await showClinch(page);
-  const matchup = page.locator("#matchupDialog");
-
-  await update.getByRole("button", { name: "Team details: White Sox" }).click();
-  const teamSheet = page.locator("#teamDialog");
-  await expect(teamSheet.locator("#teamTitle")).toContainText("White Sox");
-  await expect(matchup).toBeHidden();
-  await teamSheet.getByRole("button", { name: "Done" }).click();
-  await expect(teamSheet).toBeHidden();
-
-  await update.getByRole("button", { name: /^Pitching matchup/ }).click();
-  await expect(matchup.locator("#matchupBody")).toContainText(/White Sox[\s\S]*Royals/);
-  await expect(teamSheet).toBeHidden();
-});
+/**
+ * Taps the middle of `target` with a finger.
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").Locator} target
+ */
+async function tapOn(page, target) {
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+}
 
 test.describe("on a phone", () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test.use(ON_A_PHONE);
+
+  test("an update about a game opens its matchup", async ({ page }) => {
+    const update = await showClinch(page);
+
+    await tapOn(page, update.getByRole("button", { name: /^Pitching matchup/ }));
+
+    await expect(page.locator("#matchupBody")).toContainText(/White Sox[\s\S]*Royals/);
+    await expect(page.locator("#teamDialog")).toBeHidden();
+  });
 
   test("a tap on a club's name in an update about a game opens the game's matchup", async ({
     page,
   }) => {
     const update = await showClinch(page);
-    const whiteSox = update.getByRole("button", { name: "Team details: White Sox" });
-    await whiteSox.scrollIntoViewIfNeeded();
-    const box = await whiteSox.boundingBox();
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await tapOn(page, update.getByRole("button", { name: "Team details: White Sox" }));
 
     await expect(page.locator("#matchupBody")).toContainText(/White Sox[\s\S]*Royals/);
     await expect(page.locator("#teamDialog")).toBeHidden();
@@ -103,12 +120,10 @@ test.describe("on a phone", () => {
     page,
   }) => {
     const gameButton = await showGames(page);
-    const astros = gameButton
-      .locator("xpath=..")
-      .getByRole("button", { name: "Team details: Astros" });
-    await astros.scrollIntoViewIfNeeded();
-    const box = await astros.boundingBox();
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await tapOn(
+      page,
+      gameButton.locator("xpath=..").getByRole("button", { name: "Team details: Astros" }),
+    );
 
     await expect(page.locator("#matchupDialog")).toBeVisible();
     await expect(page.locator("#teamDialog")).toBeHidden();
