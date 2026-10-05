@@ -13,7 +13,7 @@ const FEVER_AT_ACES = "Game details: Fever at Aces, First Round Game 3";
 const VALKYRIES_AT_WINGS = "Game details: Valkyries at Wings, First Round Game 2";
 const POLL_LIVE_MS = 15 * 1000;
 // A players table's number column, while the names leave it room.
-const NUMBER_COLUMN_PX = 56;
+const NUMBER_COLUMN_PX = 52;
 // The type scale's smallest size, which the lead chart's words show at with no room above or below.
 const SMALLEST_TEXT_PX = 13;
 // The room between the line under the teams and the first part's title, above each later title,

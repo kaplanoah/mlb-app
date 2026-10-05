@@ -905,7 +905,7 @@ table.players {
 /* Each number column takes up to the same width, and gives some back only when a name needs it.
    A game's two teams share one table, so they line up column for column. */
 table.players .players-head th:not(:first-child) {
-  width: 56px;
+  width: 52px;
 }
 table.line-score th,
 table.players .players-head th {
