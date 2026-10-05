@@ -1548,7 +1548,9 @@ test.describe("on a phone", () => {
     expect(scrollbars).toEqual([]);
   });
 
-  test("the tab bar's glass keeps Maple's colors, and boosts Walnut's", async ({ page }) => {
+  test("the tab bar's glass keeps Maple's colors, and boosts Walnut's a little", async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     const readGlass = (selector) =>
@@ -1557,8 +1559,24 @@ test.describe("on a phone", () => {
     expect(await readGlass(".tab-glass")).toContain("saturate(1)");
     expect(await readGlass(".tab-pill")).toContain("saturate(1)");
     await chooseAppearance(page, "Walnut");
-    expect(await readGlass(".tab-glass")).toContain("saturate(1.6)");
-    expect(await readGlass(".tab-pill")).toContain("saturate(1.6)");
+    expect(await readGlass(".tab-glass")).toContain("saturate(1.25)");
+    expect(await readGlass(".tab-pill")).toContain("saturate(1.25)");
+  });
+
+  test("in Walnut, the Games pill's track and thumb are tinted warm, not white", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    await chooseAppearance(page, "Walnut");
+    await page.getByRole("tab", { name: "Games" }).click();
+    const readFill = (selector) =>
+      page.locator(selector).evaluate((part) => getComputedStyle(part).backgroundColor);
+    for (const selector of ["#gamePager .pager-tabs", "#gamePager .pager-thumb"]) {
+      const [red, green, blue] = (await readFill(selector)).match(/[\d.]+/g).map(Number);
+      expect(red - blue, selector).toBeGreaterThanOrEqual(60);
+      expect(green, selector).toBeLessThan(red);
+    }
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({
