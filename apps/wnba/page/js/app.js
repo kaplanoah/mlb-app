@@ -33,6 +33,8 @@ import { TEAMS } from "./teams.js";
 import { drawUpdates } from "./updates.js";
 
 const CLOCK_REFRESH_MS = 60 * 1000;
+// A wide screen shows the news in two columns.
+const wideScreen = matchMedia("(min-width: 900px)");
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -46,7 +48,8 @@ function renderStamp() {
 function drawNews() {
   if (session.news === undefined) return;
   const topics = session.news?.topics ?? [];
-  setHtml(findElement("newsList"), renderNews(topics, readNewsChoices(), Date.now()));
+  const columnCount = wideScreen.matches ? 2 : 1;
+  setHtml(findElement("newsList"), renderNews(topics, readNewsChoices(), Date.now(), columnCount));
 }
 
 function renderAll() {
@@ -127,6 +130,7 @@ async function boot() {
   startTeamSheet({ isTeam: (team) => team in TEAMS, renderSheet: renderShownTeam });
   startSettingsSheet();
   startNewsChoices(drawNews);
+  wideScreen.addEventListener("change", drawNews);
   startHomeScreen();
   startBracket();
   startStandings();

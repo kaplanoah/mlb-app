@@ -1652,18 +1652,22 @@ table.standings tr.playoff-line + tr td {
 
 /* The News view: a card for each topic, its lead's photo across the top, and the story that adds
    the most under the lead, with its photo small beside it. */
+/* The columns news-view.js fills, one on a phone and two on a wide screen, each stacking its own
+   cards as far apart as the page's sides. */
 .news-cards {
+  --news-gap: var(--page-gutter);
   display: grid;
-  gap: 12px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--news-gap);
+  align-items: start;
+}
+.news-column {
+  display: grid;
+  gap: var(--news-gap);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-@media (min-width: 900px) {
-  .news-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
 }
 .news-card {
   overflow: hidden;

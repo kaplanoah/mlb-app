@@ -130,17 +130,55 @@ function renderCard({ teams, stories: [lead, second] }, now) {
   </article>`;
 }
 
+// How tall each part of a card draws, roughly, in the same unit, so the columns a wide screen shows
+// come out about as long as each other.
+const CARD_TEXT_HEIGHT = 3.4;
+const LEAD_PHOTO_HEIGHT = 5.1;
+const SECOND_STORY_HEIGHT = 4.9;
+
+/** @param {ReturnType<typeof buildNewsCards>[number]} card */
+const estimateCardHeight = ({ stories: [lead, second] }) =>
+  CARD_TEXT_HEIGHT +
+  (findPhotoUrl(lead.photo) ? LEAD_PHOTO_HEIGHT : 0) +
+  (second ? SECOND_STORY_HEIGHT : 0);
+
 /**
- * The cards for the topics the Worker saved, with only the outlets `choices` reads.
+ * The cards in `columnCount` columns, each card in turn going to the shortest, so each column
+ * stacks its cards without gaps and the newest still come first.
+ * @param {ReturnType<typeof buildNewsCards>} cards
+ * @param {number} columnCount
+ */
+function placeInColumns(cards, columnCount) {
+  /** @type {{ height: number, cards: typeof cards }[]} */
+  const columns = Array.from({ length: columnCount }, () => ({ height: 0, cards: [] }));
+  for (const card of cards) {
+    const shortest = columns.reduce((best, column) =>
+      column.height < best.height ? column : best,
+    );
+    shortest.height += estimateCardHeight(card);
+    shortest.cards.push(card);
+  }
+  return columns.map((column) => column.cards);
+}
+
+/**
+ * The cards for the topics the Worker saved, with only the outlets `choices` reads, in
+ * `columnCount` columns.
  * @param {import("./news-picks.js").NewsTopic[]} topics
  * @param {import("./news-picks.js").NewsChoices} choices
  * @param {number} now
+ * @param {number} [columnCount]
  */
-export function renderNews(topics, choices, now) {
+export function renderNews(topics, choices, now, columnCount = 1) {
   const cards = buildNewsCards(topics, choices);
   if (!cards.length) return html`<p class="empty-note">No news yet</p>`;
   return html`<h2 class="section-label">This week</h2>
-    <ul class="news-cards">
-      ${cards.map((card) => html`<li>${renderCard(card, now)}</li>`)}
-    </ul>`;
+    <div class="news-cards">
+      ${placeInColumns(cards, columnCount).map(
+        (column) =>
+          html`<ul class="news-column">
+            ${column.map((card) => html`<li>${renderCard(card, now)}</li>`)}
+          </ul>`,
+      )}
+    </div>`;
 }
