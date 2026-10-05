@@ -1192,15 +1192,16 @@ test.describe("a team's sheet", () => {
   });
 });
 
-test("a team's leading scorers set their minutes a step back, a smaller step in Walnut", async ({
+test("a team's leading scorers set their shooting and minutes a step back, a smaller step in Walnut", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
-  const minutes = page.locator("#teamDialog table.players td.minutes").first();
-  await expect(minutes).toHaveText("32.6");
+  const quiet = page.locator("#teamDialog table.players tbody tr").first().locator("td.quiet-stat");
+  await expect(quiet).toHaveText(["46.2", "32.6"]);
+  const minutes = quiet.last();
   const readColors = () =>
     minutes.evaluate((cell) => {
       const probe = document.createElement("span");

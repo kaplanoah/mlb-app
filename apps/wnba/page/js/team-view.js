@@ -58,6 +58,7 @@ const TEAM_SHEET_COLUMNS = [
     label: "FG%",
     title: "Field goal percentage",
     read: (leader) => formatPercentage(leader.fieldGoalShare),
+    isQuiet: true,
   },
   {
     label: "Min",
@@ -87,7 +88,7 @@ export const renderLeaderTable = (heading, leaders, columns = SCORING_COLUMNS) =
           <th scope="row"><span class="first-name">${leader.firstName}</span> ${leader.lastName}</th>
           ${columns.map((column) =>
             column.isQuiet
-              ? html`<td class="minutes">${column.read(leader)}</td>`
+              ? html`<td class="quiet-stat">${column.read(leader)}</td>`
               : html`<td>${column.read(leader)}</td>`,
           )}
         </tr>`,

@@ -217,10 +217,10 @@ function renderTopScorers(side, isLive) {
       <th scope="row">
         <span class="first-name">${player.firstName}</span> ${player.lastName}${renderFouls(player, isLive)}
       </th>
-      <td class="minutes">${player.minutes}</td>
       <td>${player.points}</td>
       <td>${player.rebounds}</td>
       <td>${player.assists}</td>
+      <td class="quiet-stat">${player.minutes}</td>
     </tr>`,
   );
   return renderScorersTable(side.team, rows);
@@ -235,10 +235,10 @@ const renderScorersTable = (team, rows) =>
     <thead>
       <tr>
         <th scope="col">${renderClub(team)}</th>
-        <th scope="col" title="Minutes">Min</th>
         <th scope="col" title="Points">Pts</th>
         <th scope="col" title="Rebounds">Reb</th>
         <th scope="col" title="Assists">Ast</th>
+        <th scope="col" title="Minutes">Min</th>
       </tr>
     </thead>
     <tbody>

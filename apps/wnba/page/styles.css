@@ -81,8 +81,9 @@
   --teal: #0b6b63;
   --teal-ink: #ffffff;
   --ink-mid: color-mix(in srgb, var(--ink-dim) 55%, var(--ink));
-  /* Minutes sit a step back from the numbers beside them, a smaller step on the dark wood. */
-  --minutes-ink: var(--ink-dim);
+  /* A table's supporting numbers, like minutes, sit a step back from its counts, a smaller step on
+     the dark wood. */
+  --quiet-stat-ink: var(--ink-dim);
   /* A link or team's name under the mouse. Maple's dark ink needs more of the orange than
      Walnut's light ink to show it changed. */
   --ink-hover: color-mix(in srgb, var(--ink) 50%, var(--orange));
@@ -147,7 +148,7 @@
   --divider: #3a2b21;
   --ink: #f1e9df;
   --ink-dim: #b19a86;
-  --minutes-ink: var(--ink-mid);
+  --quiet-stat-ink: var(--ink-mid);
   --catch-up-fade: 0.75;
   --orange: #f07a3a;
   --orange-ink: #1d0d03;
@@ -986,9 +987,9 @@ table.players tbody th {
   text-align: left;
   white-space: normal;
 }
-table.players td.minutes {
+table.players td.quiet-stat {
   font-weight: 500;
-  color: var(--minutes-ink);
+  color: var(--quiet-stat-ink);
 }
 .first-name {
   font-weight: 400;

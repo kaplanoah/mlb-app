@@ -140,21 +140,21 @@ test("fewer turnovers lead, and a tie leads neither way", () => {
   assert.deepEqual(readTapeBars(renderBoxScore(box), "Turnovers"), ["lead 75", "100"]);
 });
 
-test("each team's top three scorers show, and a live game flags a player in foul trouble", () => {
+test("each team's top three scorers show, minutes last, and a live game flags a player in foul trouble", () => {
   const final = renderBoxScore(readBoxScore("1042600122"));
   const [aces, fever] = listRows(final, "players");
   assert.deepEqual(aces, [
-    "Aces Min Pts Reb Ast",
-    "Jackie Young 36 31 4 5",
-    "A'ja Wilson 34 22 9 2",
-    "Chelsea Gray 37 10 1 7",
+    "Aces Pts Reb Ast Min",
+    "Jackie Young 31 4 5 36",
+    "A'ja Wilson 22 9 2 34",
+    "Chelsea Gray 10 1 7 37",
   ]);
-  assert.equal(fever[1], "Caitlin Clark Fouled out 33 27 7 15");
+  assert.equal(fever[1], "Caitlin Clark Fouled out 27 7 15 33");
 
   const [, wings] = listRows(renderBoxScore(readLiveBoxScore()), "players");
   assert.deepEqual(wings.slice(1, 3), [
-    "Arike Ogunbowale 5 fouls 42 45 7 4",
-    "Alysha Clark 4 fouls 31 21 3 2",
+    "Arike Ogunbowale 5 fouls 45 7 4 42",
+    "Alysha Clark 4 fouls 21 3 2 31",
   ]);
   assert.match(readText(renderBoxScore(readLiveBoxScore())), /Timeouts left: Valkyries 0, Wings 1/);
   const [, finalWings] = listRows(renderBoxScore(readBoxScore("1042600112")), "players");

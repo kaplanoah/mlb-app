@@ -749,10 +749,10 @@ test("each team in the Games lists opens its sheet, and a team still TBD opens n
   );
 });
 
-test("a team's leading scorers set their minutes apart, and a leader saved without her minutes or shooting shows dashes", () => {
+test("a team's leading scorers set their shooting and minutes apart, and a leader saved without them shows dashes", () => {
   assert.match(
     renderTeamSheet(SEASON, "ATL", { year: 2026, now: NOW }).body.text,
-    /<td>46\.2<\/td>\s*<td class="minutes">32\.6<\/td>/,
+    /<td>2\.6<\/td>\s*<td class="quiet-stat">46\.2<\/td>\s*<td class="quiet-stat">32\.6<\/td>/,
   );
   const leaders = SEASON.leaders.map(({ minutes, fieldGoalShare, ...leader }) => leader);
   assert.match(readTeam({ ...SEASON, leaders }, "ATL").body, / Allisha Gray 19\.0 3\.5 2\.6 - - /);
