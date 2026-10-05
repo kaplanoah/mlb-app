@@ -9,11 +9,15 @@ import { TEAMS } from "./teams.js";
 // is on its outlet's site, which opens apart from the page and is never told the page's address.
 
 /** @typedef {import("./news-picks.js").NewsStory} NewsStory */
+/** @typedef {import("./opened-stories.js").OpenedStories} OpenedStories */
 
 const WEEK_DAYS = 7;
 
 // Phosphor's arrow-up-right, at its Regular weight.
 const READ_ARROW = html`<svg class="read-arrow" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"/></svg>`;
+
+// Phosphor's check, at its Regular weight.
+const READ_CHECK = html`<svg class="read-check" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></svg>`;
 
 /**
  * @param {Date} date
@@ -48,18 +52,28 @@ const findPhotoUrl = (photo) => (photo && isWebAddress(photo.url) ? photo.url : 
 const renderStoryLink = (story, content) =>
   html`<a href="${story.url}" target="_blank" rel="noopener noreferrer">${content}</a>`;
 
-/** @param {NewsStory} story */
-const renderReadButton = (story) =>
-  html`<div class="news-foot">
+/**
+ * The button that opens the story, with a check in place of its arrow once this device has opened
+ * it. Its label keeps room for itself at its unread weight, so the button keeps its width.
+ * @param {NewsStory} story
+ * @param {OpenedStories} opened
+ */
+function renderReadButton(story, opened) {
+  const isOpened = Object.hasOwn(opened, story.url);
+  const label = `Read on ${story.outlet}`;
+  return html`<div class="news-foot">
     <a
-      class="read-button"
+      class="read-button${isOpened ? " opened" : ""}"
       href="${story.url}"
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Read on ${story.outlet}: ${story.title}"
-      >Read on ${story.outlet}${READ_ARROW}</a
+      aria-label="${label}: ${story.title}"
+      ><span class="read-label" data-label="${label}">${label}</span>${
+        isOpened ? READ_CHECK : READ_ARROW
+      }</a
     >
   </div>`;
+}
 
 /**
  * @param {NewsStory} story
@@ -85,19 +99,34 @@ function renderTeams(teams) {
 /** @param {NewsStory["photo"]} photo */
 function renderLeadPhoto(photo) {
   const url = findPhotoUrl(photo);
-  if (!url) return "";
-  return html`<figure class="news-photo">
-    <img src="${url}" alt="" loading="lazy" referrerpolicy="no-referrer" />
-    ${photo?.credit && html`<figcaption>${describeCredit(photo.credit)}</figcaption>`}
-  </figure>`;
+  return (
+    url &&
+    html`<img class="news-photo" src="${url}" alt="" loading="lazy" referrerpolicy="no-referrer" />`
+  );
+}
+
+/**
+ * The lead's teams, with its photo's credit across from them, under the photo.
+ * @param {string[]} teams
+ * @param {NewsStory["photo"]} photo
+ */
+function renderCardTop(teams, photo) {
+  const credit = findPhotoUrl(photo) && photo?.credit;
+  const teamLine = renderTeams(teams);
+  if (!credit) return teamLine;
+  return html`<div class="news-top">
+    ${teamLine}
+    <p class="news-photo-credit">${describeCredit(credit)}</p>
+  </div>`;
 }
 
 /**
  * The second story, under the lead, with its photo small beside it.
  * @param {NewsStory} story
  * @param {number} now
+ * @param {OpenedStories} opened
  */
-function renderSecondStory(story, now) {
+function renderSecondStory(story, now, opened) {
   const photoUrl = findPhotoUrl(story.photo);
   return html`<div class="news-more">
     <p class="news-more-label">More on this</p>
@@ -110,22 +139,23 @@ function renderSecondStory(story, now) {
       </div>
       ${photoUrl && html`<img class="news-thumb" src="${photoUrl}" alt="" loading="lazy" referrerpolicy="no-referrer" />`}
     </div>
-    ${renderReadButton(story)}
+    ${renderReadButton(story, opened)}
   </div>`;
 }
 
 /**
  * @param {ReturnType<typeof buildNewsCards>[number]} card
  * @param {number} now
+ * @param {OpenedStories} opened
  */
-function renderCard({ teams, stories: [lead, second] }, now) {
+function renderCard({ teams, stories: [lead, second] }, now, opened) {
   return html`<article class="news-card">
     ${renderLeadPhoto(lead.photo)}
     <div class="news-body">
-      ${renderTeams(teams)}
+      ${renderCardTop(teams, lead.photo)}
       <h3 class="news-title" data-quoted>${renderStoryLink(lead, lead.title)}</h3>
-      ${renderMeta(lead, now)} ${renderSummary(lead)} ${renderReadButton(lead)}
-      ${second && renderSecondStory(second, now)}
+      ${renderMeta(lead, now)} ${renderSummary(lead)} ${renderReadButton(lead, opened)}
+      ${second && renderSecondStory(second, now, opened)}
     </div>
   </article>`;
 }
@@ -163,13 +193,13 @@ function placeInColumns(cards, columnCount) {
 
 /**
  * The cards for the topics the Worker saved, with only the outlets `choices` reads, in
- * `columnCount` columns.
+ * `columnCount` columns, each story this device has opened marked with a check.
  * @param {import("./news-picks.js").NewsTopic[]} topics
  * @param {import("./news-picks.js").NewsChoices} choices
  * @param {number} now
- * @param {number} [columnCount]
+ * @param {{ columnCount?: number, opened?: OpenedStories }} [options]
  */
-export function renderNews(topics, choices, now, columnCount = 1) {
+export function renderNews(topics, choices, now, { columnCount = 1, opened = {} } = {}) {
   const cards = buildNewsCards(topics, choices);
   if (!cards.length) return html`<p class="empty-note">No news yet</p>`;
   return html`<h2 class="section-label">This week</h2>
@@ -177,7 +207,7 @@ export function renderNews(topics, choices, now, columnCount = 1) {
       ${placeInColumns(cards, columnCount).map(
         (column) =>
           html`<ul class="news-column">
-            ${column.map((card) => html`<li>${renderCard(card, now)}</li>`)}
+            ${column.map((card) => html`<li>${renderCard(card, now, opened)}</li>`)}
           </ul>`,
       )}
     </div>`;
