@@ -1651,7 +1651,8 @@ table.standings tr.playoff-line + tr td {
 }
 
 /* The News view: a card for each topic, its lead's photo across the top, and the story that adds
-   the most under the lead, with its photo small beside it. */
+   the most under the lead, with its photo small beside it. A story's Read button turns quieter,
+   with a check in place of its arrow, once this device has opened it. */
 /* The columns news-view.js fills, one on a phone and two on a wide screen, each stacking its own
    cards as far apart as the page's sides. */
 .news-cards {
@@ -1676,30 +1677,37 @@ table.standings tr.playoff-line + tr td {
   background: var(--card);
 }
 .news-photo {
-  margin: 0;
-}
-.news-photo img {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   background: var(--tile);
 }
-.news-photo figcaption {
-  padding: 5px 8px 0 16px;
+/* The teams' dots sit as far under the photo as in from the card's side. */
+.news-body {
+  display: grid;
+  gap: 6px;
+  padding: 15px 13px 13px 16px;
+}
+/* The photo's credit sits just under it at the right. The teams beside it wrap before they reach
+   it, and it wraps only once they're down to one a line. */
+.news-top {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+}
+.news-photo-credit {
+  grid-column: 2;
+  margin: -10px -5px 0 0;
   text-align: right;
   font-size: var(--size-small);
   color: var(--ink-dim);
 }
-.news-body {
-  display: grid;
-  gap: 6px;
-  padding: 12px 13px 13px 16px;
-}
 .news-teams {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: 5px 14px;
   margin: 0;
 }
 .news-teams .club {
@@ -1759,7 +1767,7 @@ h4.news-title {
 .read-button {
   display: inline-flex;
   align-items: center;
-  padding: 8px 6px 8px 12px;
+  padding: 8px 6.5px 8px 12px;
   border: 1px solid var(--card-border);
   border-radius: 3px;
   background: var(--bg);
@@ -1769,11 +1777,39 @@ h4.news-title {
   text-decoration: none;
   white-space: nowrap;
 }
+.read-button.opened {
+  padding-right: 7px;
+  border-color: var(--divider);
+  background: transparent;
+  color: var(--ink-mid);
+}
+/* A hidden copy at the unread weight keeps the label as wide once its story is opened. */
+.read-label {
+  display: inline-grid;
+  translate: 0 -0.5px;
+}
+.read-label::after {
+  content: attr(data-label);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: 600;
+}
+.read-button.opened .read-label {
+  font-weight: 500;
+}
 .read-arrow {
-  width: 17px;
-  height: 17px;
+  width: 16.5px;
+  height: 16.5px;
   margin-left: 3px;
   color: var(--orange);
+}
+.read-check {
+  width: 16px;
+  height: 16px;
+  margin-left: 4.5px;
+  translate: 0 -0.5px;
+  color: var(--ink-dim);
 }
 @media (hover: hover) {
   .news-title a:hover {

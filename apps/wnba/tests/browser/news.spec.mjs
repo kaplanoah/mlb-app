@@ -167,12 +167,37 @@ test("a card's lead photo runs its full width, and the second story's sits besid
   await expect(card.locator(".news-thumb")).toBeVisible();
 
   const cardBox = await card.boundingBox();
-  const photoBox = await card.locator(".news-photo img").boundingBox();
+  const photoBox = await card.locator(".news-photo").boundingBox();
   const textBox = await card.locator(".news-more-text").boundingBox();
   const thumbBox = await card.locator(".news-thumb").boundingBox();
   expect(Math.abs(photoBox.width - (cardBox.width - 2))).toBeLessThan(1);
   expect(thumbBox.x).toBeGreaterThan(textBox.x + textBox.width);
   expect(Math.abs(thumbBox.y - textBox.y)).toBeLessThan(1);
+});
+
+test("a story opened from its Read button shows a check in place of its arrow, as wide a label, and keeps it after a reload", async ({
+  page,
+}) => {
+  await page.context().route("https://example.com/**", (route) => route.fulfill({ body: "" }));
+  await openNewsWithStories(page);
+  const film = page.locator(".news-card").nth(1);
+  const espn = film.getByRole("link", { name: /^Read on ESPN/ });
+  const athletic = film.getByRole("link", { name: /^Read on The Athletic/ });
+  const unreadLabel = await espn.locator(".read-label").boundingBox();
+
+  const popup = page.waitForEvent("popup");
+  await espn.click();
+  await (await popup).close();
+
+  await expect(espn.locator(".read-check")).toBeVisible();
+  await expect(espn.locator(".read-arrow")).toHaveCount(0);
+  await expect(athletic.locator(".read-arrow")).toBeVisible();
+  const openedLabel = await espn.locator(".read-label").boundingBox();
+  expect(Math.abs(openedLabel.width - unreadLabel.width)).toBeLessThan(0.5);
+  expect(await listOffScaleText(page)).toEqual([]);
+
+  await page.reload();
+  await expect(page.locator(".news-card").nth(1).locator(".read-check")).toHaveCount(1);
 });
 
 test("on a wide screen, each of two columns stacks its own cards, as far apart as the page's sides", async ({
@@ -209,6 +234,45 @@ test.describe("on a phone, the news", () => {
     const sideMargin = 390 - (practice.x + practice.width);
     expect(sideMargin).toBeCloseTo(16, 0);
     expect(film.y - (practice.y + practice.height)).toBeCloseTo(sideMargin, 0);
+  });
+
+  test("puts a card's teams as far under its photo as in from its side, beside the photo's credit, wrapping before they reach it", async ({
+    page,
+  }) => {
+    await openNewsWithStories(page, (photoUrl) => [
+      {
+        id: "credit",
+        stories: [
+          createStory(photoUrl, {
+            id: "credit",
+            title: "The Liberty and the Dream meet again in the semifinals",
+            outlet: "ESPN",
+            source: "espn",
+            kind: "report",
+            photo: { url: photoUrl, credit: "Andy Lyons/Getty Images North America via AFP" },
+          }),
+        ],
+      },
+    ]);
+    const card = await page.locator(".news-card").boundingBox();
+    const photo = await page.locator(".news-photo").boundingBox();
+    const credit = await page.locator(".news-photo-credit").boundingBox();
+    const [liberty, dream] = await Promise.all(
+      [0, 1].map((index) => page.locator(".news-teams .club").nth(index).boundingBox()),
+    );
+    const libertyDot = await page.locator(".news-teams .dot").first().boundingBox();
+    const cardBorder = 1;
+
+    expect(libertyDot.y - (photo.y + photo.height)).toBeCloseTo(16, 0);
+    expect(libertyDot.x - (card.x + cardBorder)).toBeCloseTo(16, 0);
+    expect(credit.y - (photo.y + photo.height)).toBeCloseTo(5, 0);
+    expect(card.x + card.width - cardBorder - (credit.x + credit.width)).toBeCloseTo(8, 0);
+    expect(dream.y - (liberty.y + liberty.height)).toBeCloseTo(5, 0);
+    expect(Math.max(liberty.x + liberty.width, dream.x + dream.width)).toBeLessThan(credit.x);
+    const clippedNames = await page
+      .locator(".news-teams .team-name")
+      .evaluateAll((names) => names.filter((name) => name.scrollWidth > name.clientWidth).length);
+    expect(clippedNames).toBe(0);
   });
 
   test("turns to two columns when the screen widens", async ({ page }) => {
