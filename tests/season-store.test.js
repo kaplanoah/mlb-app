@@ -497,3 +497,57 @@ test("a page that opens leaves the alarm alone once every job has run", async ()
 
   assert.equal(await context.ctx.storage.getAlarm(), NOW + 3 * 60 * MINUTE_MS);
 });
+
+/**
+ * A store on the release named, whose last update was five minutes ago under `savedRelease`, with
+ * the next due in three hours.
+ * @param {{ release: string, savedRelease: string | undefined }} releases
+ */
+async function openStoreAfterUpdate({ release, savedRelease }) {
+  const context = createDurableObjectContext();
+  const updates = { count: 0 };
+  const SeasonStore = createSeasonStore({
+    ...QUIET_LEAGUE,
+    release,
+    loadCurrentSnapshot: async () => {
+      updates.count += 1;
+      return { season: 2026 };
+    },
+  });
+  const dueAt = NOW + 3 * 60 * MINUTE_MS;
+  await context.ctx.storage.put("poll:schedule", {
+    at: NOW - 5 * MINUTE_MS,
+    delay: 3 * 60 * MINUTE_MS,
+    dueAt,
+    ...(savedRelease === undefined ? {} : { release: savedRelease }),
+  });
+  await context.ctx.storage.setAlarm(dueAt);
+  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+  await store.fetch(new Request(`${ORIGIN}/store/seasons/2026`));
+  return { context, store, updates, dueAt };
+}
+
+test("a page that opens after a deploy has the season updated at once, rather than on the last release's schedule", async () => {
+  for (const savedRelease of ["earlier-commit", undefined]) {
+    const { context, store, updates } = await openStoreAfterUpdate({
+      release: "new-commit",
+      savedRelease,
+    });
+    assert.equal(await context.ctx.storage.getAlarm(), NOW, String(savedRelease));
+
+    await store.alarm();
+    assert.equal(updates.count, 1, String(savedRelease));
+    assert.equal((await context.ctx.storage.get("poll:schedule")).release, "new-commit");
+  }
+});
+
+test("a page that opens on the release that last updated the season keeps its schedule", async () => {
+  const { context, store, updates, dueAt } = await openStoreAfterUpdate({
+    release: "new-commit",
+    savedRelease: "new-commit",
+  });
+  assert.equal(await context.ctx.storage.getAlarm(), dueAt);
+
+  await store.alarm();
+  assert.equal(updates.count, 0);
+});
