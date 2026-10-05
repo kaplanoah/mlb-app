@@ -3,6 +3,7 @@ import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs"
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 // The least room between one standings row's team name and the next row's.
 const STANDINGS_NAME_GAP_PX = 20;
@@ -71,23 +72,28 @@ test("a losing score is lit at three quarters, without the winner's glow", async
 test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
   await openApp(page);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("tab", { name: "Games" }).click();
   for (const list of ["Previous", "Today", "Next"]) {
     await page.getByRole("tab", { name: list }).click();
     await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
   }
   await page.getByRole("tab", { name: "Standings" }).click();
   await expect(page.locator("#standings-league tr").nth(2)).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("button", { name: "Team details: Minnesota Lynx" }).first().click();
   await expect(page.locator("#teamDialog table.players")).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
   await page.keyboard.press("Escape");
   await expect(page.locator("#teamDialog")).toBeHidden();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.locator("#settingsDialog")).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
 });
 
 test("a score the Worker saves shows up without a reload", async ({ page }) => {
@@ -799,30 +805,35 @@ test.describe("on a phone, the text", () => {
     await openApp(page, { isShowingUpdates: true });
     await expect(page.locator("#updates .what").first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
 
     await page.getByRole("tab", { name: "Games" }).click();
     for (const list of ["Previous", "Today", "Next"]) {
       await page.getByRole("tab", { name: list }).click();
       await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
     }
 
     await page.getByRole("tab", { name: "Standings" }).click();
     const standings = page.locator("#standings-league");
     await expect(standings.locator("tbody tr").first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
     await expect(standings.locator("td.place").first()).toHaveCSS("width", "28px");
 
     await standings.locator('tr[data-team="NYL"] td.season').first().click();
     const sheet = page.locator("#teamDialog");
     await expect(sheet.locator(".team-game")).toHaveCount(3);
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(sheet).toBeHidden();
 
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await expect(page.locator("#settingsDialog")).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
   });
 
   test("of the Updates box reads at 16px with its team names at Condensed's 16.5px, its days at 14px, and its count at 13px, and a series' standing stays on one line", async ({

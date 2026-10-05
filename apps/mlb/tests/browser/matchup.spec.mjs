@@ -3,6 +3,7 @@ import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
 import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 // What the Worker answers for Astros at Athletics' starters, Blubaugh and Springs.
 const describePitcher = (id, [firstName, lastName], hand, line, ranks, pitches) => ({
@@ -573,6 +574,7 @@ for (const { screen, viewport } of [
       const sheet = await openMatchup(page);
       await expect(sheet.locator(".pitch-rows li")).toHaveCount(5);
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
     });
   });
 }

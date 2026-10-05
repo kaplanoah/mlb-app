@@ -11,8 +11,8 @@ const NOTES = {
   blockedInBrowser:
     "Notifications are blocked for this page. Turn them on in the browser's site settings, from the icon beside the address.",
   homeScreen:
-    "To get notifications on an iPhone, add this page to your Home Screen and open it from there.",
-  unsupported: "This browser can't show notifications.",
+    "To get notifications on an iPhone, add this page to your Home Screen and open it from there",
+  unsupported: "This browser can't show notifications",
   failed: "Couldn't change notifications. Try again in a moment.",
 };
 

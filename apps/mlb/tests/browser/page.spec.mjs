@@ -12,6 +12,7 @@ import { createReading } from "../../page/js/readings.js";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 
 const PLAYOFF_FIELD_2026 = [
@@ -1644,6 +1645,7 @@ test("rebuilds updates from the saved readings as the Worker adds to them", asyn
   await expect(updates).toContainText(/Mets .*Phillies/);
   expect((await app.readDocument(`readings-2026/${part}`)).changes).toHaveLength(2);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
   await expect(updates.locator(".what").first()).toHaveCSS("font-size", "14.5px");
 });
 
@@ -2311,23 +2313,28 @@ for (const { screen, viewport } of [
       await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       await page.getByRole("tab", { name: "Games" }).click();
       for (const list of ["Previous", "Today", "Next"]) {
         await page.getByRole("tab", { name: list }).click();
         await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
         expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listStrayPeriods(page)).toEqual([]);
       }
       await page.getByRole("tab", { name: "Standings" }).click();
       await expect(page.locator("table.st tbody tr").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
       await expect(page.locator("#teamDialog .team-stats")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamDialog")).toBeHidden();
       await openSettings(page);
       await expect(page.locator("#settingsDialog")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
     });
   });
 }
