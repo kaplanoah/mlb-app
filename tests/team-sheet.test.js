@@ -51,6 +51,8 @@ function tapTeam(document, team) {
   document.dispatchEvent(event);
 }
 
+const BOS_TITLES = [2018, 2013, 2007, 2004, 1918, 1916, 1915];
+
 const page = createPage();
 let season = "the season so far";
 startTeamSheet({
@@ -58,7 +60,7 @@ startTeamSheet({
   renderSheet: (team) => ({
     heading: html`<b>${team}</b>`,
     note: `${team} note`,
-    body: team === "BOS" ? renderTitles([2018, 2013, 2007, 2004]) : html`<p>${season}</p>`,
+    body: team === "BOS" ? renderTitles(BOS_TITLES) : html`<p>${season}</p>`,
   }),
 });
 
@@ -145,11 +147,13 @@ const readText = (markup) =>
     .replace(/\s+/g, " ")
     .trim();
 
-test("a team's titles show the latest three and how many more, and none yet for a team without", () => {
-  const titles = renderTitles([2024, 2018, 2013, 2007, 2004], "20 yrs");
-  assert.equal(readText(titles), "Titles 20 yrs 5 | 2024, 2018, 2013 and 2 more");
-  assert.match(titles.text, /<button type="button" class="team-titles-more">and 2 more<\/button>/);
-  assert.doesNotMatch(renderTitles([2024, 2018, 2013]).text, /team-titles-more/);
+test("a team's titles list every season up to six, beyond that the latest three and how many more, and none yet for a team without", () => {
+  const titles = renderTitles([2024, 2018, 2013, 2007, 2004, 2001, 1998], "20 yrs");
+  assert.equal(readText(titles), "Titles 20 yrs 7 | 2024, 2018, 2013 and 4 more");
+  assert.match(titles.text, /<button type="button" class="team-titles-more">and 4 more<\/button>/);
+  const six = renderTitles([2024, 2018, 2013, 2007, 2004, 2001]);
+  assert.equal(readText(six), "Titles 6 | 2024, 2018, 2013, 2007, 2004, 2001");
+  assert.doesNotMatch(six.text, /team-titles-more/);
   assert.match(renderTitles([]).text, /<span class="team-titles-none">None yet<\/span>/);
 });
 
@@ -157,14 +161,14 @@ test("a tap on the titles' button lists them all until the sheet shows another t
   const readBody = () => readText(page.elements.teamBody.innerHTML);
   tapTeam(page.document, "BOS");
   tapInBody(page.elements.teamBody, false);
-  assert.equal(readBody(), "Titles 4 | 2018, 2013, 2007 and 1 more");
+  assert.equal(readBody(), "Titles 7 | 2018, 2013, 2007 and 4 more");
   tapInBody(page.elements.teamBody, true);
-  assert.equal(readBody(), "Titles 4 | 2018, 2013, 2007, 2004");
+  assert.equal(readBody(), "Titles 7 | 2018, 2013, 2007, 2004, 1918, 1916, 1915");
   refreshTeamSheet();
-  assert.equal(readBody(), "Titles 4 | 2018, 2013, 2007, 2004");
+  assert.equal(readBody(), "Titles 7 | 2018, 2013, 2007, 2004, 1918, 1916, 1915");
   tapTeam(page.document, "NYY");
   tapTeam(page.document, "BOS");
-  assert.equal(readBody(), "Titles 4 | 2018, 2013, 2007 and 1 more");
+  assert.equal(readBody(), "Titles 7 | 2018, 2013, 2007 and 4 more");
   page.dialog.close();
 });
 

@@ -19,6 +19,8 @@ let shownTeam = null;
 let areAllTitlesShown = false;
 
 const TITLES_SHOWN = 3;
+// A shorter list reads in about the room its button would take, so it shows whole.
+const MOST_TITLES_LISTED = 6;
 
 const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("teamDialog"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -109,9 +111,13 @@ export const renderTeamDetail = (label, content) =>
 /** @param {(Markup | string | number)[]} years */
 const joinYears = (years) => html`${years.map((year, index) => html`${index > 0 && ", "}${year}`)}`;
 
+/** @param {(Markup | string | number)[]} years */
+const countHiddenTitles = (years) =>
+  areAllTitlesShown || years.length <= MOST_TITLES_LISTED ? 0 : years.length - TITLES_SHOWN;
+
 /** @param {(Markup | string | number)[]} years newest first */
 function renderTitleYears(years) {
-  const hidden = areAllTitlesShown ? 0 : Math.max(years.length - TITLES_SHOWN, 0);
+  const hidden = countHiddenTitles(years);
   const shown = joinYears(years.slice(0, years.length - hidden));
   if (!hidden) return html`<span class="tabular">${shown}</span>`;
   return html`<span class="tabular">${shown}</span>
@@ -119,8 +125,8 @@ function renderTitleYears(years) {
 }
 
 /**
- * A team's titles part: how many it has won and the latest few, with a button for the rest that
- * lists them all until the sheet shows another team.
+ * A team's titles part: how many it has won and every season, or for a long list the latest few,
+ * with a button for the rest that lists them all until the sheet shows another team.
  * @param {(Markup | string | number)[]} years newest first
  * @param {Markup | string | false} [aside] across from the part's title
  */

@@ -5,8 +5,8 @@
  * Apps link it after sheet.css, before their own styles.css, which sets the title's font and may
  * refine these rules.
  *
- * Beside chrome.css's --card, --divider, --ink, --accent, --focus-ring, and --radius, an app's :root
- * defines this token:
+ * Beside chrome.css's --card, --divider, --ink, --accent, --focus-ring, and --radius, and sheet.css's
+ * --sheet-part-head, an app's :root defines this token:
  *   --ink-mid              text between --ink and --ink-dim, for the note and the labels
  */
 
@@ -113,15 +113,15 @@ body.kbd .team-open:focus {
 .team-detail .tabular {
   white-space: nowrap;
 }
-/* The rest of a team's titles open in place, so the button reads as part of the line, set off by
-   the accent. */
+/* The rest of a team's titles open in place, so the button reads as part of the line, set off in
+   the color of the part's title. */
 .team-titles-more {
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
   letter-spacing: inherit;
-  color: var(--accent);
+  color: var(--sheet-part-head);
   cursor: pointer;
 }
 body.kbd .team-titles-more:focus {

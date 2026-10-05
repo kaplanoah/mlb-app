@@ -915,6 +915,43 @@ test.describe("on a phone, a team's sheet", () => {
   });
 });
 
+test.describe("a team's sheet in each theme", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
+    test(`sets the button for the rest of a long list of titles in the teal of its part's title, not the orange accent, in ${colorScheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme });
+      await openApp(page);
+      await page.getByRole("tab", { name: "Standings" }).click();
+      await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+      const titles = page.locator("#teamDialog .team-titles");
+      await expect(titles).toHaveText("None yet");
+
+      // No team has won enough titles yet to show the button, so it stands in one like the sheet's.
+      const colors = await titles.evaluate((line) => {
+        const button = document.createElement("button");
+        button.className = "team-titles-more";
+        button.textContent = "and 4 more";
+        line.append(button);
+        const part = /** @type {HTMLElement} */ (line.closest(".sheet-part"));
+        const readColor = (element) => getComputedStyle(element).color;
+        const accent = document.createElement("span");
+        accent.style.color = "var(--accent)";
+        part.append(accent);
+        return {
+          button: readColor(button),
+          head: readColor(/** @type {HTMLElement} */ (part.querySelector("h3"))),
+          accent: readColor(accent),
+        };
+      });
+      expect(colors.button).toBe(colors.head);
+      expect(colors.button).not.toBe(colors.accent);
+    });
+  }
+});
+
 test.describe("a team's sheet", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
