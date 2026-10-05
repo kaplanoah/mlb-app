@@ -379,3 +379,38 @@ test("under reduced motion, the catching-up ring turns slower", async ({ page })
 
   await expect(page.locator("#stamp .catch-up-ring")).toHaveCSS("animation-duration", "2.4s");
 });
+
+test("a page coming back to nothing new lets a faded band pass through the header's lines", async ({
+  page,
+}) => {
+  await openApp(page);
+  const stamp = page.locator("#stamp");
+  await expect(stamp).toBeVisible();
+  await expect(stamp).not.toHaveClass(/caught-up/);
+
+  await sleepUnannounced(page, 31);
+
+  await expect(stamp).toHaveClass(/caught-up-band/);
+  await expect(stamp).toHaveCSS("animation-duration", "3.2s");
+  await expect(stamp).toHaveCSS("mask-image", /rgba\(0, 0, 0, 0\.5\)/);
+});
+
+test("a page coming back to new scores sweeps the header's lines up to full strength", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  const stamp = page.locator("#stamp");
+  await expect(stamp).toBeVisible();
+  await expect(stamp).not.toHaveClass(/caught-up/);
+  await app.changeSeasonWhileAway((season) => {
+    const game = season.games.find((each) => each.id === "1042600132");
+    Object.assign(game, { state: "live", status: "Q2 5:10", period: 2, clock: "5:10" });
+    return season;
+  });
+
+  await sleepUnannounced(page, 31);
+
+  await expect(stamp).toContainText("NOW");
+  await expect(stamp).toHaveClass(/caught-up-wipe/);
+  await expect(stamp).toHaveCSS("animation-duration", "1.4s");
+});

@@ -73,6 +73,9 @@
   --divider: #d6bd96;
   --ink: #2a1c10;
   --ink-dim: #6f563c;
+  /* Dark ink fading toward the light floor shows less than light ink fading toward the walnut, so
+     Maple's lines fade further as the page catches up. */
+  --catch-up-fade: 0.5;
   --orange: #a93c0a;
   --orange-ink: #ffffff;
   --teal: #0b6b63;
@@ -142,6 +145,7 @@
   --divider: #3a2b21;
   --ink: #f1e9df;
   --ink-dim: #b19a86;
+  --catch-up-fade: 0.75;
   --orange: #f07a3a;
   --orange-ink: #1d0d03;
   --teal: #3cb4a4;
