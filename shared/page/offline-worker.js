@@ -2,10 +2,13 @@
 // on a weak connection or none, and draws what it last showed. It opens the copy and reads the
 // page again behind it, and a newer page replaces the copy only once all of its files are kept,
 // so the copy always opens whole. A deploy then reaches the page on its next open, or when its
-// release check reloads it. Only the page and its files go through here; version.json, the store,
-// and everything else always reach the Worker.
+// release check reloads it. It also keeps the pictures from other sites, like the news' photos,
+// that the page last showed, so they're back as soon as what it last showed is. Only the page,
+// its files, and those pictures go through here; version.json, the store, and everything else
+// always reach the Worker.
 
 const PAGE_CACHE = "page";
+const IMAGE_CACHE = "images";
 const PAGE_FILE_PATH = /\.(?:js|css|woff2)$/;
 const PAGE_FILE_TAG = /<(?:script|link)\b[^>]*?\b(?:src|href)="([^"]+)"/g;
 const STYLESHEET_FILE = /url\(\s*["']?([^"')]+)["']?\s*\)/g;
@@ -168,12 +171,50 @@ async function readPageFile(request) {
   return response;
 }
 
+/**
+ * @param {Request} request
+ * @param {URL} url
+ */
+const isOtherSiteImage = (request, url) =>
+  request.destination === "image" && url.origin !== new URL(findPageAddress()).origin;
+
+/** @param {Request} request */
+async function readImage(request) {
+  return (await caches.match(request.url, { cacheName: IMAGE_CACHE })) ?? fetch(request);
+}
+
+/**
+ * @param {Cache} cache
+ * @param {string} url
+ */
+async function keepImage(cache, url) {
+  if (await cache.match(url)) return;
+  // Another site's picture answers opaquely, so its status can't be read; the page lists only the
+  // ones it has shown.
+  const response = await fetch(url, {
+    mode: "no-cors",
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
+  await cache.put(url, response);
+}
+
+/** @param {string[]} urls */
+async function keepImages(urls) {
+  const cache = await caches.open(IMAGE_CACHE);
+  await Promise.allSettled(urls.map((url) => keepImage(cache, url)));
+  const wanted = new Set(urls);
+  const keys = await cache.keys();
+  await Promise.all(keys.filter(({ url }) => !wanted.has(url)).map((key) => cache.delete(key)));
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (request.mode === "navigate" && isPageAddress(url)) event.respondWith(openPage(event));
   else if (isPageFile(url)) event.respondWith(readPageFile(request));
+  else if (isOtherSiteImage(request, url)) event.respondWith(readImage(request));
 });
 
 // A phone gets its first copy as soon as the worker starts, not on the page's next open. The
@@ -187,4 +228,11 @@ self.addEventListener("activate", () => {
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "refreshPageCopy") return;
   event.waitUntil(refreshCopy().then((isCurrent) => event.ports[0]?.postMessage(isCurrent)));
+});
+
+// A page leaving the screen names the pictures it shows, and only those stay.
+self.addEventListener("message", (event) => {
+  const { type, urls } = event.data ?? {};
+  if (type !== "keepImages" || !Array.isArray(urls)) return;
+  event.waitUntil(keepImages(urls.filter((url) => typeof url === "string")));
 });

@@ -1,10 +1,16 @@
 // A page that loads again, after a deploy or after the phone dropped it, would show empty views
 // until the store answers, so it first draws what it showed when it was last on screen: the
 // markup of each part it draws whole, which show-last-drawn.js puts back before the first paint,
-// and the season, which the page draws from once its modules load.
+// with the pictures from other sites in it, which the service worker keeps, and the season, which
+// the page draws from once its modules load.
+
+import { keepImages } from "./service-worker.js";
 
 const LAST_SEEN_KEY = "lastSeen";
 const LAST_DRAWN_KEY = "lastDrawn";
+// Another site's picture can count as several megabytes toward the storage the page's copy needs,
+// so only the first ones, which a load opens on, are kept.
+const KEPT_IMAGE_COUNT = 12;
 
 // Storage can be empty or refuse access, as in a private window, so the page never depends on it.
 
@@ -50,6 +56,22 @@ function readDrawnParts() {
   return Object.fromEntries(parts.map((part) => [part.id, readDrawnPart(part)]));
 }
 
+/** @param {HTMLImageElement} image */
+function isShownOtherSiteImage(image) {
+  const url = new URL(image.src);
+  const isOtherSite = /^https?:$/.test(url.protocol) && url.origin !== location.origin;
+  return isOtherSite && image.complete && image.naturalWidth > 0;
+}
+
+// A picture still waiting to be scrolled to was never shown, so it isn't kept.
+function listDrawnImages() {
+  const images = /** @type {HTMLImageElement[]} */ ([
+    ...document.querySelectorAll("[data-last-drawn] img[src]"),
+  ]);
+  const urls = images.filter(isShownOtherSiteImage).map((image) => image.src);
+  return [...new Set(urls)].slice(0, KEPT_IMAGE_COUNT);
+}
+
 /**
  * @param {string} key
  * @param {unknown} value
@@ -68,6 +90,7 @@ function saveLastSeen(readShown) {
   if (!shown) return;
   saveItem(LAST_SEEN_KEY, shown);
   saveItem(LAST_DRAWN_KEY, readDrawnParts());
+  keepImages(listDrawnImages());
 }
 
 // Leaving the screen is the last moment the page is sure to run, whether it then reloads, sleeps,

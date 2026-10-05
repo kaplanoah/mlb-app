@@ -32,3 +32,12 @@ export function refreshPageCopy() {
     worker.postMessage({ type: "refreshPageCopy" }, [channel.port2]);
   });
 }
+
+/**
+ * Has the service worker keep these pictures from other sites, and only these, for the page's
+ * next load.
+ * @param {string[]} urls
+ */
+export function keepImages(urls) {
+  navigator.serviceWorker?.controller?.postMessage({ type: "keepImages", urls });
+}

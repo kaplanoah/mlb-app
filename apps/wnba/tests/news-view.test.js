@@ -262,3 +262,14 @@ test("in two columns, each card goes to the shorter one, so a short card sits un
   assert.deepEqual(readColumns(1), [["Tall", "Short", "Older"]]);
   assert.deepEqual(readColumns(2), [["Tall"], ["Short", "Older"]]);
 });
+
+test("each card is named by its topic, so a redraw keeps the card, and its photo, wherever it moves", () => {
+  const keys = [
+    ...renderNews([SWEEP, AWARD], ALL_ON, NOW).text.matchAll(/<li data-key="([^"]*)"/g),
+  ];
+
+  assert.deepEqual(
+    keys.map((match) => match[1]),
+    ["award", "sweep"],
+  );
+});

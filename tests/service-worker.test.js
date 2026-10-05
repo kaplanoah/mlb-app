@@ -63,7 +63,12 @@ function startServiceWorker({ publicKey = "AQID_w", app = "mlb", answer = null }
   const answerRequest = answer ?? answerPublicKey(publicKey);
   const fetch = async (request, init = {}) => {
     const url = typeof request === "object" && "url" in request ? request.url : String(request);
-    requests.push({ url, method: init.method || "GET", body: init.body });
+    requests.push({
+      url,
+      method: init.method || "GET",
+      body: init.body,
+      referrerPolicy: init.referrerPolicy,
+    });
     return answerRequest(url);
   };
   const caches = createCacheStorage(fetch);
@@ -98,10 +103,10 @@ function startServiceWorker({ publicKey = "AQID_w", app = "mlb", answer = null }
   };
   const dispatch = (type, fields) => finish(startEvent(type, fields));
   // What the worker answers for a request, or null when it leaves the request to the browser.
-  const request = async (url, { mode = "no-cors", method = "GET" } = {}) => {
+  const request = async (url, { mode = "no-cors", method = "GET", destination = "" } = {}) => {
     let answered = null;
     const waiting = startEvent("fetch", {
-      request: { url, mode, method },
+      request: { url, mode, method, destination },
       respondWith: (promise) => (answered = promise),
     });
     const response = answered && (await answered);
@@ -117,10 +122,14 @@ function startServiceWorker({ publicKey = "AQID_w", app = "mlb", answer = null }
     });
     return answer;
   };
+  // A page leaving the screen names the pictures from other sites it showed.
+  const keepImages = (urls) =>
+    dispatch("message", { data: { type: "keepImages", urls }, ports: [] });
   return {
     dispatch,
     request,
     refreshCopy,
+    keepImages,
     caches,
     requests,
     subscribed,
@@ -207,6 +216,7 @@ const serveRelease = (server) => async (url) => {
 };
 
 const NAVIGATION = { mode: "navigate" };
+const IMAGE = { destination: "image" };
 
 /** @param {ReturnType<typeof startServiceWorker>} worker */
 const readCopy = async (worker) => {
@@ -297,7 +307,7 @@ test("a file the copy needs that the Worker no longer has forgets the copy, and 
   assert.equal(await readCopy(worker), null);
 });
 
-test("only the page and its own files go through the service worker", async () => {
+test("only the page, its own files, and other sites' pictures go through the service worker", async () => {
   const worker = startServiceWorker({ answer: serveRelease({ release: "a" }) });
   await worker.request(SCOPE, NAVIGATION);
 
@@ -309,6 +319,7 @@ test("only the page and its own files go through the service worker", async () =
     "https://fonts.example/text.css",
   ])
     assert.equal(await worker.request(url), null, url);
+  assert.equal(await worker.request(`${SCOPE}icon-180.png`, IMAGE), null);
   assert.equal(await worker.request(SCOPE), null);
   assert.equal(await worker.request(`${SCOPE}gate.html`, NAVIGATION), null);
   assert.equal(await worker.request(SCOPE, { ...NAVIGATION, method: "POST" }), null);
@@ -379,4 +390,50 @@ test("a font the copy's stylesheet needs that the Worker no longer has forgets t
 
   assert.equal(font.status, 404);
   assert.equal(await readCopy(worker), null);
+});
+
+const PHOTOS = ["a", "b", "c"].map((name) => `https://photos.example/${name}.jpg`);
+
+/**
+ * Another site's pictures, or nothing while the phone is offline.
+ * @param {{ isOffline?: boolean }} server
+ */
+const servePhotos = (server) => async (url) => {
+  if (server.isOffline) throw new TypeError("Failed to fetch");
+  return new Response(`photo ${url}`);
+};
+
+test("the pictures from other sites a page last showed open from the service worker, offline too, and only those stay", async () => {
+  const server = {};
+  const worker = startServiceWorker({ answer: servePhotos(server) });
+  await worker.keepImages([PHOTOS[0], PHOTOS[1]]);
+  await worker.keepImages([PHOTOS[1], PHOTOS[2]]);
+
+  server.isOffline = true;
+
+  assert.equal(await (await worker.request(PHOTOS[1], IMAGE)).text(), `photo ${PHOTOS[1]}`);
+  assert.deepEqual(worker.caches.listKept("images").sort(), [PHOTOS[1], PHOTOS[2]]);
+});
+
+test("a picture already kept isn't read again, and none is read telling its site the page's address", async () => {
+  const worker = startServiceWorker({ answer: servePhotos({}) });
+
+  await worker.keepImages([PHOTOS[0]]);
+  await worker.keepImages([PHOTOS[0], PHOTOS[1]]);
+
+  assert.deepEqual(worker.requests, [
+    { url: PHOTOS[0], method: "GET", body: undefined, referrerPolicy: "no-referrer" },
+    { url: PHOTOS[1], method: "GET", body: undefined, referrerPolicy: "no-referrer" },
+  ]);
+});
+
+test("a picture from another site that isn't kept is read from its site, and one that fails isn't kept", async () => {
+  const server = {};
+  const worker = startServiceWorker({ answer: servePhotos(server) });
+
+  assert.equal(await (await worker.request(PHOTOS[0], IMAGE)).text(), `photo ${PHOTOS[0]}`);
+  server.isOffline = true;
+  await worker.keepImages([PHOTOS[1]]);
+
+  assert.deepEqual(worker.caches.listKept("images"), []);
 });
