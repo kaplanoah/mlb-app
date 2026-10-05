@@ -17,6 +17,7 @@ import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs"
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
+import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
 const PLAYOFF_FIELD_2026 = [
   "Rays",
@@ -1691,6 +1692,19 @@ test("the ranking can be reordered from the keyboard, and this device keeps it",
 
   await page.reload();
   await expect(page.locator("#rankList .rank-item").nth(1)).toHaveAttribute("data-id", movedClubId);
+});
+
+test("a ranking reordered in another tab shows in this one", async ({ page }) => {
+  const app = await openApp(page);
+  await expect.poll(() => app.countSeasonReads()).toBe(2);
+  await openSettings(page);
+  const items = page.locator("#rankList .rank-item");
+  await expect(items).toHaveCount(12);
+  const order = await items.evaluateAll((shown) => shown.map((item) => item.dataset.id));
+
+  await keepInOtherTab(page, "rankings", { 2026: [...order].reverse() });
+
+  await expect(items.first()).toHaveAttribute("data-id", order.at(-1));
 });
 
 test("a stored field short a league says there's no field instead of breaking the page", async ({

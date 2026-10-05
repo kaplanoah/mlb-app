@@ -18,7 +18,7 @@ import { REORDER_EVENT } from "./ranking.js";
 import { renderAll } from "./render.js";
 import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
 import { startServiceWorker } from "#shared/service-worker.js";
-import { keepRanking } from "./kept-on-device.js";
+import { keepRanking, watchKeptChoices } from "./kept-on-device.js";
 import {
   applyDeferredSeason,
   loadSeason,
@@ -78,6 +78,11 @@ function finishReordering(order) {
   if (order.join() !== listRankedOrder().join()) keepRanking(session.activeYear, order);
   applyDeferredSeason();
   renderAll();
+}
+
+// Another tab's drag or dismissal redraws this one, unless a drag here is still under way.
+function showChoicesFromOtherTabs() {
+  if (!session.isReordering) redrawEased(renderAll);
 }
 
 function wireControls() {
@@ -177,6 +182,7 @@ async function boot() {
   const [years] = await Promise.all([listYears(), loadSeason()]);
   fillYearPicker(years);
   redrawEased(drawLoadedSeason);
+  watchKeptChoices(showChoicesFromOtherTabs);
   watchBracketSpace();
   refreshClockEveryMinute();
   startServiceWorker();

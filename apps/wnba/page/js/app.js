@@ -34,7 +34,7 @@ import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
 import { renderTeamSheet } from "./team-view.js";
 import { TEAMS } from "./teams.js";
-import { drawUpdates } from "./updates.js";
+import { drawUpdates, watchDismissals } from "./updates.js";
 
 const CLOCK_REFRESH_MS = 60 * 1000;
 // A wide screen shows the news in two columns.
@@ -154,6 +154,7 @@ async function boot() {
   await loadSeason();
   redrawEased(drawLoadedSeason);
   watchNews(() => redrawEased(drawNews));
+  watchDismissals(() => redrawEased(drawUpdates));
   refreshClockEveryMinute();
   startServiceWorker();
   startNotifications({ about: "Post-season game final scores" });
