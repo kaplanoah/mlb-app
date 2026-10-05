@@ -35,27 +35,59 @@ test("the box counts its updates since the oldest, and names each one's time onc
     assert.match(markup.text, /aria-label="Dismiss updates"/);
   }));
 
-test("an update names the day it happened on, which a game past midnight sets", () =>
+test("a game that ran past midnight names the night it was played, and one that didn't its day", () =>
   checkInTimeZone(EASTERN, () => {
     const markup = renderUpdates(
       [
         {
           at: at("2026-10-01T04:30:00Z"),
           day: new Date(2026, 8, 30),
+          endedNextDay: true,
           text: html`<b>Liberty</b> won`,
         },
+        { at: at("2026-09-30T23:00:00Z"), day: new Date(2026, 8, 30), text: html`<b>Lynx</b> won` },
         {
           at: at("2026-09-30T04:06:00Z"),
           day: new Date(2026, 8, 29),
+          endedNextDay: true,
           text: html`<b>Fever</b> won`,
+        },
+        {
+          at: at("2026-09-23T04:06:00Z"),
+          day: new Date(2026, 8, 22),
+          endedNextDay: true,
+          text: html`<b>Sky</b> won`,
         },
       ],
       [],
       NOW,
     );
 
-    assert.deepEqual(readCells(markup, "updates-count"), ["2 updates since Tuesday"]);
-    assert.deepEqual(readCells(markup, "when"), ["Yesterday", "Tuesday"]);
+    assert.deepEqual(readCells(markup, "updates-count"), ["4 updates since Sep 22"]);
+    assert.deepEqual(readCells(markup, "when"), [
+      "Last night",
+      "Yesterday",
+      "Tuesday night",
+      "Sep 22",
+    ]);
+  }));
+
+test("a game past midnight on a night the league's day hasn't ended shows the time it ended", () =>
+  checkInTimeZone(EASTERN, () => {
+    const markup = renderUpdates(
+      [
+        {
+          at: at("2026-10-01T04:30:00Z"),
+          day: new Date(2026, 8, 30),
+          endedNextDay: true,
+          text: html`won`,
+        },
+      ],
+      [],
+      new Date(2026, 8, 30),
+    );
+
+    assert.deepEqual(readCells(markup, "when"), ["12:30 AM"]);
   }));
 
 test("one update today reads in the singular, since earlier today", () =>

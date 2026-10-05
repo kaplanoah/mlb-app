@@ -2,7 +2,13 @@
 // each beside when it happened, and under them, what's new in the app. An app says what its
 // updates and release notes are and where the dismissal is kept.
 
-import { countDaysBetween, formatClockTime, nameDay } from "./days.js";
+import {
+  countDaysBetween,
+  formatClockTime,
+  formatShortDate,
+  formatWeekday,
+  nameDay,
+} from "./days.js";
 import { easeClosed, stopEasing } from "./eased-redraw.js";
 import { html, noteHeight, setHtml } from "./html.js";
 
@@ -16,9 +22,9 @@ const DISMISS_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
 /** @typedef {import("./html.js").Markup} Markup */
 /**
  * When it happened, the day it happened on, where a game that ran past midnight sets it apart
- * from its time's, what it says, and for an update about one game, the button that opens the
- * game, as its row in the Games view does.
- * @typedef {{ at: number, day?: Date | null, text: Markup, action?: Markup | false }} Update
+ * from its time's, whether its game ended on a later day than it started, what it says, and for
+ * an update about one game, the button that opens the game, as its row in the Games view does.
+ * @typedef {{ at: number, day?: Date | null, endedNextDay?: boolean, text: Markup, action?: Markup | false }} Update
  */
 /** @typedef {{ at: string, text: string }} ReleaseNote when it went out, as an ISO time, and what it says */
 /** @typedef {{ at: number, text: string }} Note a release note to show */
@@ -30,6 +36,17 @@ const NOTE_SHOWN_MS = 14 * 24 * 60 * 60 * 1000;
 const readHappenedDay = (update) => update.day ?? new Date(update.at);
 
 /**
+ * The night a game that ran past midnight was played, as people say it.
+ * @param {Date} day
+ * @param {Date} today
+ */
+function nameNight(day, today) {
+  const daysAway = countDaysBetween(today, day);
+  if (daysAway === -1) return "Last night";
+  return Math.abs(daysAway) < 7 ? `${formatWeekday(day)} night` : formatShortDate(day);
+}
+
+/**
  * @param {Update} update
  * @param {Date} today
  */
@@ -37,6 +54,7 @@ function formatWhen(update, today) {
   const day = readHappenedDay(update);
   if (Number.isNaN(day.getTime())) return "";
   if (countDaysBetween(day, today) <= 0) return formatClockTime(new Date(update.at));
+  if (update.endedNextDay) return nameNight(day, today);
   return nameDay(day, today, { isCapitalized: true });
 }
 

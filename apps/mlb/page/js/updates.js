@@ -1,5 +1,5 @@
 import { renderClub, renderRankTag } from "./clubs.js";
-import { readMlbDay } from "./dates.js";
+import { isPastMidnight, readMlbDay } from "./dates.js";
 import { describeEntry, describeUpdate } from "./entry-text.js";
 import { readCalendarDate } from "#shared/days.js";
 import { html } from "#shared/html.js";
@@ -113,6 +113,7 @@ function describeUpdateGroup(group) {
   return {
     at,
     day: readCalendarDate(readMlbDay(at)),
+    endedNextDay: isPastMidnight(at),
     text: renderUpdateText(group),
     action: renderUpdateAction(group),
   };

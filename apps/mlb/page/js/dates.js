@@ -9,7 +9,8 @@ export const NIGHT_END_HOUR = 6;
 
 // MLB's day runs through its night games, so before 6am Eastern it's still the night before.
 /** @param {number} ms */
-export function readMlbDay(ms) {
-  const { date, hour } = readEasternDay(ms);
-  return hour < NIGHT_END_HOUR ? addDays(date, -1) : date;
-}
+export const isPastMidnight = (ms) => readEasternDay(ms).hour < NIGHT_END_HOUR;
+
+/** @param {number} ms */
+export const readMlbDay = (ms) =>
+  isPastMidnight(ms) ? addDays(readEasternDay(ms).date, -1) : readEasternDay(ms).date;

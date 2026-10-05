@@ -9,6 +9,7 @@ import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
 import { renderGameList } from "../page/js/games-view.js";
 import { html } from "../../../shared/page/html.js";
+import { renderUpdates as renderUpdateBox } from "../../../shared/page/updates.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { formatStampName } from "../page/js/stamp.js";
 import {
@@ -142,7 +143,7 @@ test("Updates box: after a dismissal, everything noticed since, however long ago
   assert.deepEqual(listFreshTeams(), ["TB", "CWS"]);
 });
 
-test("Updates box: a night game that ends past midnight happened on the day it was played", () => {
+test("Updates box: a game that ends past midnight names the night it was played", () => {
   const brewersWin = (game, ended) => ({
     at: ended,
     kind: "game",
@@ -159,9 +160,11 @@ test("Updates box: a night game that ends past midnight happened on the day it w
     log: [brewersWin(1, "2026-10-04T04:06:00Z"), brewersWin(2, "2026-10-04T23:22:00Z")],
   };
 
+  const monday = new Date(2026, 9, 5);
+  const box = renderUpdateBox(listUpdates(), [], monday).text;
   assert.deepEqual(
-    listUpdates().map((update) => update.day?.toDateString()),
-    ["Sun Oct 04 2026", "Sat Oct 03 2026"],
+    [...box.matchAll(/<span class="when">([^<]*)<\/span>/g)].map((match) => match[1]),
+    ["Yesterday", "Saturday night"],
   );
 });
 

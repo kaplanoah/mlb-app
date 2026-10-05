@@ -165,7 +165,7 @@ test("a final that ends after midnight counts on the day it started", () => {
   assert.deepEqual(readFreshWins({ ...SEASON, games }), [...TUESDAY_WINS].reverse());
 });
 
-test("a final names the viewer's day it started on, even once it ends past midnight", () =>
+test("a final names the viewer's day it started on, and says when it ended past midnight", () =>
   checkInTimeZone(EASTERN, () => {
     const isFeverGame2 = (game) =>
       game.number === 2 && [game.away.team, game.home.team].includes("IND");
@@ -180,4 +180,6 @@ test("a final names the viewer's day it started on, even once it ends past midni
 
     assert.equal(win?.day?.toDateString(), startDay);
     assert.notEqual(new Date(win.at).toDateString(), startDay);
+    assert.equal(win.endedNextDay, true);
+    assert.equal(listPlayoffWins(SEASON).some((other) => other.endedNextDay), false);
   }));
