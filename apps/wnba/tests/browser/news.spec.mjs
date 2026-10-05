@@ -2,6 +2,7 @@ import { test, expect, openApp } from "./harness.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { touchAndCancel } from "../../../../tests/browser/touch.mjs";
+import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -158,6 +159,23 @@ test("switching off The Athletic or the Liberty's own outlets leaves their stori
   await expect(page.locator(".news-card h3")).toHaveText([
     "Film review: how the Dream changed their approach",
   ]);
+});
+
+test("switching off The Athletic in another tab leaves its stories out of this one", async ({
+  page,
+}) => {
+  await openNewsWithStories(page);
+
+  await keepInOtherTab(page, "newsChoices", { teamOutlets: true, paywalled: false });
+
+  await expect(page.locator(".news-card h3")).toHaveText([
+    "Stewart sat out practice with a sore knee",
+    "Film review: how the Dream changed their approach",
+  ]);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "Include content from The Athletic" }),
+  ).toHaveAttribute("aria-checked", "false");
 });
 
 test("a card's lead photo runs its full width, and the second story's sits beside its text", async ({
@@ -335,6 +353,21 @@ test("a story opened from its Read button shows a check in place of its arrow, a
 
   await page.reload();
   await expect(page.locator(".news-card").nth(1).locator(".read-check")).toHaveCount(1);
+});
+
+test("a story opened in another tab shows its check in this one", async ({ page }) => {
+  await openNewsWithStories(page);
+  const espn = page
+    .locator(".news-card")
+    .nth(1)
+    .getByRole("link", { name: /^Read on ESPN/ });
+  await expect(espn.locator(".read-arrow")).toBeVisible();
+
+  await keepInOtherTab(page, "openedStories", {
+    [await espn.getAttribute("href")]: await page.evaluate(() => Date.now()),
+  });
+
+  await expect(espn.locator(".read-check")).toBeVisible();
 });
 
 /**

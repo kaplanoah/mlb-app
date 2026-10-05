@@ -4,6 +4,7 @@ import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/t
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
+import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
 // The least room between one standings row's team name and the next row's.
 const STANDINGS_NAME_GAP_PX = 20;
@@ -429,6 +430,31 @@ test("choosing Walnut or Maple overrides the phone, and the choice stays after a
   await expectTheme(page, "light");
   await chooseAppearance(page, "System");
   await expectTheme(page, "dark");
+});
+
+test("a look this device kept by its plain name on an earlier visit still shows", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.addInitScript(() => localStorage.setItem("appearance", "dark"));
+  await openApp(page);
+
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("dark");
+  await expectTheme(page, "dark");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Walnut" })).toBeChecked();
+});
+
+test("a look chosen in another tab shows in this one", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openApp(page);
+  await expectTheme(page, "light");
+
+  await keepInOtherTab(page, "appearance", "dark");
+
+  await expectTheme(page, "dark");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Walnut" })).toBeChecked();
 });
 
 test("each appearance choice shows the home-screen icon it offers", async ({ page }) => {

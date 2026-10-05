@@ -11,6 +11,7 @@ import {
 import { createReading } from "../../worker/src/readings.js";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
+import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -194,6 +195,19 @@ test.describe("on a phone", () => {
     expect(await readKept(page, "updatesSeenAt")).toEqual({
       2026: Date.parse("2026-09-25T00:40:00Z"),
     });
+  });
+
+  test("dismissing updates in another tab hides them in this one", async ({ page }) => {
+    await keepSeenAtFromEarlierVisit(page);
+    await openApp(page, {
+      liveAvailable: false,
+      store: { "seasons/2026": SEASON_WITH_TWO_UPDATES },
+    });
+    await expect(page.locator("#updates .when")).toHaveCount(2);
+
+    await keepInOtherTab(page, "updatesSeenAt", { 2026: Date.parse("2026-09-25T00:40:00Z") });
+
+    await expect(page.locator("#updates")).toBeHidden();
   });
 
   const ELIMINATED_AT_8_10 = (team, winner) => ({

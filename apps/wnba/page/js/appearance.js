@@ -2,7 +2,8 @@
 // device keeps its own, since the page saves nothing to the store. js/pick-theme.js sets the theme
 // before the first paint; this keeps it, and the icons and bar color that go with it, current.
 
-const STORAGE_KEY = "appearance";
+import { createViewerChoice } from "#shared/device-storage.js";
+
 const CHOICES = ["auto", "light", "dark"];
 const THEMES = {
   light: { barColor: "#ead5b2", tabIcon: "icon-light.svg", homeScreenIcon: "icon-light-180.png" },
@@ -17,25 +18,9 @@ const HOME_SCREEN_NOTE =
 const darkScheme = matchMedia("(prefers-color-scheme: dark)");
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
-// Storage can be off, as in a private window, and then the page follows the phone.
-function readChoice() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return CHOICES.includes(stored) ? stored : "auto";
-  } catch {
-    return "auto";
-  }
-}
-
-/** @param {string} choice */
-function saveChoice(choice) {
-  try {
-    if (choice === "auto") localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, choice);
-  } catch {
-    // The choice still applies until the page reloads.
-  }
-}
+const appearance = createViewerChoice("appearance", (stored) =>
+  typeof stored === "string" && CHOICES.includes(stored) ? stored : "auto",
+);
 
 /** @param {string} choice */
 const resolveTheme = (choice) => {
@@ -67,8 +52,15 @@ function followTheme(readPicked) {
   return showChosenTheme;
 }
 
+// Another tab's choice shows here too.
 export function followSavedTheme() {
-  followTheme(readChoice);
+  appearance.watch(followTheme(appearance.read));
+}
+
+/** @param {NodeListOf<HTMLInputElement>} choices */
+function checkSavedChoice(choices) {
+  const saved = appearance.read();
+  for (const choice of choices) choice.checked = choice.value === saved;
 }
 
 export function startAppearance() {
@@ -76,14 +68,17 @@ export function startAppearance() {
     document.querySelectorAll('input[name="appearance"]')
   );
   const readPicked = () => [...choices].find((choice) => choice.checked)?.value ?? "auto";
-  const saved = readChoice();
-  for (const choice of choices) choice.checked = choice.value === saved;
+  checkSavedChoice(choices);
   const showChosenTheme = followTheme(readPicked);
   for (const choice of choices) {
     choice.addEventListener("change", () => {
-      saveChoice(readPicked());
+      appearance.keep(readPicked());
       showChosenTheme();
       findElement("appearanceNote").textContent = HOME_SCREEN_NOTE;
     });
   }
+  appearance.watch(() => {
+    checkSavedChoice(choices);
+    showChosenTheme();
+  });
 }

@@ -1,5 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
+import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -54,6 +55,16 @@ test.describe("on a phone", () => {
     await expect(updates.locator(".what")).toHaveText([
       "Dream beat the Mystics 88-80 to win the First Round 2\u20130",
     ]);
+  });
+
+  test("dismissing the Updates box in another tab hides it in this one", async ({ page }) => {
+    await openApp(page, { isShowingUpdates: true });
+    const updates = page.locator("#updates");
+    await expect(updates.locator(".updates-count")).toHaveText("2 updates since yesterday");
+
+    await keepInOtherTab(page, "updatesSeenAt", await page.evaluate(() => Date.now()));
+
+    await expect(updates).toBeHidden();
   });
 });
 
