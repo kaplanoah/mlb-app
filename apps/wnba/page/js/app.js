@@ -1,4 +1,5 @@
 import { renderCatchUpLines, startCatchUpNote } from "#shared/catch-up-note.js";
+import { startCaughtUpSweep } from "#shared/caught-up-sweep.js";
 import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { setHtml } from "#shared/html.js";
@@ -143,6 +144,7 @@ async function boot() {
   session.db = createWorkerStore();
   drawLastSeen();
   startCatchUpNote(session.db, renderStamp);
+  startCaughtUpSweep(session.db, findElement("stamp"));
   startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
   await loadSeason();

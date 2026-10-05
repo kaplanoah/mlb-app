@@ -284,3 +284,18 @@ test("a page coming back says when its scores are from, first in the header, unt
   release();
   await expect(stamp).not.toContainText("Scores as of");
 });
+
+test("a page coming back to nothing new lets a faded band pass through the header's lines", async ({
+  page,
+}) => {
+  await openApp(page);
+  const stamp = page.locator("#stamp");
+  await expect(stamp).toBeVisible();
+  await expect(stamp).not.toHaveClass(/caught-up/);
+
+  await sleepUnannounced(page, 31);
+
+  await expect(stamp).toHaveClass(/caught-up-band/);
+  await expect(stamp).toHaveCSS("animation-duration", "3.2s");
+  await expect(stamp).toHaveCSS("mask-image", /rgba\(0, 0, 0, 0\.75\)/);
+});

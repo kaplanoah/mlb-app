@@ -1,6 +1,7 @@
 import { renderBracket, watchBracketSpace } from "./bracket-view.js";
 import { listRankedOrder } from "./clubs.js";
 import { startCatchUpNote } from "#shared/catch-up-note.js";
+import { startCaughtUpSweep } from "#shared/caught-up-sweep.js";
 import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
@@ -203,6 +204,7 @@ async function boot() {
   session.db = createWorkerStore();
   drawLastSeen();
   startCatchUpNote(session.db, renderStamp);
+  startCaughtUpSweep(session.db, document.getElementById("stamp"));
   startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
   const [years] = await Promise.all([listYears(), loadActiveSeason()]);

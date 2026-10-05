@@ -3,9 +3,9 @@
  * phones), the settings dialog (a sheet on phones) and the lines at its foot, a sideways
  * bracket's round dots (pinned above the tab bar on phones), the bar and settings box that ask
  * a phone's browser to add the page to the Home Screen, the note a slow load shows, the header's
- * line while the page catches up, the spokes a pull to refresh shows, and the Diagnostics switch
- * and records at the very end of settings. Apps link it before their own
- * styles.css, which lays out the rest of the page and may refine these rules.
+ * line while the page catches up and the sweep through its lines once it has, the spokes a pull
+ * to refresh shows, and the Diagnostics switch and records at the very end of settings. Apps link
+ * it before their own styles.css, which lays out the rest of the page and may refine these rules.
  *
  * An app's :root defines these tokens:
  *   --bg, --card, --card-border, --divider    the page, card, and line colors
@@ -22,6 +22,8 @@
  *                                              160%; a light, warm page keeps 100%, or it turns yellow
  *   --glass-solid                              the glass's fill when the viewer turns transparency down
  *   --glass-contrast                           the glass's fill when the viewer asks for more contrast
+ *   --catch-up-fade                            the opacity the header's lines fade to as a sweep
+ *                                              passes once the page catches up, like 0.75
  * and on phones this sets:
  *   --tab-bar-bottom                           how far the tab bar floats above the screen's bottom
  *   --tab-bar-height                           the tab bar's height
@@ -187,6 +189,35 @@ section.view.active {
   animation: catch-up-turn 0.75s linear infinite;
 }
 
+/* The header's lines once the page catches up, as caught-up-sweep.js marks them. Lines that
+   changed arrive faded to --catch-up-fade and an edge sweeps them to full strength from the left.
+   Lines that didn't change stay at full strength while a faded band passes through them, each of
+   its sides taking about as long to cross a word as the edge does. */
+.caught-up-wipe {
+  -webkit-mask-image: linear-gradient(to right, #000 38%, rgba(0, 0, 0, var(--catch-up-fade)) 62%);
+  mask-image: linear-gradient(to right, #000 38%, rgba(0, 0, 0, var(--catch-up-fade)) 62%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  animation: caught-up-sweep 1.4s ease-in-out both;
+}
+.caught-up-band {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 30%,
+    rgba(0, 0, 0, var(--catch-up-fade)) 50%,
+    #000 70%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 30%,
+    rgba(0, 0, 0, var(--catch-up-fade)) 50%,
+    #000 70%
+  );
+  -webkit-mask-size: 500% 100%;
+  mask-size: 500% 100%;
+  animation: caught-up-sweep 3.2s ease-in-out both;
+}
+
 /* Pull to refresh, as pull-to-refresh.js draws it: spokes at the top of the screen that appear
    whole, one by one clockwise from the top, as the page is pulled, then turn as the iPhone's own
    do, a bright spoke stepping round ahead of the fading ones behind it. Each spoke sits on a
@@ -239,6 +270,16 @@ section.view.active {
 @keyframes catch-up-turn {
   to {
     transform: rotate(360deg);
+  }
+}
+@keyframes caught-up-sweep {
+  from {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

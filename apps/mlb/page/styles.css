@@ -34,6 +34,7 @@
   --card-border: #2a4536;
   --ink: #f1ead4;
   --ink-dim: #7fa88f;
+  --catch-up-fade: 0.75;
   --ink-mid: color-mix(in srgb, var(--ink-dim) 55%, var(--ink));
   --ink-hover: color-mix(in srgb, var(--ink) 75%, var(--accent));
   --divider: #1e3a2b;
