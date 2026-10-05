@@ -1199,7 +1199,10 @@ test("a team's leading scorers set their shooting and minutes a step back, a sma
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
-  const quiet = page.locator("#teamDialog table.players tbody tr").first().locator("td.quiet-stat");
+  const quiet = page
+    .locator("#teamDialog table.players tbody tr:not(.players-head)")
+    .first()
+    .locator("td.quiet-stat");
   await expect(quiet).toHaveText(["46.2", "32.6"]);
   const minutes = quiet.last();
   await expect(page.locator("#teamDialog table.players .first-name").first()).toHaveCSS(
@@ -1244,9 +1247,9 @@ test.describe("on a phone", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     const sheet = page.locator("#teamDialog");
-    for (const code of ["LVA", "LAS", "CON"]) {
+    for (const code of ["LVA", "LAS", "CON", "CHI"]) {
       await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
-      const names = sheet.locator("table.players tbody th");
+      const names = sheet.locator('table.players th[scope="row"]');
       await expect(names).toHaveCount(5);
       const lineCounts = await names.evaluateAll((cells) =>
         cells.map((cell) => {

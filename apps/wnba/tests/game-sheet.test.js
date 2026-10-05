@@ -51,6 +51,20 @@ const listRows = (markup, table) =>
       [...found.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(([, row]) => readText({ text: row })),
   );
 
+/** @param {any} markup */
+const countPlayerTables = (markup) => markup.text.split('<table class="players').length - 1;
+
+/**
+ * Each team's part of the players table, its heading row then its players, each row as text.
+ * @param {any} markup
+ */
+const listPlayerGroups = (markup) =>
+  [...markup.text.matchAll(/<table class="players[^"]*">[\s\S]*?<\/table>/g)].flatMap(([table]) =>
+    [...table.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)].map(([, group]) =>
+      [...group.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(([, row]) => readText({ text: row })),
+    ),
+  );
+
 /**
  * The two bars of the tape row a measure names, away then home, as "lead 52" or "42".
  * @param {any} markup
@@ -140,9 +154,10 @@ test("fewer turnovers lead, and a tie leads neither way", () => {
   assert.deepEqual(readTapeBars(renderBoxScore(box), "Turnovers"), ["lead 75", "100"]);
 });
 
-test("each team's top three scorers show, minutes last, and a live game flags a player in foul trouble", () => {
+test("each team's top three scorers show in one table, minutes last, and a live game flags a player in foul trouble", () => {
   const final = renderBoxScore(readBoxScore("1042600122"));
-  const [aces, fever] = listRows(final, "players");
+  assert.equal(countPlayerTables(final), 1);
+  const [aces, fever] = listPlayerGroups(final);
   assert.deepEqual(aces, [
     "Aces Pts Reb Ast Min",
     "Jackie Young 31 4 5 36",
@@ -151,13 +166,13 @@ test("each team's top three scorers show, minutes last, and a live game flags a 
   ]);
   assert.equal(fever[1], "Caitlin Clark Fouled out 27 7 15 33");
 
-  const [, wings] = listRows(renderBoxScore(readLiveBoxScore()), "players");
+  const [, wings] = listPlayerGroups(renderBoxScore(readLiveBoxScore()));
   assert.deepEqual(wings.slice(1, 3), [
     "Arike Ogunbowale 5 fouls 45 7 4 42",
     "Alysha Clark 4 fouls 21 3 2 31",
   ]);
   assert.match(readText(renderBoxScore(readLiveBoxScore())), /Timeouts left: Valkyries 0, Wings 1/);
-  const [, finalWings] = listRows(renderBoxScore(readBoxScore("1042600112")), "players");
+  const [, finalWings] = listPlayerGroups(renderBoxScore(readBoxScore("1042600112")));
   assert.ok(!finalWings.some((row) => /fouls/.test(row)));
 });
 
@@ -217,8 +232,9 @@ test("a preview compares the season stats from the saved standings, the visitors
   assert.deepEqual(readTapeBars(markup, "Road Home"), ["59", "lead 68"]);
 });
 
-test("a preview lists the first three of each team's saved leading scorers, best first, with how well each shoots and how much she plays", () => {
-  const [fever, aces] = listRows(renderFeverAtAces(), "players");
+test("a preview lists the first three of each team's saved leading scorers in one table, best first, with how well each shoots and how much she plays", () => {
+  assert.equal(countPlayerTables(renderFeverAtAces()), 1);
+  const [fever, aces] = listPlayerGroups(renderFeverAtAces());
   assert.deepEqual(fever, [
     "Fever Pts Reb Ast FG% Min",
     "Kelsey Mitchell 24.7 1.7 2.8 50.9 32.5",
@@ -264,7 +280,7 @@ test("a box score still loading has the loaded one's parts and measures, with pl
     "Fever 00 00 00 00 00",
   ]);
   assert.deepEqual(
-    listRows(pending, "players").map((rows) => rows.length),
+    listPlayerGroups(pending).map((rows) => rows.length),
     [4, 4],
   );
   assert.ok(countPlaceholders(pending) > 0);

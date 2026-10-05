@@ -902,16 +902,13 @@ table.players {
   width: 100%;
   border-collapse: collapse;
 }
-/* Every number takes the same width, so a game's two teams line up column for column, and the
-   player's name takes the rest. */
-table.players {
-  table-layout: fixed;
-}
-table.players thead th:not(:first-child) {
-  width: 11%;
+/* Each number column takes up to the same width, and gives some back only when a name needs it.
+   A game's two teams share one table, so they line up column for column. */
+table.players .players-head th:not(:first-child) {
+  width: 56px;
 }
 table.line-score th,
-table.players thead th {
+table.players .players-head th {
   padding: 0 0 5px;
   font-family: var(--display);
   font-size: var(--size-small);
@@ -959,26 +956,25 @@ table.line-score .lost {
   color: var(--ink-dim);
 }
 
-.player-tables {
-  display: grid;
-  gap: 14px;
-}
-table.players thead th {
+table.players .players-head th {
   padding-left: 8px;
   text-align: right;
 }
-table.players thead th:first-child {
+table.players .players-head th:first-child {
   padding-left: 0;
   text-align: left;
 }
-table.players thead th .club {
+table.players tbody + tbody .players-head th {
+  padding-top: 14px;
+}
+table.players .players-head th .club {
   font-size: 0.85rem;
   letter-spacing: 0.02em;
   text-transform: none;
   color: var(--ink);
 }
 table.players td,
-table.players tbody th {
+table.players th[scope="row"] {
   padding: 6px 0 6px 8px;
   border-top: 1px solid var(--divider);
   font-family: var(--numbers);
@@ -987,13 +983,22 @@ table.players tbody th {
   text-align: right;
   white-space: nowrap;
 }
-table.players tbody th {
+table.players th[scope="row"] {
   padding-left: 0;
   font-family: var(--text);
   font-size: 0.85rem;
   font-weight: 500;
   text-align: left;
-  white-space: normal;
+}
+/* Barlow sits low beside Barlow Condensed's numbers, so a player's name rises a pixel, and a chip
+   beside it stays where it was. */
+table.players th[scope="row"] {
+  position: relative;
+  top: -1px;
+}
+table.players th[scope="row"] .foul-chip {
+  position: relative;
+  top: 1px;
 }
 table.players td.quiet-stat {
   font-weight: 500;
@@ -1020,6 +1025,12 @@ table.players td.quiet-stat {
   vertical-align: 1px;
   white-space: nowrap;
   color: var(--orange);
+}
+/* Capitals sit low in Barlow's line, so a chip's words rise half a pixel to center between its
+   borders. */
+.foul-chip-words {
+  position: relative;
+  top: -0.5px;
 }
 
 .meetings {

@@ -7,7 +7,7 @@ import { renderDot, renderTeamName } from "./clubs.js";
 import { describeDay, readGameDay } from "./days.js";
 import { nameTeam, readPlayoffRuns } from "./series.js";
 import { formatTeamColors } from "./sheet-colors.js";
-import { describeNumbers, describeRecords } from "./sheet-parts.js";
+import { describeNumbers, describeRecords, renderPlayerTable } from "./sheet-parts.js";
 import { ROUNDS } from "./snapshot.js";
 import { renderStreak } from "./standings-view.js";
 import { TEAMS } from "./teams.js";
@@ -63,39 +63,36 @@ const LEADER_COLUMNS = [
   },
 ];
 
+/** @param {Leader} leader */
+const renderLeaderRow = (leader) =>
+  html`<tr>
+    <th scope="row"><span class="first-name">${leader.firstName}</span> ${leader.lastName}</th>
+    ${LEADER_COLUMNS.map((column) =>
+      column.isQuiet
+        ? html`<td class="quiet-stat">${column.read(leader)}</td>`
+        : html`<td>${column.read(leader)}</td>`,
+    )}
+  </tr>`;
+
 /**
- * A table of players' averages a game, under a heading over their names.
- * @param {import("#shared/html.js").Markup | string} heading
- * @param {Leader[]} leaders
+ * Players' averages a game, in one table with a part for each group, under a heading over their
+ * names.
+ * @param {{ heading: import("#shared/html.js").Markup | string, leaders: Leader[] }[]} groups
  */
-export const renderLeaderTable = (heading, leaders) =>
-  html`<table class="players tabular">
-    <thead>
-      <tr>
-        <th scope="col">${heading}</th>
-        ${LEADER_COLUMNS.map(
-          (column) => html`<th scope="col" title="${column.title}">${column.label}</th>`,
-        )}
-      </tr>
-    </thead>
-    <tbody>
-      ${leaders.map(
-        (leader) => html`<tr>
-          <th scope="row"><span class="first-name">${leader.firstName}</span> ${leader.lastName}</th>
-          ${LEADER_COLUMNS.map((column) =>
-            column.isQuiet
-              ? html`<td class="quiet-stat">${column.read(leader)}</td>`
-              : html`<td>${column.read(leader)}</td>`,
-          )}
-        </tr>`,
-      )}
-    </tbody>
-  </table>`;
+export const renderLeaderTable = (groups) =>
+  renderPlayerTable(
+    groups.map(({ heading, leaders }) => ({ heading, rows: leaders.map(renderLeaderRow) })),
+    LEADER_COLUMNS,
+  );
 
 /** @param {Leader[]} leaders */
 const renderLeadingScorers = (leaders) =>
   leaders.length > 0 &&
-  renderSheetPart("Leading scorers", renderLeaderTable("Player", leaders), "Per game");
+  renderSheetPart(
+    "Leading scorers",
+    renderLeaderTable([{ heading: "Player", leaders }]),
+    "Per game",
+  );
 
 const OTHER_PLACE = { home: "away", away: "home" };
 
