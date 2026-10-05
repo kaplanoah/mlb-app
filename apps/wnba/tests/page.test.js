@@ -700,7 +700,10 @@ test("a champion counts this season's title, and the team it beat is out in the 
     series: [...SEASON.series.filter((series) => series.id !== "3-0"), finals],
   };
   const dallas = readTeam(season, "DAL");
-  assert.match(dallas.body, /^Playoffs Champions .* Titles 4 \| 2026, 2008, 2006 and 1 more$/);
+  assert.match(
+    dallas.body,
+    /^Playoffs Champions .* Titles 4 \| 2026, 2008, 2006, 2003 \(as Detroit Shock\)$/,
+  );
   assert.match(readTeam(season, "LVA").body, /^Playoffs Out Finals /);
 });
 
@@ -717,7 +720,7 @@ test("before the playoffs, a team has no seed or playoff run, and its season sho
   assert.equal(minnesota.note, "West | 33-11");
   assert.equal(
     minnesota.body,
-    "Regular season Lynx 33-11 League Last 10 6-4 Titles 4 | 2017, 2015, 2013 and 1 more",
+    "Regular season Lynx 33-11 League Last 10 6-4 Titles 4 | 2017, 2015, 2013, 2011",
   );
 });
 
