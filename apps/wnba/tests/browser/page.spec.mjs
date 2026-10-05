@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
@@ -39,6 +40,19 @@ test("the page opens on the bracket the Worker saved, and each tab shows its vie
     "Games",
     "Standings",
   ]);
+});
+
+test("every font the page's views draw with is preloaded", async ({ page }) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  for (const list of ["Previous", "Today", "Next"]) {
+    await page.getByRole("tab", { name: list }).click();
+    await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await expect(page.locator("#standings-league tr").nth(2)).toBeVisible();
+
+  expect(await listFontsNotPreloaded(page)).toEqual([]);
 });
 
 test("a losing score is lit at three quarters, without the winner's glow", async ({ page }) => {

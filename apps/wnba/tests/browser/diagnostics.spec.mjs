@@ -71,6 +71,35 @@ test("with Diagnostics on, a reload is recorded with its tab, what the store sen
   await expect(record).toContainText(/Shows .*bracketWrap \d+\/\d+px/);
 });
 
+test("a reload's first reading is what the page put back from its last showing, before its code redraws it", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+
+  await reloadAndRecord(page);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(/Shows .*gamePager \d+\/\d+px/);
+  await expect(record).not.toContainText("gamePager: text");
+  await expect(record).not.toContainText("standingsPager: text");
+});
+
+test("a reload is recorded with its first paint and when each font file arrived", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+
+  await reloadAndRecord(page);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(/First (contentful )?paint/);
+  await expect(record).toContainText("Font barlow-condensed-600.woff2 arrived");
+});
+
 test("a part that empties and fills again while recording is flagged as a dip", async ({
   page,
 }) => {

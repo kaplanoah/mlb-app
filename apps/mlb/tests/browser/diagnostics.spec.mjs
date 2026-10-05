@@ -78,3 +78,22 @@ test("with Diagnostics on, a reload is recorded with what the store sent", async
   await expect(record).toContainText("Store sent seasons/2026");
   await expect(record).toContainText(/Shows .*bracketWrap \d+\/\d+px/);
 });
+
+test("a reload's first reading is what the page put back from its last showing, before its code redraws it", async ({
+  page,
+}) => {
+  await page.setViewportSize(WIDE);
+  await openApp(page);
+  await openSettings(page);
+  await findSwitch(page).click();
+  await expect(page.locator("#diagnostics")).toContainText("Nothing yet");
+
+  await page.reload();
+  await expect(page.locator("#bracketWrap")).toContainText("Phillies");
+  await page.clock.runFor(RECORD_MS + 1000);
+  await openSettings(page);
+
+  const record = page.locator("#diagnostics .diagnostics-record").first();
+  await expect(record).toContainText(/Shows .*gamePager \d+\/\d+px/);
+  await expect(record).not.toContainText("gamePager: text");
+});
