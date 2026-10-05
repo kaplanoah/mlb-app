@@ -81,6 +81,10 @@ export function readPlayingDay({ start, isTimeSet, leagueDate }) {
 export const formatClockTime = (date) =>
   date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
+/** @param {Date} date */
+export const formatClockTimeWithSeconds = (date) =>
+  date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+
 /**
  * A clock time without its AM or PM, for where the time of day goes without saying.
  * @param {Date} date
