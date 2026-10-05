@@ -167,6 +167,15 @@ test("a season that doesn't exist yet loads as an empty one", async () => {
   assert.deepEqual(session.seasonDoc, { year: 2026, teams: {}, series: {}, log: [] });
 });
 
+test("the page reads the field, its series, and the updates from the season's record, and leaves the rest to the live scores", async () => {
+  const record = { ...structuredClone(STORED), slate: { today: { games: [] } }, standings: {} };
+  session.db = createStore({ "seasons/2026": record }).database;
+
+  await watchYear(2026, IGNORED_REDRAWS);
+
+  assert.deepEqual(session.seasonDoc, STORED);
+});
+
 test("standings and readings that can't be read are left out of the year's load", async () => {
   const documents = { "seasons/2026": structuredClone(STORED), "standings/2026": STANDINGS };
   session.db = createStore(documents, { unreadable: ["standings/2026", "readings-2026"] }).database;

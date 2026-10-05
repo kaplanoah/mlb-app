@@ -1,8 +1,11 @@
 import { isSameJson } from "#shared/compare.js";
 import { readEasternDay } from "#shared/days.js";
-import { ROUNDS } from "../../page/js/snapshot.js";
-import { TEAMS } from "../../page/js/teams.js";
-import { capNotifications } from "../../../../shared/worker/notifications.js";
+import { nameTeam } from "../../page/js/series.js";
+import { describeResult, describeWin, isPlayoffFinal } from "../../page/js/win-text.js";
+import {
+  capNotifications,
+  describeAsNotification,
+} from "../../../../shared/worker/notifications.js";
 
 // Keeps the current season's saved data up to date from the league, whether or not a page is
 // open, and says which finished games and series are news. `docs` reads and writes the store's
@@ -88,44 +91,27 @@ export function describeSnapshotStatus(snapshot) {
 
 export const STATUS_FIELDS = { standIn: "" };
 
-const nameTeam = (code) => TEAMS[code]?.name ?? code;
-
-function describeFinal(game) {
-  const [winner, loser] =
-    game.home.score > game.away.score ? [game.home, game.away] : [game.away, game.home];
-  return `The ${nameTeam(winner.team)} beat the ${nameTeam(loser.team)} ${winner.score}-${loser.score}`;
-}
-
-function describeSeriesStanding(series) {
-  if (!series?.top || !series.bottom) return "";
-  const round = ROUNDS[series.round].name;
-  const [ahead, behind] =
-    series.top.wins >= series.bottom.wins
-      ? [series.top, series.bottom]
-      : [series.bottom, series.top];
-  const score = `${ahead.wins}-${behind.wins}`;
-  if (series.winner) return `The ${nameTeam(series.winner)} win the ${round} ${score}.`;
-  if (ahead.wins === behind.wins) return `The ${round} is tied ${score}.`;
-  return `The ${nameTeam(ahead.team)} lead the ${round} ${score}.`;
+// A playoff final reads as the Updates box says it, and any other final as its result.
+function describeFinal(game, games) {
+  const markup = isPlayoffFinal(game)
+    ? describeWin(game, games, nameTeam)
+    : describeResult(game, nameTeam);
+  return describeAsNotification(markup, `final:${game.id}`);
 }
 
 const isFinalGame = (game) => game?.state === "final";
 
 /**
- * A notification for each game that finished since the last update, each naming where its
- * series stands.
+ * A notification for each game that finished since the last update, worded as the Updates box
+ * words it.
  * @param {{ before: any, after: any, now: number }} change the saved season before and after
  */
 export function listNotifications({ before, after, now }) {
   const wasFinal = new Set((before?.games ?? []).filter(isFinalGame).map((game) => game.id));
-  const seriesById = new Map((after?.series ?? []).map((series) => [series.id, series]));
-  const messages = (after?.games ?? [])
+  const games = after?.games ?? [];
+  const messages = games
     .filter((game) => isFinalGame(game) && !wasFinal.has(game.id))
     .filter((game) => Date.parse(game.start) >= now - RECENT_MS)
-    .map((game) => ({
-      title: describeFinal(game),
-      body: describeSeriesStanding(seriesById.get(game.series)),
-      tag: `final:${game.id}`,
-    }));
+    .map((game) => describeFinal(game, games));
   return capNotifications(messages, (count) => `${count} more final scores`);
 }

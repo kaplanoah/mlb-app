@@ -187,7 +187,7 @@ test("without the bracket, the series stay as they were unless the games answere
   assert.deepEqual((await readUpdates(docs, 2026)).series, finished.series);
 });
 
-test("a game that just finished is news, and says where its series stands", async () => {
+test("a game that decides its series is news, worded as the Updates box words it", async () => {
   const before = { games: SNAPSHOT.games, series: SNAPSHOT.series };
   const after = finishTonight(SNAPSHOT, [84, 79]);
 
@@ -199,9 +199,31 @@ test("a game that just finished is news, and says where its series stands", asyn
 
   assert.deepEqual(notifications, [
     {
-      title: "The Dream beat the Mystics 84-79",
-      body: "The Dream win the First Round 2-0.",
+      title: "Dream beat the Mystics 84-79 to win the First Round 2\u20130",
+      body: "",
       tag: "final:1042600132",
+    },
+  ]);
+});
+
+test("a game that leaves its series going is news, its result the title and where the series stands the body", () => {
+  const isFeverGame2 = (game) => game.id === "1042600122";
+  const before = {
+    ...SNAPSHOT,
+    games: SNAPSHOT.games.map((game) => (isFeverGame2(game) ? { ...game, state: "live" } : game)),
+  };
+
+  const notifications = listNotifications({
+    before,
+    after: SNAPSHOT,
+    now: Date.parse("2026-09-30T01:00:00Z"),
+  });
+
+  assert.deepEqual(notifications, [
+    {
+      title: "Fever beat the Aces 99-89 in Game\u00a02",
+      body: "Tie the First Round 1\u20131",
+      tag: "final:1042600122",
     },
   ]);
 });
@@ -219,8 +241,8 @@ test("a final's news counts the game itself, even while the bracket hasn't caugh
   const [news] = listNotifications({ before: SNAPSHOT, after, now });
 
   assert.deepEqual(news, {
-    title: "The Dream beat the Mystics 93-75",
-    body: "The Dream win the First Round 2-0.",
+    title: "Dream beat the Mystics 93-75 to win the First Round 2\u20130",
+    body: "",
     tag: "final:1042600132",
   });
 });
