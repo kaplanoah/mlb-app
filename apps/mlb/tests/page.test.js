@@ -9,11 +9,13 @@ import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
 import { renderGameList } from "../page/js/games-view.js";
 import { html } from "../../../shared/page/html.js";
+import { renderUpdates as renderUpdateBox } from "../../../shared/page/updates.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { formatStampName } from "../page/js/stamp.js";
 import {
   findUpdateGame,
   listFreshUpdates,
+  listUpdates,
   renderEntryText,
   renderUpdateText,
 } from "../page/js/updates.js";
@@ -139,6 +141,31 @@ test("Updates box: after a dismissal, everything noticed since, however long ago
     ],
   };
   assert.deepEqual(listFreshTeams(), ["TB", "CWS"]);
+});
+
+test("Updates box: a game that ends past midnight names the night it was played", () => {
+  const brewersWin = (game, ended) => ({
+    at: ended,
+    kind: "game",
+    series: "NL_DS1",
+    won: "MIL",
+    lost: "SD",
+    game,
+    score: [game, 0],
+    runs: [3, 2],
+  });
+  session.state = {
+    teams: {},
+    // Saturday's ended at 12:06 AM Sunday, Eastern, and Sunday's that afternoon.
+    log: [brewersWin(1, "2026-10-04T04:06:00Z"), brewersWin(2, "2026-10-04T23:22:00Z")],
+  };
+
+  const monday = new Date(2026, 9, 5);
+  const box = renderUpdateBox(listUpdates(), [], monday).text;
+  assert.deepEqual(
+    [...box.matchAll(/<span class="when">([^<]*)<\/span>/g)].map((match) => match[1]),
+    ["Yesterday", "Saturday night"],
+  );
 });
 
 test("series names", () => {

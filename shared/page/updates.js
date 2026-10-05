@@ -2,7 +2,13 @@
 // each beside when it happened, and under them, what's new in the app. An app says what its
 // updates and release notes are and where the dismissal is kept.
 
-import { countDaysBetween, formatClockTime, nameDay } from "./days.js";
+import {
+  countDaysBetween,
+  formatClockTime,
+  formatShortDate,
+  formatWeekday,
+  nameDay,
+} from "./days.js";
 import { easeClosed, stopEasing } from "./eased-redraw.js";
 import { html, noteHeight, setHtml } from "./html.js";
 
@@ -15,9 +21,10 @@ const DISMISS_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
 
 /** @typedef {import("./html.js").Markup} Markup */
 /**
- * When it happened, what it says, and for an update about one game, the button that opens the
- * game, as its row in the Games view does.
- * @typedef {{ at: number, text: Markup, action?: Markup | false }} Update
+ * When it happened, the day it happened on, where a game that ran past midnight sets it apart
+ * from its time's, whether its game ended on a later day than it started, what it says, and for
+ * an update about one game, the button that opens the game, as its row in the Games view does.
+ * @typedef {{ at: number, day?: Date | null, endedNextDay?: boolean, text: Markup, action?: Markup | false }} Update
  */
 /** @typedef {{ at: string, text: string }} ReleaseNote when it went out, as an ISO time, and what it says */
 /** @typedef {{ at: number, text: string }} Note a release note to show */
@@ -25,35 +32,50 @@ const DISMISS_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
 const MAX_SHOWN = 12;
 const NOTE_SHOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
+/** @param {Update} update */
+const readHappenedDay = (update) => update.day ?? new Date(update.at);
+
 /**
- * @param {number} at
- * @param {Date} now
+ * The night a game that ran past midnight was played, as people say it.
+ * @param {Date} day
+ * @param {Date} today
  */
-function formatWhen(at, now) {
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return "";
-  if (countDaysBetween(date, now) <= 0) return formatClockTime(date);
-  return nameDay(date, now, { isCapitalized: true });
+function nameNight(day, today) {
+  const daysAway = countDaysBetween(today, day);
+  if (daysAway === -1) return "Last night";
+  return Math.abs(daysAway) < 7 ? `${formatWeekday(day)} night` : formatShortDate(day);
 }
 
 /**
- * @param {number} at
- * @param {Date} now
+ * @param {Update} update
+ * @param {Date} today
  */
-function formatSince(at, now) {
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return "";
-  if (countDaysBetween(date, now) <= 0) return "since earlier today";
-  return `since ${nameDay(date, now)}`;
+function formatWhen(update, today) {
+  const day = readHappenedDay(update);
+  if (Number.isNaN(day.getTime())) return "";
+  if (countDaysBetween(day, today) <= 0) return formatClockTime(new Date(update.at));
+  if (update.endedNextDay) return nameNight(day, today);
+  return nameDay(day, today, { isCapitalized: true });
+}
+
+/**
+ * @param {Update} update
+ * @param {Date} today
+ */
+function formatSince(update, today) {
+  const day = readHappenedDay(update);
+  if (Number.isNaN(day.getTime())) return "";
+  if (countDaysBetween(day, today) <= 0) return "since earlier today";
+  return `since ${nameDay(day, today)}`;
 }
 
 // Updates that share a time show it once, on the first of them.
 /**
  * @param {Update[]} updates
- * @param {Date} now
+ * @param {Date} today
  */
-function formatTimeColumn(updates, now) {
-  const times = updates.map((update) => formatWhen(update.at, now));
+function formatTimeColumn(updates, today) {
+  const times = updates.map((update) => formatWhen(update, today));
   return times.map((time, index) => (time === times[index - 1] ? "" : time));
 }
 
@@ -83,15 +105,15 @@ const renderHead = (title, isFirst) =>
 /**
  * How many updates there are and since when, the newest dozen, and how many more.
  * @param {Update[]} updates newest first
- * @param {Date} now
+ * @param {Date} today
  */
-function renderUpdateList(updates, now) {
+function renderUpdateList(updates, today) {
   const shown = updates.slice(0, MAX_SHOWN);
-  const times = formatTimeColumn(shown, now);
+  const times = formatTimeColumn(shown, today);
   const extra = updates.length - shown.length;
   // The oldest update listed, not the last dismissal: a change can be found after a dismissal
   // but have happened before it.
-  const since = formatSince(updates[updates.length - 1].at, now);
+  const since = formatSince(updates[updates.length - 1], today);
   const head = `${updates.length} update${updates.length === 1 ? "" : "s"} ${since}`;
   return html`${renderHead(head, true)}
     <ul class="updates-list">
@@ -119,10 +141,10 @@ const renderNoteList = (notes, isFirst) =>
  * The box's markup: the updates, newest first, and under them the release notes.
  * @param {Update[]} updates
  * @param {Note[]} [notes]
- * @param {Date} [now]
+ * @param {Date} [today] a time on the day the updates' days count from, in the same days as theirs
  */
-export const renderUpdates = (updates, notes = [], now = new Date()) =>
-  html`${updates.length > 0 && renderUpdateList(updates, now)}${notes.length > 0 && renderNoteList(notes, !updates.length)}`;
+export const renderUpdates = (updates, notes = [], today = new Date()) =>
+  html`${updates.length > 0 && renderUpdateList(updates, today)}${notes.length > 0 && renderNoteList(notes, !updates.length)}`;
 
 // Redraws keep a box's markup when it hasn't changed, so each box listens for its dismiss button
 // once, and calls whichever `dismiss` its latest showing handed it.
@@ -196,13 +218,13 @@ function showBoxEased(panel, markup) {
  * of the page does, and later ones ease it open or closed.
  * @param {HTMLElement} panel
  * @param {Update[]} updates newest first
- * @param {{ dismiss: () => void, notes?: Note[] }} options
+ * @param {{ dismiss: () => void, notes?: Note[], today?: Date }} options
  */
-export function showUpdates(panel, updates, { dismiss, notes = [] }) {
+export function showUpdates(panel, updates, { dismiss, notes = [], today = new Date() }) {
   const isFirstShowing = !dismissals.has(panel);
   if (isFirstShowing) listenForDismiss(panel);
   dismissals.set(panel, dismiss);
-  const markup = updates.length || notes.length ? renderUpdates(updates, notes) : null;
+  const markup = updates.length || notes.length ? renderUpdates(updates, notes, today) : null;
   if (isFirstShowing) showBoxAtOnce(panel, markup);
   else showBoxEased(panel, markup);
 }
