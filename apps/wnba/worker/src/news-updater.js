@@ -4,15 +4,15 @@ import { describeError } from "../../../../shared/worker/responses.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { askClaude } from "./news-claude.js";
 import { readNewsFeeds } from "./news-feeds.js";
-import { buildTopicCards } from "./news-picks.js";
 import { GROUP_PROMPT, LABEL_PROMPT, STORY_KINDS } from "./news-prompts.js";
 import { readRuleDrop } from "./news-rules.js";
 
 // Keeps the news the page shows: each run reads the outlets' feeds, drops what the rules can tell
 // isn't news, has Claude label the rest and group what it keeps into topics, and saves each
-// topic's card. A story Claude hasn't answered for stays waiting and is asked about again on the
-// next run, so a run that fails loses nothing. The cards go in `news/feed`, and how the runs are
-// going, with Claude's daily token counts, in `news/status`.
+// topic's stories. A story Claude hasn't answered for stays waiting and is asked about again on the
+// next run, so a run that fails loses nothing. The topics go in `news/topics`, where each page picks
+// the stories it shows from the outlets its device reads, and how the runs are going, with
+// Claude's daily token counts, in `news/status`.
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -27,8 +27,8 @@ const NIGHT_DELAY_MS = 60 * MINUTE_MS;
 const LABEL_BATCH = 12;
 const LABELS_PER_RUN = 24;
 const GROUPS_PER_RUN = 20;
-const MAX_CARDS = 40;
-const FEED_KEY = "news/feed";
+const MAX_TOPICS = 40;
+const TOPICS_KEY = "news/topics";
 const STATUS_KEY = "news/status";
 
 /**
@@ -283,17 +283,36 @@ const describeShownStory = (story) => ({
   publishedAt: story.publishedAt,
   photo: story.photo,
   kind: story.kind,
+  teams: story.teams ?? [],
 });
 
-async function saveFeed(docs, stories, now) {
+const compareNewestFirst = (first, second) =>
+  Date.parse(second.publishedAt) - Date.parse(first.publishedAt);
+
+/**
+ * Each topic with its stories, newest first, and the newest topics first.
+ * @param {NewsStory[]} stories
+ */
+function groupTopics(stories) {
+  /** @type {Map<string, NewsStory[]>} */
+  const byTopic = new Map();
+  for (const story of stories)
+    byTopic.set(story.topic, [...(byTopic.get(story.topic) ?? []), story]);
+  return [...byTopic]
+    .map(([id, topicStories]) => {
+      const sorted = topicStories.toSorted(compareNewestFirst);
+      return { id, latestAt: sorted[0].publishedAt, stories: sorted.map(describeShownStory) };
+    })
+    .sort((first, second) => Date.parse(second.latestAt) - Date.parse(first.latestAt));
+}
+
+async function saveTopics(docs, stories, now) {
   const shown = [...stories.values()].filter(
     (story) => story.state === "kept" && story.topic && isShownAge(story, now),
   );
-  const cards = buildTopicCards(shown)
-    .slice(0, MAX_CARDS)
-    .map((card) => ({ ...card, stories: card.stories.map(describeShownStory) }));
-  const stored = await docs.read(FEED_KEY);
-  if (!isSameJson(stored?.cards, cards)) await docs.write(FEED_KEY, { cards });
+  const topics = groupTopics(shown).slice(0, MAX_TOPICS);
+  const stored = await docs.read(TOPICS_KEY);
+  if (!isSameJson(stored?.topics, topics)) await docs.write(TOPICS_KEY, { topics });
 }
 
 async function readRecentUsage(storage, now) {
@@ -326,7 +345,7 @@ async function updateNews({ docs, storage, env, fetchImpl, now: readNow }, readF
   await addNewStories(storage, stories, entries, now);
   await forgetOldStories(storage, stories, now);
   const problem = await curateStories({ storage, stories, env, fetchImpl, now });
-  await saveFeed(docs, stories, now);
+  await saveTopics(docs, stories, now);
   await saveStatus({ docs, storage, now, missing, problem });
 }
 

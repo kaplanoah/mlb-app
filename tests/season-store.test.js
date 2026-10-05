@@ -486,3 +486,29 @@ test("a job keeps what it saves under keys the store's paths can't name, and wri
     keys: ["story:a", "story:b"],
   });
 });
+
+test("a page that opens starts a job a deploy added, rather than waiting for the alarm already set", async () => {
+  const context = createDurableObjectContext();
+  const contexts = [];
+  const { league } = createJobLeague(contexts);
+  const SeasonStore = createSeasonStore(league);
+  await context.ctx.storage.setAlarm(NOW + 3 * 60 * MINUTE_MS);
+  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+
+  await store.fetch(new Request(`${ORIGIN}/store/seasons/2026`));
+
+  assert.equal(await context.ctx.storage.getAlarm(), NOW);
+});
+
+test("a page that opens leaves the alarm alone once every job has run", async () => {
+  const context = createDurableObjectContext();
+  const { league } = createJobLeague([]);
+  const SeasonStore = createSeasonStore(league);
+  await context.ctx.storage.setAlarm(NOW + 3 * 60 * MINUTE_MS);
+  await context.ctx.storage.put("job-due:news", NOW + 10 * MINUTE_MS);
+  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+
+  await store.fetch(new Request(`${ORIGIN}/store/seasons/2026`));
+
+  assert.equal(await context.ctx.storage.getAlarm(), NOW + 3 * 60 * MINUTE_MS);
+});

@@ -71,6 +71,35 @@ test("with Diagnostics on, a reload is recorded with its tab, what the store sen
   await expect(record).toContainText(/Shows .*bracketWrap \d+\/\d+px/);
 });
 
+test("a reload's first reading is what the page put back from its last showing, before its code redraws it", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+
+  await reloadAndRecord(page);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(/Shows .*gamePager \d+\/\d+px/);
+  await expect(record).not.toContainText("gamePager: text");
+  await expect(record).not.toContainText("standingsPager: text");
+});
+
+test("a reload is recorded with its first paint and when each font file arrived", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+
+  await reloadAndRecord(page);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(/First (contentful )?paint/);
+  await expect(record).toContainText("Font barlow-condensed-600.woff2 arrived");
+});
+
 test("a part that empties and fills again while recording is flagged as a dip", async ({
   page,
 }) => {
@@ -110,12 +139,61 @@ test("a return to the page is recorded with how long it was away", async ({ page
   await expect(findRecords(page).locator("summary").first()).toContainText("Back after 5 min");
 });
 
+/** @param {import("@playwright/test").Page} page */
+const findViewportLog = (page) =>
+  findRecords(page).locator(".diagnostics-record", { hasText: "Viewport" });
+
+test("with Diagnostics on, the viewport is logged as the page opens, and again when it changes", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await reloadAndRecord(page);
+
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.clock.runFor(100);
+  await openSettings(page);
+
+  const lines = findViewportLog(page).locator("li");
+  await expect(findViewportLog(page).locator("summary")).toContainText("Steady");
+  await expect(lines.first()).toContainText(/layout 700, .*sheet ends 700/);
+  const resized = lines.filter({ hasText: "layout 700", hasNotText: "sheet ends" });
+  await expect(resized).toContainText(/tab bar ends \d+/);
+  await expect(lines.filter({ hasText: "layout 844, visual 844 from 0" })).not.toHaveCount(0);
+});
+
+for (const [moved, moveViewport] of [
+  ["as the page scrolls", () => scrollTo(0, 1)],
+  ["as the visual viewport moves", () => visualViewport?.dispatchEvent(new Event("scroll"))],
+]) {
+  test(`a visual viewport out of line with the layout one is flagged as off ${moved}`, async ({
+    page,
+  }) => {
+    await openApp(page);
+    await turnOnDiagnostics(page);
+    await reloadAndRecord(page);
+
+    await page.evaluate(() =>
+      Object.defineProperty(visualViewport, "offsetTop", { configurable: true, get: () => 110 }),
+    );
+    await page.evaluate(moveViewport);
+    await page.clock.runFor(100);
+    await openSettings(page);
+
+    const log = findViewportLog(page);
+    await expect(log.locator("summary")).toContainText("Off");
+    const offBeforeSettings = log.locator(".diagnostics-dip", { hasNotText: "sheet ends" });
+    await expect(offBeforeSettings).toContainText("visual 844 from 110");
+  });
+}
+
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);
   await reloadAndRecord(page);
   await openSettings(page);
-  await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(1);
+  await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(2);
+  await expect(findViewportLog(page)).toHaveCount(1);
 
   await findSwitch(page).click();
   await expect(findRecords(page)).toBeHidden();
@@ -138,4 +216,5 @@ test("Copy puts the recorded opens on the clipboard as text", async ({ page, con
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, \w+, Bracket$/m);
   expect(copied).toMatch(/^\+\d+ Shows /m);
+  expect(copied).toMatch(/^Viewport\n\d+:\d\d:\d\d\s[AP]M screen \d+, layout 844, /m);
 });

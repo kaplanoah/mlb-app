@@ -405,6 +405,9 @@ section.view.active {
   grid-template-columns: 5ch 1fr;
   gap: 10px;
 }
+.diagnostics-viewport li {
+  grid-template-columns: auto 1fr;
+}
 .diagnostics-ms {
   text-align: right;
   color: var(--ink-dim);
@@ -459,6 +462,31 @@ section.view.active {
 }
 .control-row[hidden] {
   display: none;
+}
+/* Settings in titled groups have a line only between groups, not around them or between a group's
+   rows. */
+.settings-controls.grouped {
+  border-block: 0;
+}
+.settings-controls.grouped > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+}
+.settings-group {
+  display: grid;
+  gap: 6px;
+}
+.settings-group .control-row:not([hidden]) ~ .control-row {
+  border-top: 0;
+}
+.settings-group-label {
+  margin: 0;
+  font-size: var(--size-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
 }
 .control-label {
   display: flex;

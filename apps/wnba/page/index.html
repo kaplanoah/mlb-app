@@ -13,7 +13,21 @@
   <title>WNBA</title>
   <meta
     name="description"
-    content="Follow the WNBA season: the standings, the teams, and the playoff bracket and games."
+    content="Follow the WNBA season: the standings, the teams, the playoff bracket and games, and the news."
+  />
+  <link
+    rel="preload"
+    href="fonts/barlow-condensed-400.woff2"
+    as="font"
+    type="font/woff2"
+    crossorigin
+  />
+  <link
+    rel="preload"
+    href="fonts/barlow-condensed-500.woff2"
+    as="font"
+    type="font/woff2"
+    crossorigin
   />
   <link
     rel="preload"
@@ -23,6 +37,16 @@
     crossorigin
   />
   <link rel="preload" href="fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/barlow-500.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/barlow-600.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/barlow-700.woff2" as="font" type="font/woff2" crossorigin />
+  <link
+    rel="preload"
+    href="fonts/barlow-500-italic.woff2"
+    as="font"
+    type="font/woff2"
+    crossorigin
+  />
   <link rel="stylesheet" href="shared/type.css" />
   <link rel="stylesheet" href="shared/chrome.css" />
   <link rel="stylesheet" href="shared/game-row.css" />
@@ -114,6 +138,22 @@
               /></svg></span
           ><span class="tab-label">Standings</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-news"
+          data-tab="news"
+          aria-controls="view-news"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          <span class="tab-icon" aria-hidden="true"
+            ><svg viewBox="0 0 256 256" fill="currentColor">
+              <path
+                d="M182,112a6,6,0,0,1-6,6H96a6,6,0,0,1,0-12h80A6,6,0,0,1,182,112Zm-6,26H96a6,6,0,0,0,0,12h80a6,6,0,0,0,0-12Zm54-74V184a22,22,0,0,1-22,22H32a22,22,0,0,1-22-21.91V88a6,6,0,0,1,12,0v96a10,10,0,0,0,20,0V64A14,14,0,0,1,56,50H216A14,14,0,0,1,230,64Zm-12,0a2,2,0,0,0-2-2H56a2,2,0,0,0-2,2V184a21.84,21.84,0,0,1-2.41,10H208a10,10,0,0,0,10-10Z"
+              /></svg></span
+          ><span class="tab-label">News</span>
+        </button>
       </div>
       <span class="tab-pill" aria-hidden="true"><span class="tab-pill-row"></span></span>
     </div>
@@ -134,6 +174,10 @@
 
   <section id="view-standings" role="tabpanel" aria-labelledby="tab-standings" class="view">
     <div id="standingsPager" data-last-drawn></div>
+  </section>
+
+  <section id="view-news" role="tabpanel" aria-labelledby="tab-news" class="view">
+    <div id="newsList" data-last-drawn></div>
   </section>
 
   <script>
@@ -160,7 +204,7 @@
           </button>
         </div>
       </div>
-      <div class="settings-controls">
+      <div class="settings-controls grouped">
         <div class="control-row" id="notifyRow" hidden>
           <span class="control-label">
             <span id="notifyTitle">Notifications</span>
@@ -177,6 +221,41 @@
           >
             <span class="switch-knob" aria-hidden="true"></span>
           </button>
+        </div>
+        <div class="settings-group" role="group" aria-labelledby="newsSettingsTitle">
+          <h3 class="settings-group-label" id="newsSettingsTitle">News</h3>
+          <div class="control-row">
+            <span class="control-label">
+              <span id="teamOutletsTitle">Include dedicated Liberty sources</span>
+              <span class="control-note">Beat writers at The IX, NY Post, and more</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              class="switch"
+              id="teamOutletsSwitch"
+              aria-checked="true"
+              aria-labelledby="teamOutletsTitle"
+            >
+              <span class="switch-knob" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="control-row">
+            <span class="control-label">
+              <span id="paywalledTitle">Include content from The Athletic</span>
+              <span class="control-note">Most stories need a subscription</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              class="switch"
+              id="paywalledSwitch"
+              aria-checked="true"
+              aria-labelledby="paywalledTitle"
+            >
+              <span class="switch-knob" aria-hidden="true"></span>
+            </button>
+          </div>
         </div>
         <div class="control-row appearance-row">
           <span class="control-label">

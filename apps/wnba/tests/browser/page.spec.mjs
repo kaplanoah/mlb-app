@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
@@ -38,7 +39,21 @@ test("the page opens on the bracket the Worker saved, and each tab shows its vie
     "Bracket",
     "Games",
     "Standings",
+    "News",
   ]);
+});
+
+test("every font the page's views draw with is preloaded", async ({ page }) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  for (const list of ["Previous", "Today", "Next"]) {
+    await page.getByRole("tab", { name: list }).click();
+    await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await expect(page.locator("#standings-league tr").nth(2)).toBeVisible();
+
+  expect(await listFontsNotPreloaded(page)).toEqual([]);
 });
 
 test("a losing score is lit at three quarters, without the winner's glow", async ({ page }) => {
@@ -341,23 +356,44 @@ async function chooseAppearance(page, choice) {
   await page.keyboard.press("Escape");
 }
 
-test("settings list Notifications above Appearance, with one line between them", async ({
+test("settings list Notifications, the News switches, and Appearance, with lines only between the three", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    const registration = { pushManager: { getSubscription: async () => null } };
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { register: async () => registration, addEventListener() {} },
+    });
+    Object.defineProperty(Notification, "permission", { get: () => "default" });
+  });
   await openApp(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const rows = page.locator("#settingsDialog .settings-controls .control-row");
   await expect(rows.locator(".control-label > span:first-child")).toHaveText([
     "Notifications",
+    "Include dedicated Liberty sources",
+    "Include content from The Athletic",
     "Appearance",
   ]);
-  await expect(rows.first()).toBeVisible();
-  const readTopBorders = () =>
-    rows.evaluateAll((each) => each.map((row) => getComputedStyle(row).borderTopStyle));
-  expect(await readTopBorders()).toEqual(["none", "solid"]);
+  await expect(page.locator("#notifyNote")).toHaveText("Post-season game final scores");
+  const groups = page.locator("#settingsDialog .settings-controls > *");
+  const readBorders = () =>
+    Promise.all([
+      groups.evaluateAll((each) => each.map((group) => getComputedStyle(group).borderTopStyle)),
+      rows.evaluateAll((each) => each.map((row) => getComputedStyle(row).borderTopStyle)),
+      page
+        .locator("#settingsDialog .settings-controls")
+        .evaluate((controls) => getComputedStyle(controls).borderBottomStyle),
+    ]);
+  expect(await readBorders()).toEqual([
+    ["none", "solid", "solid"],
+    ["none", "none", "none", "solid"],
+    "none",
+  ]);
 
   await rows.first().evaluate((row) => row.setAttribute("hidden", ""));
-  expect((await readTopBorders())[1]).toBe("none");
+  expect((await readBorders())[0]).toEqual(["none", "none", "solid"]);
 });
 
 test("on System, the page and its icons follow the phone's dark or light setting", async ({
@@ -474,7 +510,7 @@ test.describe("on a phone, settings", () => {
     const { sheet, body } = await readSettingsBoxes(page);
     expect(Math.round(sheet.bottom)).toBe(844);
     expect(Math.abs(sheet.bottom - body.bottom)).toBeLessThan(1);
-    expect(sheet.height).toBeLessThan(844 * 0.6);
+    expect(sheet.height).toBeLessThan(844 * 0.8);
   });
 
   test("set their title 12px under the grabber and 21px over the first setting, and end 17px over the bottom", async ({
@@ -1512,7 +1548,9 @@ test.describe("on a phone", () => {
     expect(scrollbars).toEqual([]);
   });
 
-  test("the tab bar's glass keeps Maple's colors, and boosts Walnut's", async ({ page }) => {
+  test("the tab bar's glass keeps Maple's colors, and boosts Walnut's a little", async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     const readGlass = (selector) =>
@@ -1521,8 +1559,24 @@ test.describe("on a phone", () => {
     expect(await readGlass(".tab-glass")).toContain("saturate(1)");
     expect(await readGlass(".tab-pill")).toContain("saturate(1)");
     await chooseAppearance(page, "Walnut");
-    expect(await readGlass(".tab-glass")).toContain("saturate(1.6)");
-    expect(await readGlass(".tab-pill")).toContain("saturate(1.6)");
+    expect(await readGlass(".tab-glass")).toContain("saturate(1.25)");
+    expect(await readGlass(".tab-pill")).toContain("saturate(1.25)");
+  });
+
+  test("in Walnut, the Games pill's track and thumb are tinted warm, not white", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    await chooseAppearance(page, "Walnut");
+    await page.getByRole("tab", { name: "Games" }).click();
+    const readFill = (selector) =>
+      page.locator(selector).evaluate((part) => getComputedStyle(part).backgroundColor);
+    for (const selector of ["#gamePager .pager-tabs", "#gamePager .pager-thumb"]) {
+      const [red, green, blue] = (await readFill(selector)).match(/[\d.]+/g).map(Number);
+      expect(red - blue, selector).toBeGreaterThanOrEqual(60);
+      expect(green, selector).toBeLessThan(red);
+    }
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({

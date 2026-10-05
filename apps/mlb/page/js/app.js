@@ -196,10 +196,10 @@ function drawLoadedSeason() {
 }
 
 async function boot() {
+  startDiagnostics();
   watchReturns({ isBusy: () => session.isReordering, catchUp, pause: () => session.db?.pause() });
   trackKeyboardFocus();
   wireControls();
-  startDiagnostics();
   session.db = createWorkerStore();
   drawLastSeen();
   startCatchUpNote(session.db, renderStamp);

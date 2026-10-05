@@ -69,7 +69,7 @@ function describeScore(game) {
 
 // A game saved final before the Worker saw it live has no end, so only its day is known.
 /**
- * Whether a final game ended today, and when: "at 10:41 PM yesterday", "at 4:02 PM", or a day.
+ * When a final game ended: "at 10:41 PM yesterday", "at 4:02 PM", or a day.
  * @param {Game} game
  * @param {Date} now
  */
@@ -77,10 +77,9 @@ function describeFinalWhen(game, now) {
   const start = new Date(readStart(game));
   const end = game.end ? new Date(game.end) : null;
   const day = describeFinishedDay(end ?? start, start, now);
-  const isToday = day === "today";
-  const shownDay = isToday ? "" : day;
-  if (!end) return { isToday, when: shownDay && html`<b>${shownDay}</b>` };
-  return { isToday, when: html`at ${renderStampTime(end, shownDay)}` };
+  const shownDay = day === "today" ? "" : day;
+  if (!end) return shownDay && html`<b>${shownDay}</b>`;
+  return html`at ${renderStampTime(end, shownDay)}`;
 }
 
 /**
@@ -89,9 +88,8 @@ function describeFinalWhen(game, now) {
  * @param {Date} now
  */
 function describeLatestFinal(game, seriesById, now) {
-  const { isToday, when } = describeFinalWhen(game, now);
-  const lead = isToday ? "" : "Last game ";
-  const sentence = html`${lead}${describeScore(game)} final${when && html` ${when}`}`;
+  const when = describeFinalWhen(game, now);
+  const sentence = html`Last game ${describeScore(game)} final${when && html` ${when}`}`;
   const standing = describeSeriesAfter(seriesById.get(game.series ?? ""));
   return standing ? html`${sentence} &mdash; ${standing}` : sentence;
 }

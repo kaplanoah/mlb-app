@@ -1,11 +1,18 @@
 // While Diagnostics is on in settings, each open of the page, and each return to it, records what
 // the page draws in its first seconds: what the store sends, and how much each part it draws whole
 // (each `data-last-drawn` element) shows, frame by frame. The last few records stay on this device,
-// for the viewer to copy from settings. It records nothing while it's off, which it starts as.
+// for the viewer to copy from settings, under the log of the viewport's changes (viewport-log.js).
+// It records nothing while it's off, which it starts as.
 
-import { formatClockTime, nameDay } from "./days.js";
+import { formatClockTime, formatClockTimeWithSeconds, nameDay } from "./days.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { watchTimeAway } from "./resume.js";
+import {
+  forgetViewportLines,
+  readViewportLines,
+  watchViewport,
+  writeViewportAsText,
+} from "./viewport-log.js";
 
 const SWITCH_KEY = "diagnostics";
 const RECORDS_KEY = "diagnosticsRecords";
@@ -64,10 +71,23 @@ function saveSwitch(isOn) {
     else {
       localStorage.removeItem(SWITCH_KEY);
       localStorage.removeItem(RECORDS_KEY);
+      forgetViewportLines();
     }
   } catch {
     /* the switch stays as it was */
   }
+}
+
+/**
+ * Adds a step that happened at `at`, on the page's performance clock, to the record under way, if
+ * there is one.
+ * @param {number} at
+ * @param {string} text
+ * @param {boolean} [isDip]
+ */
+function noteStepAt(at, text, isDip = false) {
+  if (!record) return;
+  record.lines.push({ ms: Math.round(at - recordStartedAt), text, isDip });
 }
 
 /**
@@ -76,8 +96,7 @@ function saveSwitch(isOn) {
  * @param {boolean} [isDip]
  */
 export function noteStep(text, isDip = false) {
-  if (!record) return;
-  record.lines.push({ ms: Math.round(performance.now() - recordStartedAt), text, isDip });
+  noteStepAt(performance.now(), text, isDip);
 }
 
 function readPartSizes() {
@@ -126,8 +145,10 @@ function noteChangedParts() {
   shownSizes = sizes;
 }
 
+// Steps the browser reports late, like the first paint, go back among the others by when they happened.
 function finishRecord() {
   if (!record) return;
+  record.lines.sort((first, second) => first.ms - second.ms);
   saveRecords([...readRecords(), record]);
   record = null;
   drawRecords();
@@ -138,6 +159,37 @@ function sampleParts() {
   noteChangedParts();
   if (performance.now() - recordStartedAt < RECORD_MS) requestAnimationFrame(sampleParts);
   else finishRecord();
+}
+
+const PAINT_NAMES = {
+  "first-paint": "First paint",
+  "first-contentful-paint": "First contentful paint",
+};
+
+/** @param {string} url */
+const readFileName = (url) => new URL(url, location.href).pathname.split("/").pop() ?? "";
+
+/** @param {PerformanceEntry} entry */
+const isFontFile = (entry) => readFileName(entry.name).endsWith(".woff2");
+
+// A font file that arrives after the first paint swaps out the stand-in font its text was drawn in.
+/** @param {PerformanceEntry} entry */
+function noteTiming(entry) {
+  if (entry.entryType === "paint")
+    noteStepAt(entry.startTime, PAINT_NAMES[entry.name] ?? entry.name);
+  else if (isFontFile(entry))
+    noteStepAt(
+      /** @type {PerformanceResourceTiming} */ (entry).responseEnd,
+      `Font ${readFileName(entry.name)} arrived`,
+    );
+}
+
+// The page's first paints and font files can come before its modules run, so the record takes
+// those the browser already has too.
+function watchTimings() {
+  if (typeof PerformanceObserver === "undefined") return;
+  const observer = new PerformanceObserver((list) => list.getEntries().forEach(noteTiming));
+  for (const type of ["paint", "resource"]) observer.observe({ type, buffered: true });
 }
 
 const readShownTab = () =>
@@ -199,6 +251,13 @@ const describeRecord = (openRecord, now) =>
   [describeWhen(openRecord, now), openRecord.how, openRecord.tab].filter(Boolean);
 
 /**
+ * How long after its record started a step came, or before it, like a paint before the page's
+ * modules ran.
+ * @param {number} ms
+ */
+const formatStepTime = (ms) => (ms < 0 ? String(ms) : `+${ms}`);
+
+/**
  * @param {OpenRecord[]} records newest first
  * @param {Date} now
  * @returns {string}
@@ -208,7 +267,7 @@ export const writeRecordsAsText = (records, now) =>
     .map((openRecord) =>
       [
         describeRecord(openRecord, now).join(", ") + (hasDip(openRecord) ? " (dip)" : ""),
-        ...openRecord.lines.map((line) => `+${line.ms} ${line.text}`),
+        ...openRecord.lines.map((line) => `${formatStepTime(line.ms)} ${line.text}`),
       ].join("\n"),
     )
     .join("\n\n");
@@ -216,7 +275,7 @@ export const writeRecordsAsText = (records, now) =>
 /** @param {RecordLine} line */
 const renderLine = (line) =>
   html`<li class="${line.isDip ? "diagnostics-dip" : ""}">
-    <span class="diagnostics-ms">+${line.ms}</span><span>${line.text}</span>
+    <span class="diagnostics-ms">${formatStepTime(line.ms)}</span><span>${line.text}</span>
   </li>`;
 
 /**
@@ -238,12 +297,34 @@ const renderRecord = (openRecord, index) =>
     </ol>
   </details>`;
 
+/** @param {import("./viewport-log.js").ViewportLine} line */
+const renderViewportLine = (line) =>
+  html`<li class="${line.isOff ? "diagnostics-dip" : ""}">
+    <span class="diagnostics-ms">${formatClockTimeWithSeconds(new Date(line.at))}</span
+    ><span>${line.text}</span>
+  </li>`;
+
+/** @param {import("./viewport-log.js").ViewportLine[]} lines newest first */
+const renderViewport = (lines) => {
+  const isOff = lines.some((line) => line.isOff);
+  return html`<details class="diagnostics-record">
+    <summary>
+      <span class="diagnostics-when">Viewport</span>
+      <span class="diagnostics-flag ${isOff ? "dip" : ""}">${isOff ? "Off" : "Steady"}</span>
+    </summary>
+    <ol class="diagnostics-lines diagnostics-viewport">
+      ${lines.map(renderViewportLine)}
+    </ol>
+  </details>`;
+};
+
 function renderRecords() {
   const records = readRecords().toReversed();
+  const viewportLines = readViewportLines().toReversed();
   return html`<div class="diagnostics-head">
       <h3>Recent opens</h3>
       ${
-        records.length > 0 &&
+        (records.length > 0 || viewportLines.length > 0) &&
         html`<button type="button" class="diagnostics-copy" id="diagnosticsCopy">
         ${isCopied ? "Copied" : "Copy"}
       </button>`
@@ -253,7 +334,8 @@ function renderRecords() {
       records.length
         ? records.map(renderRecord)
         : html`<p class="diagnostics-empty">Nothing yet. Each open from now on shows here.</p>`
-    }`;
+    }
+    ${viewportLines.length > 0 && renderViewport(viewportLines)}`;
 }
 
 function drawRecords() {
@@ -274,7 +356,9 @@ function toggleRecording() {
 
 async function copyRecords() {
   try {
-    await navigator.clipboard.writeText(writeRecordsAsText(readRecords().toReversed(), new Date()));
+    const records = writeRecordsAsText(readRecords().toReversed(), new Date());
+    const viewport = writeViewportAsText(readViewportLines().toReversed());
+    await navigator.clipboard.writeText([records, viewport].filter(Boolean).join("\n\n"));
     isCopied = true;
   } catch {
     isCopied = false;
@@ -289,17 +373,21 @@ function followSectionClick(event) {
 
 /**
  * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), and,
- * while the switch is on, records this load and each return to the page. A page that leaves the
- * screen keeps what it recorded so far, as when it reloads for a new release or the phone drops it.
+ * while the switch is on, records this load, each return to the page, and each change to the
+ * viewport. A page that leaves the screen keeps what it recorded so far, as when it reloads for a
+ * new release or the phone drops it. The page starts it before drawing anything, so a load's first
+ * reading is what show-last-drawn.js put back.
  */
 export function startDiagnostics() {
   findElement("diagnosticsSwitch").addEventListener("click", toggleRecording);
   findElement("diagnostics").addEventListener("click", followSectionClick);
   drawRecords();
   startRecord(describeLoad(readNavigationType()));
+  watchTimings();
   watchTimeAway((awayMs) => startRecord(describeTimeAway(awayMs)));
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) finishRecord();
   });
   addEventListener("pagehide", finishRecord);
+  watchViewport(isRecording, drawRecords);
 }

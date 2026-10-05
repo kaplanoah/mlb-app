@@ -57,7 +57,11 @@ while it isn't, and ESPN's for where each game is on. If the WNBA
 stops sending scores, ESPN's stand in.
 It also reads the news from ESPN, The Athletic, The IX, Winsidr, and, for the Liberty,
 NY Post and NetsDaily, every 15 minutes by day and hourly overnight, and has
-Claude keep the stories worth reading and group them by topic, two stories to a topic. The page doesn't show them yet.
+Claude keep the stories worth reading and group them by topic. The News tab shows
+a card for each topic from the past week, with its lead story and the one that
+adds the most, each a headline, a short summary, and who wrote it, linking to the
+outlet's site. Settings can leave out the Liberty's own beat writers and The
+Athletic, whose stories mostly need a subscription; each device keeps its own.
 Saved to an iPhone's home screen, the page opens full screen like an app, and
 can send a notification with the score when any playoff game ends.
 
