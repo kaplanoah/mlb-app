@@ -73,7 +73,7 @@ export function renderStamp() {
   const problems = [session.liveProblem, session.saveProblem].filter(Boolean);
   fillStamp(
     document.getElementById("stamp"),
-    [...renderStampLines(), ...renderCatchUpLines()],
+    [...renderCatchUpLines(), ...renderStampLines()],
     problems,
   );
 }

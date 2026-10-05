@@ -1,4 +1,5 @@
 import { renderCatchUpLines, startCatchUpNote } from "#shared/catch-up-note.js";
+import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { setHtml } from "#shared/html.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
@@ -38,7 +39,7 @@ const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(
 function renderStamp() {
   const problem = describeStampProblem(session);
   const lines = renderStampLines(session.season, Date.now());
-  fillStamp(findElement("stamp"), [...lines, ...renderCatchUpLines()], problem ? [problem] : []);
+  fillStamp(findElement("stamp"), [...renderCatchUpLines(), ...lines], problem ? [problem] : []);
 }
 
 // Until the store or the page's last showing says what the news is, the view keeps what it was.
@@ -108,8 +109,9 @@ async function reloadSeason() {
   showNewData();
 }
 
-function catchUp() {
-  session.db.catchUp();
+/** @param {number} awayMs */
+function catchUp(awayMs) {
+  session.db.catchUp(awayMs);
   if (session.problem) reloadSeason();
   else showNewData();
 }
@@ -131,6 +133,7 @@ async function boot() {
   session.db = createWorkerStore();
   drawLastSeen();
   startCatchUpNote(session.db, renderStamp);
+  startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
   await loadSeason();
   redrawEased(drawLoadedSeason);

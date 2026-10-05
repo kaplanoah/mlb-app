@@ -265,7 +265,11 @@ test("a deploy found mid-drag reloads the page once the drag ends", async ({ pag
   });
 });
 
-test("a page coming back says it's updating until the store answers", async ({ page }) => {
+test("a page coming back says when its scores are from, first in the header, until the store answers", async ({
+  page,
+}) => {
+  // The page may not have caught up yet when it sleeps, and then shows its last visit's time.
+  await page.addInitScript(() => localStorage.setItem("syncedAt", String(Date.now() - 60 * 1000)));
   const app = await openApp(page);
   const stamp = page.locator("#stamp");
   await expect(stamp).toBeVisible();
@@ -274,7 +278,9 @@ test("a page coming back says it's updating until the store answers", async ({ p
   await sleepUnannounced(page, 31);
   await page.clock.runFor(2000);
 
-  await expect(stamp).toContainText("Updating...");
+  const line = stamp.locator("> span").first();
+  await expect(line).toHaveClass("catch-up-line");
+  await expect(line).toContainText(/Scores as of .*\d/);
   release();
-  await expect(stamp).not.toContainText("Updating...");
+  await expect(stamp).not.toContainText("Scores as of");
 });

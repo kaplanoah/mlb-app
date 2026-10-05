@@ -51,9 +51,11 @@ function describeIconProblem(svg) {
 }
 
 // The Home Screen steps' Share and menu glyphs copy the browser's own buttons, so people find
-// them, and MLB's seed lock is drawn for its small size beside a seed.
+// them, MLB's seed lock is drawn for its small size beside a seed, and the catching-up ring is
+// Phosphor's circle-notch at its Light weight with a wider gap.
 const HAND_DRAWN_ICONS = {
   "apps/mlb/page/js/games-view.js": 1,
+  "shared/page/catch-up-note.js": 1,
   "shared/page/home-screen.js": 2,
 };
 

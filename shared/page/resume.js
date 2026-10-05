@@ -21,7 +21,7 @@ let isReleaseCheckOwed = false;
 let isReloadPending = false;
 /** @type {() => boolean} */
 let isBusy = () => false;
-/** @type {() => void} */
+/** @type {(awayMs: number) => void} */
 let catchUp = () => {};
 /** @type {() => void} */
 let pause = () => {};
@@ -71,7 +71,7 @@ function catchUpOnReturn() {
   wasHidden = false;
   if (hasBeenAway) {
     for (const watcher of awayWatchers) watcher(awayMs);
-    catchUp();
+    catchUp(awayMs);
   }
   reloadIfReplaced();
 }
@@ -108,8 +108,9 @@ function noteHidden() {
 }
 
 // iOS doesn't always report a home-screen page coming back, so every sign of it counts. `pause`
-// runs once the page has been hidden a while, and `catchUp` when it's back.
-/** @param {{ isBusy?: () => boolean, catchUp?: () => void, pause?: () => void }} [options] */
+// runs once the page has been hidden a while, and `catchUp` when it's back, with how long it was
+// away.
+/** @param {{ isBusy?: () => boolean, catchUp?: (awayMs: number) => void, pause?: () => void }} [options] */
 export function watchReturns(options = {}) {
   isBusy = options.isBusy ?? isBusy;
   catchUp = options.catchUp ?? catchUp;

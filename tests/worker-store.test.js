@@ -39,7 +39,9 @@ function startStore() {
   return { store, reads, sockets, openSocket };
 }
 
-beforeEach(() => mock.timers.enable({ apis: ["setTimeout"] }));
+const START = Date.parse("2026-10-04T21:00:00Z");
+
+beforeEach(() => mock.timers.enable({ apis: ["setTimeout", "Date"], now: START }));
 afterEach(() => mock.timers.reset());
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -339,4 +341,79 @@ test("a socket that closes leaves the store behind, and coming back puts it behi
   store.catchUp();
 
   assert.deepEqual(changes, [true, false, false]);
+});
+
+/**
+ * Opens the socket and answers its read, so the store has caught up.
+ * @param {ReturnType<typeof startStore>} started
+ */
+async function catchUpStore({ reads, openSocket }) {
+  openSocket();
+  reads.at(-1).answer({ data: {} });
+  await settle();
+}
+
+test("a store has no time it was current until it first catches up", async () => {
+  const started = startStore();
+  started.store.doc("seasons/2026").onSnapshot(() => {});
+  assert.equal(started.store.readSyncedAt(), null);
+
+  await catchUpStore(started);
+
+  assert.equal(started.store.readSyncedAt(), START);
+});
+
+test("a store that falls behind was current until then", async () => {
+  const started = startStore();
+  started.store.doc("seasons/2026").onSnapshot(() => {});
+  await catchUpStore(started);
+
+  mock.timers.tick(5000);
+  started.sockets[0].close();
+
+  assert.equal(started.store.readSyncedAt(), START + 5000);
+});
+
+test("a page that comes back still caught up was current when it went away", async () => {
+  const started = startStore();
+  started.store.doc("seasons/2026").onSnapshot(() => {});
+  await catchUpStore(started);
+
+  mock.timers.tick(60 * 1000);
+  started.store.catchUp(45 * 1000);
+
+  assert.equal(started.store.readSyncedAt(), START + 15 * 1000);
+});
+
+test("a page that comes back after its store paused was current until the pause", async () => {
+  const started = startStore();
+  started.store.doc("seasons/2026").onSnapshot(() => {});
+  await catchUpStore(started);
+  mock.timers.tick(60 * 1000);
+  started.store.pause();
+
+  mock.timers.tick(10 * 60 * 1000);
+  started.store.catchUp(11 * 60 * 1000);
+
+  assert.equal(started.store.readSyncedAt(), START + 60 * 1000);
+});
+
+test("waiting for the store to catch up ends as it does", async () => {
+  const started = startStore();
+  started.store.doc("seasons/2026").onSnapshot(() => {});
+  const waiting = started.store.waitForCatchUp();
+
+  await catchUpStore(started);
+
+  assert.equal(await waiting, true);
+});
+
+test("waiting for a store that doesn't catch up gives up after ten seconds", async () => {
+  const { store } = startStore();
+  store.doc("seasons/2026").onSnapshot(() => {});
+  const waiting = store.waitForCatchUp();
+
+  mock.timers.tick(10 * 1000);
+
+  assert.equal(await waiting, false);
 });
