@@ -4,6 +4,10 @@
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
+    at: "2026-10-05T03:31:00Z",
+    text: "A News tab with WNBA stories and analysis from curated sources including ESPN, The Athletic, The IX, and beat writers. Configure teams and paywalled content in settings at the top right.",
+  },
+  {
     at: "2026-10-02T17:15:00Z",
     text: "Game details now include which channels it's playing on. Tap a game to view details.",
   },

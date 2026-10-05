@@ -1,5 +1,5 @@
-// The settings panel's notifications switch: subscribes this device to the Worker's pushes. A note
-// shows under it only when the switch can't do its job.
+// The settings panel's notifications switch: subscribes this device to the Worker's pushes. The
+// note under it says what the app's notifications tell, or why the switch can't do its job.
 import { reloadWhenSignedOut } from "./access.js";
 
 import { isIos, isOnHomeScreen } from "./device.js";
@@ -22,6 +22,7 @@ let registration = null;
 let subscription = null;
 let status = "loading";
 let note = "";
+let about = "";
 let isBusy = false;
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -32,7 +33,7 @@ const canPush = () =>
 // iOS keeps a Home Screen page's permission in its Settings app; other browsers keep it per site.
 function describeStatus() {
   if (status === "blocked") return isIos() ? NOTES.blockedOnIos : NOTES.blockedInBrowser;
-  return NOTES[status] ?? "";
+  return NOTES[status] ?? about;
 }
 
 function renderNotifications() {
@@ -157,7 +158,12 @@ function describeStartStatus() {
   return subscription && Notification.permission === "granted" ? "on" : "off";
 }
 
-export async function startNotifications() {
+/**
+ * @param {{ about?: string }} [options] what the app's notifications tell, under the switch while
+ *   it works
+ */
+export async function startNotifications(options = {}) {
+  about = options.about ?? "";
   findElement("notifySwitch").addEventListener("click", toggleNotifications);
   if (!canPush()) {
     setStatus(isIos() && !isOnHomeScreen() ? "homeScreen" : "unsupported");

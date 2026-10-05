@@ -1648,6 +1648,172 @@ table.standings tr.playoff-line + tr td {
   font-weight: 400;
 }
 
+/* The News view: a card for each topic, its lead's photo across the top, and the story that adds
+   the most under the lead, with its photo small beside it. */
+.news-cards {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 900px) {
+  .news-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+.news-card {
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.news-photo {
+  margin: 0;
+}
+.news-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--tile);
+}
+.news-photo figcaption {
+  padding: 5px 8px 0 16px;
+  text-align: right;
+  font-size: var(--size-small);
+  color: var(--ink-dim);
+}
+.news-body {
+  display: grid;
+  gap: 6px;
+  padding: 12px 13px 13px 16px;
+}
+.news-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+}
+.news-teams .club {
+  gap: 7px;
+  font-family: var(--text);
+  font-size: var(--size-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.news-teams .dot {
+  width: 14px;
+  height: 14px;
+}
+.news-title {
+  margin: 0;
+  font-weight: 600;
+  text-wrap: pretty;
+}
+h3.news-title {
+  font-size: 1.15rem;
+  line-height: 1.28;
+}
+h4.news-title {
+  font-size: var(--size-read);
+  line-height: 1.35;
+}
+.news-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.news-meta,
+.news-credit {
+  margin: 0;
+  color: var(--ink-dim);
+}
+.news-meta {
+  font-size: var(--size-glance);
+}
+/* Close under the writer's line it belongs to, past the grid's gap. */
+.news-credit {
+  margin-top: -3px;
+  font-size: var(--size-small);
+}
+.news-summary {
+  margin: 2px 0 0;
+  font-size: var(--size-read);
+  line-height: 1.45;
+  color: var(--ink-mid);
+}
+.news-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 3px;
+}
+.read-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 6px 8px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 3px;
+  background: var(--bg);
+  font-size: var(--size-glance);
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.read-arrow {
+  width: 17px;
+  height: 17px;
+  margin-left: 3px;
+  color: var(--orange);
+}
+@media (hover: hover) {
+  .news-title a:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .read-button:hover {
+    border-color: var(--ink-dim);
+  }
+}
+.news-more {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}
+.news-more-label {
+  margin: 0;
+  font-size: var(--size-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.news-more-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+.news-more-text {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.news-thumb {
+  display: block;
+  width: 76px;
+  height: 76px;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--tile);
+}
+
 /* The Home Screen bar and box show the icon the theme showing would give the Home Screen. */
 .home-screen-icon {
   background-image: url(icon-light-180.png);
@@ -1661,6 +1827,7 @@ table.standings tr.playoff-line + tr td {
 .appearance-row {
   flex-direction: column;
   align-items: stretch;
+  gap: 14px;
 }
 .appearance-choices {
   display: flex;
