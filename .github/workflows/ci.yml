@@ -16,87 +16,108 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
+  # On main, a pull request's CI that passed on exactly this code has already run every check, so
+  # they're skipped (worker/find-passed-ci.mjs).
+  passed:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.find.outputs.run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - &setup-node
+        id: node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
+      - name: Find the pull request's CI run that passed on this code
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node worker/find-passed-ci.mjs
 
-  format:
+  # The quick checks share one machine, which leaves more of the account's runners for the browser
+  # tests.
+  checks:
+    needs: passed
+    if: ${{ !cancelled() && !needs.passed.outputs.run }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - *setup-node
+      - &restore-modules
+        id: modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run format:check
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-
-  deadcode:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run deadcode
-
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm test
+          path: node_modules
+          key: &modules-key node-modules-${{ runner.os }}-${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
+      - &install-modules
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      # Each check runs even when one before it failed, so one run reports them all.
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+      - name: Check formatting
+        if: ${{ !cancelled() }}
+        run: npm run format:check
+      - name: Check types
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
+      - name: Find dead code
+        if: ${{ !cancelled() }}
+        run: npm run deadcode
+      - name: Test
+        if: ${{ !cancelled() }}
+        run: npm test
       # The runner is on UTC, ahead of MLB's Eastern day; this zone is behind it.
       - name: Test in another time zone
+        if: ${{ !cancelled() }}
         run: TZ=Pacific/Honolulu npm test
+      # A pull request's title sets the next version once it's squash merged (worker/release.mjs).
+      # The title comes from GitHub rather than the event, so a re-run checks an edited title.
+      # Naming the shell adds pipefail, so a failed diff can't pass as no changes.
+      - name: Check the title
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr diff "$PR" --name-only | node worker/check-pr-title.mjs "$(gh pr view "$PR" --json title --jq .title)"
 
   # The browser tests take most of CI's time, so they run split across machines.
   browser:
+    needs: passed
+    if: ${{ !cancelled() && !needs.passed.outputs.run }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - *setup-node
+      - *restore-modules
+      - *install-modules
+      - id: browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
+          path: ~/.cache/ms-playwright
+          key: &browsers-key playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       # The tests run on Chromium's headless shell, so the full browser isn't needed, and GitHub's
       # Ubuntu runners already have the system libraries it needs.
-      - run: npx playwright install --only-shell chromium
+      - &install-browsers
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --only-shell chromium
       - run: npm run test:browser -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
@@ -106,27 +127,43 @@ jobs:
             playwright-report/
             test-results/
 
-  # A pull request's title sets the next version once it's squash merged (worker/release.mjs). The
-  # title comes from GitHub rather than the event, so a re-run checks an edited title.
-  title:
+  # A pull request can restore only the caches its own branch or main saved, so main saves any that
+  # are missing, even when its checks are skipped. A failure here only costs pull requests their
+  # cache, so it doesn't fail main's CI.
+  caches:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: read
+    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - *setup-node
+      - id: modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version-file: .nvmrc
-      # Naming the shell adds pipefail, so a failed diff can't pass as no changes.
-      - name: Check the title
-        if: github.event_name == 'pull_request'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: gh pr diff "$PR" --name-only | node worker/check-pr-title.mjs "$(gh pr view "$PR" --json title --jq .title)"
+          path: node_modules
+          key: *modules-key
+          lookup-only: true
+      - id: browsers
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: *browsers-key
+          lookup-only: true
+      # Installing the browsers takes the installed Playwright.
+      - if: steps.modules.outputs.cache-hit != 'true' || steps.browsers.outputs.cache-hit != 'true'
+        run: npm ci
+      - if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: *modules-key
+      - *install-browsers
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: *browsers-key
 
   # Reviews every push to a pull request, so fixes for its comments are reviewed too. It
   # passes when there's nothing to review, such as a push to main, since check fails on a
@@ -237,12 +274,16 @@ jobs:
   # skipped required check as passing.
   check:
     if: always()
-    needs: [lint, format, typecheck, deadcode, test, browser, title, review]
+    needs: [passed, checks, browser, review]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # passed runs only on main, which skips the checks when it found a run that passed.
       - name: Require every job to pass
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        if: >-
+          contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') ||
+          (!needs.passed.outputs.run && (needs.checks.result != 'success' ||
+          needs.browser.result != 'success' || needs.review.result != 'success'))
         run: exit 1
       # Records the code this pull request's checks passed on, so that once it merges, main deploys
       # at once if it has exactly that code (worker/find-passed-ci.mjs).
