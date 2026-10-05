@@ -1167,7 +1167,7 @@ test.describe("on a phone", () => {
     for (const code of ["LVA", "LAS", "CON"]) {
       await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
       const names = sheet.locator("table.players tbody th");
-      await expect(names).toHaveCount(3);
+      await expect(names).toHaveCount(5);
       const lineCounts = await names.evaluateAll((cells) =>
         cells.map((cell) => {
           const range = document.createRange();
@@ -1175,7 +1175,7 @@ test.describe("on a phone", () => {
           return new Set([...range.getClientRects()].map((rect) => Math.round(rect.bottom))).size;
         }),
       );
-      expect(lineCounts, code).toEqual([1, 1, 1]);
+      expect(lineCounts, code).toEqual([1, 1, 1, 1, 1]);
       const overflowing = await sheet
         .locator(".tape-side")
         .evaluateAll((sides) =>
