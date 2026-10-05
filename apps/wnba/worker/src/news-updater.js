@@ -51,9 +51,9 @@ const STATUS_KEY = "news/status";
  * @property {string} [topic]
  */
 
-/** The wait between runs: every fifteen minutes from 7 a.m. Eastern to midnight, hourly overnight. */
+/** The wait between runs: every half hour from 7 a.m. Eastern to midnight, every three hours overnight. */
 function chooseNewsDelay(now) {
-  return readEasternDay(now).hour >= 7 ? 15 * MINUTE_MS : 60 * MINUTE_MS;
+  return readEasternDay(now).hour >= 7 ? 30 * MINUTE_MS : 3 * 60 * MINUTE_MS;
 }
 
 /** @param {string} url */
