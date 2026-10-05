@@ -42,3 +42,17 @@ export async function pullDown(page, distance) {
   const release = await drag(page, { x: 200, y: 40 }, { y: distance });
   await release();
 }
+
+/**
+ * Touches the page at `at` and has the browser cancel the touch, as a phone's does when the touch
+ * stops the page's momentum scroll.
+ * @param {import("@playwright/test").Page} page
+ * @param {{ x: number, y: number }} at
+ */
+export async function touchAndCancel(page, at) {
+  const session = await page.context().newCDPSession(page);
+  await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
+  await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  await session.detach();
+}

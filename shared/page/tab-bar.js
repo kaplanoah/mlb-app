@@ -76,6 +76,8 @@ const press = {
   isDragging: false,
   startX: 0,
   pointerId: null,
+  /** @type {string | undefined} */
+  tab: undefined,
   lastMoveTime: 0,
   choseAt: -Infinity,
 };
@@ -300,12 +302,13 @@ function startPress(event) {
     isDragging: false,
     startX: event.clientX,
     pointerId: event.pointerId,
+    tab: findTabUnderPointer(event),
   });
   findBar().setPointerCapture(event.pointerId);
   moveGlow(event);
   if (!isCalm()) motion.glow.target = GLOW_PEAK;
   liftPill();
-  travelTo(findTabUnderPointer(event));
+  travelTo(press.tab);
 }
 
 function measureDragVelocity(x) {
@@ -331,10 +334,13 @@ function trackPress(event) {
 function endPress(event) {
   if (!press.isActive || event.pointerId !== press.pointerId) return;
   const wasDragging = press.isDragging;
-  const tab = wasDragging ? findTabUnderPill() : findTabUnderPointer(event);
+  // A cancelled touch may not say where it was, so a tap chooses the tab it started on.
+  const tab = wasDragging ? findTabUnderPill() : press.tab;
   Object.assign(press, { isActive: false, isDragging: false, lastMoveTime: 0 });
   motion.glow.target = 0;
-  if (event.type === "pointercancel") {
+  // A phone's browser takes a tap that stops the page's momentum scroll for itself and cancels it,
+  // but the tap still meant its tab, so only a cancelled drag goes back.
+  if (event.type === "pointercancel" && wasDragging) {
     travelTo(readSelectedTab(findTabButtons()));
     return;
   }

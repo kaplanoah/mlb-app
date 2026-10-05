@@ -1,6 +1,7 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
+import { touchAndCancel } from "../../../../tests/browser/touch.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -273,6 +274,25 @@ test.describe("on a phone, the news", () => {
       .locator(".news-teams .team-name")
       .evaluateAll((names) => names.filter((name) => name.scrollWidth > name.clientWidth).length);
     expect(clippedNames).toBe(0);
+  });
+
+  test("give way to another tab even when the phone takes the tap on it to stop the scrolling", async ({
+    page,
+  }) => {
+    await openNewsWithStories(page, createThreeTopics);
+    const standingsTab = await page.getByRole("tab", { name: "Standings" }).boundingBox();
+
+    await touchAndCancel(page, {
+      x: standingsTab.x + standingsTab.width / 2,
+      y: standingsTab.y + standingsTab.height / 2,
+    });
+
+    await expect(page.getByRole("tab", { name: "Standings" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator("#view-standings")).toBeVisible();
+    await expect(page.locator("#view-news")).toBeHidden();
   });
 
   test("turns to two columns when the screen widens", async ({ page }) => {
