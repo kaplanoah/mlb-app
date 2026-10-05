@@ -79,13 +79,24 @@ function saveSwitch(isOn) {
 }
 
 /**
+ * Adds a step that happened at `at`, on the page's performance clock, to the record under way, if
+ * there is one.
+ * @param {number} at
+ * @param {string} text
+ * @param {boolean} [isDip]
+ */
+function noteStepAt(at, text, isDip = false) {
+  if (!record) return;
+  record.lines.push({ ms: Math.round(at - recordStartedAt), text, isDip });
+}
+
+/**
  * Adds a step to the record under way, if there is one.
  * @param {string} text
  * @param {boolean} [isDip]
  */
 export function noteStep(text, isDip = false) {
-  if (!record) return;
-  record.lines.push({ ms: Math.round(performance.now() - recordStartedAt), text, isDip });
+  noteStepAt(performance.now(), text, isDip);
 }
 
 function readPartSizes() {
@@ -134,8 +145,10 @@ function noteChangedParts() {
   shownSizes = sizes;
 }
 
+// Steps the browser reports late, like the first paint, go back among the others by when they happened.
 function finishRecord() {
   if (!record) return;
+  record.lines.sort((first, second) => first.ms - second.ms);
   saveRecords([...readRecords(), record]);
   record = null;
   drawRecords();
@@ -146,6 +159,37 @@ function sampleParts() {
   noteChangedParts();
   if (performance.now() - recordStartedAt < RECORD_MS) requestAnimationFrame(sampleParts);
   else finishRecord();
+}
+
+const PAINT_NAMES = {
+  "first-paint": "First paint",
+  "first-contentful-paint": "First contentful paint",
+};
+
+/** @param {string} url */
+const readFileName = (url) => new URL(url, location.href).pathname.split("/").pop() ?? "";
+
+/** @param {PerformanceEntry} entry */
+const isFontFile = (entry) => readFileName(entry.name).endsWith(".woff2");
+
+// A font file that arrives after the first paint swaps out the stand-in font its text was drawn in.
+/** @param {PerformanceEntry} entry */
+function noteTiming(entry) {
+  if (entry.entryType === "paint")
+    noteStepAt(entry.startTime, PAINT_NAMES[entry.name] ?? entry.name);
+  else if (isFontFile(entry))
+    noteStepAt(
+      /** @type {PerformanceResourceTiming} */ (entry).responseEnd,
+      `Font ${readFileName(entry.name)} arrived`,
+    );
+}
+
+// The page's first paints and font files can come before its modules run, so the record takes
+// those the browser already has too.
+function watchTimings() {
+  if (typeof PerformanceObserver === "undefined") return;
+  const observer = new PerformanceObserver((list) => list.getEntries().forEach(noteTiming));
+  for (const type of ["paint", "resource"]) observer.observe({ type, buffered: true });
 }
 
 const readShownTab = () =>
@@ -207,6 +251,13 @@ const describeRecord = (openRecord, now) =>
   [describeWhen(openRecord, now), openRecord.how, openRecord.tab].filter(Boolean);
 
 /**
+ * How long after its record started a step came, or before it, like a paint before the page's
+ * modules ran.
+ * @param {number} ms
+ */
+const formatStepTime = (ms) => (ms < 0 ? String(ms) : `+${ms}`);
+
+/**
  * @param {OpenRecord[]} records newest first
  * @param {Date} now
  * @returns {string}
@@ -216,7 +267,7 @@ export const writeRecordsAsText = (records, now) =>
     .map((openRecord) =>
       [
         describeRecord(openRecord, now).join(", ") + (hasDip(openRecord) ? " (dip)" : ""),
-        ...openRecord.lines.map((line) => `+${line.ms} ${line.text}`),
+        ...openRecord.lines.map((line) => `${formatStepTime(line.ms)} ${line.text}`),
       ].join("\n"),
     )
     .join("\n\n");
@@ -224,7 +275,7 @@ export const writeRecordsAsText = (records, now) =>
 /** @param {RecordLine} line */
 const renderLine = (line) =>
   html`<li class="${line.isDip ? "diagnostics-dip" : ""}">
-    <span class="diagnostics-ms">+${line.ms}</span><span>${line.text}</span>
+    <span class="diagnostics-ms">${formatStepTime(line.ms)}</span><span>${line.text}</span>
   </li>`;
 
 /**
@@ -324,13 +375,15 @@ function followSectionClick(event) {
  * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), and,
  * while the switch is on, records this load, each return to the page, and each change to the
  * viewport. A page that leaves the screen keeps what it recorded so far, as when it reloads for a
- * new release or the phone drops it.
+ * new release or the phone drops it. The page starts it before drawing anything, so a load's first
+ * reading is what show-last-drawn.js put back.
  */
 export function startDiagnostics() {
   findElement("diagnosticsSwitch").addEventListener("click", toggleRecording);
   findElement("diagnostics").addEventListener("click", followSectionClick);
   drawRecords();
   startRecord(describeLoad(readNavigationType()));
+  watchTimings();
   watchTimeAway((awayMs) => startRecord(describeTimeAway(awayMs)));
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) finishRecord();
