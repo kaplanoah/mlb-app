@@ -187,8 +187,16 @@ section.view.active {
   animation: catch-up-turn 0.75s linear infinite;
 }
 
-/* Pull to refresh, as pull-to-refresh.js draws it: spokes at the top of the screen that appear one
-   by one as the page is pulled, then step round, as the iPhone's own do, while it refreshes. */
+/* Pull to refresh, as pull-to-refresh.js draws it: spokes at the top of the screen that appear
+   whole, one by one clockwise from the top, as the page is pulled, then turn as the iPhone's own
+   do, a bright spoke stepping round ahead of the fading ones behind it. Each spoke sits on a
+   multiple of 45 degrees, so the masks start halfway between two. The spokes keep turning under
+   reduced motion, only slower, since spokes that stand still look stuck. */
+@property --spoke-turn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
 .pull-refresh {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 16px);
@@ -198,16 +206,35 @@ section.view.active {
   margin-left: -14px;
   color: var(--ink-dim);
   pointer-events: none;
-  -webkit-mask-image: conic-gradient(#000 0 calc(var(--pull-progress, 0) * 360deg), transparent 0);
-  mask-image: conic-gradient(#000 0 calc(var(--pull-progress, 0) * 360deg), transparent 0);
+  -webkit-mask-image: conic-gradient(
+    from -22.5deg,
+    #000 0 calc(var(--pull-spokes, 0) * 45deg),
+    transparent 0
+  );
+  mask-image: conic-gradient(
+    from -22.5deg,
+    #000 0 calc(var(--pull-spokes, 0) * 45deg),
+    transparent 0
+  );
+}
+.pull-refresh.turning {
+  -webkit-mask-image: conic-gradient(
+    from calc(var(--spoke-turn) - 22.5deg),
+    rgba(0, 0, 0, 0.2),
+    #000
+  );
+  mask-image: conic-gradient(from calc(var(--spoke-turn) - 22.5deg), rgba(0, 0, 0, 0.2), #000);
+  animation: spokes-turn 0.8s steps(8) infinite;
 }
 .pull-refresh svg {
   display: block;
   width: 100%;
   height: 100%;
 }
-.pull-refresh.refreshing svg {
-  animation: catch-up-turn 0.8s steps(8) infinite;
+@keyframes spokes-turn {
+  to {
+    --spoke-turn: 360deg;
+  }
 }
 @keyframes catch-up-turn {
   to {
@@ -216,7 +243,7 @@ section.view.active {
 }
 @media (prefers-reduced-motion: reduce) {
   .catch-up-ring,
-  .pull-refresh.refreshing svg {
+  .pull-refresh.turning {
     animation-duration: 2.4s;
   }
 }

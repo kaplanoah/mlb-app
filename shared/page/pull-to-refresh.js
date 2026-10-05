@@ -4,20 +4,23 @@ import { reloadIfReplaced } from "./resume.js";
 
 // A phone gives a page on the Home Screen no pull to refresh, so the page draws its own, as an
 // iPhone list does: pulled down from the top, the page follows the finger as spokes appear one by
-// one above it, and let go far enough, it stays held down with the spokes turning until the store
-// has caught up. The browser has a pull to refresh of its own, which reloads the page, so there
-// the page leaves it to the browser.
+// one above it, which start to turn once the pull is far enough to refresh. Let go then, and the
+// page stays held down with the spokes turning until the store has caught up, and long enough to
+// see. The browser has a pull to refresh of its own, which reloads the page, so there the page
+// leaves it to the browser.
 
 const START_PX = 8;
 const RESISTANCE = 0.5;
 const MAX_PULL_PX = 120;
 const REFRESH_PULL_PX = 64;
 const HOLD_PX = 56;
+const SPOKE_COUNT = 8;
+const SHORTEST_REFRESH_MS = 800;
 
-// Phosphor's spinner-gap, at its Regular weight, which comes closest to the iPhone's own spokes.
+// Phosphor's spinner, at its Regular weight: eight spokes, like the iPhone's own.
 const SPOKES = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
   <path
-    d="M136,32V64a8,8,0,0,1-16,0V32a8,8,0,0,1,16,0Zm88,88H192a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16Zm-45.09,47.6a8,8,0,0,0-11.31,11.31l22.62,22.63a8,8,0,0,0,11.32-11.32ZM128,184a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V192A8,8,0,0,0,128,184ZM77.09,167.6,54.46,190.22a8,8,0,0,0,11.32,11.32L88.4,178.91A8,8,0,0,0,77.09,167.6ZM72,128a8,8,0,0,0-8-8H32a8,8,0,0,0,0,16H64A8,8,0,0,0,72,128ZM65.78,54.46A8,8,0,0,0,54.46,65.78L77.09,88.4A8,8,0,0,0,88.4,77.09Z"
+    d="M136,32V64a8,8,0,0,1-16,0V32a8,8,0,0,1,16,0Zm37.25,58.75a8,8,0,0,0,5.66-2.35l22.63-22.62a8,8,0,0,0-11.32-11.32L167.6,77.09a8,8,0,0,0,5.65,13.66ZM224,120H192a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16Zm-45.09,47.6a8,8,0,0,0-11.31,11.31l22.62,22.63a8,8,0,0,0,11.32-11.32ZM128,184a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V192A8,8,0,0,0,128,184ZM77.09,167.6,54.46,190.22a8,8,0,0,0,11.32,11.32L88.4,178.91A8,8,0,0,0,77.09,167.6ZM72,128a8,8,0,0,0-8-8H32a8,8,0,0,0,0,16H64A8,8,0,0,0,72,128ZM65.78,54.46A8,8,0,0,0,54.46,65.78L77.09,88.4A8,8,0,0,0,88.4,77.09Z"
   />
 </svg>`;
 
@@ -105,10 +108,12 @@ export function startPullToRefresh({ store, catchUp }) {
     }
   }
 
-  /** @param {number} progress from 0, nothing shown, to 1, every spoke */
-  function showSpokes(progress) {
+  /** @param {number} pulled how far the page is pulled, in pixels */
+  function showSpokes(pulled) {
+    const spokes = Math.min(SPOKE_COUNT, Math.floor((pulled / REFRESH_PULL_PX) * SPOKE_COUNT));
     spinner.hidden = false;
-    spinner.style.setProperty("--pull-progress", String(progress));
+    spinner.style.setProperty("--pull-spokes", String(spokes));
+    spinner.classList.toggle("turning", spokes === SPOKE_COUNT);
   }
 
   // Once the page is back in place, its parts drop the relative position the pull gave them,
@@ -116,7 +121,7 @@ export function startPullToRefresh({ store, catchUp }) {
   function settle() {
     movePage(0, true);
     spinner.hidden = true;
-    spinner.classList.remove("refreshing");
+    spinner.classList.remove("turning");
     state = "idle";
     const settled = movedParts;
     const [first] = settled;
@@ -130,11 +135,11 @@ export function startPullToRefresh({ store, catchUp }) {
   async function refresh() {
     state = "refreshing";
     movePage(HOLD_PX, true);
-    showSpokes(1);
-    spinner.classList.add("refreshing");
+    showSpokes(REFRESH_PULL_PX);
     catchUp(0);
     reloadIfReplaced();
-    await store.waitForCatchUp();
+    const shortestRefresh = new Promise((resolve) => setTimeout(resolve, SHORTEST_REFRESH_MS));
+    await Promise.all([store.waitForCatchUp(), shortestRefresh]);
     settle();
   }
 
@@ -165,7 +170,7 @@ export function startPullToRefresh({ store, catchUp }) {
     const down = event.touches[0].clientY - startY - START_PX;
     pulledPx = Math.min(MAX_PULL_PX, Math.max(0, down * RESISTANCE));
     movePage(pulledPx, false);
-    showSpokes(Math.min(1, pulledPx / REFRESH_PULL_PX));
+    showSpokes(pulledPx);
   }
 
   /** @param {TouchEvent} event */
