@@ -62,7 +62,6 @@ test("an update saves the whole season in its record, and a reading, and tells o
     slate: SNAPSHOT.slate,
     log: [],
   });
-  assert.deepEqual(read("standings/2026").divisions, SNAPSHOT.standings.divisions);
   assert.deepEqual(read(`readings-2026/${TODAY}-01`).start, createReading(SNAPSHOT));
   assert.deepEqual(read("live/status"), {
     error: "",
@@ -72,14 +71,7 @@ test("an update saves the whole season in its record, and a reading, and tells o
   });
   assert.deepEqual(
     sent.map((message) => message.path),
-    [
-      `readings-2026/${TODAY}-01`,
-      "seasons/2026",
-      "standings/2026",
-      "live/2026",
-      "live/current",
-      "live/status",
-    ],
+    [`readings-2026/${TODAY}-01`, "seasons/2026", "live/current", "live/status"],
   );
   // A game is live, so the next update is thirty seconds out.
   assert.equal(context.alarm.at, NOW + MLBSnapshot.POLL_LIVE_MS);
@@ -94,10 +86,11 @@ test("an update writes nothing when nothing changed", async () => {
   assert.deepEqual(sent, []);
 });
 
-test("the live scores are saved for the page, and saved again only when more than their time changed", async () => {
+test("the season's record is all the Worker saves for the page, and only when more than its time changed", async () => {
   const { store, harness, sent, read, context, clock } = createUpdatingStore();
   await store.alarm();
-  assert.deepEqual(read("live/2026"), SNAPSHOT);
+  assert.equal(read("live/2026"), null);
+  assert.equal(read("standings/2026"), null);
 
   sent.length = 0;
   harness.snapshot = { ...SNAPSHOT, asOf: "2026-09-25T00:45:13.489Z" };
@@ -108,9 +101,8 @@ test("the live scores are saved for the page, and saved again only when more tha
   await fireNextAlarm(store, context, clock);
   assert.deepEqual(
     sent.map((message) => message.path),
-    ["live/2026", "live/status"],
+    ["live/status"],
   );
-  assert.deepEqual(read("live/2026").missing, ["wildCardRank"]);
 });
 
 test("a read without the standings or the day's games leaves them in the record as they were", async () => {
@@ -156,12 +148,11 @@ test("standings MLB sent empty leave the saved field, standings, and readings al
   const empty = MLBSnapshot.buildSnapshot(responses, { season: 2026, now: NOW });
   const { store, harness, read, context, clock } = createUpdatingStore();
   await store.alarm();
-  const saved = { season: read("seasons/2026"), standings: read("standings/2026") };
+  const saved = read("seasons/2026");
   harness.snapshot = empty;
   await fireNextAlarm(store, context, clock);
 
-  assert.deepEqual(read("seasons/2026"), saved.season);
-  assert.deepEqual(read("standings/2026"), saved.standings);
+  assert.deepEqual(read("seasons/2026"), saved);
   assert.deepEqual(read(`readings-2026/${TODAY}-01`).changes, []);
 });
 
