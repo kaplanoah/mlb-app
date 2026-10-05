@@ -44,6 +44,17 @@ function openTeamSheet(team) {
   openSheet(findDialog());
 }
 
+const readShownTeam = () => shownTeam && { team: shownTeam, areAllTitlesShown };
+
+/** @param {{ team: string, areAllTitlesShown: boolean } | null} shown */
+function reopenTeamSheet(shown) {
+  if (!shown || !league?.isTeam(shown.team)) return false;
+  shownTeam = shown.team;
+  areAllTitlesShown = shown.areAllTitlesShown === true;
+  renderSheet();
+  return true;
+}
+
 /** Redraws the open sheet from what the page shows now. */
 export const refreshTeamSheet = () => renderSheet();
 
@@ -66,7 +77,10 @@ function showAllTitlesOnTap(event) {
 export function startTeamSheet(teams) {
   league = teams;
   const dialog = findDialog();
-  wireSheet(dialog, { doneButton: findElement("teamDoneBtn") });
+  wireSheet(dialog, {
+    doneButton: findElement("teamDoneBtn"),
+    keeper: { read: readShownTeam, reopen: reopenTeamSheet },
+  });
   findElement("teamBody").addEventListener("click", showAllTitlesOnTap);
   dialog.addEventListener("close", () => {
     shownTeam = null;

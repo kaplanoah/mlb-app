@@ -231,6 +231,30 @@ function showGame(id) {
   refreshDetails();
 }
 
+const readShownGame = () =>
+  shown && {
+    id: shown.id,
+    kind: shown.kind,
+    details: shown.details,
+    lead: shown.lead,
+    isLeadLoading: shown.isLeadLoading,
+  };
+
+// A game that has started since the sheet showed its preview shows its box score instead.
+/** @param {Omit<ShownGame, "error"> | null} saved */
+function reopenGameSheet(saved) {
+  const game = saved && findGame(saved.id);
+  if (!game) return false;
+  if (chooseKind(game) !== saved.kind) {
+    showGame(game.id);
+    return true;
+  }
+  shown = { ...saved, error: null };
+  renderSheet();
+  refreshDetails();
+  return true;
+}
+
 /** @param {string} id */
 function openGameSheet(id) {
   if (!findGame(id)) return;
@@ -271,6 +295,9 @@ export function startGameSheet() {
   const dialog = findDialog();
   for (const holder of ["gamePager", "updates"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
-  wireSheet(dialog, { doneButton: findElement("gameDoneBtn") });
+  wireSheet(dialog, {
+    doneButton: findElement("gameDoneBtn"),
+    keeper: { read: readShownGame, reopen: reopenGameSheet },
+  });
   dialog.addEventListener("close", forgetGame);
 }
