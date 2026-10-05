@@ -10,7 +10,26 @@ import { describeError, respondError, respondJson } from "./responses.js";
 // the updates, and those can wait a little, so updates come less often until a page opens. Each
 // page says which documents it watches, and hears only of changes to those. A league can keep
 // details of the games pages have open, like a box score, read with each update while they need
-// it.
+// it, and run work of its own beside the season's updates, like reading the news.
+
+/**
+ * What a league's own work gets from the store: its documents, storage of its own under keys the
+ * store's paths can't name, the Worker's secrets, and the clock.
+ * @typedef {object} JobContext
+ * @property {any} docs
+ * @property {{ get: (key: string) => Promise<any>, put: (key: string, value: any) => Promise<void>, delete: (key: string) => Promise<boolean>, list: (prefix: string) => Promise<Map<string, any>> }} storage
+ * @property {Record<string, any>} env
+ * @property {typeof fetch} fetchImpl
+ * @property {() => number} now
+ */
+
+/**
+ * Work a league's store does on its own schedule. A run that takes long, like asking Claude, goes
+ * on beside the season's updates and never holds them up.
+ * @typedef {object} BackgroundJob
+ * @property {(now: number) => number} chooseDelay the wait from one run's start to the next
+ * @property {(context: JobContext) => Promise<void>} run
+ */
 
 /**
  * What a league hands the store.
@@ -31,6 +50,7 @@ import { describeError, respondError, respondJson } from "./responses.js";
  * @property {string} [detailsCollection] where the details of the games pages have open are kept
  * @property {() => (id: string, snapshot: any, stored: any) => Promise<any>} [createLoadDetails]
  *   reads a game's details, or answers null while it needs none
+ * @property {Record<string, BackgroundJob>} [backgroundJobs]
  */
 
 const NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -44,7 +64,8 @@ const RETRY_MS = [30e3, 60e3, 2 * 60e3, 5 * 60e3, 10 * 60e3];
 const UNWATCHED_DELAY_MS = 50e3;
 // A page that opens on a season this old has the update it would have had if it had been open.
 const STALE_MS = 15 * 60e3;
-// When the last update ran and how long it said to wait, under a key the store's paths can't name.
+// When the last update ran, how long it said to wait, and when the next is due, under a key the
+// store's paths can't name.
 const SCHEDULE_KEY = "poll:schedule";
 const MAX_WATCHED = 50;
 
@@ -159,6 +180,10 @@ export const createSeasonStore = (league) =>
       } = {},
     ) {
       this.ctx = ctx;
+      this.env = env;
+      this.fetchImpl = fetchImpl;
+      /** @type {Map<string, Promise<void>>} */
+      this.jobRuns = new Map();
       this.openSocket = openSocket;
       this.loadSnapshot = loadSnapshot;
       this.loadDetails = loadDetails;
@@ -211,10 +236,11 @@ export const createSeasonStore = (league) =>
     async bringUpdateForward() {
       const schedule = await this.ctx.storage.get(SCHEDULE_KEY);
       if (!schedule) return;
-      const dueAt = schedule.at + Math.min(schedule.delay, STALE_MS);
+      const dueAt = Math.max(this.now(), schedule.at + Math.min(schedule.delay, STALE_MS));
+      if (!(schedule.dueAt <= dueAt))
+        await this.ctx.storage.put(SCHEDULE_KEY, { ...schedule, dueAt });
       const alarmAt = await this.ctx.storage.getAlarm();
-      if (alarmAt === null || alarmAt > dueAt)
-        await this.ctx.storage.setAlarm(Math.max(this.now(), dueAt));
+      if (alarmAt === null || alarmAt > dueAt) await this.ctx.storage.setAlarm(dueAt);
     }
 
     async listDocs(collection, searchParams) {
@@ -267,7 +293,18 @@ export const createSeasonStore = (league) =>
       this.hasAlarm = true;
     }
 
+    // One alarm serves the season and every background job, each when it's due.
     async alarm() {
+      const now = this.now();
+      const seasonDueAt = await this.updateSeasonWhenDue(now);
+      const jobDueTimes = await this.startDueJobs(now);
+      await this.ctx.storage.setAlarm(Math.min(seasonDueAt, ...jobDueTimes));
+    }
+
+    // A schedule saved before it had a due time reads as due.
+    async updateSeasonWhenDue(now) {
+      const schedule = await this.ctx.storage.get(SCHEDULE_KEY);
+      if (schedule?.dueAt > now) return schedule.dueAt;
       let delay = RETRY_MS[0];
       try {
         delay = await this.updateSeason();
@@ -275,8 +312,59 @@ export const createSeasonStore = (league) =>
         // Cloudflare would retry a failed alarm on its own schedule, on top of the one set here.
         console.error(`The season update failed: ${describeError(error)}`);
       }
-      await this.ctx.storage.put(SCHEDULE_KEY, { at: this.now(), delay });
-      await this.ctx.storage.setAlarm(this.now() + this.slowWhenUnwatched(delay));
+      const at = this.now();
+      const dueAt = at + this.slowWhenUnwatched(delay);
+      await this.ctx.storage.put(SCHEDULE_KEY, { at, delay, dueAt });
+      return dueAt;
+    }
+
+    startDueJobs(now) {
+      const jobs = Object.entries(league.backgroundJobs ?? {});
+      return Promise.all(jobs.map(([name, job]) => this.startJobWhenDue(name, job, now)));
+    }
+
+    // The next run is set before this one starts, so a run that never ends can't stop the next.
+    async startJobWhenDue(name, job, now) {
+      const dueKey = `job-due:${name}`;
+      const dueAt = (await this.ctx.storage.get(dueKey)) ?? now;
+      if (dueAt > now) return dueAt;
+      const nextAt = now + job.chooseDelay(now);
+      await this.ctx.storage.put(dueKey, nextAt);
+      if (!this.jobRuns.has(name)) this.jobRuns.set(name, this.runJob(name, job));
+      return nextAt;
+    }
+
+    async runJob(name, job) {
+      try {
+        await job.run({
+          docs: this.docs,
+          storage: this.createJobStorage(name),
+          env: this.env,
+          fetchImpl: this.fetchImpl,
+          now: this.now,
+        });
+      } catch (error) {
+        console.error(`The ${name} job failed: ${describeError(error)}`);
+      } finally {
+        this.jobRuns.delete(name);
+      }
+    }
+
+    createJobStorage(name) {
+      const prefix = `job:${name}:`;
+      const { storage } = this.ctx;
+      return {
+        get: (key) => storage.get(prefix + key),
+        put: (key, value) => storage.put(prefix + key, value),
+        delete: (key) => storage.delete(prefix + key),
+        list: async (keyPrefix) =>
+          new Map(
+            [...(await storage.list({ prefix: prefix + keyPrefix }))].map(([key, value]) => [
+              key.slice(prefix.length),
+              value,
+            ]),
+          ),
+      };
     }
 
     webSocketMessage(socket, message) {
