@@ -828,11 +828,11 @@ test("a game the Worker saw end says when, its time and day set apart as the nex
     });
     assert.equal(
       readStampLines(endedToday, NOW)[0],
-      "Dream 80 Mystics 70 final at 3:10 PM - Dream lead series 1-0",
+      "Last game Dream 80 Mystics 70 final at 3:10 PM - Dream lead series 1-0",
     );
   }));
 
-test("a game that ended today leads the header without its day", () =>
+test("a game that ended today is still the last game, without its day", () =>
   inEastern(() => {
     const atAfternoon = changeGame(SEASON, "1042600132", (game) => {
       Object.assign(game, { start: "2026-09-30T17:00:00Z", state: "final", status: "Final" });
@@ -841,7 +841,7 @@ test("a game that ended today leads the header without its day", () =>
     });
     assert.equal(
       readStampLines(atAfternoon, NOW)[0],
-      "Dream 80 Mystics 70 final - Dream lead series 1-0",
+      "Last game Dream 80 Mystics 70 final - Dream lead series 1-0",
     );
   }));
 
@@ -852,7 +852,10 @@ test("a final names its series as won, tied, or led", () =>
       Object.assign(game.away, { score: 84 });
       Object.assign(game.home, { score: 90 });
     });
-    assert.equal(readStampLines(tiedSeries, NOW)[0], "Aces 90 Fever 84 final - series tied 1-1");
+    assert.equal(
+      readStampLines(tiedSeries, NOW)[0],
+      "Last game Aces 90 Fever 84 final - series tied 1-1",
+    );
   }));
 
 test("while a game is on, the header gives its score and clock, and still the next tip-off", () =>
