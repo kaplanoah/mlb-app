@@ -28,3 +28,14 @@ export function createDurableObjectContext() {
   };
   return { ctx, stored, sockets, alarm };
 }
+
+/**
+ * Moves the clock to the store's alarm and fires it, as Cloudflare does at that time.
+ * @param {{ alarm: () => Promise<void> }} store
+ * @param {ReturnType<typeof createDurableObjectContext>} context
+ * @param {{ now: number }} clock
+ */
+export async function fireNextAlarm(store, context, clock) {
+  clock.now = await context.ctx.storage.getAlarm();
+  await store.alarm();
+}

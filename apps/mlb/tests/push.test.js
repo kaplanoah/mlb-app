@@ -5,7 +5,10 @@ import * as MLBSnapshot from "../page/js/snapshot.js";
 import worker from "../worker/src/index.js";
 import { SeasonStore } from "../worker/src/store.js";
 import { decodeBase64Url } from "../../../shared/worker/web-push.js";
-import { createDurableObjectContext } from "../../../tests/durable-object-context.js";
+import {
+  createDurableObjectContext,
+  fireNextAlarm,
+} from "../../../tests/durable-object-context.js";
 import { createBrowserKeys, readPushMessage } from "../../../tests/push-reader.js";
 
 const APP_KEY = "k3y";
@@ -21,6 +24,7 @@ const SNAPSHOT = MLBSnapshot.buildSnapshot(EVENING.responses, { season: 2026, no
 function createPushStore({ pushStatus = 201 } = {}) {
   const context = createDurableObjectContext();
   const harness = { snapshot: SNAPSHOT, pushStatus, isPushServiceAnswering: true, pushes: [] };
+  const clock = { now: NOW };
   const fetchImpl = async (url, init) => {
     harness.pushes.push({ url, init });
     if (!harness.isPushServiceAnswering)
@@ -32,7 +36,7 @@ function createPushStore({ pushStatus = 201 } = {}) {
     {},
     {
       loadSnapshot: async () => structuredClone(harness.snapshot),
-      now: () => NOW,
+      now: () => clock.now,
       fetchImpl,
     },
   );
@@ -43,7 +47,7 @@ function createPushStore({ pushStatus = 201 } = {}) {
       get: () => ({ fetch: (request) => store.fetch(request) }),
     },
   };
-  return { store, context, harness, env };
+  return { store, context, harness, env, clock };
 }
 
 /**
@@ -161,7 +165,7 @@ function moveMetsIntoField(snapshot) {
 }
 
 test("an update that finds a change for a ranked club notifies every device", async () => {
-  const { store, env, context, harness } = createPushStore();
+  const { store, env, context, harness, clock } = createPushStore();
   const endpoints = [ENDPOINT, `${ENDPOINT}-2`];
   const devices = [await subscribe(env, endpoints[0]), await subscribe(env, endpoints[1])];
   context.stored.set("seasons/2026", { year: 2026, ranking: ["PHI", "LAD"] });
@@ -169,7 +173,7 @@ test("an update that finds a change for a ranked club notifies every device", as
   assert.deepEqual(harness.pushes, [], "the first reading has nothing to compare with");
 
   harness.snapshot = moveMetsIntoField(SNAPSHOT);
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.equal(harness.pushes.length, 2);
   for (const [index, { keys }] of devices.entries()) {
     const push = harness.pushes.find(({ url }) => url === endpoints[index]);
@@ -179,21 +183,21 @@ test("an update that finds a change for a ranked club notifies every device", as
   }
 
   harness.pushes.length = 0;
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.deepEqual(harness.pushes, [], "nothing new, nothing sent");
 });
 
 test("a club counts as ranked before the ranking is ever dragged", async () => {
-  const { store, env, harness } = createPushStore();
+  const { store, env, harness, context, clock } = createPushStore();
   await subscribe(env);
   await store.alarm();
   harness.snapshot = moveMetsIntoField(SNAPSHOT);
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.equal(harness.pushes.length, 1);
 });
 
 test("an update's news goes out even when saving its status fails", async () => {
-  const { store, env, context, harness } = createPushStore();
+  const { store, env, context, harness, clock } = createPushStore();
   await subscribe(env);
   await store.alarm();
   harness.snapshot = moveMetsIntoField(SNAPSHOT);
@@ -202,20 +206,20 @@ test("an update's news goes out even when saving its status fails", async () => 
     if (key.endsWith("live/status")) throw new Error("storage is full");
     return put(key, value);
   };
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.equal(harness.pushes.length, 1);
 });
 
 test("a push service that fails doesn't stop the season update", async () => {
-  const { store, env, context, harness } = createPushStore();
+  const { store, env, context, harness, clock } = createPushStore();
   context.ctx.acceptWebSocket({ send: () => {} });
   await subscribe(env);
   context.stored.set("seasons/2026", { year: 2026, ranking: ["PHI"] });
   await store.alarm();
   harness.snapshot = moveMetsIntoField(SNAPSHOT);
   harness.pushStatus = 500;
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.equal(harness.pushes.length, 1);
   assert.ok("NYM" in context.stored.get("seasons/2026").teams);
-  assert.equal(context.alarm.at, NOW + MLBSnapshot.POLL_LIVE_MS);
+  assert.equal(context.alarm.at, clock.now + MLBSnapshot.POLL_LIVE_MS);
 });
