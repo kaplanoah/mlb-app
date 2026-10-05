@@ -12,6 +12,8 @@ const ACES_AT_FEVER = "Game details: Aces at Fever, First Round Game 2";
 const FEVER_AT_ACES = "Game details: Fever at Aces, First Round Game 3";
 const VALKYRIES_AT_WINGS = "Game details: Valkyries at Wings, First Round Game 2";
 const POLL_LIVE_MS = 15 * 1000;
+// A players table's number column, while the names leave it room.
+const NUMBER_COLUMN_PX = 52;
 // The type scale's smallest size, which the lead chart's words show at with no room above or below.
 const SMALLEST_TEXT_PX = 13;
 // The room between the line under the teams and the first part's title, above each later title,
@@ -141,9 +143,9 @@ test("tapping a final opens its sheet with the score, the box score, and the top
     "Bench points",
   ]);
   await expect(sheet.locator(".tape-row").first().locator(".home .tape-bar i")).toHaveClass("lead");
-  await expect(sheet.locator(".players").nth(1).locator("tbody tr").first()).toContainText(
-    "Caitlin Clark",
-  );
+  await expect(
+    sheet.locator(".players tbody").nth(1).locator('th[scope="row"]').first(),
+  ).toContainText("Caitlin Clark");
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
 
   await sheet.getByRole("button", { name: "Done" }).click();
@@ -335,6 +337,49 @@ for (const [device, viewport] of Object.entries({
   });
 }
 
+test("a box score's and a preview's two teams line their numbers up column for column, as wide as they can be", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  for (const [name, player] of [
+    [ACES_AT_FEVER, "Caitlin Clark"],
+    [FEVER_AT_ACES, "Kelsey Mitchell"],
+  ]) {
+    const sheet = await openSheet(page, name);
+    await expect(sheet.getByText(player)).toBeVisible();
+    const columns = await sheet.locator("table.players .players-head").evaluateAll((heads) =>
+      heads.map((head) =>
+        [...head.querySelectorAll("th")].map((cell) => {
+          const box = cell.getBoundingClientRect();
+          return [Math.round(box.left), Math.round(box.width)];
+        }),
+      ),
+    );
+    expect(columns, name).toHaveLength(2);
+    expect(columns[1], name).toEqual(columns[0]);
+    expect(
+      columns[0].slice(1).map(([, width]) => width),
+      name,
+    ).toEqual(columns[0].slice(1).map(() => NUMBER_COLUMN_PX));
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
+});
+
+test("a box score's names rise a pixel beside the numbers, a fouled-out chip stays put, and its words center in it", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const name = sheet.locator('table.players th[scope="row"]', { hasText: "Caitlin Clark" });
+  await expect(name.locator(".foul-chip")).toHaveText("Fouled out");
+  await expect(name).toHaveCSS("top", "-1px");
+  await expect(name.locator(".foul-chip")).toHaveCSS("top", "1px");
+  await expect(name.locator(".foul-chip-words")).toHaveCSS("top", "-0.5px");
+});
+
 test("while the lead loads after the box score, the sheet holds the chart's place, so nothing below it moves as it arrives", async ({
   page,
 }) => {
@@ -475,7 +520,7 @@ test("a live game's sheet reads its box score and lead once, then takes what the
   boxScore.away.players[0].points = 41;
   boxScore.away.score += 2;
   await app.saveGameDetails("1042600112", { boxScore, lead: null });
-  await expect(sheet.locator(".player-tables")).toContainText("41");
+  await expect(sheet.locator("table.players")).toContainText("41");
   await expect(sheet.locator(".lead-chart")).toBeVisible();
 });
 
@@ -494,7 +539,7 @@ test("details saved before the sheet's own read don't take a live box score back
   await expect.poll(() => app.listWatchedPaths()).toContain("games/1042600112");
   await page.clock.runFor(POLL_LIVE_MS);
 
-  await expect(sheet.locator(".player-tables")).not.toContainText("41");
+  await expect(sheet.locator("table.players")).not.toContainText("41");
 });
 
 for (const { screen, viewport } of [
@@ -580,7 +625,7 @@ test("a game that hasn't started previews the meetings, the season stats, and th
     "Last 10",
   ]);
   await expect(sheet.locator(".tape-note")).toHaveCount(0);
-  await expect(sheet.locator(".players tbody tr").first()).toHaveText(
+  await expect(sheet.locator(".players tbody tr:not(.players-head)").first()).toHaveText(
     /Kelsey Mitchell\s*24\.7\s*1\.7\s*2\.8/,
   );
 });
@@ -614,7 +659,7 @@ test("a game the league has no box score for says so, and a preview whose meetin
     "Couldn't load this season's meetings.",
   );
   await expect(preview.locator(".tape-label")).toHaveCount(6);
-  await expect(preview.locator(".players tbody tr")).toHaveCount(6);
+  await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
 });
 
 test("a preview takes the season stats and leading scorers from the store as it changes", async ({
@@ -622,7 +667,7 @@ test("a preview takes the season stats and leading scorers from the store as it 
 }) => {
   const app = await openApp(page);
   const sheet = await openSheet(page, FEVER_AT_ACES);
-  await expect(sheet.locator(".players tbody tr")).toHaveCount(6);
+  await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
 
   await app.changeSeason((season) => ({ ...season, leaders: [] }));
 
@@ -657,7 +702,7 @@ test("while its box score loads, the sheet holds the box score's shape, then fil
   ]);
   await expect(sheet.locator(".tape-label")).toHaveCount(8);
   await expect(sheet.locator(".line-score tbody th")).toHaveText(["Aces", "Fever"]);
-  await expect(sheet.locator(".players tbody tr")).toHaveCount(6);
+  await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
   await expect(sheet.locator(".tape-value .placeholder")).toHaveCount(16);
 
   release();
@@ -683,7 +728,7 @@ test("while its meetings load, the sheet holds their shape, with the season stat
   await expect(sheet.locator(".meetings .placeholder")).toHaveCount(9);
   await expect(sheet.locator(".placeholder")).toHaveCount(9);
   await expect(sheet.locator(".tape-label")).toHaveCount(6);
-  await expect(sheet.locator(".players tbody tr").first()).toHaveText(
+  await expect(sheet.locator(".players tbody tr:not(.players-head)").first()).toHaveText(
     /Kelsey Mitchell\s*24\.7\s*1\.7\s*2\.8/,
   );
 

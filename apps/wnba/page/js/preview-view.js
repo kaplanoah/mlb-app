@@ -168,9 +168,10 @@ function renderLeadingScorers(teams, season) {
     );
   return renderSheetPart(
     "Leading scorers",
-    html`<div class="player-tables">
-      ${renderLeaderTable(renderClub(teams.away), away)}${renderLeaderTable(renderClub(teams.home), home)}
-    </div>`,
+    renderLeaderTable([
+      { heading: renderClub(teams.away), leaders: away },
+      { heading: renderClub(teams.home), leaders: home },
+    ]),
     "Per game",
   );
 }

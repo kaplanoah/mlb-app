@@ -96,6 +96,30 @@ export const renderTapeTeams = (away, home) =>
 /** @param {string} text a line in place of a part's details */
 export const renderSheetMessage = (text) => html`<p class="sheet-message">${text}</p>`;
 
+/** @typedef {{ label: string, title: string }} PlayerColumn */
+
+/**
+ * Players' numbers in one table, a part for each team under its own heading row, so every team's
+ * numbers take the same columns.
+ * @param {{ heading: import("#shared/html.js").Markup | string, rows: import("#shared/html.js").Markup[] }[]} groups
+ * @param {PlayerColumn[]} columns
+ */
+export const renderPlayerTable = (groups, columns) =>
+  html`<table class="players tabular">
+    ${groups.map(
+      ({ heading, rows }) =>
+        html`<tbody>
+          <tr class="players-head">
+            <th scope="col">${heading}</th>
+            ${columns.map(
+              (column) => html`<th scope="col" title="${column.title}">${column.label}</th>`,
+            )}
+          </tr>
+          ${rows}
+        </tbody>`,
+    )}
+  </table>`;
+
 /**
  * Stand-ins for a players table's rows while they load.
  * @param {number} count how many rows

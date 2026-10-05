@@ -1192,6 +1192,52 @@ test.describe("a team's sheet", () => {
   });
 });
 
+test("a team's leading scorers set their shooting and minutes a step back, a smaller step in Walnut", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+  const quiet = page
+    .locator("#teamDialog table.players tbody tr:not(.players-head)")
+    .first()
+    .locator("td.quiet-stat");
+  await expect(quiet).toHaveText(["46.2", "32.6"]);
+  const minutes = quiet.last();
+  await expect(page.locator("#teamDialog table.players .first-name").first()).toHaveCSS(
+    "margin-right",
+    "1px",
+  );
+  const readColors = () =>
+    minutes.evaluate((cell) => {
+      const probe = document.createElement("span");
+      cell.closest("dialog")?.append(probe);
+      /** @param {string} token */
+      const readToken = (token) => {
+        probe.style.color = `var(${token})`;
+        return getComputedStyle(probe).color;
+      };
+      const colors = {
+        minutes: getComputedStyle(cell).color,
+        dim: readToken("--ink-dim"),
+        mid: readToken("--ink-mid"),
+      };
+      probe.remove();
+      return colors;
+    });
+
+  for (const [theme, token] of /** @type {const} */ ([
+    ["light", "dim"],
+    ["dark", "mid"],
+  ])) {
+    await page.emulateMedia({ colorScheme: theme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const colors = await readColors();
+    expect(colors.minutes, theme).toBe(colors[token]);
+  }
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 360, height: 780 }, contextOptions: { reducedMotion: "reduce" } });
 
@@ -1201,9 +1247,9 @@ test.describe("on a phone", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     const sheet = page.locator("#teamDialog");
-    for (const code of ["LVA", "LAS", "CON"]) {
+    for (const code of ["LVA", "LAS", "CON", "CHI"]) {
       await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
-      const names = sheet.locator("table.players tbody th");
+      const names = sheet.locator('table.players th[scope="row"]');
       await expect(names).toHaveCount(5);
       const lineCounts = await names.evaluateAll((cells) =>
         cells.map((cell) => {

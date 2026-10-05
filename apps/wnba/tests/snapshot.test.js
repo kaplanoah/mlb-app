@@ -240,9 +240,11 @@ test("each team's five leading scorers are those with the most points a game who
       firstName: "A'ja",
       lastName: "Wilson",
       games: 41,
+      minutes: 32,
       points: 26.2,
       rebounds: 9.4,
       assists: 3.2,
+      fieldGoalShare: 0.527,
     },
   );
 

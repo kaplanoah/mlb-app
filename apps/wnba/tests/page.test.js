@@ -527,8 +527,9 @@ test("a team's sheet shows its playoffs, then its regular season across from the
         "1-0 Home 5-1 0-0 Road 1-5 " +
         "Regular season Dream 30-14 League 91.3 PPG 87.1 84.5 Opp PPG 87.1 +6.9 Margin 0.0 " +
         "15-7 Home 178-152 15-7 Road 152-178 Last 10 9-1 Streak W 5 " +
-        "Leading scorers Per game Player Pts Reb Ast Allisha Gray 19.0 3.5 2.6 Rhyne Howard 17.7 3.8 3.7 " +
-        "Angel Reese 16.4 12.1 2.8 Jordin Canada 11.6 3.5 7.3 DeWanna Bonner 10.4 6.0 1.6 Titles None yet",
+        "Leading scorers Per game Player Pts Reb Ast FG% Min Allisha Gray 19.0 3.5 2.6 46.2 32.6 " +
+        "Rhyne Howard 17.7 3.8 3.7 40.5 34.2 Angel Reese 16.4 12.1 2.8 45.1 31.0 " +
+        "Jordin Canada 11.6 3.5 7.3 43.1 31.1 DeWanna Bonner 10.4 6.0 1.6 40.2 26.8 Titles None yet",
     );
     assert.match(
       readTeam(SEASON, "DAL").body,
@@ -746,6 +747,15 @@ test("each team in the Games lists opens its sheet, and a team still TBD opens n
     lists.previous.text,
     /<button type="button" class="club team-open" data-team="LVA" aria-label="Team details: Las Vegas Aces">/,
   );
+});
+
+test("a team's leading scorers set their shooting and minutes apart, and a leader saved without them shows dashes", () => {
+  assert.match(
+    renderTeamSheet(SEASON, "ATL", { year: 2026, now: NOW }).body.text,
+    /<td>2\.6<\/td>\s*<td class="quiet-stat">46\.2<\/td>\s*<td class="quiet-stat">32\.6<\/td>/,
+  );
+  const leaders = SEASON.leaders.map(({ minutes, fieldGoalShare, ...leader }) => leader);
+  assert.match(readTeam({ ...SEASON, leaders }, "ATL").body, / Allisha Gray 19\.0 3\.5 2\.6 - - /);
 });
 
 test("a team's sheet names each opponent with a button to its own sheet", () => {

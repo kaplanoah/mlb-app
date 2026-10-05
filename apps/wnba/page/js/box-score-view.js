@@ -8,6 +8,7 @@ import {
   findLeader,
   measureAgainst,
   renderPendingPlayerRows,
+  renderPlayerTable,
   renderTapeTeams,
 } from "./sheet-parts.js";
 import { nameTeam } from "./series.js";
@@ -191,13 +192,17 @@ const renderPendingTeamStats = (teams) =>
       <p class="tape-note">${renderPlaceholder("Biggest lead: Aces 12, Lead changes: 4")}</p>
     </div>`;
 
+/** @param {string} words */
+const renderFoulChip = (words) =>
+  html`<span class="foul-chip"><span class="foul-chip-words">${words}</span></span>`;
+
 /**
  * @param {BoxPlayer} player
  * @param {boolean} isLive
  */
 function renderFouls({ fouls }, isLive) {
-  if (fouls >= FOUL_OUT) return html`<span class="foul-chip">Fouled out</span>`;
-  if (isLive && fouls >= FOUL_TROUBLE) return html`<span class="foul-chip">${fouls} fouls</span>`;
+  if (fouls >= FOUL_OUT) return renderFoulChip("Fouled out");
+  if (isLive && fouls >= FOUL_TROUBLE) return renderFoulChip(`${fouls} fouls`);
   return false;
 }
 
@@ -217,37 +222,31 @@ function renderTopScorers(side, isLive) {
       <th scope="row">
         <span class="first-name">${player.firstName}</span> ${player.lastName}${renderFouls(player, isLive)}
       </th>
-      <td class="minutes">${player.minutes}</td>
       <td>${player.points}</td>
       <td>${player.rebounds}</td>
       <td>${player.assists}</td>
+      <td class="quiet-stat">${player.minutes}</td>
     </tr>`,
   );
-  return renderScorersTable(side.team, rows);
+  return describeScorers(side.team, rows);
 }
 
 /**
  * @param {string} team
  * @param {import("#shared/html.js").Markup[]} rows
  */
-const renderScorersTable = (team, rows) =>
-  html`<table class="players tabular">
-    <thead>
-      <tr>
-        <th scope="col">${renderClub(team)}</th>
-        <th scope="col" title="Minutes">Min</th>
-        <th scope="col" title="Points">Pts</th>
-        <th scope="col" title="Rebounds">Reb</th>
-        <th scope="col" title="Assists">Ast</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rows}
-    </tbody>
-  </table>`;
+const describeScorers = (team, rows) => ({ heading: renderClub(team), rows });
 
-/** @param {import("#shared/html.js").Markup[]} tables */
-const renderPlayerTables = (tables) => html`<div class="player-tables">${tables}</div>`;
+/** @type {import("./sheet-parts.js").PlayerColumn[]} */
+const SCORER_COLUMNS = [
+  { label: "Pts", title: "Points" },
+  { label: "Reb", title: "Rebounds" },
+  { label: "Ast", title: "Assists" },
+  { label: "Min", title: "Minutes" },
+];
+
+/** @param {{ heading: import("#shared/html.js").Markup, rows: import("#shared/html.js").Markup[] }[]} groups */
+const renderScorersTable = (groups) => renderPlayerTable(groups, SCORER_COLUMNS);
 
 /** @typedef {{ lead?: import("./lead-chart.js").Lead | null, isLeadLoading?: boolean }} LeadState */
 
@@ -276,7 +275,7 @@ export function renderBoxScore(box, leadState = {}) {
     ${renderSheetPart("Team stats", renderTeamStats(box), isLive && "So far")}
     ${renderSheetPart(
       "Top scorers",
-      renderPlayerTables(SIDES.map((place) => renderTopScorers(box[place], isLive))),
+      renderScorersTable(SIDES.map((place) => renderTopScorers(box[place], isLive))),
     )}`;
 }
 
@@ -291,9 +290,12 @@ export const renderPendingBoxScore = (teams, leadState = {}) =>
     ${renderSheetPart("Team stats", renderPendingTeamStats(teams))}
     ${renderSheetPart(
       "Top scorers",
-      renderPlayerTables(
+      renderScorersTable(
         SIDES.map((place) =>
-          renderScorersTable(teams[place], renderPendingPlayerRows(TOP_PERFORMERS, 4)),
+          describeScorers(
+            teams[place],
+            renderPendingPlayerRows(TOP_PERFORMERS, SCORER_COLUMNS.length),
+          ),
         ),
       ),
     )}`;
