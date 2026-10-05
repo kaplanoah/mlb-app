@@ -1,5 +1,6 @@
 import { readEasternDay } from "#shared/days.js";
 import { createSeasonReader } from "#shared/season-reader.js";
+import { listSeasonYears } from "#shared/season-picker.js";
 import { session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
 
@@ -16,12 +17,13 @@ const noteUnreachable = () => {
 };
 
 /**
- * Starts reading the season, and redraws with `showChange` for each change after it loads, and
- * with `showStamp` for each status of the store's last update or problem reading it. A record in a
- * version the page doesn't read calls `showUnreadable`.
- * @param {{ showChange: () => void, showStamp: () => void, showUnreadable: () => void }} handlers
+ * Starts reading the season, and redraws with `showChange` for each change after it loads, with
+ * `showStamp` for each status of the store's last update or problem reading it, and with
+ * `showCurrentYear` when the store moves on to a new season. A record in a version the page doesn't
+ * read calls `showUnreadable`.
+ * @param {{ showChange: () => void, showStamp: () => void, showCurrentYear: () => void, showUnreadable: () => void }} handlers
  */
-export function startSeasonData({ showChange, showStamp, showUnreadable }) {
+export function startSeasonData({ showChange, showStamp, showCurrentYear, showUnreadable }) {
   reader = createSeasonReader({
     store: session.db,
     version: SNAPSHOT_VERSION,
@@ -37,6 +39,10 @@ export function startSeasonData({ showChange, showStamp, showUnreadable }) {
       noteUnreachable();
       showStamp();
     },
+    noteCurrentYear: (year) => {
+      session.currentYear = year;
+      showCurrentYear();
+    },
   });
 }
 
@@ -45,7 +51,23 @@ export function startSeasonData({ showChange, showStamp, showUnreadable }) {
 export async function loadSeason() {
   try {
     await reader?.loadCurrentSeason();
+    session.currentYear = reader?.readCurrentYear() ?? session.currentYear;
   } catch {
     noteUnreachable();
   }
+}
+
+/** @param {number} year */
+export async function showYear(year) {
+  try {
+    await reader?.showYear(year);
+  } catch {
+    noteUnreachable();
+  }
+}
+
+/** The years of the seasons the store keeps, newest first. */
+export async function loadSeasonYears() {
+  const result = await session.db.collection("seasons").limit(50).get();
+  return listSeasonYears(result.docs);
 }

@@ -1,4 +1,5 @@
 import { createSeasonReader } from "#shared/season-reader.js";
+import { listSeasonYears } from "#shared/season-picker.js";
 import { buildBracket } from "./bracket.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
 import { composeState, guessSeasonYear, session } from "./session.js";
@@ -133,9 +134,5 @@ function collectTrackedTitles(docs) {
 export async function loadSeasonList() {
   const result = await session.db.collection("seasons").limit(50).get();
   session.trackedTitles = collectTrackedTitles(result.docs);
-  return result.docs
-    .map((doc) => doc.id)
-    .filter((id) => /^\d{4}$/.test(id))
-    .sort()
-    .reverse();
+  return listSeasonYears(result.docs);
 }

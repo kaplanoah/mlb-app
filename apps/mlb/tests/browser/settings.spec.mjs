@@ -11,6 +11,8 @@ import {
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 
 const PHONE = { width: 390, height: 844 };
+// Settings show the Season picker once the store keeps more than one season.
+const WITH_A_PAST_SEASON = { store: { "seasons/2025": SEASON_2025 } };
 const RELEASE = { version: "2.13.0", commit: "abc1234", builtAt: "2026-09-28T00:10:41Z" };
 
 /** @param {import("@playwright/test").Page} page */
@@ -20,7 +22,7 @@ const serveRelease = (page, release) =>
 test("the sliders button opens settings, and Done, Escape, or the backdrop closes it", async ({
   page,
 }) => {
-  await openApp(page);
+  await openApp(page, WITH_A_PAST_SEASON);
   const settings = page.getByRole("dialog", { name: "Settings" });
   await expect(settings).toBeHidden();
 
@@ -443,7 +445,7 @@ test("on a phone, scrolling settings down shows the whole ranking, and the heade
   page,
 }) => {
   await page.setViewportSize(PHONE);
-  await openApp(page);
+  await openApp(page, WITH_A_PAST_SEASON);
   await openSettings(page);
   await waitForSheetToRise(page);
   const settings = page.getByRole("dialog", { name: "Settings" });
@@ -537,7 +539,7 @@ test("on a wide screen, the settings start right under the header, level with th
   page,
 }) => {
   await page.setViewportSize(LAPTOP);
-  await openApp(page);
+  await openApp(page, WITH_A_PAST_SEASON);
   await openSettings(page);
 
   const header = await page.locator("#settingsDialog .sheet-top").boundingBox();

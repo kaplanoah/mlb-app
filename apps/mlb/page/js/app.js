@@ -6,7 +6,6 @@ import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
-import { html, setHtml } from "#shared/html.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
 import { startGamePager } from "#shared/game-pager.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
@@ -34,6 +33,7 @@ import { renderStamp } from "./stamp-view.js";
 import { startTeamSheet } from "#shared/team-sheet.js";
 import { createWorkerStore } from "#shared/worker-store.js";
 import { isReadableSeason } from "#shared/season-reader.js";
+import { fillSeasonPicker } from "#shared/season-picker.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
 
 const CLOCK_REFRESH_MS = 60 * 1000;
@@ -55,16 +55,8 @@ async function listYears() {
   }
 }
 
-// The shown season is always among the picker's, even before the store keeps a record of it.
-function fillYearPicker(stored) {
-  const shown = String(session.activeYear);
-  const years = stored.includes(shown) ? stored : [shown, ...stored];
-  const options = years.map(
-    (year) =>
-      html`<option value="${year}" ${Number(year) === session.activeYear ? "selected" : ""}>${year}</option>`,
-  );
-  setHtml(findYearPicker(), html`${options}`);
-}
+/** @param {string[]} years */
+const fillYearPicker = (years) => fillSeasonPicker(findYearPicker(), years, session.activeYear);
 
 // A new current season changes what the stamp says, and the picker lists it.
 async function showNewCurrentYear() {

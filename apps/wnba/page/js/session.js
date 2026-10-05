@@ -2,7 +2,10 @@
 export const session = {
   /** @type {ReturnType<typeof import("#shared/worker-store.js").createWorkerStore> | null} */
   db: null,
+  // The season shown, and the one the store says is current, null until it says.
   year: new Date().getFullYear(),
+  /** @type {number | null} */
+  currentYear: null,
   /** @type {any} */
   season: null,
   // The news topics, null when the store has none, and undefined until the store or the page's
@@ -13,3 +16,7 @@ export const session = {
   status: null,
   problem: "",
 };
+
+/** Whether the season shown is over, one the store keeps from before the current one. */
+export const isPastSeason = () =>
+  session.currentYear !== null && session.year !== session.currentYear;

@@ -109,13 +109,20 @@ async function createAfternoonStore() {
  * phone, the afternoon's finals would fill the Updates box above every view, so it starts
  * dismissed unless a test is about it.
  * @param {import("@playwright/test").Page} page
- * @param {{ league?: Parameters<typeof createLeagueFetch>[0], isShowingUpdates?: boolean }} [options]
+ * A past season's record is built from the afternoon's by its change in `pastSeasons`, by year.
+ * @param {{ league?: Parameters<typeof createLeagueFetch>[0], isShowingUpdates?: boolean, pastSeasons?: Record<number, (season: any) => any> }} [options]
  */
-export async function openApp(page, { league = {}, isShowingUpdates = false } = {}) {
+export async function openApp(
+  page,
+  { league = {}, isShowingUpdates = false, pastSeasons = {} } = {},
+) {
   if (!isShowingUpdates)
     await page.addInitScript(() => localStorage.setItem("updatesSeenAt", String(Date.now() * 2)));
   const testStore = await createAfternoonStore();
   const { context, store } = testStore;
+  const readSeason = async () => structuredClone(await context.ctx.storage.get("seasons/2026"));
+  for (const [year, change] of Object.entries(pastSeasons))
+    await context.ctx.storage.put(`seasons/${year}`, change(await readSeason()));
   const openSockets = await connectToStore(page, testStore);
   const fetchImpl = createLeagueFetch(league);
   const boxScores = createBoxScoreServer({ fetchImpl });
@@ -129,8 +136,6 @@ export async function openApp(page, { league = {}, isShowingUpdates = false } = 
     answerFromWorker(route, previews.servePreview),
   );
   await loadPageAt(page, NOW);
-
-  const readSeason = async () => structuredClone(await context.ctx.storage.get("seasons/2026"));
 
   return {
     countOpenSockets: () => openSockets.length,

@@ -1,7 +1,7 @@
 // The Updates box: each playoff game finished since this device last dismissed it, with where its
 // series stood after it, each opening the game's sheet, and the release notes out since then.
 // Nobody signs in, and people share the page's address, so each device keeps its own dismissal,
-// and only phones and tablets show the box.
+// and only phones and tablets show the box, only for the current season.
 
 import { countDaysBetween, readEasternDay } from "#shared/days.js";
 import { isTouchDevice } from "#shared/device.js";
@@ -11,7 +11,7 @@ import { renderTeamName } from "./clubs.js";
 import { readGameDay } from "./days.js";
 import { renderGameOpenButton } from "./games-view.js";
 import { RELEASE_NOTES } from "./release-notes.js";
-import { session } from "./session.js";
+import { isPastSeason, session } from "./session.js";
 import { describeWin, isPlayoffFinal } from "./win-text.js";
 
 /** @typedef {import("./games-view.js").Game} Game */
@@ -116,7 +116,7 @@ function dismissUpdates() {
 export const watchDismissals = (onChange) => seenAt.watch(onChange);
 
 export function drawUpdates() {
-  const isShown = isTouchDevice();
+  const isShown = isTouchDevice() && !isPastSeason();
   showUpdates(findPanel(), isShown ? listFreshUpdates() : [], {
     dismiss: dismissUpdates,
     notes: isShown ? listFreshReleaseNotes() : [],
