@@ -55,6 +55,9 @@ A Cloudflare Worker serves the page and reads the WNBA's own feeds on its own,
 every 15 seconds during games while the page is open and a little less often
 while it isn't, and ESPN's for where each game is on. If the WNBA
 stops sending scores, ESPN's stand in.
+It also reads the news from ESPN, The Athletic, The IX, Winsidr, and, for the Liberty,
+NY Post and NetsDaily, every 15 minutes by day, and has Claude keep the stories worth
+reading and group them by topic, two stories to a topic. The page doesn't show them yet.
 Saved to an iPhone's home screen, the page opens full screen like an app, and
 can send a notification with the score when any playoff game ends.
 
@@ -152,6 +155,13 @@ To share the page beyond the user, have them pick an access code and run
 opens, and each phone types it once. Case, spaces, and hyphens don't count.
 Running it again with a new code signs every phone out until it types the new
 one, and `--remove` stops asking. Never commit or post the code.
+
+The WNBA's news needs an Anthropic API key, as the Worker's `ANTHROPIC_API_KEY`
+secret. Have the user add it themselves in the Cloudflare dashboard (the Worker's
+**Settings**, then **Variables and Secrets**, as a **Secret**), never in chat.
+Without it, the Worker still reads the feeds but keeps no story.
+`<address>store/news/status` says what the last run couldn't do, and counts
+Claude's calls and tokens by day.
 
 **4. Check the page.** Have the user open the address. The first visit also
 starts the Worker's own updates. Then read `<address>store/live/status` with

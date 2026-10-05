@@ -18,9 +18,9 @@ export const test = base.extend(pageErrorsFixture);
 export { expect };
 
 /**
- * An app's store in a stand-in Durable Object, holding `stored`, whose clock reads `now`, and whose
- * pushes all succeed.
- * @template {{ fetch: (request: Request) => Promise<Response>, webSocketMessage: (socket: any, message: string | Buffer) => void }} Store
+ * An app's store in a stand-in Durable Object, holding `stored`, whose clock starts at `now`, and
+ * whose pushes all succeed. `fireAlarm` runs its next update.
+ * @template {{ fetch: (request: Request) => Promise<Response>, webSocketMessage: (socket: any, message: string | Buffer) => void, alarm: () => Promise<void> }} Store
  * @param {new (ctx: any, env: object, options: object) => Store} SeasonStore the app's store class
  * @param {object} options
  * @param {(season: string) => Promise<object>} options.loadSnapshot
@@ -30,16 +30,22 @@ export { expect };
 export function createTestStore(SeasonStore, { loadSnapshot, now, stored = {} }) {
   const context = createDurableObjectContext();
   for (const [path, data] of Object.entries(stored)) context.stored.set(path, data);
+  const clock = { now: Date.parse(now) };
   const store = new SeasonStore(
     context.ctx,
     {},
     {
       loadSnapshot,
-      now: () => Date.parse(now),
+      now: () => clock.now,
       fetchImpl: async () => new Response(null, { status: 201 }),
     },
   );
-  return { context, store };
+  // The store's next update runs when its alarm comes due, so firing it moves the clock there.
+  const fireAlarm = async () => {
+    clock.now = Math.max(clock.now, (await context.ctx.storage.getAlarm()) ?? clock.now);
+    await store.alarm();
+  };
+  return { context, store, fireAlarm };
 }
 
 /** @param {import("@playwright/test").Page} page */

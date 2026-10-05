@@ -152,7 +152,7 @@ export async function openApp(
     writeWhileAway: (path, data) => context.ctx.storage.put(path, data),
     holdStore: () => holdStore(page),
     // What the Worker's alarm does on its own schedule.
-    updateFromWorker: () => seasonStore.alarm(),
+    updateFromWorker: () => testStore.fireAlarm(),
     countSnapshotRequests: () => harness.snapshotRequests,
     countLiveReads: () =>
       harness.storeReads.filter((path) => /^\/store\/live\/\d{4}$/.test(path)).length,

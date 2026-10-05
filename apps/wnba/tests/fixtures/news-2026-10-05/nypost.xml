@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	xmlns:dcterms="http://purl.org/dc/terms/"
+		xmlns:media="http://search.yahoo.com/mrss/"
+	>
+
+<channel>
+	<title>New York Liberty News, Scores, Stats &amp; Standings | New York Post</title>
+	<atom:link href="https://nypost.com/tag/new-york-liberty/feed/" rel="self" type="application/rss+xml" />
+	<link>https://nypost.com</link>
+	<description>Your source for breaking news, news about New York, sports, business, entertainment, opinion, real estate, culture, fashion, and more.</description>
+	<lastBuildDate>Mon, 05 Oct 2026 01:34:57 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.8.10</generator>
+<site xmlns="com-wordpress:feed-additions:1">163456144</site>		<item>
+		<title>Liberty vs Dream: Did New York Give Game 1 Away? &#124; Liberty Lately</title>
+		<comments>https://nypost.com/video/liberty-vs-dream-did-new-york-give-game-1-away-liberty-lately/#respond</comments>
+		<pubDate>Sun, 04 Oct 2026 21:34:55 -0400</pubDate>
+		<dcterms:modified>2026-10-04T21:34:57-04:00</dcterms:modified>
+						<link>https://nypost.com/video/liberty-vs-dream-did-new-york-give-game-1-away-liberty-lately/</link>
+			<dc:creator>New York Post Video</dc:creator>
+		
+		<guid isPermaLink="false">https://nypost.com/?post_type=video&#038;p=41137995</guid>
+												<description><![CDATA[The New York Liberty fell 92–82 to the Atlanta Dream in Game 1 of the WNBA semifinals. Did Atlanta impose its will, or did New York get in its own way? Dexter Henry and Madeline Kenney break down the Liberty’s costly turnovers, the defensive challenges posed by Jordin Canada and DeWanna Bonner, and what New...]]></description>
+			<content:encoded><![CDATA[]]></content:encoded>
+								<enclosure url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2FLIBERTY-WP.png"
+						type="image/png"
+						length="4376141"
+					/>
+							<slash:comments>0</slash:comments>
+			<post-id xmlns="com-wordpress:feed-additions:1">41137995</post-id>
+		<media:thumbnail url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2FLIBERTY-WP.png" />
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2FLIBERTY-WP.png" medium="image">
+			<media:title type="html">LIBERTY WP</media:title>
+		</media:content>
+	</item>
+<item>
+		<title>Liberty&#8217;s sloppy play proves costly in Game 1 loss to Dream</title>
+		<comments>https://nypost.com/2026/10/04/sports/libertys-sloppy-play-proves-costly-in-game-1-loss-to-dream/#respond</comments>
+		<pubDate>Sun, 04 Oct 2026 16:34:12 -0400</pubDate>
+		<dcterms:modified>2026-10-04T21:05:24-04:00</dcterms:modified>
+						<link>https://nypost.com/2026/10/04/sports/libertys-sloppy-play-proves-costly-in-game-1-loss-to-dream/</link>
+			<dc:creator>Madeline Kenney</dc:creator>
+		
+		<guid isPermaLink="false">https://nypost.com/?post_type=article&#038;p=41133780</guid>
+												<description><![CDATA[Atlanta is the WNBA’s best team at forcing live-ball turnovers. And the Dream made the Liberty pay time and time again Sunday.]]></description>
+			<content:encoded><![CDATA[]]></content:encoded>
+								<enclosure url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fnewspress-collage-s0rv5mow1-1791145714241.jpg?quality%3D90%26strip%3Dall%261791131347"
+						type="image/jpeg"
+						length="259508"
+					/>
+							<slash:comments>0</slash:comments>
+			<post-id xmlns="com-wordpress:feed-additions:1">41133780</post-id>
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fnew-york-liberty-guard-sabrina-143764144.jpg?w%3D1024" medium="image">
+			<media:title type="html">New York Liberty guard Sabrina Ionescu (20) drives to the basket against the Atlanta Dream during a WNBA playoff game.</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2F5-atlanta-dream-drives-jonquel-143762795.jpg?w%3D1024" medium="image">
+			<media:title type="html">Angel Reese of the Atlanta Dream drives past Jonquel Jones of the New York Liberty.</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fuser-expressly-acknowledges-agrees-downloading-143760750.jpg?w%3D1024" medium="image">
+			<media:title type="html">Breanna Stewart of the New York Liberty shoots the ball during a game against the Atlanta Dream.</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fuser-expressly-acknowledges-agrees-downloading-143758191.jpg?w%3D819" medium="image">
+			<media:title type="html">Jordin Canada of the Atlanta Dream shoots the ball during a game against the New York Liberty.</media:title>
+		</media:content>
+	</item>
+<item>
+		<title>Liberty vs. Dream WNBA playoff prediction, picks: Breanna Stewart leads live Game 1 underdog</title>
+		<comments>https://nypost.com/2026/10/04/betting/liberty-vs-dream-prediction-picks-wnba-playoff-picks-odds-best-bets-game-1/#respond</comments>
+		<pubDate>Sun, 04 Oct 2026 10:00:00 -0400</pubDate>
+		<dcterms:modified>2026-10-04T10:01:00-04:00</dcterms:modified>
+						<link>https://nypost.com/2026/10/04/betting/liberty-vs-dream-prediction-picks-wnba-playoff-picks-odds-best-bets-game-1/</link>
+			<dc:creator>Malik Smith</dc:creator>
+		
+		<guid isPermaLink="false">https://nypost.com/?post_type=article&#038;p=41098279</guid>
+												<description><![CDATA[The Liberty and Dream both emerged from their first-round playoff series without much trouble.]]></description>
+			<content:encoded><![CDATA[]]></content:encoded>
+								<enclosure url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fnewspress-collage-l066g8af9-1790979516295.jpg?quality%3D90%26strip%3Dall%261790965216"
+						type="image/jpeg"
+						length="250549"
+					/>
+							<slash:comments>0</slash:comments>
+			<post-id xmlns="com-wordpress:feed-additions:1">41098279</post-id>
+		<media:thumbnail url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2F30-new-york-liberty-celebrates-142793001.jpg?quality%3D90%26" />
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2F30-new-york-liberty-celebrates-142793001.jpg?quality%3D90%26strip%3Dall" medium="image">
+			<media:title type="html">New York Liberty v Minnesota Lynx - Game One</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fuser-expressly-acknowledges-agrees-downloading-141989836.jpg?w%3D1024" medium="image">
+			<media:title type="html">Atlanta Dream&#039;s Angel Reese reacts as New York Liberty&#039;s Breanna Stewart looks on during a game at Barclays Center.</media:title>
+		</media:content>
+	</item>
+<item>
+		<title>Breaking down Liberty-Dream playoff matchup, plus two WNBA semifinal predictions</title>
+		<comments>https://nypost.com/2026/10/04/sports/breaking-down-liberty-dream-playoff-matchup-plus-predictions/#respond</comments>
+		<pubDate>Sun, 04 Oct 2026 08:00:00 -0400</pubDate>
+		<dcterms:modified>2026-10-04T08:01:19-04:00</dcterms:modified>
+						<link>https://nypost.com/2026/10/04/sports/breaking-down-liberty-dream-playoff-matchup-plus-predictions/</link>
+			<dc:creator>Madeline Kenney</dc:creator>
+		
+		<guid isPermaLink="false">https://nypost.com/?post_type=article&#038;p=41127961</guid>
+												<description><![CDATA[A ticket to the WNBA Finals is on the line for the winner. Let’s take a look at how the two teams match up:]]></description>
+			<content:encoded><![CDATA[]]></content:encoded>
+								<enclosure url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fnewspress-collage-usnofjtdj-1791079139693.jpg?quality%3D90%26strip%3Dall%261791064779"
+						type="image/jpeg"
+						length="260128"
+					/>
+							<slash:comments>0</slash:comments>
+			<post-id xmlns="com-wordpress:feed-additions:1">41127961</post-id>
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2FJones.-Reese.jpg?w%3D1024" medium="image">
+			<media:title type="html">The matchup between Jonquel Jones (right) and Atlanta&#039;s Angel Reese will be one to watch this entire WNBA semifinal series.</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2FSabrina-Ionescu.jpg?w%3D1024" medium="image">
+			<media:title type="html">The Liberty will need Sabrina Ionescu to be consistently effective this series. </media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2FDeWanna-Bonner.jpg?w%3D1024" medium="image">
+			<media:title type="html">DeWanna Bonner, a midseason acquisition, has been a key player off the bench for the Dream.</media:title>
+		</media:content>
+	</item>
+<item>
+		<title>Angel Reese, Dream unmoved  by Liberty’s playoff stature: &#8216;I don’t give a damn&#8217;</title>
+		<comments>https://nypost.com/2026/10/03/sports/angel-reese-dream-unmoved-by-libertys-playoff-history/#respond</comments>
+		<pubDate>Sat, 03 Oct 2026 19:46:53 -0400</pubDate>
+		<dcterms:modified>2026-10-03T19:47:03-04:00</dcterms:modified>
+						<link>https://nypost.com/2026/10/03/sports/angel-reese-dream-unmoved-by-libertys-playoff-history/</link>
+			<dc:creator>Madeline Kenney</dc:creator>
+		
+		<guid isPermaLink="false">https://nypost.com/?post_type=article&#038;p=41126686</guid>
+												<description><![CDATA[Dream star Angel Reese didn’t balk at Liberty co-owner Joe Tsai’s declaration that his was the best team in this year’s WNBA playoffs. ]]></description>
+			<content:encoded><![CDATA[]]></content:encoded>
+								<enclosure url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fnewspress-collage-xeeo4jr8n-1791070448379.jpg?quality%3D90%26strip%3Dall%261791056106"
+						type="image/jpeg"
+						length="259177"
+					/>
+							<slash:comments>0</slash:comments>
+			<post-id xmlns="com-wordpress:feed-additions:1">41126686</post-id>
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2F5-atlanta-dream-reacts-shakira-143227932.jpg?w%3D1024" medium="image">
+			<media:title type="html">Atlanta Dream&#039;s Angel Reese (5) points her index finger upward while Washington Mystics&#039; Shakira Austin (0) looks on during a playoff game.</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fuser-expressly-acknowledges-agrees-downloading-143097977.jpg?w%3D683" medium="image">
+			<media:title type="html">Sabrina Ionescu #20 of the New York Liberty celebrates during the game against the Minnesota Lynx.</media:title>
+		</media:content>
+
+		<media:content url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fuser-expressly-acknowledges-agrees-downloading-143238003.jpg?w%3D1024" medium="image">
+			<media:title type="html">Sabrina Ionescu, Leonie Fiebich, Rebecca Allen, and teammates of the New York Liberty celebrate a win on the basketball court, surrounded by media and fans.</media:title>
+		</media:content>
+	</item>
+<item>
+		<title>Liberty vs. Dream: Who Advances To The WNBA Finals?</title>
+		<comments>https://nypost.com/video/liberty-vs-dream-who-advances-to-the-wnba-finals/#respond</comments>
+		<pubDate>Sat, 03 Oct 2026 11:30:00 -0400</pubDate>
+		<dcterms:modified>2026-10-03T11:30:41-04:00</dcterms:modified>
+						<link>https://nypost.com/video/liberty-vs-dream-who-advances-to-the-wnba-finals/</link>
+			<dc:creator>Tom Hogan</dc:creator>
+		
+		<guid isPermaLink="false">https://nypost.com/?post_type=video&#038;p=41117767</guid>
+												<description><![CDATA[A trip to the WNBA Finals is on the line. Can the New York Liberty get past the Atlanta Dream? WNBA writers Lucas Kaplan and Myles Ehrlich join Dexter Henry &amp; Madeline Kenney on the Liberty Lately roundtable to preview the WNBA semifinal matchup. Can Breanna Stewart, Sabrina Ionescu and Jonquel Jones lead New York...]]></description>
+			<content:encoded><![CDATA[]]></content:encoded>
+								<enclosure url="https://nypost.com/wp-content%2Fuploads%2Fsites%2F2%2F2026%2F10%2Fliberty-wp-10.2.jpg?quality%3D90%26strip%3Dall"
+						type="image/jpeg"
+						length="684768"
+					/>
+							<slash:comments>0</slash:comments>
+			<post-id xmlns="com-wordpress:feed-additions:1">41117767</post-id>	</item>
+</channel>
+</rss>

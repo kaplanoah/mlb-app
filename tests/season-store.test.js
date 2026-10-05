@@ -1,7 +1,7 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { createSeasonStore } from "../shared/worker/season-store.js";
-import { createDurableObjectContext } from "./durable-object-context.js";
+import { createDurableObjectContext, fireNextAlarm } from "./durable-object-context.js";
 
 const ORIGIN = "https://app.example";
 
@@ -117,13 +117,16 @@ test("a store that can't read its league says why and waits longer after each fa
       throw new Error("The league answered 503");
     },
   });
-  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+  const clock = { now: NOW };
+  const store = new SeasonStore(context.ctx, {}, { now: () => clock.now });
   context.ctx.acceptWebSocket({ send: () => {} });
 
   const waits = [];
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await store.alarm();
-    waits.push((await context.ctx.storage.getAlarm()) - NOW);
+    const alarmAt = await context.ctx.storage.getAlarm();
+    waits.push(alarmAt - clock.now);
+    clock.now = alarmAt;
   }
 
   assert.deepEqual(waits, [30e3, 60e3, 2 * 60e3, 5 * 60e3, 10 * 60e3, 10 * 60e3]);
@@ -156,14 +159,14 @@ function createWatchedStore(league) {
 }
 
 test("with no page open, a store updates at most every fifty seconds", async () => {
-  const { context, store, openPage } = createWatchedStore({ choosePollDelay: () => 15_000 });
+  const { context, clock, store, openPage } = createWatchedStore({ choosePollDelay: () => 15_000 });
 
   await store.alarm();
   assert.equal(context.alarm.at, NOW + 50_000);
 
   await openPage();
-  await store.alarm();
-  assert.equal(context.alarm.at, NOW + 15_000);
+  await fireNextAlarm(store, context, clock);
+  assert.equal(context.alarm.at, clock.now + 15_000);
 });
 
 test("a page that opens brings the next update to when an open page would have had it", async () => {
@@ -259,11 +262,12 @@ test("each update reads the details of the games pages have open, and saves them
   const loads = [];
   const details = { 1: { score: 10 }, 2: { score: 20 } };
   const SeasonStore = createSeasonStore({ ...QUIET_LEAGUE, detailsCollection: "games" });
+  const clock = { now: NOW };
   const store = new SeasonStore(
     context.ctx,
     {},
     {
-      now: () => NOW,
+      now: () => clock.now,
       loadDetails: async (id, snapshot, stored) => {
         loads.push({ id, season: snapshot.season, stored });
         return details[id];
@@ -279,7 +283,7 @@ test("each update reads the details of the games pages have open, and saves them
   assert.deepEqual(await context.ctx.storage.get("games/1"), { score: 10 });
   assert.deepEqual(page.sent, ["games/1"]);
 
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   assert.deepEqual(loads[1].stored, { score: 10 });
   assert.deepEqual(page.sent, ["games/1"]);
 });
@@ -317,14 +321,15 @@ test("a store saves which season is current, and saves it again only when it cha
     ...QUIET_LEAGUE,
     loadCurrentSnapshot: async () => ({ season }),
   });
-  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+  const clock = { now: NOW };
+  const store = new SeasonStore(context.ctx, {}, { now: () => clock.now });
   const page = createPageSocket();
   context.ctx.acceptWebSocket(page);
 
   await store.alarm();
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
   season = 2027;
-  await store.alarm();
+  await fireNextAlarm(store, context, clock);
 
   assert.deepEqual(await context.ctx.storage.get("live/current"), { season: 2027 });
   assert.deepEqual(
@@ -346,4 +351,138 @@ test("a league keeps what it reads in the store's storage, under keys its paths 
 
   assert.deepEqual(await store.loadSnapshot(2026), { read: 1 });
   assert.deepEqual(await context.ctx.storage.get("feed:standings"), { read: 1 });
+});
+
+/**
+ * A league whose news job runs every fifteen minutes, and holds each run open until `finishRun`.
+ * @param {object[]} contexts each run's context, as the job gets it
+ */
+function createJobLeague(contexts) {
+  /** @type {(value?: unknown) => void} */
+  let finishRun = () => {};
+  const job = {
+    chooseDelay: () => 15 * MINUTE_MS,
+    run: (context) => {
+      contexts.push(context);
+      return new Promise((resolve) => {
+        finishRun = resolve;
+      });
+    },
+  };
+  return { league: { ...QUIET_LEAGUE, backgroundJobs: { news: job } }, finish: () => finishRun() };
+}
+
+test("a background job runs beside the season's update, and the alarm wakes for whichever is due first", async () => {
+  const context = createDurableObjectContext();
+  const contexts = [];
+  let seasonUpdates = 0;
+  const { league, finish } = createJobLeague(contexts);
+  const SeasonStore = createSeasonStore({
+    ...league,
+    loadCurrentSnapshot: async () => {
+      seasonUpdates += 1;
+      return { season: 2026 };
+    },
+    choosePollDelay: () => 60 * MINUTE_MS,
+  });
+  const clock = { now: NOW };
+  const env = { ANTHROPIC_API_KEY: "test-key" };
+  const store = new SeasonStore(context.ctx, env, { now: () => clock.now });
+
+  await store.alarm();
+  assert.equal(contexts.length, 1);
+  assert.equal(contexts[0].env, env);
+  assert.equal(seasonUpdates, 1);
+  assert.equal(await context.ctx.storage.getAlarm(), NOW + 15 * MINUTE_MS);
+
+  finish();
+  await store.jobRuns.get("news");
+  await fireNextAlarm(store, context, clock);
+  assert.equal(contexts.length, 2);
+  assert.equal(seasonUpdates, 1);
+  assert.equal(await context.ctx.storage.getAlarm(), NOW + 30 * MINUTE_MS);
+});
+
+test("a job still running when it's due again isn't started twice, and doesn't hold up the season", async () => {
+  const context = createDurableObjectContext();
+  const contexts = [];
+  let seasonUpdates = 0;
+  const { league } = createJobLeague(contexts);
+  const SeasonStore = createSeasonStore({
+    ...league,
+    loadCurrentSnapshot: async () => {
+      seasonUpdates += 1;
+      return { season: 2026 };
+    },
+    choosePollDelay: () => 15 * MINUTE_MS,
+  });
+  const clock = { now: NOW };
+  const store = new SeasonStore(context.ctx, {}, { now: () => clock.now });
+
+  await store.alarm();
+  await fireNextAlarm(store, context, clock);
+
+  assert.equal(contexts.length, 1);
+  assert.equal(seasonUpdates, 2);
+});
+
+test("a job that fails is logged, and runs again when it's next due", async (t) => {
+  const context = createDurableObjectContext();
+  const logged = t.mock.method(console, "error", () => {});
+  let runs = 0;
+  const SeasonStore = createSeasonStore({
+    ...QUIET_LEAGUE,
+    backgroundJobs: {
+      news: {
+        chooseDelay: () => 15 * MINUTE_MS,
+        run: async () => {
+          runs += 1;
+          throw new Error("Claude answered 529");
+        },
+      },
+    },
+  });
+  const clock = { now: NOW };
+  const store = new SeasonStore(context.ctx, {}, { now: () => clock.now });
+
+  await store.alarm();
+  await store.jobRuns.get("news");
+  clock.now = NOW + 15 * MINUTE_MS;
+  await store.alarm();
+  await store.jobRuns.get("news");
+
+  assert.equal(runs, 2);
+  assert.match(
+    String(logged.mock.calls[0].arguments[0]),
+    /The news job failed: .*Claude answered 529/,
+  );
+});
+
+test("a job keeps what it saves under keys the store's paths can't name, and writes documents pages read", async () => {
+  const context = createDurableObjectContext();
+  const SeasonStore = createSeasonStore({
+    ...QUIET_LEAGUE,
+    backgroundJobs: {
+      news: {
+        chooseDelay: () => 15 * MINUTE_MS,
+        run: async ({ storage, docs }) => {
+          await storage.put("story:a", { title: "A" });
+          await storage.put("story:b", { title: "B" });
+          await storage.put("other", 1);
+          const stories = await storage.list("story:");
+          await docs.write("news/feed", { count: stories.size, keys: [...stories.keys()] });
+        },
+      },
+    },
+  });
+  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+
+  await store.alarm();
+  await store.jobRuns.get("news");
+
+  assert.deepEqual(await context.ctx.storage.get("job:news:story:a"), { title: "A" });
+  assert.deepEqual(await context.ctx.storage.get("news/feed"), {
+    count: 2,
+    keys: ["story:a", "story:b"],
+  });
 });
