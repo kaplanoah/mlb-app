@@ -251,17 +251,17 @@ const describeRecord = (openRecord, now) =>
   [describeWhen(openRecord, now), openRecord.how, openRecord.tab].filter(Boolean);
 
 /**
- * @param {OpenRecord[]} records newest first
- * @param {Date} now
- * @returns {string}
- */
-/**
  * How long after its record started a step came, or before it, like a paint before the page's
  * modules ran.
  * @param {number} ms
  */
 const formatStepTime = (ms) => (ms < 0 ? String(ms) : `+${ms}`);
 
+/**
+ * @param {OpenRecord[]} records newest first
+ * @param {Date} now
+ * @returns {string}
+ */
 export const writeRecordsAsText = (records, now) =>
   records
     .map((openRecord) =>
