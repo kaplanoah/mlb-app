@@ -1,7 +1,4 @@
-import { isSameJson } from "#shared/compare.js";
 import { readEasternDay } from "#shared/days.js";
-import { composeLog } from "./readings.js";
-import { hasKnownField } from "./snapshot.js";
 
 const FRESH_FINAL_MS = 10 * 60 * 1000;
 const APRIL = 4;
@@ -20,13 +17,11 @@ export const session = {
   db: null,
   currentSeason: guessSeasonYear(),
   activeYear: guessSeasonYear(),
-  seasonDoc: null,
-  storedStandings: null,
-  // The active season's parts of readings, oldest first, or null when they couldn't be read.
-  readings: null,
-  live: null,
-  liveProblem: null,
-  loadProblem: null,
+  // The shown season's record, as the Worker saves it.
+  season: null,
+  // How the store's last update went.
+  status: null,
+  problem: "",
   state: null,
   standings: null,
   trackedTitles: {},
@@ -35,43 +30,13 @@ export const session = {
 
 export const readSeasonYear = () => session.currentSeason;
 
-const countDecidedGames = (record) => (record ? record.winsA + record.winsB : -1);
-
-// The season and the live scores are saved apart, so either can be the one that has seen a game
-// end. A series only moves forward, so each keeps whichever record has counted more of its games.
-function pickLatestSeries(doc, live) {
-  if (!isSameJson(doc.teams, live.teams)) return live.series;
-  const saved = doc.series || {};
-  return Object.fromEntries(
-    Object.entries(live.series).map(([id, record]) => [
-      id,
-      countDecidedGames(saved[id]) > countDecidedGames(record) ? saved[id] : record,
-    ]),
-  );
-}
-
-function overlayLiveSnapshot(doc) {
-  const { live } = session;
-  if (!live || live.season !== session.activeYear)
-    return { ...doc, log: composeLog(doc.log, session.readings) };
-  const slate = live.slate && {
-    ...live.slate,
+// The day's finals show as fresh for a few minutes after they end.
+export function composeState() {
+  const { season } = session;
+  const slate = season.slate && {
+    ...season.slate,
     since: new Date(Date.now() - FRESH_FINAL_MS).toISOString(),
   };
-  const field = hasKnownField(live)
-    ? { teams: live.teams, series: pickLatestSeries(doc, live), projected: live.projected }
-    : {};
-  return {
-    ...doc,
-    ...field,
-    slate,
-    log: composeLog(doc.log, session.readings, live.log),
-  };
-}
-
-export function composeState() {
-  const { live } = session;
-  session.state = overlayLiveSnapshot(session.seasonDoc);
-  session.standings =
-    (live && live.season === session.activeYear && live.standings) || session.storedStandings;
+  session.state = { ...season, slate };
+  session.standings = season.standings ?? null;
 }

@@ -14,35 +14,31 @@ const listShownRanking = (page) =>
     .evaluateAll((items) => items.map((item) => /** @type {HTMLElement} */ (item).dataset.id));
 
 const LOCKED_AT = new Date(Date.parse(EVENING_FIXTURE.now) - 60 * 60 * 1000).toISOString();
-const SEASON_WITH_AN_UPDATE = {
-  year: 2026,
-  teams: {},
-  series: {},
-  log: [{ kind: "lock", at: LOCKED_AT }],
-};
+const SEASON_WITH_AN_UPDATE = { log: [{ kind: "lock", at: LOCKED_AT }] };
 
-test("loading the page reads each saved document once", async ({ page }) => {
+test("loading the page reads which season is current and its record once each, and again as it watches them", async ({
+  page,
+}) => {
   const app = await openApp(page);
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
   await expect.poll(() => app.countOpenSockets()).toBe(1);
   await page.waitForLoadState("networkidle");
 
   expect(app.listStoreReads().sort()).toEqual([
-    "/store/live/2026",
+    "/store/live/current",
     "/store/live/current",
     "/store/live/status",
-    "/store/readings-2026?limit=100",
+    "/store/seasons/2026",
     "/store/seasons/2026",
     "/store/seasons?limit=50",
-    "/store/standings/2026",
   ]);
 });
 
-test("a store answer the page can't read stops reading instead of showing an empty season", async ({
+test("a store answer the page can't read says the page's server can't be reached", async ({
   page,
 }) => {
   await openApp(page, { portalReadsDocuments: true });
-  await expect(page.locator("#stamp")).toContainText("Couldn't load the season.");
+  await expect(page.locator("#stamp")).toContainText("Can't reach the page's server right now.");
 });
 
 test.describe("on a phone", () => {
@@ -66,12 +62,9 @@ test.describe("on a phone", () => {
     await page.keyboard.press("ArrowDown");
     await expect(page.locator("#rankList .rank-item").nth(1)).toHaveAttribute("data-id", byName[0]);
 
-    expect(Object.keys(await app.readDocument("seasons/2026")).sort()).toEqual([
-      "log",
-      "series",
-      "teams",
-      "year",
-    ]);
+    const record = await app.readDocument("seasons/2026");
+    expect(record).not.toHaveProperty("ranking");
+    expect(record).not.toHaveProperty("seenAt");
     expect(storeWrites).toEqual([]);
 
     await page.keyboard.press("Escape");

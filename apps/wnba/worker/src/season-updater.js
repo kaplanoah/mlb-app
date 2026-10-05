@@ -11,7 +11,7 @@ import {
 // open, and says which finished games and series are news. `docs` reads and writes the store's
 // documents: read(key), list(collection), write(key, doc), and remove(key).
 
-const SAVED_FIELDS = ["games", "series", "standings", "leaders"];
+const SAVED_FIELDS = ["version", "games", "series", "standings", "leaders"];
 // A game or series found finished long after it ended, as after a gap in updates, isn't news.
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
@@ -65,6 +65,7 @@ export async function saveSnapshot(docs, snapshot) {
   const games = isStandIn ? keepFurtherGames(doc.games, snapshot.games) : snapshot.games;
   const saving = { ...snapshot, games: addEndTimes(doc.games, games, snapshot.asOf) };
   const answered = {
+    version: true,
     games: hasGames,
     series: !missing.has("bracket") || (hasGames && !isStandIn),
     standings: !missing.has("standings"),

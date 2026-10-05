@@ -56,9 +56,9 @@ function renderLiveLines() {
   return lines;
 }
 
-// Without live scores, only the stored standings say how current the page is.
+// A season with no games to follow, like a past one, says only when its record was saved.
 function renderSavedLines() {
-  const savedAt = Date.parse(session.standings && session.standings.updatedAt);
+  const savedAt = Date.parse(session.season?.updatedAt);
   return Number.isNaN(savedAt)
     ? []
     : [renderStampLine("Saved", renderStampWhen(new Date(savedAt)))];
@@ -66,12 +66,22 @@ function renderSavedLines() {
 
 function renderStampLines() {
   if (!session.state) return [];
-  const isLive = session.live && session.live.season === session.activeYear;
-  return isLive ? renderLiveLines() : renderSavedLines();
+  return session.state.slate ? renderLiveLines() : renderSavedLines();
+}
+
+// The store's status is about the current season's updates, so another season's page leaves it out.
+function describeStatusProblem() {
+  const { status } = session;
+  if (session.activeYear !== session.currentSeason) return "";
+  if (status?.error === "mlb_fields_missing")
+    return `MLB stopped sending ${status.detail}, so some details may be blank.`;
+  if (status?.error === "upstream_error")
+    return "Couldn't reach live scores. Trying again shortly.";
+  return "";
 }
 
 export function renderStamp() {
-  const problems = [session.liveProblem, session.loadProblem].filter(Boolean);
+  const problems = [session.problem, describeStatusProblem()].filter(Boolean);
   fillStamp(
     document.getElementById("stamp"),
     [...renderCatchUpLines(), ...renderStampLines()],

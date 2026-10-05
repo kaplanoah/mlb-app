@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../page/js/snapshot.js";
-import * as Readings from "../page/js/readings.js";
+import * as Readings from "../worker/src/readings.js";
 
 const EVENING = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-09-24-evening.json`, "utf8"),

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../page/js/snapshot.js";
 import * as LogChanges from "../page/js/changes.js";
-import * as Readings from "../page/js/readings.js";
+import * as Readings from "../worker/src/readings.js";
 
 const NOW = Date.parse("2026-09-25T02:00:00Z");
 

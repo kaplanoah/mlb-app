@@ -56,13 +56,14 @@ function finishTonight(snapshot, [awayScore, homeScore]) {
   return { ...snapshot, games, series };
 }
 
-test("the season saves its games, series, standings, and top scorers, and only when they change", async () => {
+test("the season saves its version, games, series, standings, and top scorers, and only when they change", async () => {
   const docs = createDocs();
   await saveSnapshot(docs, SNAPSHOT);
   await saveSnapshot(docs, { ...SNAPSHOT, asOf: "2026-09-30T22:00:00Z" });
 
   assert.deepEqual(docs.writes, ["seasons/2026"]);
   const saved = await readUpdates(docs, 2026);
+  assert.equal(saved.version, SNAPSHOT.version);
   assert.equal(saved.games.length, 28);
   assert.equal(saved.series.length, 7);
   assert.equal(saved.standings.length, 15);

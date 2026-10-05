@@ -8,12 +8,12 @@ const MINUTE_MS = 60 * 1000;
 /** @param {import("@playwright/test").Page} page */
 const findLiveLine = (page) => page.locator("#stamp").getByText("Reds @ Braves");
 
-test("a reload keeps the live scores it last showed while the store sends them again", async ({
+test("a reload keeps the season it last showed while the store sends it again", async ({
   page,
 }) => {
   await openApp(page);
   await expect(findLiveLine(page)).toBeVisible();
-  const release = await holdRequests(page, matchPath("/store/live/2026"));
+  const release = await holdRequests(page, matchPath("/store/seasons/2026"));
 
   await page.reload();
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);

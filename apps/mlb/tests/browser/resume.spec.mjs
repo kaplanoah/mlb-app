@@ -1,5 +1,13 @@
 import { NEXT_RELEASE, serveReleases } from "../../../../tests/browser/serve-releases.mjs";
-import { test, expect, openApp, openSettings, EVENING_FIXTURE, ON_A_PHONE } from "./harness.mjs";
+import {
+  test,
+  expect,
+  openApp,
+  openSettings,
+  EVENING_FIXTURE,
+  ON_A_PHONE,
+  matchPath,
+} from "./harness.mjs";
 
 const MINUTE_MS = 60 * 1000;
 
@@ -113,13 +121,22 @@ test("a page hidden a minute closes its socket, and opens another when it's show
   await expect.poll(() => app.countOpenSockets()).toBe(1);
 });
 
-test("a page whose saved data couldn't load loads again when it comes back", async ({ page }) => {
-  await serveReleases(page);
-  await openApp(page, { portalReadsDocuments: true });
-  await expect(page.locator("#stamp")).toContainText("Couldn't load the season");
+test("a page whose first load failed loads its season once the store answers", async ({ page }) => {
+  await openApp(page);
+  await page.addInitScript(() => localStorage.removeItem("lastSeen"));
+  // Unrouting by the handler too leaves the store's own route, which has the same pattern.
+  const failStore = (route) => route.fulfill({ status: 503, body: "" });
+  await page.route(matchPath("/store/"), failStore);
+  await page.reload();
+  await expect(page.locator("#stamp")).toContainText("Can't reach the page's server");
+  await page.unroute(matchPath("/store/"), failStore);
   await markPage(page);
 
-  await expectReload(page, () => sleepUnannounced(page, 5));
+  await sleepUnannounced(page, 5);
+
+  await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
+  await expect(page.locator("#stamp")).not.toContainText("Can't reach the page's server");
+  expect(await isSameLoad(page)).toBe(true);
 });
 
 test("a reload shows what the page last showed while the store is still answering", async ({
@@ -138,17 +155,15 @@ test("a reload shows what the page last showed while the store is still answerin
   release();
 });
 
-test("a reload leaves out live scores it last showed that it can no longer read", async ({
-  page,
-}) => {
+test("a reload leaves out a season it last showed that it can no longer read", async ({ page }) => {
   const app = await openApp(page);
   await app.updateFromWorker();
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#games-today .game-row")).toHaveCount(12);
   await page.addInitScript(() => {
     const lastSeen = JSON.parse(localStorage.getItem("lastSeen") ?? "null");
-    if (!lastSeen?.live) return;
-    lastSeen.live.version = 2;
+    if (!lastSeen?.season) return;
+    lastSeen.season.version = 2;
     localStorage.setItem("lastSeen", JSON.stringify(lastSeen));
   });
   const release = await app.holdStore();
@@ -204,7 +219,7 @@ test("a page that wakes mid-drag after half an hour keeps the drag and doesn't r
 }) => {
   await serveReleases(page);
   const app = await openApp(page);
-  await expect.poll(() => app.countLiveReads()).toBe(1);
+  await expect.poll(() => app.countSeasonReads()).toBe(2);
   await startDrag(page);
   await markPage(page);
 
@@ -219,7 +234,7 @@ test("a page that wakes mid-drag after half an hour keeps the drag and doesn't r
 test("a deploy found mid-drag reloads the page once the drag ends", async ({ page }) => {
   const served = await serveReleases(page);
   const app = await openApp(page);
-  await expect.poll(() => app.countLiveReads()).toBe(1);
+  await expect.poll(() => app.countSeasonReads()).toBe(2);
   await expect.poll(() => served.requests).toBe(1);
   await startDrag(page);
   await markPage(page);

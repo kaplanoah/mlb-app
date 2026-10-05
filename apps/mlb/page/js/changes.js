@@ -238,7 +238,7 @@ const listGames = (reading) =>
       Date.parse(first.start) - Date.parse(second.start),
   );
 
-// The news between two readings from readings.js, stamped with the later one's time.
+// The news between two readings from the Worker's readings.js, stamped with the later one's time.
 export function findChanges(before, after) {
   const games = listGames(after);
   const changes = [];

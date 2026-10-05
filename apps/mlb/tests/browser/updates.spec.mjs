@@ -8,7 +8,7 @@ import {
   ON_A_PHONE,
   readKept,
 } from "./harness.mjs";
-import { createReading } from "../../page/js/readings.js";
+import { createReading } from "../../worker/src/readings.js";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 

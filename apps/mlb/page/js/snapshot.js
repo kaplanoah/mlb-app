@@ -4,6 +4,10 @@ import { addDays, readEasternDay } from "#shared/days.js";
 import * as PollSchedule from "#shared/poll-schedule.js";
 import { NIGHT_END_HOUR } from "./dates.js";
 
+// The shape of a snapshot, and of the season record saved from it, which a page reads only when it
+// knows it.
+export const SNAPSHOT_VERSION = 1;
+
 export const MLB_API = "https://statsapi.mlb.com";
 
 // Postseason placeholders ("AL #3 Seed") have made-up ids, so a miss means no real club yet.
@@ -1024,7 +1028,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
   ];
 
   return {
-    version: 1,
+    version: SNAPSHOT_VERSION,
     season,
     asOf: new Date(now).toISOString(),
     projected: !official,

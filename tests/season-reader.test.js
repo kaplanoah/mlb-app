@@ -41,9 +41,12 @@ function startReader(documents, options = {}) {
     status: undefined,
     currentYears: [],
     failures: 0,
+    unreadable: 0,
   };
   const reader = createSeasonReader({
     store,
+    version: 1,
+    showUnreadable: () => shown.unreadable++,
     guessYear: () => options.guessedYear ?? 2026,
     keepSeason: (year, season) => Object.assign(shown, { year, season }),
     showChange: () => shown.changes++,
@@ -169,6 +172,20 @@ test("an answer for a season the page has moved off is dropped", async () => {
   deliver("seasons/2026", { ...SEASON_2026, games: [] });
 
   assert.equal(shown.year, 2025);
+});
+
+test("a record in a version the page doesn't read is left out, and the app hears of it", async () => {
+  const { reader, shown, deliver } = startReader({
+    "live/current": { season: 2026 },
+    "seasons/2026": { ...SEASON_2026, version: 2 },
+  });
+
+  await reader.loadCurrentSeason();
+  assert.deepEqual([shown.season, shown.unreadable], [null, 1]);
+
+  const readable = { ...SEASON_2026, version: 1 };
+  deliver("seasons/2026", readable);
+  assert.deepEqual([shown.season, shown.unreadable], [readable, 1]);
 });
 
 test("the store's status is handed on as it changes", async () => {

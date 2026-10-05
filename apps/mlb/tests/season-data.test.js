@@ -1,0 +1,190 @@
+import test, { beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import {
+  applyDeferredSeason,
+  loadSeason,
+  loadSeasonList,
+  showYear,
+  startSeasonData,
+} from "../page/js/season-data.js";
+import { session } from "../page/js/session.js";
+
+// A stand-in for the store: a read answers with what's stored, a watch answers once the test moves
+// on, and the test can change a document and tell its watchers.
+function createStore(documents, { unreadable = [] } = {}) {
+  /** @type {Record<string, (snapshot: any) => void>} */
+  const watchers = {};
+  const readStored = (path) => ({
+    id: path.split("/").pop(),
+    exists: path in documents,
+    data: () => documents[path],
+  });
+  const store = {
+    doc: (path) => ({
+      get: async () => {
+        if (unreadable.includes(path)) throw new Error("unreadable");
+        return readStored(path);
+      },
+      onSnapshot: (onNext) => {
+        watchers[path] = onNext;
+        queueMicrotask(() => onNext(readStored(path)));
+        return () => delete watchers[path];
+      },
+    }),
+    collection: (name) => ({
+      limit: () => ({
+        get: async () => ({
+          docs: Object.keys(documents)
+            .filter((path) => path.startsWith(`${name}/`))
+            .map(readStored),
+        }),
+      }),
+    }),
+  };
+  const deliver = (path, data) => {
+    documents[path] = data;
+    watchers[path]?.(readStored(path));
+  };
+  return { store, deliver };
+}
+
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+const RECORD_2026 = {
+  year: 2026,
+  teams: { NYY: { league: "AL", seed: 1 } },
+  series: { AL_WC1: { winsA: 1, winsB: 0 } },
+  standings: { divisions: {} },
+  log: [{ kind: "lock", at: "2026-09-30T00:00:00Z" }],
+};
+
+/**
+ * @param {Record<string, any>} documents
+ * @param {{ unreadable?: string[] }} [options]
+ */
+function startReading(documents, options) {
+  const { store, deliver } = createStore(documents, options);
+  const redraws = { changes: 0, stamps: 0, currentYears: 0, unreadable: 0 };
+  session.db = store;
+  startSeasonData({
+    showChange: () => redraws.changes++,
+    showStamp: () => redraws.stamps++,
+    showCurrentYear: () => redraws.currentYears++,
+    showUnreadable: () => redraws.unreadable++,
+  });
+  return { redraws, deliver };
+}
+
+beforeEach(() => {
+  Object.assign(session, {
+    season: null,
+    state: null,
+    problem: "",
+    isReordering: false,
+    activeYear: 2026,
+    currentSeason: 2026,
+  });
+});
+
+test("the page loads the season the store says is current, and drops clubs it doesn't know", async () => {
+  startReading({
+    "live/current": { season: 2026 },
+    "seasons/2026": { ...RECORD_2026, teams: { ...RECORD_2026.teams, "<b>": {} } },
+  });
+
+  await loadSeason();
+
+  assert.deepEqual(session.season, RECORD_2026);
+  assert.deepEqual(session.state.teams, RECORD_2026.teams);
+  assert.equal(session.standings, session.season.standings);
+  assert.equal(session.currentSeason, 2026);
+});
+
+test("an update that arrives during a drag waits for it, without a redraw", async () => {
+  const { redraws, deliver } = startReading({
+    "live/current": { season: 2026 },
+    "seasons/2026": RECORD_2026,
+  });
+  await loadSeason();
+  await settle();
+
+  session.isReordering = true;
+  const newEntry = { kind: "elim", team: "SEA", at: "2026-10-01T00:00:00Z" };
+  deliver("seasons/2026", { ...RECORD_2026, log: [...RECORD_2026.log, newEntry] });
+  assert.equal(session.season.log.length, 1);
+  assert.equal(redraws.changes, 0);
+
+  session.isReordering = false;
+  applyDeferredSeason();
+  assert.deepEqual(session.season.log, [...RECORD_2026.log, newEntry]);
+});
+
+test("a season the store can't answer shows as an empty one, and says so", async () => {
+  startReading({ "live/current": { season: 2026 } }, { unreadable: ["live/current"] });
+
+  await loadSeason();
+
+  assert.deepEqual(session.season, { year: 2026, teams: {}, series: {}, log: [] });
+  assert.equal(session.problem, "Can't reach the page's server right now.");
+});
+
+test("a record in a version the page doesn't read isn't shown, and the page checks for a newer release", async () => {
+  const { redraws, deliver } = startReading({
+    "live/current": { season: 2026 },
+    "seasons/2026": { ...RECORD_2026, version: 1 },
+  });
+  await loadSeason();
+  await settle();
+
+  deliver("seasons/2026", { ...RECORD_2026, version: 2, log: [] });
+
+  assert.equal(session.season.log.length, 1);
+  assert.equal(redraws.unreadable, 1);
+});
+
+test("picking another season shows its record", async () => {
+  const record2025 = { year: 2025, teams: {}, series: {}, log: [] };
+  startReading({
+    "live/current": { season: 2026 },
+    "seasons/2025": record2025,
+    "seasons/2026": RECORD_2026,
+  });
+  await loadSeason();
+
+  await showYear(2025);
+
+  assert.equal(session.activeYear, 2025);
+  assert.deepEqual(session.season, record2025);
+});
+
+// A season whose AL top seed swept through to win the World Series.
+function buildSeasonWonBy(champion) {
+  const AL = [champion, "NYY", "TOR", "SEA", "BOS", "DET"];
+  const NL = ["PHI", "LAD", "MIL", "CHC", "SD", "NYM"];
+  const teams = Object.fromEntries([
+    ...AL.map((id, index) => [id, { league: "AL", seed: index + 1 }]),
+    ...NL.map((id, index) => [id, { league: "NL", seed: index + 1 }]),
+  ]);
+  const won = (winsA) => ({ winsA, winsB: 0, started: true });
+  const leagueSeries = (league) => ({
+    [`${league}_WC1`]: won(2),
+    [`${league}_WC2`]: won(2),
+    [`${league}_DS1`]: won(3),
+    [`${league}_DS2`]: won(3),
+    [`${league}_CS`]: won(4),
+  });
+  return { teams, series: { ...leagueSeries("AL"), ...leagueSeries("NL"), WS: won(4) } };
+}
+
+test("the seasons the store keeps list newest first, and a club that won more than one keeps each title", async () => {
+  startReading({
+    "seasons/2026": { year: 2026, ...buildSeasonWonBy("CLE") },
+    "seasons/2027": { year: 2027, ...buildSeasonWonBy("HOU") },
+    "seasons/2028": { year: 2028, ...buildSeasonWonBy("CLE") },
+  });
+
+  const years = await loadSeasonList();
+
+  assert.deepEqual(years, ["2028", "2027", "2026"]);
+  assert.deepEqual(session.trackedTitles, { CLE: [2026, 2028], HOU: [2027] });
+});

@@ -11,7 +11,8 @@ import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
 import { startPageTabs } from "#shared/page-tabs.js";
-import { watchReturns } from "#shared/resume.js";
+import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
+import { isReadableSeason } from "#shared/season-reader.js";
 import { startServiceWorker } from "#shared/service-worker.js";
 import { startSettingsSheet } from "#shared/settings-sheet.js";
 import { refreshTeamSheet, startTeamSheet } from "#shared/team-sheet.js";
@@ -28,6 +29,7 @@ import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
 import { loadSeason, startSeasonData } from "./season-data.js";
 import { session } from "./session.js";
+import { SNAPSHOT_VERSION } from "./snapshot.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
 import { renderTeamSheet } from "./team-view.js";
@@ -91,7 +93,7 @@ function refreshClockEveryMinute() {
 // be drawn is skipped.
 function drawLastSeen() {
   const lastSeen = readLastSeen();
-  if (!lastSeen?.season) return;
+  if (!lastSeen?.season || !isReadableSeason(lastSeen.season, SNAPSHOT_VERSION)) return;
   const { year, season, news } = session;
   try {
     Object.assign(session, { year: lastSeen.year, season: lastSeen.season, news: lastSeen.news });
@@ -144,7 +146,11 @@ async function boot() {
   startCaughtUpSweep(session.db, findElement("stamp"));
   startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
-  startSeasonData({ showChange: showNewData, showStamp: renderStamp });
+  startSeasonData({
+    showChange: showNewData,
+    showStamp: renderStamp,
+    showUnreadable: reloadIfReplaced,
+  });
   await loadSeason();
   redrawEased(drawLoadedSeason);
   watchNews(() => redrawEased(drawNews));

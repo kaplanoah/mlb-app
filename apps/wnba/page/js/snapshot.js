@@ -7,6 +7,10 @@
 import * as PollSchedule from "#shared/poll-schedule.js";
 import { findTeamCode, findTeamCodeByEspnId, TEAMS } from "./teams.js";
 
+// The shape of a snapshot, and of the season record saved from it, which a page reads only when it
+// knows it.
+export const SNAPSHOT_VERSION = 1;
+
 const WNBA_CDN = "https://cdn.wnba.com";
 const WNBA_STATS = "https://stats.wnba.com";
 const ESPN_CORE = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba";
@@ -464,7 +468,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     ? combineSeries(bracket.map(readBracketSeries), countedSeries, games)
     : countedSeries;
   return {
-    version: 1,
+    version: SNAPSHOT_VERSION,
     season,
     asOf: new Date(now).toISOString(),
     games,

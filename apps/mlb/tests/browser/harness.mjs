@@ -25,6 +25,26 @@ export const buildFixtureSnapshot = (fixture) =>
     now: Date.parse(fixture.now),
   });
 
+/**
+ * A season's record as the Worker saves it from its first snapshot.
+ * @param {any} snapshot
+ */
+export const buildSeasonRecord = (snapshot) => ({
+  year: snapshot.season,
+  version: snapshot.version,
+  updatedAt: snapshot.asOf,
+  teams: snapshot.teams,
+  series: snapshot.series,
+  projected: snapshot.projected,
+  springStart: snapshot.springStart,
+  standings: snapshot.standings,
+  slate: snapshot.slate,
+  log: snapshot.log,
+});
+
+// The 2025 season's record, filled in whole once it was over.
+export const SEASON_2025 = buildSeasonRecord(buildFixtureSnapshot(FINAL_2025_FIXTURE));
+
 // The first game still to come, Astros at Athletics, with both clubs' starters named.
 export function buildSnapshotWithStarters() {
   const fixture = structuredClone(EVENING_FIXTURE);
@@ -53,9 +73,9 @@ export const ON_A_PHONE = { viewport: { width: 390, height: 844 }, hasTouch: tru
 const isWriteRequest = (request) => request.method() !== "GET";
 
 /**
- * The page as the Worker serves it, with the Worker's store and snapshot behind it. The store
- * starts with the current season's live scores, as the Worker's last update saved them, unless
- * they aren't available, when the Worker's snapshot can't be read either.
+ * The page as the Worker serves it, with the Worker's store behind it. The store starts with the
+ * current season's record, as the Worker's last update saved it, under any fields `store` gives
+ * it, unless MLB isn't available, when the Worker's snapshot can't be read either.
  * @param {import("@playwright/test").Page} page
  * @param {object} [options]
  * @param {Record<string, object>} [options.store] documents by path
@@ -91,13 +111,19 @@ export async function openApp(
   };
   const loadSnapshot = async (season) =>
     harness.transformSnapshot(structuredClone(snapshotsBySeason[season]));
-  const liveDocs = liveAvailable
-    ? { [`live/${EVENING_FIXTURE.season}`]: snapshotsBySeason[EVENING_FIXTURE.season] }
+  const currentPath = `seasons/${EVENING_FIXTURE.season}`;
+  const savedDocs = liveAvailable
+    ? {
+        [currentPath]: {
+          ...buildSeasonRecord(snapshotsBySeason[EVENING_FIXTURE.season]),
+          ...store[currentPath],
+        },
+      }
     : {};
   const testStore = createTestStore(SeasonStore, {
     loadSnapshot,
     now,
-    stored: { ...liveDocs, ...store },
+    stored: { ...store, ...savedDocs },
   });
   const { context, store: seasonStore } = testStore;
 
@@ -151,17 +177,19 @@ export async function openApp(
     writeWhileAway: (path, data) => context.ctx.storage.put(path, data),
     lockBracket: () => lockBracket(seasonStore.docs.write),
     lockBracketWhileAway: () => lockBracket((path, data) => context.ctx.storage.put(path, data)),
-    /** @param {(live: any) => any} change */
-    changeLiveWhileAway: async (change) => {
-      const path = `live/${EVENING_FIXTURE.season}`;
-      await context.ctx.storage.put(path, change(structuredClone(await readDocument(path))));
+    /** @param {(season: any) => any} change */
+    changeSeasonWhileAway: async (change) => {
+      await context.ctx.storage.put(
+        currentPath,
+        change(structuredClone(await readDocument(currentPath))),
+      );
     },
     holdStore: () => holdStore(page),
     // What the Worker's alarm does on its own schedule.
     updateFromWorker: () => testStore.fireAlarm(),
     countSnapshotRequests: () => harness.snapshotRequests,
-    countLiveReads: () =>
-      harness.storeReads.filter((path) => /^\/store\/live\/\d{4}$/.test(path)).length,
+    countSeasonReads: () =>
+      harness.storeReads.filter((path) => path === `/store/${currentPath}`).length,
     listStoreReads: () => [...harness.storeReads],
     countSubscriptions: () =>
       [...context.stored.keys()].filter((key) => key.startsWith("push:subscription:")).length,
