@@ -207,7 +207,9 @@ export function renderNews(topics, choices, now, { columnCount = 1, opened = {} 
       ${placeInColumns(cards, columnCount).map(
         (column) =>
           html`<ul class="news-column">
-            ${column.map((card) => html`<li>${renderCard(card, now, opened)}</li>`)}
+            ${column.map(
+              (card) => html`<li data-key="${card.id}">${renderCard(card, now, opened)}</li>`,
+            )}
           </ul>`,
       )}
     </div>`;

@@ -176,6 +176,142 @@ test("a card's lead photo runs its full width, and the second story's sits besid
   expect(Math.abs(thumbBox.y - textBox.y)).toBeLessThan(1);
 });
 
+/**
+ * The two topics, with each story's photo its own.
+ * @param {string} photoUrl
+ */
+const createTopicsWithOwnPhotos = (photoUrl) =>
+  createTopics(photoUrl).map((topic) => ({
+    ...topic,
+    stories: topic.stories.map((/** @type {any} */ story) => ({
+      ...story,
+      photo: { ...story.photo, url: `${photoUrl}?${story.id}` },
+    })),
+  }));
+
+/**
+ * A topic newer than the others.
+ * @param {string} photoUrl
+ */
+const createTradeTopic = (photoUrl) => ({
+  id: "trade",
+  stories: [
+    createStory(`${photoUrl}?trade`, {
+      id: "trade",
+      title: "The Sky traded for a guard before the draft",
+      outlet: "ESPN",
+      source: "espn",
+      kind: "report",
+      publishedAt: "2026-09-30T16:00:00.000Z",
+    }),
+  ],
+});
+
+// Each photo the page shows is marked with the address it showed, which a new element lacks.
+const markShownPhotos = (page) =>
+  page.evaluate(() => {
+    for (const photo of document.querySelectorAll(".news-photo"))
+      Object.assign(photo, { shownAt: /** @type {HTMLImageElement} */ (photo).src });
+  });
+
+// A wide screen's two columns list their photos column by column, so they're read in order of
+// their addresses.
+const readShownPhotos = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll(".news-photo")]
+      .map((photo) => ({
+        shownAt: /** @type {any} */ (photo).shownAt ?? null,
+        src: /** @type {HTMLImageElement} */ (photo).src,
+      }))
+      .sort((first, second) => first.src.localeCompare(second.src)),
+  );
+
+test("a topic that arrives above the others gets a card of its own, and each card under it keeps its photo", async ({
+  page,
+}) => {
+  const app = await openNewsWithStories(page, createTopicsWithOwnPhotos);
+  const photoUrl = new URL("icon-180.png", page.url()).href;
+  await markShownPhotos(page);
+
+  await app.writeDocument("news/topics", {
+    topics: [createTradeTopic(photoUrl), ...createTopicsWithOwnPhotos(photoUrl)],
+  });
+
+  await expect(page.locator(".news-card")).toHaveCount(3);
+  expect(await readShownPhotos(page)).toEqual([
+    { shownAt: `${photoUrl}?athletic`, src: `${photoUrl}?athletic` },
+    { shownAt: `${photoUrl}?post`, src: `${photoUrl}?post` },
+    { shownAt: null, src: `${photoUrl}?trade` },
+  ]);
+});
+
+test("a topic with a newer story moves to the top with its own card and photo", async ({
+  page,
+}) => {
+  const app = await openNewsWithStories(page, createTopicsWithOwnPhotos);
+  const photoUrl = new URL("icon-180.png", page.url()).href;
+  await markShownPhotos(page);
+  const [film, practice] = createTopicsWithOwnPhotos(photoUrl);
+  const newerFilm = {
+    ...film,
+    stories: film.stories.map((story) => ({ ...story, publishedAt: "2026-09-30T16:00:00.000Z" })),
+  };
+
+  await app.writeDocument("news/topics", { topics: [newerFilm, practice] });
+
+  await expect(page.locator(".news-card h3").first()).toHaveText(
+    "The Liberty's defense held the Dream to 30 percent",
+  );
+  expect(await readShownPhotos(page)).toEqual([
+    { shownAt: `${photoUrl}?athletic`, src: `${photoUrl}?athletic` },
+    { shownAt: `${photoUrl}?post`, src: `${photoUrl}?post` },
+  ]);
+});
+
+test("a page leaving the screen has its service worker keep the photos from other sites it showed", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const sent = [];
+    Object.assign(window, { sentToWorker: sent });
+    Object.defineProperty(navigator.serviceWorker, "controller", {
+      get: () => ({ postMessage: (message) => sent.push(message) }),
+    });
+  });
+  const app = await openApp(page);
+  const photo = await page.request.get("icon-180.png");
+  const photoBody = await photo.body();
+  await page.route("https://photos.example/**", (route) =>
+    route.fulfill({ body: photoBody, contentType: "image/png" }),
+  );
+  await page.getByRole("tab", { name: "News" }).click();
+  await app.writeDocument("news/topics", {
+    topics: createTopicsWithOwnPhotos("https://photos.example/photo.png"),
+  });
+  await expect(page.locator(".news-thumb")).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator("#newsList img")
+        .evaluateAll((images) =>
+          images.every((image) => /** @type {HTMLImageElement} */ (image).naturalWidth > 0),
+        ),
+    )
+    .toBe(true);
+
+  await page.evaluate(() => dispatchEvent(new Event("pagehide")));
+
+  const sent = await page.evaluate(() => /** @type {any} */ (window).sentToWorker);
+  expect(sent.at(-1)).toEqual({
+    type: "keepImages",
+    urls: [
+      "https://photos.example/photo.png?post",
+      "https://photos.example/photo.png?athletic",
+      "https://photos.example/photo.png?espn",
+    ],
+  });
+});
+
 test("a story opened from its Read button shows a check in place of its arrow, as wide a label, and keeps it after a reload", async ({
   page,
 }) => {
@@ -295,11 +431,60 @@ test.describe("on a phone, the news", () => {
     await expect(page.locator("#view-news")).toBeHidden();
   });
 
+  test("keeps each card's photo when a topic arrives above it", async ({ page }) => {
+    const app = await openNewsWithStories(page, createTopicsWithOwnPhotos);
+    const photoUrl = new URL("icon-180.png", page.url()).href;
+    await markShownPhotos(page);
+
+    await app.writeDocument("news/topics", {
+      topics: [createTradeTopic(photoUrl), ...createTopicsWithOwnPhotos(photoUrl)],
+    });
+
+    await expect(page.locator(".news-card")).toHaveCount(3);
+    expect(await readShownPhotos(page)).toEqual([
+      { shownAt: `${photoUrl}?athletic`, src: `${photoUrl}?athletic` },
+      { shownAt: `${photoUrl}?post`, src: `${photoUrl}?post` },
+      { shownAt: null, src: `${photoUrl}?trade` },
+    ]);
+  });
+
   test("turns to two columns when the screen widens", async ({ page }) => {
     await openNewsWithStories(page, createThreeTopics);
     await expect(page.locator(".news-column")).toHaveCount(1);
 
     await page.setViewportSize({ width: 1000, height: 844 });
     await expect(page.locator(".news-column")).toHaveCount(2);
+  });
+});
+
+test.describe("with motion", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("a topic that arrives above the others fades in its own card, and only it", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      /** @type {string[]} */
+      const fadedHeadlines = [];
+      Object.assign(window, { fadedHeadlines });
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (frames, options) {
+        if (Array.isArray(frames) && frames[0]?.opacity === 0)
+          fadedHeadlines.push(this.querySelector(".news-card h3")?.textContent ?? "");
+        return animate.call(this, frames, options);
+      };
+    });
+    const app = await openNewsWithStories(page, createTopicsWithOwnPhotos);
+    const photoUrl = new URL("icon-180.png", page.url()).href;
+    await page.evaluate(() => /** @type {any} */ (window).fadedHeadlines.splice(0));
+
+    await app.writeDocument("news/topics", {
+      topics: [createTradeTopic(photoUrl), ...createTopicsWithOwnPhotos(photoUrl)],
+    });
+
+    await expect(page.locator(".news-card")).toHaveCount(3);
+    expect(await page.evaluate(() => /** @type {any} */ (window).fadedHeadlines)).toEqual([
+      "The Sky traded for a guard before the draft",
+    ]);
   });
 });

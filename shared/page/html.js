@@ -108,6 +108,9 @@ export function logPatches(redraw) {
   return log;
 }
 
+/** @param {Node} node */
+const readKey = (node) => (node instanceof Element ? node.getAttribute("data-key") : null);
+
 /**
  * @param {Node} current
  * @param {Node} next
@@ -116,7 +119,52 @@ const isSameKind = (current, next) =>
   current.nodeName === next.nodeName &&
   (!(current instanceof Element) ||
     (current.namespaceURI === /** @type {Element} */ (next).namespaceURI &&
-      current.id === /** @type {Element} */ (next).id));
+      current.id === /** @type {Element} */ (next).id &&
+      readKey(current) === readKey(next)));
+
+/** @typedef {Map<string, Element>} KeyedItems */
+
+/**
+ * Each item in `element` named with a `data-key`, by its key, outside the elements setHtml writes
+ * on their own.
+ * @param {Element} element
+ * @param {KeyedItems} [keyed]
+ */
+function collectKeyed(element, keyed = new Map()) {
+  for (const child of element.children) {
+    const key = readKey(child);
+    if (key !== null) keyed.set(key, child);
+    if (!writtenMarkup.has(child)) collectKeyed(child, keyed);
+  }
+  return keyed;
+}
+
+/**
+ * The item already shown that `next` names with its `data-key`, wherever it is, if it can go in
+ * `parent`.
+ * @param {KeyedItems} keyed
+ * @param {Node} parent
+ * @param {Node} next
+ */
+function findKeyed(keyed, parent, next) {
+  const key = readKey(next);
+  const shown = key === null ? undefined : keyed.get(key);
+  return shown && isSameKind(shown, next) && !shown.contains(parent) ? shown : null;
+}
+
+/**
+ * Moves a shown item to its new place, noting the heights of the lists it leaves and joins.
+ * @param {Node} parent
+ * @param {Element} shown
+ * @param {Node | null} before
+ */
+function moveKeyed(parent, shown, before) {
+  if (shown.parentNode !== parent) {
+    noteHeight(shown.parentNode);
+    noteHeight(parent);
+  }
+  parent.insertBefore(shown, before);
+}
 
 /**
  * @param {Element} current
@@ -137,31 +185,39 @@ function patchAttributes(current, next) {
 /**
  * @param {Node} current
  * @param {Node} next
+ * @param {KeyedItems} keyed
  */
-function patchNode(current, next) {
+function patchNode(current, next, keyed) {
   if (!(current instanceof Element)) {
     if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
     return;
   }
   patchAttributes(current, /** @type {Element} */ (next));
-  if (!writtenMarkup.has(current)) patchChildren(current, next);
+  if (!writtenMarkup.has(current)) patchChildren(current, next, keyed);
 }
 
 /**
  * Makes `parent`'s children match `nextParent`'s, keeping each node that sits in the same place
- * as one of the same kind. An empty element filling in shows something new rather than changing
- * what it showed, so a logged redraw leaves it out.
+ * as one of the same kind. An item named with a `data-key`, like a news topic's card, keeps its
+ * own node wherever it moves in the element setHtml writes, so one arriving above it doesn't
+ * rewrite it with another's text and photo. An empty element filling in shows something new
+ * rather than changing what it showed, so a logged redraw leaves it out.
  * @param {Node} parent
  * @param {Node} nextParent
+ * @param {KeyedItems} keyed
  */
-function patchChildren(parent, nextParent) {
+function patchChildren(parent, nextParent, keyed) {
   const isFilling = !parent.firstChild;
   let current = parent.firstChild;
   for (const next of [...nextParent.childNodes]) {
-    if (current && isSameKind(current, next)) {
-      const patched = current;
-      current = current.nextSibling;
-      patchNode(patched, next);
+    const isInPlace = !!current && isSameKind(current, next);
+    const shown = isInPlace ? current : findKeyed(keyed, parent, next);
+    if (shown) {
+      if (isInPlace) current = /** @type {Node} */ (current).nextSibling;
+      else moveKeyed(parent, /** @type {Element} */ (shown), current);
+      const key = readKey(shown);
+      if (key !== null) keyed.delete(key);
+      patchNode(shown, next, keyed);
     } else if (isFilling) parent.insertBefore(next, current);
     else {
       noteHeight(parent);
@@ -189,7 +245,7 @@ function patchMarkup(element, text) {
   // A select's choice is its options' state, not their markup, so it follows the markup's as a
   // newly written select would. Patching moves the options it reads from, so it's read first.
   const selectedIndex = next instanceof HTMLSelectElement ? next.selectedIndex : -1;
-  patchChildren(element, next);
+  patchChildren(element, next, collectKeyed(element));
   if (element instanceof HTMLSelectElement) element.selectedIndex = selectedIndex;
 }
 
