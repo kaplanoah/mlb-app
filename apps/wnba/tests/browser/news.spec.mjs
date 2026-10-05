@@ -59,17 +59,47 @@ const createTopics = (photoUrl) => [
   },
 ];
 
-/** @param {import("@playwright/test").Page} page */
-async function openNewsWithStories(page) {
+/**
+ * An older topic than the others, with one short story.
+ * @param {string} photoUrl
+ */
+const createAwardTopic = (photoUrl) => ({
+  id: "award",
+  stories: [
+    createStory(photoUrl, {
+      id: "award",
+      title: "Collier named Defensive Player of the Year",
+      outlet: "ESPN",
+      source: "espn",
+      kind: "report",
+      publishedAt: "2026-09-30T13:00:00.000Z",
+    }),
+  ],
+});
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {(photoUrl: string) => any[]} [buildTopics]
+ */
+async function openNewsWithStories(page, buildTopics = createTopics) {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "News" }).click();
   await expect(page.locator("#newsList")).toHaveText("No news yet");
-  await app.writeDocument("news/topics", {
-    topics: createTopics(new URL("icon-180.png", page.url()).href),
-  });
-  await expect(page.locator(".news-card")).toHaveCount(2);
+  const topics = buildTopics(new URL("icon-180.png", page.url()).href);
+  await app.writeDocument("news/topics", { topics });
+  await expect(page.locator(".news-card")).toHaveCount(topics.length);
   return app;
 }
+
+/** @param {string} photoUrl */
+const createThreeTopics = (photoUrl) => [...createTopics(photoUrl), createAwardTopic(photoUrl)];
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} title
+ */
+const findCardBox = (page, title) =>
+  page.locator(".news-card").filter({ hasText: title }).boundingBox();
 
 /**
  * @param {import("@playwright/test").Page} page
@@ -143,4 +173,49 @@ test("a card's lead photo runs its full width, and the second story's sits besid
   expect(Math.abs(photoBox.width - (cardBox.width - 2))).toBeLessThan(1);
   expect(thumbBox.x).toBeGreaterThan(textBox.x + textBox.width);
   expect(Math.abs(thumbBox.y - textBox.y)).toBeLessThan(1);
+});
+
+test("on a wide screen, each of two columns stacks its own cards, as far apart as the page's sides", async ({
+  page,
+}) => {
+  await openNewsWithStories(page, createThreeTopics);
+
+  const practice = await findCardBox(page, "Stewart sat out practice");
+  const film = await findCardBox(page, "The Liberty's defense");
+  const award = await findCardBox(page, "Collier named");
+  const pageSide = await page.locator("#newsList").boundingBox();
+  expect(film.x - (practice.x + practice.width)).toBeCloseTo(16, 0);
+  expect(Math.abs(award.x - practice.x)).toBeLessThan(1);
+  expect(award.y - (practice.y + practice.height)).toBeCloseTo(16, 0);
+  expect(award.y).toBeLessThan(film.y + film.height);
+  expect(Math.abs(practice.x - pageSide.x)).toBeLessThan(1);
+});
+
+test.describe("on a phone, the news", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("lists one card under another, newest first, as far apart as the page's sides", async ({
+    page,
+  }) => {
+    await openNewsWithStories(page, createThreeTopics);
+
+    expect(await readHeadlines(page)).toEqual([
+      "Stewart sat out practice with a sore knee",
+      "The Liberty's defense held the Dream to 30 percent",
+      "Collier named Defensive Player of the Year",
+    ]);
+    const practice = await findCardBox(page, "Stewart sat out practice");
+    const film = await findCardBox(page, "The Liberty's defense");
+    const sideMargin = 390 - (practice.x + practice.width);
+    expect(sideMargin).toBeCloseTo(16, 0);
+    expect(film.y - (practice.y + practice.height)).toBeCloseTo(sideMargin, 0);
+  });
+
+  test("turns to two columns when the screen widens", async ({ page }) => {
+    await openNewsWithStories(page, createThreeTopics);
+    await expect(page.locator(".news-column")).toHaveCount(1);
+
+    await page.setViewportSize({ width: 1000, height: 844 });
+    await expect(page.locator(".news-column")).toHaveCount(2);
+  });
 });

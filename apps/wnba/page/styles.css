@@ -1652,18 +1652,22 @@ table.standings tr.playoff-line + tr td {
 
 /* The News view: a card for each topic, its lead's photo across the top, and the story that adds
    the most under the lead, with its photo small beside it. */
+/* The columns news-view.js fills, one on a phone and two on a wide screen, each stacking its own
+   cards as far apart as the page's sides. */
 .news-cards {
+  --news-gap: var(--page-gutter);
   display: grid;
-  gap: 12px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--news-gap);
+  align-items: start;
+}
+.news-column {
+  display: grid;
+  gap: var(--news-gap);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-@media (min-width: 900px) {
-  .news-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
 }
 .news-card {
   overflow: hidden;
@@ -1814,6 +1818,31 @@ h4.news-title {
   border-radius: 3px;
   object-fit: cover;
   background: var(--tile);
+}
+
+/* On a wide screen, Walnut's selected tab reads a step heavier on its bright orange. Each tab's
+   label keeps room for itself at both weights, in hidden copies under it, so choosing a tab never
+   changes its width. */
+@media (min-width: 780px) {
+  :root[data-theme="dark"] .tab-list button.active {
+    font-weight: 500;
+  }
+  :root[data-theme="dark"] .tab-label {
+    display: inline-grid;
+  }
+  :root[data-theme="dark"] .tab-label::before,
+  :root[data-theme="dark"] .tab-label::after {
+    content: attr(data-label);
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+  :root[data-theme="dark"] .tab-label::before {
+    font-weight: 400;
+  }
+  :root[data-theme="dark"] .tab-label::after {
+    font-weight: 500;
+  }
 }
 
 /* The Home Screen bar and box show the icon the theme showing would give the Home Screen. */
