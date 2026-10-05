@@ -1,11 +1,18 @@
 // While Diagnostics is on in settings, each open of the page, and each return to it, records what
 // the page draws in its first seconds: what the store sends, and how much each part it draws whole
 // (each `data-last-drawn` element) shows, frame by frame. The last few records stay on this device,
-// for the viewer to copy from settings. It records nothing while it's off, which it starts as.
+// for the viewer to copy from settings, under the log of the viewport's changes (viewport-log.js).
+// It records nothing while it's off, which it starts as.
 
-import { formatClockTime, nameDay } from "./days.js";
+import { formatClockTime, formatClockTimeWithSeconds, nameDay } from "./days.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { watchTimeAway } from "./resume.js";
+import {
+  forgetViewportLines,
+  readViewportLines,
+  watchViewport,
+  writeViewportAsText,
+} from "./viewport-log.js";
 
 const SWITCH_KEY = "diagnostics";
 const RECORDS_KEY = "diagnosticsRecords";
@@ -64,6 +71,7 @@ function saveSwitch(isOn) {
     else {
       localStorage.removeItem(SWITCH_KEY);
       localStorage.removeItem(RECORDS_KEY);
+      forgetViewportLines();
     }
   } catch {
     /* the switch stays as it was */
@@ -238,12 +246,34 @@ const renderRecord = (openRecord, index) =>
     </ol>
   </details>`;
 
+/** @param {import("./viewport-log.js").ViewportLine} line */
+const renderViewportLine = (line) =>
+  html`<li class="${line.isOff ? "diagnostics-dip" : ""}">
+    <span class="diagnostics-ms">${formatClockTimeWithSeconds(new Date(line.at))}</span
+    ><span>${line.text}</span>
+  </li>`;
+
+/** @param {import("./viewport-log.js").ViewportLine[]} lines newest first */
+const renderViewport = (lines) => {
+  const isOff = lines.some((line) => line.isOff);
+  return html`<details class="diagnostics-record">
+    <summary>
+      <span class="diagnostics-when">Viewport</span>
+      <span class="diagnostics-flag ${isOff ? "dip" : ""}">${isOff ? "Off" : "Steady"}</span>
+    </summary>
+    <ol class="diagnostics-lines diagnostics-viewport">
+      ${lines.map(renderViewportLine)}
+    </ol>
+  </details>`;
+};
+
 function renderRecords() {
   const records = readRecords().toReversed();
+  const viewportLines = readViewportLines().toReversed();
   return html`<div class="diagnostics-head">
       <h3>Recent opens</h3>
       ${
-        records.length > 0 &&
+        (records.length > 0 || viewportLines.length > 0) &&
         html`<button type="button" class="diagnostics-copy" id="diagnosticsCopy">
         ${isCopied ? "Copied" : "Copy"}
       </button>`
@@ -253,7 +283,8 @@ function renderRecords() {
       records.length
         ? records.map(renderRecord)
         : html`<p class="diagnostics-empty">Nothing yet. Each open from now on shows here.</p>`
-    }`;
+    }
+    ${viewportLines.length > 0 && renderViewport(viewportLines)}`;
 }
 
 function drawRecords() {
@@ -274,7 +305,9 @@ function toggleRecording() {
 
 async function copyRecords() {
   try {
-    await navigator.clipboard.writeText(writeRecordsAsText(readRecords().toReversed(), new Date()));
+    const records = writeRecordsAsText(readRecords().toReversed(), new Date());
+    const viewport = writeViewportAsText(readViewportLines().toReversed());
+    await navigator.clipboard.writeText([records, viewport].filter(Boolean).join("\n\n"));
     isCopied = true;
   } catch {
     isCopied = false;
@@ -289,8 +322,9 @@ function followSectionClick(event) {
 
 /**
  * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), and,
- * while the switch is on, records this load and each return to the page. A page that leaves the
- * screen keeps what it recorded so far, as when it reloads for a new release or the phone drops it.
+ * while the switch is on, records this load, each return to the page, and each change to the
+ * viewport. A page that leaves the screen keeps what it recorded so far, as when it reloads for a
+ * new release or the phone drops it.
  */
 export function startDiagnostics() {
   findElement("diagnosticsSwitch").addEventListener("click", toggleRecording);
@@ -302,4 +336,5 @@ export function startDiagnostics() {
     if (document.hidden) finishRecord();
   });
   addEventListener("pagehide", finishRecord);
+  watchViewport(isRecording, drawRecords);
 }

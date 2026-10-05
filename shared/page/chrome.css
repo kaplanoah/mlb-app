@@ -349,6 +349,9 @@ section.view.active {
   grid-template-columns: 5ch 1fr;
   gap: 10px;
 }
+.diagnostics-viewport li {
+  grid-template-columns: auto 1fr;
+}
 .diagnostics-ms {
   text-align: right;
   color: var(--ink-dim);
