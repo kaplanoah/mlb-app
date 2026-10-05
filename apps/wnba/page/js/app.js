@@ -20,6 +20,9 @@ import { placeBracket, readBracketScroll, startBracket } from "./bracket-tree.js
 import { renderBracket } from "./bracket-view.js";
 import { refreshGameSheet, startGameSheet } from "./game-sheet.js";
 import { renderGames } from "./games-view.js";
+import { readNewsChoices, startNewsChoices } from "./news-choices.js";
+import { watchNews } from "./news-data.js";
+import { renderNews } from "./news-view.js";
 import { loadSeason, watchCurrentSeason, watchSeason, watchStatus } from "./season-data.js";
 import { session } from "./session.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
@@ -38,6 +41,13 @@ function renderStamp() {
   fillStamp(findElement("stamp"), [...lines, ...renderCatchUpLines()], problem ? [problem] : []);
 }
 
+// Until the store or the page's last showing says what the news is, the view keeps what it was.
+function drawNews() {
+  if (session.news === undefined) return;
+  const topics = session.news?.topics ?? [];
+  setHtml(findElement("newsList"), renderNews(topics, readNewsChoices(), Date.now()));
+}
+
 function renderAll() {
   const now = Date.now();
   const keptLeft = readBracketScroll();
@@ -46,6 +56,7 @@ function renderAll() {
   const gameLists = renderGames(session.season, now);
   fillGameLists((list) => gameLists[list]);
   drawStandings(session.season);
+  drawNews();
   drawUpdates();
   renderStamp();
   refreshGameSheet();
@@ -71,13 +82,13 @@ function refreshClockEveryMinute() {
 function drawLastSeen() {
   const lastSeen = readLastSeen();
   if (!lastSeen?.season) return;
-  const { year, season } = session;
+  const { year, season, news } = session;
   try {
-    Object.assign(session, { year: lastSeen.year, season: lastSeen.season });
+    Object.assign(session, { year: lastSeen.year, season: lastSeen.season, news: lastSeen.news });
     renderAll();
     endLoadNote();
   } catch {
-    Object.assign(session, { year, season });
+    Object.assign(session, { year, season, news });
   }
 }
 
@@ -85,7 +96,8 @@ function drawLastSeen() {
 const renderShownTeam = (team) =>
   renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
 
-const readShown = () => session.season && { year: session.year, season: session.season };
+const readShown = () =>
+  session.season && { year: session.year, season: session.season, news: session.news };
 
 // A page whose first load failed may be watching a season the store doesn't have yet, and the
 // store may have moved on to a new season, so it loads the season again.
@@ -112,6 +124,7 @@ async function boot() {
   startGameSheet();
   startTeamSheet({ isTeam: (team) => team in TEAMS, renderSheet: renderShownTeam });
   startSettingsSheet();
+  startNewsChoices(drawNews);
   startHomeScreen();
   startBracket();
   startStandings();
@@ -124,9 +137,10 @@ async function boot() {
   watchSeason(showNewData);
   watchCurrentSeason(reloadSeason);
   watchStatus(renderStamp);
+  watchNews(() => redrawEased(drawNews));
   refreshClockEveryMinute();
   startServiceWorker();
-  startNotifications();
+  startNotifications({ about: "Post-season game final scores" });
 }
 
 boot();

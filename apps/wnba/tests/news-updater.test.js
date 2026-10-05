@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { NEWS_MODEL, readJsonArray } from "../worker/src/news-claude.js";
-import { buildTopicCards } from "../worker/src/news-picks.js";
 import { createNewsJob } from "../worker/src/news-updater.js";
 import { createFeedFetch } from "./news-fixtures.js";
 
@@ -90,7 +89,7 @@ function createRun({ env = ENV, now = NOW } = {}) {
 const listStoryStates = (storage) =>
   [...storage.stored].filter(([key]) => key.startsWith("story:")).map(([, story]) => story.state);
 
-test("a run has Claude label the new stories in batches, groups the ones it keeps, and saves each topic's card", async () => {
+test("a run has Claude label the new stories in batches, groups the ones it keeps, and saves each topic's stories", async () => {
   const requests = [];
   const { docs, runJob } = createRun();
 
@@ -108,13 +107,22 @@ test("a run has Claude label the new stories in batches, groups the ones it keep
   assert.equal(requests[0].body.model, NEWS_MODEL);
   assert.deepEqual(requests[0].body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
 
-  const { cards } = docs.stored.get("news/feed");
-  const libertyDream = cards.find((card) => card.id === "liberty-vs-dream");
-  assert.equal(libertyDream.stories.length, 2);
-  assert.ok(libertyDream.more > 0);
-  assert.deepEqual(libertyDream.teams, ["NYL"]);
-  assert.ok(cards.every((card) => card.stories.length <= 2));
-  assert.deepEqual(Object.keys(libertyDream.stories[0]).sort(), [
+  const { topics } = docs.stored.get("news/topics");
+  const libertyDream = topics.find((topic) => topic.id === "liberty-vs-dream");
+  const published = libertyDream.stories.map((story) => Date.parse(story.publishedAt));
+  assert.ok(libertyDream.stories.length > 2);
+  assert.deepEqual(
+    published,
+    published.toSorted((first, second) => second - first),
+  );
+  assert.equal(libertyDream.latestAt, libertyDream.stories[0].publishedAt);
+  const latest = topics.map((topic) => Date.parse(topic.latestAt));
+  assert.deepEqual(
+    latest,
+    latest.toSorted((first, second) => second - first),
+  );
+  const fields = Object.keys(libertyDream.stories[0]).filter((field) => field !== "teamFeed");
+  assert.deepEqual(fields.sort(), [
     "author",
     "id",
     "kind",
@@ -123,9 +131,11 @@ test("a run has Claude label the new stories in batches, groups the ones it keep
     "publishedAt",
     "source",
     "summary",
+    "teams",
     "title",
     "url",
   ]);
+  assert.deepEqual(libertyDream.stories[0].teams, ["NYL"]);
 });
 
 test("the status counts each day's calls and tokens, and names the feeds that didn't answer", async () => {
@@ -175,7 +185,7 @@ test("without an API key nothing is asked, and the status says why", async () =>
 
   assert.equal(requests.length, 0);
   assert.match(docs.stored.get("news/status").problem, /ANTHROPIC_API_KEY/);
-  assert.deepEqual(docs.stored.get("news/feed"), { cards: [] });
+  assert.deepEqual(docs.stored.get("news/topics"), { topics: [] });
   assert.ok(listStoryStates(storage).includes("pending"));
 });
 
@@ -212,45 +222,6 @@ test("an overnight wait ends at 7 a.m. Eastern, in and out of daylight time", ()
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:30:00Z")), 30 * 60 * 1000);
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:45:00Z")), 15 * 60 * 1000);
   assert.equal(job.chooseDelay(Date.parse("2027-01-10T11:40:00Z")), 20 * 60 * 1000);
-});
-
-const createStory = (fields) => ({
-  author: "",
-  source: "espn",
-  photo: null,
-  teams: ["NYL"],
-  publishedAt: "2026-10-04T12:00:00.000Z",
-  ...fields,
-});
-
-test("a card leads with the news itself, then the story that adds the most, newest card first", () => {
-  const cards = buildTopicCards([
-    createStory({ id: "column", topic: "sweep", kind: "column", source: "athletic", author: "A" }),
-    createStory({
-      id: "analysis",
-      topic: "sweep",
-      kind: "analysis",
-      source: "ix",
-      author: "B",
-      teams: ["LVA"],
-    }),
-    createStory({ id: "report", topic: "sweep", kind: "report", teams: ["NYL", "MIN", "IND"] }),
-    createStory({
-      id: "award",
-      topic: "award",
-      kind: "report",
-      publishedAt: "2026-10-05T12:00:00.000Z",
-    }),
-  ]);
-
-  assert.deepEqual(
-    cards.map((card) => [card.id, card.stories.map((story) => story.id), card.more]),
-    [
-      ["award", ["award"], 0],
-      ["sweep", ["report", "analysis"], 1],
-    ],
-  );
-  assert.deepEqual(cards[1].teams, ["NYL", "MIN"]);
 });
 
 test("Claude's answer is read from its JSON array, whatever text is around it", () => {

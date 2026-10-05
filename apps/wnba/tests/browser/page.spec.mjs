@@ -39,6 +39,7 @@ test("the page opens on the bracket the Worker saved, and each tab shows its vie
     "Bracket",
     "Games",
     "Standings",
+    "News",
   ]);
 });
 
@@ -355,23 +356,44 @@ async function chooseAppearance(page, choice) {
   await page.keyboard.press("Escape");
 }
 
-test("settings list Notifications above Appearance, with one line between them", async ({
+test("settings list Notifications, the News switches, and Appearance, with lines only between the three", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    const registration = { pushManager: { getSubscription: async () => null } };
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { register: async () => registration, addEventListener() {} },
+    });
+    Object.defineProperty(Notification, "permission", { get: () => "default" });
+  });
   await openApp(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const rows = page.locator("#settingsDialog .settings-controls .control-row");
   await expect(rows.locator(".control-label > span:first-child")).toHaveText([
     "Notifications",
+    "Include dedicated Liberty sources",
+    "Include content from The Athletic",
     "Appearance",
   ]);
-  await expect(rows.first()).toBeVisible();
-  const readTopBorders = () =>
-    rows.evaluateAll((each) => each.map((row) => getComputedStyle(row).borderTopStyle));
-  expect(await readTopBorders()).toEqual(["none", "solid"]);
+  await expect(page.locator("#notifyNote")).toHaveText("Post-season game final scores");
+  const groups = page.locator("#settingsDialog .settings-controls > *");
+  const readBorders = () =>
+    Promise.all([
+      groups.evaluateAll((each) => each.map((group) => getComputedStyle(group).borderTopStyle)),
+      rows.evaluateAll((each) => each.map((row) => getComputedStyle(row).borderTopStyle)),
+      page
+        .locator("#settingsDialog .settings-controls")
+        .evaluate((controls) => getComputedStyle(controls).borderBottomStyle),
+    ]);
+  expect(await readBorders()).toEqual([
+    ["none", "solid", "solid"],
+    ["none", "none", "none", "solid"],
+    "none",
+  ]);
 
   await rows.first().evaluate((row) => row.setAttribute("hidden", ""));
-  expect((await readTopBorders())[1]).toBe("none");
+  expect((await readBorders())[0]).toEqual(["none", "none", "solid"]);
 });
 
 test("on System, the page and its icons follow the phone's dark or light setting", async ({
@@ -488,7 +510,7 @@ test.describe("on a phone, settings", () => {
     const { sheet, body } = await readSettingsBoxes(page);
     expect(Math.round(sheet.bottom)).toBe(844);
     expect(Math.abs(sheet.bottom - body.bottom)).toBeLessThan(1);
-    expect(sheet.height).toBeLessThan(844 * 0.6);
+    expect(sheet.height).toBeLessThan(844 * 0.8);
   });
 
   test("set their title 12px under the grabber and 21px over the first setting, and end 17px over the bottom", async ({

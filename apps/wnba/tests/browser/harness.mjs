@@ -84,6 +84,9 @@ async function createAfternoonStore() {
     );
   const testStore = createTestStore(SeasonStore, { loadSnapshot, now: NOW });
   await testStore.store.alarm();
+  // The news runs beside the update, and finishes before the page opens, so it never overwrites
+  // the news a test writes.
+  await Promise.all(testStore.store.jobRuns.values());
   return testStore;
 }
 
