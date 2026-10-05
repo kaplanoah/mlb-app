@@ -43,17 +43,12 @@ const formatAverage = (value) => (value == null ? "-" : value.toFixed(1));
 /** @param {number | null | undefined} share */
 const formatPercentage = (share) => (share == null ? "-" : (share * 100).toFixed(1));
 
+// Points, rebounds, and assists, then how well each player shoots and how much she plays.
 /** @type {LeaderColumn[]} */
-const SCORING_COLUMNS = [
+const LEADER_COLUMNS = [
   { label: "Pts", title: "Points per game", read: (leader) => formatAverage(leader.points) },
   { label: "Reb", title: "Rebounds per game", read: (leader) => formatAverage(leader.rebounds) },
   { label: "Ast", title: "Assists per game", read: (leader) => formatAverage(leader.assists) },
-];
-
-// A team's own sheet adds how well each scorer shoots and how much she plays.
-/** @type {LeaderColumn[]} */
-const TEAM_SHEET_COLUMNS = [
-  ...SCORING_COLUMNS,
   {
     label: "FG%",
     title: "Field goal percentage",
@@ -72,21 +67,22 @@ const TEAM_SHEET_COLUMNS = [
  * A table of players' averages a game, under a heading over their names.
  * @param {import("#shared/html.js").Markup | string} heading
  * @param {Leader[]} leaders
- * @param {LeaderColumn[]} [columns]
  */
-export const renderLeaderTable = (heading, leaders, columns = SCORING_COLUMNS) =>
+export const renderLeaderTable = (heading, leaders) =>
   html`<table class="players tabular">
     <thead>
       <tr>
         <th scope="col">${heading}</th>
-        ${columns.map((column) => html`<th scope="col" title="${column.title}">${column.label}</th>`)}
+        ${LEADER_COLUMNS.map(
+          (column) => html`<th scope="col" title="${column.title}">${column.label}</th>`,
+        )}
       </tr>
     </thead>
     <tbody>
       ${leaders.map(
         (leader) => html`<tr>
           <th scope="row"><span class="first-name">${leader.firstName}</span> ${leader.lastName}</th>
-          ${columns.map((column) =>
+          ${LEADER_COLUMNS.map((column) =>
             column.isQuiet
               ? html`<td class="quiet-stat">${column.read(leader)}</td>`
               : html`<td>${column.read(leader)}</td>`,
@@ -99,11 +95,7 @@ export const renderLeaderTable = (heading, leaders, columns = SCORING_COLUMNS) =
 /** @param {Leader[]} leaders */
 const renderLeadingScorers = (leaders) =>
   leaders.length > 0 &&
-  renderSheetPart(
-    "Leading scorers",
-    renderLeaderTable("Player", leaders, TEAM_SHEET_COLUMNS),
-    "Per game",
-  );
+  renderSheetPart("Leading scorers", renderLeaderTable("Player", leaders), "Per game");
 
 const OTHER_PLACE = { home: "away", away: "home" };
 

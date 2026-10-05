@@ -217,15 +217,15 @@ test("a preview compares the season stats from the saved standings, the visitors
   assert.deepEqual(readTapeBars(markup, "Road Home"), ["59", "lead 68"]);
 });
 
-test("a preview lists the first three of each team's saved leading scorers, best first", () => {
+test("a preview lists the first three of each team's saved leading scorers, best first, with how well each shoots and how much she plays", () => {
   const [fever, aces] = listRows(renderFeverAtAces(), "players");
   assert.deepEqual(fever, [
-    "Fever Pts Reb Ast",
-    "Kelsey Mitchell 24.7 1.7 2.8",
-    "Caitlin Clark 22.3 4.0 8.3",
-    "Aliyah Boston 16.1 8.0 3.0",
+    "Fever Pts Reb Ast FG% Min",
+    "Kelsey Mitchell 24.7 1.7 2.8 50.9 32.5",
+    "Caitlin Clark 22.3 4.0 8.3 44.5 31.1",
+    "Aliyah Boston 16.1 8.0 3.0 52.8 27.1",
   ]);
-  assert.equal(aces[1], "A'ja Wilson 26.2 9.4 3.2");
+  assert.equal(aces[1], "A'ja Wilson 26.2 9.4 3.2 52.7 32.0");
 });
 
 test("a preview missing a part says so, and a split season series says that", () => {

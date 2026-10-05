@@ -902,6 +902,14 @@ table.players {
   width: 100%;
   border-collapse: collapse;
 }
+/* Every number takes the same width, so a game's two teams line up column for column, and the
+   player's name takes the rest. */
+table.players {
+  table-layout: fixed;
+}
+table.players thead th:not(:first-child) {
+  width: 11%;
+}
 table.line-score th,
 table.players thead th {
   padding: 0 0 5px;
@@ -991,7 +999,10 @@ table.players td.quiet-stat {
   font-weight: 500;
   color: var(--quiet-stat-ink);
 }
+/* A lighter first name beside a bolder last name reads closer than a word space, so it takes a
+   pixel more. */
 .first-name {
+  margin-right: 1px;
   font-weight: 400;
   color: var(--ink-dim);
 }

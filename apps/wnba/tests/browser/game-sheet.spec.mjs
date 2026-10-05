@@ -335,6 +335,34 @@ for (const [device, viewport] of Object.entries({
   });
 }
 
+test("a box score's and a preview's two teams line their numbers up column for column", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  for (const [name, player] of [
+    [ACES_AT_FEVER, "Caitlin Clark"],
+    [FEVER_AT_ACES, "Kelsey Mitchell"],
+  ]) {
+    const sheet = await openSheet(page, name);
+    const tables = sheet.locator("table.players");
+    await expect(tables.nth(1)).toBeVisible();
+    await expect(sheet.getByText(player)).toBeVisible();
+    const columns = await tables.evaluateAll((all) =>
+      all.map((table) =>
+        [...table.querySelectorAll("thead th")].map((cell) => {
+          const box = cell.getBoundingClientRect();
+          return [Math.round(box.left), Math.round(box.width)];
+        }),
+      ),
+    );
+    expect(columns, name).toHaveLength(2);
+    expect(columns[1], name).toEqual(columns[0]);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
+});
+
 test("while the lead loads after the box score, the sheet holds the chart's place, so nothing below it moves as it arrives", async ({
   page,
 }) => {

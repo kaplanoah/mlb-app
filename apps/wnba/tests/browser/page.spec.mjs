@@ -1202,6 +1202,10 @@ test("a team's leading scorers set their shooting and minutes a step back, a sma
   const quiet = page.locator("#teamDialog table.players tbody tr").first().locator("td.quiet-stat");
   await expect(quiet).toHaveText(["46.2", "32.6"]);
   const minutes = quiet.last();
+  await expect(page.locator("#teamDialog table.players .first-name").first()).toHaveCSS(
+    "margin-right",
+    "1px",
+  );
   const readColors = () =>
     minutes.evaluate((cell) => {
       const probe = document.createElement("span");
