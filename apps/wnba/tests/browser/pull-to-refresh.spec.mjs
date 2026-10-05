@@ -17,6 +17,8 @@ const startGameWhileAway = (app) =>
     return season;
   });
 
+const SHORTEST_REFRESH_MS = 800;
+
 /** @param {import("@playwright/test").Page} page */
 async function openGames(page) {
   await page.getByRole("tab", { name: "Games" }).click();
@@ -53,9 +55,10 @@ test("a refreshing page shows the turning spokes, held down until the store answ
   await pullDown(page, 200);
 
   await expect(spinner).toBeVisible();
-  await expect(spinner).toHaveClass(/refreshing/);
+  await expect(spinner).toHaveClass(/turning/);
   await expect(header).toHaveCSS("top", "56px");
   release();
+  await page.clock.runFor(SHORTEST_REFRESH_MS);
   await expect(spinner).toBeHidden();
   await expect(header).toHaveCSS("top", "auto");
 });
@@ -134,4 +137,78 @@ test("on a phone, the tab bar stays put while the page is held down", async ({ p
 
   await expect(page.locator("header.top")).toHaveCSS("top", "56px");
   expect(await tabBar.boundingBox()).toEqual(before);
+});
+
+/** @param {import("@playwright/test").Locator} spinner */
+const readShownSpokes = (spinner) =>
+  spinner.evaluate((element) => element.style.getPropertyValue("--pull-spokes"));
+
+test("the spokes appear whole, one by one, as the page is pulled", async ({ page }) => {
+  await openFromHomeScreen(page);
+  await openApp(page);
+  await openGames(page);
+  const spinner = page.locator(".pull-refresh");
+
+  const release = await drag(page, { x: 200, y: 40 }, { y: 60 });
+
+  expect(await readShownSpokes(spinner)).toBe("3");
+  await expect(spinner).not.toHaveClass(/turning/);
+  await release();
+});
+
+test("the spokes start turning once the pull is far enough, before letting go", async ({
+  page,
+}) => {
+  await openFromHomeScreen(page);
+  await openApp(page);
+  await openGames(page);
+  const spinner = page.locator(".pull-refresh");
+
+  const release = await drag(page, { x: 200, y: 40 }, { y: 200 });
+
+  expect(await readShownSpokes(spinner)).toBe("8");
+  await expect(spinner).toHaveClass(/turning/);
+  await release();
+});
+
+test("a refresh quicker than the eye still shows the spokes turning a moment", async ({ page }) => {
+  await openFromHomeScreen(page);
+  await openApp(page);
+  await openGames(page);
+  const spinner = page.locator(".pull-refresh");
+  // The page's clock otherwise keeps time with the test's, which would race the steps below.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+
+  await pullDown(page, 200);
+
+  await expect(spinner).toHaveClass(/turning/);
+  await page.clock.runFor(SHORTEST_REFRESH_MS - 1);
+  await expect(spinner).toBeVisible();
+  await page.clock.runFor(1);
+  await expect(spinner).toBeHidden();
+});
+
+test("the spinner has every one of its eight spokes", async ({ page }) => {
+  await openFromHomeScreen(page);
+  await openApp(page);
+
+  const path = await page.locator(".pull-refresh path").getAttribute("d");
+
+  expect(path?.match(/[Mm]/g)).toHaveLength(8);
+});
+
+test("the turning spokes step round, and slower under reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await openFromHomeScreen(page);
+  await openApp(page);
+  await openGames(page);
+  const spinner = page.locator(".pull-refresh");
+
+  const release = await drag(page, { x: 200, y: 40 }, { y: 200 });
+
+  await expect(spinner).toHaveCSS("animation-name", "spokes-turn");
+  await expect(spinner).toHaveCSS("animation-duration", "0.8s");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(spinner).toHaveCSS("animation-duration", "2.4s");
+  await release();
 });
