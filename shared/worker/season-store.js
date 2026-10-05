@@ -286,11 +286,23 @@ export const createSeasonStore = (league) =>
       this.announceChange(key, null);
     }
 
-    // A stored alarm outlives deploys, so this starts the updates only the first time.
+    // A stored alarm outlives deploys, so this starts the updates only the first time, and brings
+    // the alarm forward for a job a deploy added, rather than leaving it until the last version's
+    // alarm comes due.
     async startUpdating() {
       if (this.hasAlarm) return;
-      if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(this.now());
+      const alarmAt = await this.ctx.storage.getAlarm();
+      if (alarmAt === null || (alarmAt > this.now() && (await this.hasUnstartedJob())))
+        await this.ctx.storage.setAlarm(this.now());
       this.hasAlarm = true;
+    }
+
+    async hasUnstartedJob() {
+      const names = Object.keys(league.backgroundJobs ?? {});
+      const dueTimes = await Promise.all(
+        names.map((name) => this.ctx.storage.get(`job-due:${name}`)),
+      );
+      return dueTimes.some((dueAt) => dueAt === undefined);
     }
 
     // One alarm serves the season and every background job, each when it's due.
