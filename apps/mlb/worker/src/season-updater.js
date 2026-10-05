@@ -85,29 +85,11 @@ async function removeExpiredReadings(docs, year, snapshot, parts) {
   for (const part of expired) await docs.remove(`${collection}/${part.id}`);
 }
 
-async function saveStandings(docs, year, snapshot) {
-  if (!snapshot.standings) return;
-  const key = `standings/${year}`;
-  const stored = await docs.read(key);
-  if (stored && isSameJson(stored.divisions, snapshot.standings.divisions)) return;
-  await docs.write(key, { ...snapshot.standings, updatedAt: snapshot.asOf });
-}
-
-// The page's live scores, saved whole whenever more than the time of the read changed.
-async function saveLive(docs, year, snapshot) {
-  const key = `live/${year}`;
-  const { asOf: _asOf, ...current } = snapshot;
-  const { asOf: _storedAsOf, ...stored } = (await docs.read(key)) ?? {};
-  if (!isSameJson(stored, current)) await docs.write(key, snapshot);
-}
-
 export async function saveSnapshot(docs, snapshot) {
   const year = snapshot.season;
   const parts = await saveReading(docs, year, snapshot);
   await saveSeason(docs, year, snapshot, parts);
   await removeExpiredReadings(docs, year, snapshot, parts);
-  await saveStandings(docs, year, snapshot);
-  await saveLive(docs, year, snapshot);
 }
 
 // A season before the current one, read whole, is saved in its record as the current one is, with
@@ -118,11 +100,10 @@ export async function savePastSeason(docs, snapshot) {
   await saveSeason(docs, year, snapshot, parts);
 }
 
-// The updates the page would list: the saved log with what the readings rebuild.
+// The updates the page lists, which the season's record keeps rebuilt from the readings.
 export async function readUpdates(docs, year) {
   const doc = await docs.read(nameSeasonKey(year));
-  const parts = Readings.sortParts(await docs.list(Readings.nameReadingsCollection(year)));
-  return Readings.composeLog(doc?.log || [], parts);
+  return doc?.log ?? [];
 }
 
 export function describeSnapshotStatus(snapshot) {
