@@ -94,3 +94,5 @@ Follow these steps in order. When a step says to go back to an earlier step, con
 ## Writing
 
 README and anything user-facing: be clear, direct, and concise.
+
+On the pages, text of one sentence or less, like a label, an empty view's note, or a setting's note, ends without a period; text of two or more sentences, like a release note or a message that says what to do, ends with one. An outlet's own words keep their punctuation, in an element marked `data-quoted`. The root's `tests/browser/stray-periods.mjs` lists any shown text that breaks this, and each app's browser tests check every view with it, wherever they check the type scale.

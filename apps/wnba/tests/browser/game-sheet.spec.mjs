@@ -3,6 +3,7 @@ import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
 import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { readOklab } from "../../page/js/sheet-colors.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { describeBoxScore } from "../../worker/src/box-score.js";
@@ -512,17 +513,21 @@ for (const { screen, viewport } of [
       await expect(page.locator(".bonus").first()).toBeAttached();
       await expect(sheet.locator(".line-score th.now")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.locator(".clock").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       const final = await openSheet(page, ACES_AT_FEVER);
       await expect(final.locator(".line-score")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(final).toBeHidden();
       const preview = await openSheet(page, FEVER_AT_ACES);
       await expect(preview.locator(".meeting-score").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
     });
   });
 }
@@ -1035,6 +1040,7 @@ test("a game yet to end whose channels aren't listed yet says to check back, und
   const faceOff = await sheet.locator(".faceoff-middle").boundingBox();
   expect((await note.boundingBox()).y).toBeGreaterThan(faceOff.y + faceOff.height);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
 });
 
 /** @type {["light" | "dark", string, string][]} */

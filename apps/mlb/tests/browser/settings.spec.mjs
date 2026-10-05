@@ -392,7 +392,7 @@ test("the ranking has no tab of its own; settings hold it, numbered 1 to 12", as
   const settings = page.getByRole("dialog", { name: "Settings" });
   await expect(settings.getByRole("heading", { name: "Ranking" })).toBeVisible();
   await expect(settings.locator(".ranking-note")).toHaveText(
-    "Who you want to win the World Series.",
+    "Who you want to win the World Series",
   );
   await expect(settings.locator("#rankList .rank-item")).toHaveCount(12);
   await expect(settings.locator("#rankNumbers li")).toHaveText(
