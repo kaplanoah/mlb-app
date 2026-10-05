@@ -1,6 +1,7 @@
 import { renderBracket, watchBracketSpace } from "./bracket-view.js";
 import { listRankedOrder } from "./clubs.js";
 import { startCatchUpNote } from "#shared/catch-up-note.js";
+import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
@@ -178,12 +179,13 @@ function drawLastSeen() {
 }
 
 // A page whose load failed has nothing to catch up from, so it loads again.
-function catchUp() {
+/** @param {number} awayMs */
+function catchUp(awayMs) {
   if (!session.db) {
     reloadPage();
     return;
   }
-  session.db.catchUp();
+  session.db.catchUp(awayMs);
   if (session.state && !session.isReordering) redrawEased(renderAll);
 }
 
@@ -201,6 +203,7 @@ async function boot() {
   session.db = createWorkerStore();
   drawLastSeen();
   startCatchUpNote(session.db, renderStamp);
+  startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
   const [years] = await Promise.all([listYears(), loadActiveSeason()]);
   fillYearPicker(years);
