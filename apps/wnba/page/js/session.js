@@ -18,4 +18,5 @@ export const session = {
 };
 
 /** Whether the season shown is over, one the store keeps from before the current one. */
-export const isPastSeason = () => session.currentYear !== null && session.year !== session.currentYear;
+export const isPastSeason = () =>
+  session.currentYear !== null && session.year !== session.currentYear;

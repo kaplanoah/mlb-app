@@ -1,4 +1,5 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { SNAPSHOT_VERSION } from "../../page/js/snapshot.js";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -62,6 +63,25 @@ test("settings list each season the store keeps, newest first, on the current on
   await expect(picker).toHaveValue("2026");
 });
 
+test("a new season the store moves on to joins the list, and the page shows it", async ({
+  page,
+}) => {
+  const app = await openApp(page, ONE_PAST_SEASON);
+  const emptySeason = { games: [], series: [], standings: [], leaders: [], missing: [] };
+  await app.writeDocument("seasons/2027", {
+    ...emptySeason,
+    version: SNAPSHOT_VERSION,
+    season: 2027,
+  });
+  await app.writeDocument("live/current", { season: 2027 });
+  await expect(page.locator(".series")).toHaveCount(0);
+
+  await openSettings(page);
+  const picker = page.getByRole("combobox", { name: "Season" });
+  await expect(picker.locator("option")).toHaveText(["2027", "2026", "2025"]);
+  await expect(picker).toHaveValue("2027");
+});
+
 test("a past season's Games tab starts on its results, and the current season's on today", async ({
   page,
 }) => {
@@ -86,6 +106,23 @@ test("a past season's Games tab starts on its results, and the current season's 
   await expect(page.locator("#games-today")).toContainText("Dream");
 });
 
+test("a past season's final opens its sheet with its box score", async ({ page }) => {
+  await openApp(page, ONE_PAST_SEASON);
+  await chooseSeason(page, 2025);
+  await page.getByRole("tab", { name: "Games" }).click();
+
+  await page
+    .locator("#games-previous")
+    .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
+    .click();
+
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.locator(".faceoff .score")).toHaveText(/89\s*99/);
+  await expect(sheet.locator(".line-score tbody tr").first()).toHaveText(
+    /Aces\s*26\s*17\s*17\s*29\s*89/,
+  );
+});
+
 test("a past season's header names its last game, and leaves out the current season's problems", async ({
   page,
 }) => {
@@ -104,17 +141,23 @@ test("a past season's header names its last game, and leaves out the current sea
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("a past season shows no Updates box, and the current one shows it again", async ({
+  test("a past season shows no Updates box, not even the app's release notes, and the current one shows it again", async ({
     page,
   }) => {
+    await page.route(matchPath("/js/release-notes.js"), (route) =>
+      route.fulfill({
+        contentType: "text/javascript",
+        body: 'export const RELEASE_NOTES = [{ at: "2026-09-30T20:55:00Z", text: "Something new." }];',
+      }),
+    );
     await openApp(page, { ...ONE_PAST_SEASON, isShowingUpdates: true });
     const updates = page.locator("#updates");
-    await expect(updates).toBeVisible();
+    await expect(updates).toContainText("Something new.");
 
     await chooseSeason(page, 2025);
     await expect(updates).toBeHidden();
 
     await chooseSeason(page, 2026);
-    await expect(updates).toBeVisible();
+    await expect(updates).toContainText("Something new.");
   });
 });

@@ -393,14 +393,15 @@ test("settings list Notifications, the News switches, and Appearance, with lines
         .locator("#settingsDialog .settings-controls")
         .evaluate((controls) => getComputedStyle(controls).borderBottomStyle),
     ]);
+  // The Season row stays hidden while the store keeps only the current season.
   expect(await readBorders()).toEqual([
-    ["none", "solid", "solid"],
-    ["none", "none", "none", "solid"],
+    ["none", "none", "solid", "solid"],
+    ["none", "none", "none", "none", "solid"],
     "none",
   ]);
 
-  await rows.first().evaluate((row) => row.setAttribute("hidden", ""));
-  expect((await readBorders())[0]).toEqual(["none", "none", "solid"]);
+  await page.locator("#notifyRow").evaluate((row) => row.setAttribute("hidden", ""));
+  expect((await readBorders())[0]).toEqual(["none", "none", "none", "solid"]);
 });
 
 test("on System, the page and its icons follow the phone's dark or light setting", async ({
