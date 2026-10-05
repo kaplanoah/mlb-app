@@ -11,27 +11,41 @@ const STATUS_PATH = "live/status";
 const nameSeasonPath = (year) => `seasons/${year}`;
 
 /**
+ * Whether a page reads a season's record: one saved before records had a version, or one in the
+ * version the page knows.
+ * @param {any} season
+ * @param {number} version
+ */
+export const isReadableSeason = (season, version) =>
+  season?.version === undefined || season.version === version;
+
+/**
  * @typedef {object} SeasonReaderOptions
  * @property {any} store the page's store, from `createWorkerStore`
+ * @property {number} version the version of the season's record the page reads
  * @property {(now: number) => number} guessYear the season the clock suggests, for a store that
  *   hasn't yet said which is current
  * @property {(year: number, season: any) => void} keepSeason takes each answer for the shown
  *   season's record, null when it has none
  * @property {() => void} showChange redraws for an answer that comes after the season has loaded
  * @property {(status: any) => void} showStatus takes the store's status of its last update
+ * @property {() => void} showUnreadable says a record came in a version the page doesn't read, as
+ *   a newer release's Worker saves it, so the page reloads once that release is out
  * @property {() => void} showLoadFailure says the new current season couldn't be read as the
  *   store moved on to it, so the page loads the current season again later
  * @property {(year: number) => void} [noteCurrentYear] hears that the store names a new current
- *   season, whether or not the page is showing it
+ *   season, once a page showing the current one has moved on to it, and whether or not it has
  */
 
 /** @param {SeasonReaderOptions} options */
 export function createSeasonReader({
   store,
+  version,
   guessYear,
   keepSeason,
   showChange,
   showStatus,
+  showUnreadable,
   showLoadFailure,
   noteCurrentYear = () => {},
 }) {
@@ -39,8 +53,9 @@ export function createSeasonReader({
   let currentYear = null;
   /** @type {number | null} */
   let shownYear = null;
+  // The record as the store last answered, whether or not the page reads it.
   /** @type {any} */
-  let keptSeason = null;
+  let lastRecord = null;
   let unwatchSeason = () => {};
   let isFollowing = false;
 
@@ -51,15 +66,25 @@ export function createSeasonReader({
   }
 
   // A store that hasn't said which season is current has the clock's guess once it has a record
-  // for it, and otherwise the season before.
-  async function readUnsaidYear() {
+  // for it, which is then already read, and otherwise the season before.
+  /** @returns {Promise<{ year: number, record?: any }>} */
+  async function readUnsaidSeason() {
     const year = guessYear(Date.now());
-    return (await readDoc(nameSeasonPath(year))) ? year : year - 1;
+    const record = await readDoc(nameSeasonPath(year));
+    return record ? { year, record } : { year: year - 1 };
   }
 
-  async function readCurrentYear() {
+  /** @returns {Promise<{ year: number, record?: any }>} */
+  async function readCurrentSeason() {
     const current = await readDoc(CURRENT_PATH);
-    return current ? current.season : readUnsaidYear();
+    return current ? { year: current.season } : readUnsaidSeason();
+  }
+
+  /** @param {any} season */
+  function isReadable(season) {
+    if (isReadableSeason(season, version)) return true;
+    showUnreadable();
+    return false;
   }
 
   // The record is read once, which answers at once, and then watched. Once it has loaded, a record
@@ -71,9 +96,10 @@ export function createSeasonReader({
     unwatchSeason = store.doc(nameSeasonPath(year)).onSnapshot(
       (/** @type {any} */ snapshot) => {
         if (year !== shownYear || !snapshot.exists) return;
-        if (isSameJson(snapshot.data(), keptSeason)) return;
-        keptSeason = snapshot.data();
-        keepSeason(year, keptSeason);
+        if (isSameJson(snapshot.data(), lastRecord)) return;
+        lastRecord = snapshot.data();
+        if (!isReadable(lastRecord)) return;
+        keepSeason(year, lastRecord);
         showChange();
       },
       () => {},
@@ -83,13 +109,14 @@ export function createSeasonReader({
   /**
    * Shows a season's record, resolving once it has loaded, and then follows its changes.
    * @param {number} year
+   * @param {any} [readRecord] the record, when it has just been read
    */
-  async function showYear(year) {
+  async function showYear(year, readRecord) {
     shownYear = year;
-    const season = await readDoc(nameSeasonPath(year));
+    const season = readRecord ?? (await readDoc(nameSeasonPath(year)));
     if (year !== shownYear) return;
-    keptSeason = season;
-    keepSeason(year, season);
+    lastRecord = season;
+    keepSeason(year, isReadable(season) ? season : null);
     watchSeason(year);
   }
 
@@ -97,10 +124,13 @@ export function createSeasonReader({
   async function moveOnToYear(year) {
     const wasShowingCurrent = shownYear === currentYear;
     currentYear = year;
-    noteCurrentYear(year);
-    if (!wasShowingCurrent) return;
-    await showYear(year);
-    showChange();
+    try {
+      if (!wasShowingCurrent) return;
+      await showYear(year);
+      showChange();
+    } finally {
+      noteCurrentYear(year);
+    }
   }
 
   function followStore() {
@@ -123,8 +153,9 @@ export function createSeasonReader({
   // or moved on to a new season.
   async function loadCurrentSeason() {
     try {
-      currentYear = await readCurrentYear();
-      await showYear(currentYear);
+      const { year, record } = await readCurrentSeason();
+      currentYear = year;
+      await showYear(year, record);
     } finally {
       followStore();
     }
@@ -133,6 +164,9 @@ export function createSeasonReader({
   return {
     /** Loads the season the store says is current, and then follows the store. */
     loadCurrentSeason,
-    showYear,
+    /** @param {number} year */
+    showYear: (year) => showYear(year),
+    /** The season the store says is current, or null before it has said. */
+    readCurrentYear: () => currentYear,
   };
 }

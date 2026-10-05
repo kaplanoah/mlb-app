@@ -1,4 +1,4 @@
-import * as LogChanges from "./changes.js";
+import * as LogChanges from "../../page/js/changes.js";
 import { isSameJson } from "#shared/compare.js";
 import { addDays, readEasternDay } from "#shared/days.js";
 

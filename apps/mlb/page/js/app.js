@@ -8,8 +8,6 @@ import { startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { html, setHtml } from "#shared/html.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
-import { isReadableLive } from "./live-fetch.js";
-import { startLive, watchLiveStatus } from "./live.js";
 import { startGamePager } from "#shared/game-pager.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
@@ -18,76 +16,49 @@ import { startPageTabs } from "#shared/page-tabs.js";
 import { startMatchups } from "./matchup.js";
 import { REORDER_EVENT } from "./ranking.js";
 import { renderAll } from "./render.js";
-import { reloadPage, watchReturns } from "#shared/resume.js";
+import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
 import { startServiceWorker } from "#shared/service-worker.js";
 import { keepRanking } from "./kept-on-device.js";
 import {
   applyDeferredSeason,
+  loadSeason,
   loadSeasonList,
-  showEmptySeason,
-  stopReadingAfterFailedLoad,
-  watchYear,
-} from "./season-store.js";
+  showYear,
+  startSeasonData,
+} from "./season-data.js";
 import { composeState, session, readSeasonYear } from "./session.js";
 import { startSettings } from "./settings.js";
 import { renderTeamSheet } from "./team-view.js";
 import { TEAMS } from "./teams.js";
 import { renderStamp } from "./stamp-view.js";
-import { renderStandings } from "./standings.js";
-import { renderUpdates } from "./updates.js";
 import { startTeamSheet } from "#shared/team-sheet.js";
 import { createWorkerStore } from "#shared/worker-store.js";
+import { isReadableSeason } from "#shared/season-reader.js";
+import { SNAPSHOT_VERSION } from "./snapshot.js";
 
 const CLOCK_REFRESH_MS = 60 * 1000;
 
 const findYearPicker = () => /** @type {HTMLSelectElement} */ (document.getElementById("yearSel"));
 
-function redrawStandings() {
-  renderStandings();
-  renderStamp();
-}
-
-// What new data changes eases in rather than jumps.
-const YEAR_REDRAWS = {
-  onSeasonChange: () => redrawEased(renderAll),
-  onStandingsChange: () => redrawEased(redrawStandings),
-  onReadingsChange: () => redrawEased(renderUpdates),
-};
-
-// Watching a year reads each of its documents, so the watches' first answers are its load.
-async function loadActiveSeason() {
-  const year = session.activeYear;
-  if (session.db) {
-    try {
-      await watchYear(year, YEAR_REDRAWS);
-      return;
-    } catch {
-      stopReadingAfterFailedLoad();
-    }
-  }
-  showEmptySeason(year);
-}
-
 async function switchYear(year) {
-  session.activeYear = year;
-  await loadActiveSeason();
+  await showYear(year);
   if (session.activeYear !== year) return;
   renderAll();
-  startLive();
 }
 
 async function listYears() {
   const recent = [readSeasonYear(), readSeasonYear() - 1, readSeasonYear() - 2].map(String);
-  if (!session.db) return recent;
   try {
     return await loadSeasonList();
   } catch {
-    stopReadingAfterFailedLoad();
     return recent;
   }
 }
 
-function fillYearPicker(years) {
+// The shown season is always among the picker's, even before the store keeps a record of it.
+function fillYearPicker(stored) {
+  const shown = String(session.activeYear);
+  const years = stored.includes(shown) ? stored : [shown, ...stored];
   const options = years.map(
     (year) =>
       html`<option value="${year}" ${Number(year) === session.activeYear ? "selected" : ""}>${year}</option>`,
@@ -95,21 +66,10 @@ function fillYearPicker(years) {
   setHtml(findYearPicker(), html`${options}`);
 }
 
-// The store says which season is current, as the Worker decides it from MLB, so a page left open
-// turns over when the new season starts.
-/** @param {number} year */
-async function adoptCurrentSeason(year) {
-  if (year === session.currentSeason) return;
-  const wasShowingLatest = session.activeYear === session.currentSeason;
-  session.currentSeason = year;
-  if (wasShowingLatest) await switchYear(year);
+// A new current season changes what the stamp says, and the picker lists it.
+async function showNewCurrentYear() {
+  renderStamp();
   fillYearPicker(await listYears());
-}
-
-function followCurrentSeason() {
-  session.db?.doc("live/current").onSnapshot((snapshot) => {
-    if (snapshot.exists) adoptCurrentSeason(snapshot.data().season);
-  });
 }
 
 // Sortable has already moved the dragged card, so redrawing the list keeps it where it was dropped.
@@ -141,7 +101,7 @@ function wireControls() {
 function refreshClockEveryMinute() {
   setInterval(() => {
     try {
-      if (session.seasonDoc) composeState();
+      if (session.season) composeState();
       renderStamp();
       renderBracket();
     } catch {
@@ -151,25 +111,22 @@ function refreshClockEveryMinute() {
 }
 
 /** @param {any} shown */
-const pickShown = ({ seasonDoc, storedStandings, readings, trackedTitles, live }) => ({
-  seasonDoc,
-  storedStandings,
-  readings,
-  trackedTitles,
-  live,
-});
+const pickShown = ({ season, trackedTitles }) => ({ season, trackedTitles });
 
-const readShown = () => session.seasonDoc && { year: session.activeYear, ...pickShown(session) };
+const readShown = () => session.season && { year: session.activeYear, ...pickShown(session) };
 
-// What the page last showed is only a stand-in until the store and MLB answer, so what can't be
-// drawn is skipped.
+// What the page last showed is only a stand-in until the store answers, so what can't be drawn is
+// skipped.
 function drawLastSeen() {
   const lastSeen = readLastSeen();
-  if (!lastSeen?.seasonDoc || lastSeen.year !== session.activeYear) return;
+  const isShowable =
+    !!lastSeen?.season &&
+    lastSeen.year === session.activeYear &&
+    isReadableSeason(lastSeen.season, SNAPSHOT_VERSION);
+  if (!isShowable) return;
   const before = pickShown(session);
   try {
-    const live = isReadableLive(lastSeen.live, session.activeYear) ? lastSeen.live : null;
-    Object.assign(session, pickShown({ ...lastSeen, live }));
+    Object.assign(session, pickShown(lastSeen));
     composeState();
     renderAll();
     endLoadNote();
@@ -178,15 +135,19 @@ function drawLastSeen() {
   }
 }
 
-// A page whose load failed has nothing to catch up from, so it loads again.
+const showNewData = () => redrawEased(renderAll);
+
+async function reloadSeason() {
+  await loadSeason();
+  showNewData();
+}
+
+// A page whose load failed loads its season again.
 /** @param {number} awayMs */
 function catchUp(awayMs) {
-  if (!session.db) {
-    reloadPage();
-    return;
-  }
   session.db.catchUp(awayMs);
-  if (session.state && !session.isReordering) redrawEased(renderAll);
+  if (session.problem) reloadSeason();
+  else if (!session.isReordering) showNewData();
 }
 
 // The season the store and MLB answer with eases in over the one the page last showed.
@@ -197,7 +158,7 @@ function drawLoadedSeason() {
 
 async function boot() {
   startDiagnostics();
-  watchReturns({ isBusy: () => session.isReordering, catchUp, pause: () => session.db?.pause() });
+  watchReturns({ isBusy: () => session.isReordering, catchUp, pause: () => session.db.pause() });
   trackKeyboardFocus();
   wireControls();
   session.db = createWorkerStore();
@@ -207,16 +168,19 @@ async function boot() {
   startCaughtUpSweep(session.db, document.getElementById("stamp"));
   startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
-  const [years] = await Promise.all([listYears(), loadActiveSeason()]);
+  startSeasonData({
+    showChange: showNewData,
+    showStamp: () => redrawEased(renderStamp),
+    showCurrentYear: showNewCurrentYear,
+    showUnreadable: reloadIfReplaced,
+  });
+  const [years] = await Promise.all([listYears(), loadSeason()]);
   fillYearPicker(years);
   redrawEased(drawLoadedSeason);
   watchBracketSpace();
   refreshClockEveryMinute();
-  watchLiveStatus();
-  startLive();
   startServiceWorker();
   startNotifications();
-  followCurrentSeason();
 }
 
 boot();

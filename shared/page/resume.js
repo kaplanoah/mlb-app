@@ -38,7 +38,7 @@ const isReplaced = (loaded, current) => !!loaded && !!current && loaded.commit !
 
 // A reload while the app is busy, as mid-drag, would drop what's under way, so it waits for the
 // first tick after.
-export function reloadPage() {
+function reloadPage() {
   if (isBusy()) isReloadPending = true;
   else location.reload();
 }

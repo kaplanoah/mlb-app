@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../page/js/snapshot.js";
 import { OFF_DAY_CHECK_MS } from "#shared/poll-schedule.js";
-import { composeLog, createReading, sortParts } from "../page/js/readings.js";
+import { composeLog, createReading, sortParts } from "../worker/src/readings.js";
 import { loadCurrentSnapshot } from "../worker/src/season-updater.js";
 import { SeasonStore } from "../worker/src/store.js";
 import {
@@ -52,6 +52,7 @@ test("an update saves the whole season in its record, and a reading, and tells o
   const season = read("seasons/2026");
   assert.deepEqual(season, {
     year: 2026,
+    version: SNAPSHOT.version,
     updatedAt: SNAPSHOT.asOf,
     teams: SNAPSHOT.teams,
     series: SNAPSHOT.series,

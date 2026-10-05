@@ -736,54 +736,22 @@ test("a club that has won counts its drought in years since its last title", () 
   }
 });
 
-test("a live answer without standings leaves the saved field showing", () => {
-  const saved = { NYY: { league: "AL", seed: 4 } };
-  const { activeYear } = session;
-  const live = { season: 2026, asOf: "2026-09-24T22:00:00Z", slate: null, log: [] };
+test("the page shows the season's record, with a final fresh for ten minutes after the time it's shown", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-30T01:00:00Z") });
+  const standings = { divisions: {} };
+  const slate = { today: { date: "2026-09-29", games: [] } };
+  const { season } = session;
   try {
-    Object.assign(session, { activeYear: 2026, readings: null });
-    session.seasonDoc = { year: 2026, teams: saved, series: {}, log: [] };
-    session.live = { ...live, projected: true, standings: null, teams: {}, series: {} };
+    session.season = { year: 2026, teams: {}, series: {}, log: [], standings, slate };
     composeState();
-    assert.deepEqual(session.state.teams, saved);
-    const teams = { TOR: { league: "AL", seed: 1 } };
-    session.live = { ...live, projected: true, standings: { divisions: {} }, teams, series: {} };
-    composeState();
-    assert.deepEqual(session.state.teams, teams);
-  } finally {
-    Object.assign(session, { activeYear, live: null, seasonDoc: null });
-  }
-});
+    assert.deepEqual(session.state.slate, { ...slate, since: "2026-09-30T00:50:00.000Z" });
+    assert.equal(session.standings, standings);
 
-test("each series keeps whichever of the saved and live records has counted more games", () => {
-  const teams = { CWS: { league: "AL", seed: 6 }, HOU: { league: "AL", seed: 3 } };
-  const gameTwo = { at: "2026-10-01T00:08:00Z", date: "2026-09-30", tbd: false, game: 2 };
-  const gameOne = { ...gameTwo, at: "2026-09-30T00:08:00Z", date: "2026-09-29", game: 1 };
-  const savedSeries = {
-    AL_WC1: { winsA: 0, winsB: 1, next: gameTwo },
-    AL_WC2: { winsA: 0, winsB: 0, next: gameOne },
-  };
-  const liveSeries = {
-    AL_WC1: { winsA: 0, winsB: 0, next: gameOne },
-    AL_WC2: { winsA: 1, winsB: 0, next: gameTwo },
-  };
-  const { activeYear } = session;
-  const live = { season: 2026, asOf: "2026-09-30T00:23:00Z", slate: null, log: [] };
-  try {
-    Object.assign(session, { activeYear: 2026, readings: null });
-    session.seasonDoc = { year: 2026, teams, series: savedSeries, log: [] };
-    session.live = { ...live, projected: false, standings: {}, teams, series: liveSeries };
+    session.season = { year: 2025, teams: {}, series: {}, log: [], standings };
     composeState();
-    assert.deepEqual(session.state.series, {
-      AL_WC1: savedSeries.AL_WC1,
-      AL_WC2: liveSeries.AL_WC2,
-    });
-    const otherField = { ...teams, NYY: { league: "AL", seed: 4 } };
-    session.live = { ...session.live, teams: otherField };
-    composeState();
-    assert.deepEqual(session.state.series, liveSeries);
+    assert.equal(session.state.slate, undefined);
   } finally {
-    Object.assign(session, { activeYear, live: null, seasonDoc: null });
+    Object.assign(session, { season });
   }
 });
 

@@ -5,10 +5,10 @@ test.use({ contextOptions: { reducedMotion: "reduce" } });
 
 /** @param {Awaited<ReturnType<typeof openApp>>} app */
 const rescoreFinalWhileAway = (app) =>
-  app.changeLiveWhileAway((live) => {
-    const game = live.slate.today.games.find((each) => each.away === "STL");
+  app.changeSeasonWhileAway((season) => {
+    const game = season.slate.today.games.find((each) => each.away === "STL");
     game.score = [7, 2];
-    return live;
+    return season;
   });
 
 test("pulling the page down on the Home Screen reads what it missed, without reloading", async ({

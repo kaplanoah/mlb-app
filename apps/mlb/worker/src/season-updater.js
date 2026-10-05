@@ -1,6 +1,6 @@
 import { isSameJson } from "#shared/compare.js";
 import { readEasternDay } from "#shared/days.js";
-import * as Readings from "../../page/js/readings.js";
+import * as Readings from "./readings.js";
 import { guessSeasonYear, hasSpringStarted } from "../../page/js/session.js";
 import * as MLBSnapshot from "../../page/js/snapshot.js";
 
@@ -21,13 +21,22 @@ export async function loadCurrentSnapshot(loadSnapshot, now) {
 
 const nameSeasonKey = (year) => `seasons/${year}`;
 
-const SAVED_FIELDS = ["teams", "series", "projected", "springStart", "standings", "slate"];
+const SAVED_FIELDS = [
+  "version",
+  "teams",
+  "series",
+  "projected",
+  "springStart",
+  "standings",
+  "slate",
+];
 
 // A field is saved only when the feed it comes from answered, so a partial read leaves it as the
 // last full one had it.
 function listAnsweredFields(snapshot) {
   const hasField = MLBSnapshot.hasKnownField(snapshot);
   const answered = {
+    version: true,
     teams: hasField,
     series: hasField,
     projected: hasField,
