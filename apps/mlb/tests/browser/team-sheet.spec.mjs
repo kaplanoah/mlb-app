@@ -43,6 +43,23 @@ test("a club's name in a game's row opens its sheet, and the rest of the row ope
   await expect(teamSheet).toBeHidden();
 });
 
+test("a club's sheet open on a reload shows again, and its Done closes it", async ({ page }) => {
+  const gameButton = await showGames(page);
+  await gameButton
+    .locator("xpath=..")
+    .getByRole("button", { name: "Team details: Astros" })
+    .click();
+  const teamSheet = page.locator("#teamDialog");
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
+
+  await page.reload();
+
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
+  await expect(teamSheet.locator("#teamNote")).toContainText("AL West");
+  await teamSheet.getByRole("button", { name: "Done" }).click();
+  await expect(teamSheet).toBeHidden();
+});
+
 // The White Sox clinching with their 9-1 win at Kansas City, one of the evening's finals.
 function buildSnapshotWithClinch() {
   const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);

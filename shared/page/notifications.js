@@ -3,6 +3,7 @@
 import { reloadWhenSignedOut } from "./access.js";
 
 import { isIos, isOnHomeScreen } from "./device.js";
+import { html, setHtml } from "./html.js";
 import { registerServiceWorker } from "./service-worker.js";
 
 const NOTES = {
@@ -36,14 +37,22 @@ function describeStatus() {
   return NOTES[status] ?? about;
 }
 
+// The row is drawn whole, so a reload puts it back as it was before the status is known again.
 function renderNotifications() {
-  const toggle = findElement("notifySwitch");
-  const isOn = status === "on";
-  toggle.hidden = !SWITCHABLE.has(status) && status !== "blocked";
-  toggle.setAttribute("aria-checked", String(isOn));
-  /** @type {HTMLButtonElement} */ (toggle).disabled = isBusy || status === "blocked";
-  findElement("notifyNote").textContent = note || describeStatus();
-  findElement("notifyRow").hidden = status === "loading";
+  const isSwitchHidden = !SWITCHABLE.has(status) && status !== "blocked";
+  const isDisabled = isBusy || status === "blocked";
+  const row = findElement("notifyRow");
+  setHtml(
+    row,
+    html`<span class="control-label">
+        <span id="notifyTitle">Notifications</span>
+        <span class="control-note" id="notifyNote" role="status">${note || describeStatus()}</span>
+      </span>
+      <button type="button" role="switch" class="switch" id="notifySwitch" aria-checked="${String(status === "on")}" aria-labelledby="notifyTitle" ${isSwitchHidden ? "hidden" : ""} ${isDisabled ? "disabled" : ""}>
+        <span class="switch-knob" aria-hidden="true"></span>
+      </button>`,
+  );
+  row.hidden = status === "loading";
 }
 
 function setStatus(next, message = "") {
@@ -148,8 +157,9 @@ async function turnOff() {
   }
 }
 
-function toggleNotifications() {
-  if (isBusy) return;
+/** @param {Event} event */
+function toggleNotifications(event) {
+  if (isBusy || !(/** @type {Element} */ (event.target).closest("#notifySwitch"))) return;
   showBusyDuring(status === "on" ? turnOff : turnOn);
 }
 
@@ -164,7 +174,7 @@ function describeStartStatus() {
  */
 export async function startNotifications(options = {}) {
   about = options.about ?? "";
-  findElement("notifySwitch").addEventListener("click", toggleNotifications);
+  findElement("notifyRow").addEventListener("click", toggleNotifications);
   if (!canPush()) {
     setStatus(isIos() && !isOnHomeScreen() ? "homeScreen" : "unsupported");
     return;

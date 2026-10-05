@@ -808,12 +808,114 @@ test("no text in a game's sheet is smaller than 10.5px, in its box score or its 
   }
 });
 
+/** @param {import("@playwright/test").Page} page */
+const holdPageCode = (page) => holdRequests(page, matchPath("/js/app.js"));
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {Record<string, string>} items what the page's storage holds before it loads
+ */
+const storeBeforeLoad = (page, items) =>
+  page.addInitScript((stored) => {
+    for (const [key, value] of Object.entries(stored)) localStorage.setItem(key, value);
+  }, items);
+
+/** @param {import("@playwright/test").Locator} sheet */
+const readScrollTop = (sheet) => sheet.evaluate((dialog) => dialog.scrollTop);
+
+test("a reload shows the open sheet where it was scrolled before the page's code arrives, and the code keeps it there", async ({
+  page,
+}) => {
+  await openApp(page);
+  const sheet = await openSheet(page, ACES_AT_FEVER);
+  await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
+  await sheet.evaluate((dialog) => {
+    dialog.scrollTop = 200;
+  });
+  const release = await holdPageCode(page);
+  const reads = countBoxScoreReads(page);
+
+  await page.reload({ waitUntil: "commit" });
+
+  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("First Round Game 2");
+  await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
+  expect(await readScrollTop(sheet)).toBe(200);
+  release();
+  await expect.poll(() => reads.count).toBe(1);
+  await expect(sheet.locator("#gameWhen")).toHaveText("Fever won to tie 1-1•Yesterday");
+  expect(await readScrollTop(sheet)).toBe(200);
+
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toBeHidden();
+  await page.reload();
+  await expect(sheet).toBeHidden();
+});
+
+test("a team's sheet open over a game's opens over it again on a reload", async ({ page }) => {
+  await openApp(page);
+  const gameSheet = await openSheet(page, ACES_AT_FEVER);
+  await gameSheet
+    .locator(".faceoff")
+    .getByRole("button", { name: "Team details: Las Vegas Aces" })
+    .click();
+  const teamSheet = page.locator("#teamDialog");
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+
+  await page.reload();
+
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+  await expect(page.locator("#gameDialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(teamSheet).toBeHidden();
+  await expect(page.locator("#gameDialog .foul-chip")).toHaveText(["Fouled out"]);
+});
+
+test("a sheet whose game the season no longer has closes once the page's code arrives", async ({
+  page,
+}) => {
+  await storeBeforeLoad(page, {
+    openSheets: JSON.stringify([
+      { id: "gameDialog", scrollTop: 0, subject: { id: "0000000000", kind: "box" } },
+    ]),
+  });
+
+  await openApp(page);
+
+  await expect(page.locator("#gameDialog")).toBeHidden();
+});
+
 test.describe("on a phone", () => {
   test.use({
     viewport: { width: 390, height: 844 },
     hasTouch: true,
     isMobile: true,
     contextOptions: { reducedMotion: "no-preference" },
+  });
+
+  test("a sheet the page shows again on a reload doesn't rise again, and rises when opened next", async ({
+    page,
+  }) => {
+    const readMotions = await recordSheetMotions(page);
+    await openApp(page);
+    const sheet = await openSheet(page, ACES_AT_FEVER);
+    await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
+    const answered = page.waitForResponse(matchPath("/box-score"));
+    const listSheetMotions = async () =>
+      (await readMotions()).filter(({ id }) => id === "gameDialog");
+
+    await page.reload();
+
+    await answered;
+    await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
+    expect(await listSheetMotions()).toEqual([]);
+    await sheet.getByRole("button", { name: "Done" }).dispatchEvent("click");
+    await expect(sheet).toBeHidden();
+    await openSheet(page, ACES_AT_FEVER);
+    await expect.poll(listSheetMotions).toContainEqual({
+      id: "gameDialog",
+      part: "sheet",
+      name: "sheet-rise",
+    });
   });
 
   test("the game sheet rises from the bottom, with a grabber in place of Done", async ({

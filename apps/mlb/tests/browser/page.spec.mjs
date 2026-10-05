@@ -1691,7 +1691,6 @@ test("the ranking can be reordered from the keyboard, and this device keeps it",
   expect(((await readKept(page, "rankings")) ?? {})[2026]?.[1]).toBe(movedClubId);
 
   await page.reload();
-  await openSettings(page);
   await expect(page.locator("#rankList .rank-item").nth(1)).toHaveAttribute("data-id", movedClubId);
 });
 

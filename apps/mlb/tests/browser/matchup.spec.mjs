@@ -122,6 +122,24 @@ test("tapping a game with its starters named opens their matchup, and Done close
   await expect(sheet).toBeHidden();
 });
 
+test("a reload shows the open matchup before the page's code arrives, and the code reads its starters again", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page);
+  await expect(sheet.locator(".pitcher-last")).toHaveText(["Blubaugh", "Springs"]);
+  const release = await holdRequests(page, matchPath("/js/app.js"));
+  const reads = countPitcherReads(page);
+
+  await page.reload({ waitUntil: "commit" });
+
+  await expect(sheet.locator(".pitcher-first")).toHaveText(["AJ", "Jeffrey"]);
+  release();
+  await expect.poll(() => reads.count).toBe(2);
+  await expect(sheet.locator(".pitcher-first")).toHaveText(["AJ", "Jeffrey"]);
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toBeHidden();
+});
+
 test("the sheet's title names it in capitals, at one size on a desktop and a phone", async ({
   page,
 }) => {
