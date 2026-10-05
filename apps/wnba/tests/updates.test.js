@@ -181,5 +181,8 @@ test("a final names the viewer's day it started on, and says when it ended past 
     assert.equal(win?.day?.toDateString(), startDay);
     assert.notEqual(new Date(win.at).toDateString(), startDay);
     assert.equal(win.endedNextDay, true);
-    assert.equal(listPlayoffWins(SEASON).some((other) => other.endedNextDay), false);
+    assert.equal(
+      listPlayoffWins(SEASON).some((other) => other.endedNextDay),
+      false,
+    );
   }));
