@@ -19,12 +19,17 @@ const readDoc = (snapshot) =>
 const keepKnownClubs = (teams) =>
   Object.fromEntries(Object.entries(teams || {}).filter(([id]) => TEAMS[id]));
 
+// The live scores overlay the rest of the season's record, so the page reads only the field, its
+// series, and the updates from it.
 function normalizeSeason(doc, year) {
-  const season = doc || createEmptySeason(year);
-  season.teams = keepKnownClubs(season.teams);
-  if (!season.series) season.series = {};
-  if (!Array.isArray(season.log)) season.log = [];
-  return season;
+  const { projected, teams, series, log } = doc || createEmptySeason(year);
+  return {
+    year,
+    ...(projected !== undefined && { projected }),
+    teams: keepKnownClubs(teams),
+    series: series || {},
+    log: Array.isArray(log) ? log : [],
+  };
 }
 
 // A page whose load failed stops reading the store, and loads again when it's next opened.
