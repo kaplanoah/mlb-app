@@ -5,6 +5,7 @@
 
 import { readEasternDay } from "#shared/days.js";
 import { isTouchDevice } from "#shared/device.js";
+import { keepOnDevice, readFromDevice } from "#shared/device-storage.js";
 import { html } from "#shared/html.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
 import { renderTeamName } from "./clubs.js";
@@ -18,25 +19,14 @@ import { ROUNDS } from "./snapshot.js";
 
 const SEEN_KEY = "updatesSeenAt";
 
-// Null when this device has never dismissed the box, or its storage refuses access, as in a
-// private window.
+// Null when this device has never dismissed the box.
 function readSeenAt() {
-  try {
-    const seenAt = Number(localStorage.getItem(SEEN_KEY));
-    return seenAt > 0 ? seenAt : null;
-  } catch {
-    return null;
-  }
+  const seenAt = readFromDevice(SEEN_KEY);
+  return typeof seenAt === "number" && seenAt > 0 ? seenAt : null;
 }
 
 /** @param {number} at */
-function saveSeenAt(at) {
-  try {
-    localStorage.setItem(SEEN_KEY, String(at));
-  } catch {
-    // The box shows the same updates again next time.
-  }
-}
+const saveSeenAt = (at) => keepOnDevice(SEEN_KEY, at);
 
 /** @param {Game} game */
 const isPlayoffFinal = (game) =>

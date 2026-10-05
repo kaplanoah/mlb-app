@@ -85,7 +85,6 @@ export async function openApp(
     snapshotRequests: 0,
     storeReads: [],
     transformSnapshot: (snapshot) => snapshot,
-    failWrites: false,
   };
   const loadSnapshot = async (season) =>
     harness.transformSnapshot(structuredClone(snapshotsBySeason[season]));
@@ -122,8 +121,6 @@ export async function openApp(
   await page.route(matchPath("/store/"), (route) => {
     const url = new URL(route.request().url());
     if (!isWriteRequest(route.request())) harness.storeReads.push(url.pathname + url.search);
-    if (harness.failWrites && isWriteRequest(route.request()))
-      return route.fulfill({ status: 503, json: { error: { code: "unavailable" } } });
     // A captive portal answers in place of the Worker.
     const isDocumentRead =
       route.request().method() === "GET" && /^\/store\/[^/]+\/[^/]+$/.test(url.pathname);
@@ -133,11 +130,24 @@ export async function openApp(
   });
   await loadPageAt(page, now);
 
+  const readDocument = async (path) => (await context.ctx.storage.get(path)) ?? null;
+  // The Worker finding the official bracket set, which the Updates box lists.
+  const lockBracket = async (save) => {
+    const season = (await readDocument("seasons/2026")) ?? { year: 2026 };
+    await save("seasons/2026", {
+      ...season,
+      log: [...(season.log ?? []), { kind: "lock", at: now }],
+    });
+  };
+
   return {
-    readDocument: async (path) => (await context.ctx.storage.get(path)) ?? null,
-    writeFromAnotherDevice: (path, data) => seasonStore.docs.write(path, data),
+    readDocument,
+    // A change the Worker saves, which it sends each open page.
+    writeFromWorker: (path, data) => seasonStore.docs.write(path, data),
     // A change the page's socket never hears of, as when a phone sleeps through it.
     writeWhileAway: (path, data) => context.ctx.storage.put(path, data),
+    lockBracket: () => lockBracket(seasonStore.docs.write),
+    lockBracketWhileAway: () => lockBracket((path, data) => context.ctx.storage.put(path, data)),
     holdStore: () => holdStore(page),
     // What the Worker's alarm does on its own schedule.
     updateFromWorker: () => testStore.fireAlarm(),
@@ -151,9 +161,6 @@ export async function openApp(
     changeSnapshots: (transform) => {
       harness.transformSnapshot = transform;
     },
-    failWrites: () => {
-      harness.failWrites = true;
-    },
     countOpenSockets: () => openSockets.length,
     dropConnections: async () => {
       await Promise.all(openSockets.map((socket) => socket.close()));
@@ -162,6 +169,28 @@ export async function openApp(
     },
   };
 }
+
+/**
+ * What the device kept from an earlier visit, which a reload leaves as the page last kept it.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} key
+ * @param {unknown} value
+ */
+export const keepFromEarlierVisit = (page, key, value) =>
+  page.addInitScript(
+    ([storedKey, text]) => {
+      if (localStorage.getItem(storedKey) === null) localStorage.setItem(storedKey, text);
+    },
+    [key, JSON.stringify(value)],
+  );
+
+/**
+ * What the page kept on the device under `key`.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} key
+ */
+export const readKept = (page, key) =>
+  page.evaluate((storedKey) => JSON.parse(localStorage.getItem(storedKey) ?? "null"), key);
 
 /**
  * Swipes a finger down a sheet from `target`, one step per move. It runs inside the page

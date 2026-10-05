@@ -4,15 +4,14 @@ import { session } from "../page/js/session.js";
 import {
   applyDeferredSeason,
   loadSeasonList,
-  saveRanking,
-  showUnsavedSeason,
+  showEmptySeason,
+  stopReadingAfterFailedLoad,
   watchYear,
 } from "../page/js/season-store.js";
 
 // A stand-in for the store: each watch answers with what's stored once the test moves on, or,
 // when answers are held, once the test answers them.
-function createStore(documents, { failUpdates = false, unreadable = [], isHeld = false } = {}) {
-  const writes = [];
+function createStore(documents, { unreadable = [], isHeld = false } = {}) {
   const listeners = {};
   const heldAnswers = [];
   const readStored = (path) => ({
@@ -41,11 +40,6 @@ function createStore(documents, { failUpdates = false, unreadable = [], isHeld =
   };
   const database = {
     doc: (path) => ({
-      update: async (fields) => {
-        writes.push({ path, kind: "update", fields });
-        if (failUpdates) throw Object.assign(new Error("try later"), { code: "unavailable" });
-        documents[path] = { ...documents[path], ...fields };
-      },
       onSnapshot: watch(path, () => readStored(path)),
     }),
     collection: (name) => ({
@@ -65,7 +59,7 @@ function createStore(documents, { failUpdates = false, unreadable = [], isHeld =
     listeners[path]?.onNext(readStored(path));
   };
   const answerHeld = (index) => heldAnswers[index]();
-  return { database, writes, deliver, deliverListing, deliverMissing, answerHeld };
+  return { database, deliver, deliverListing, deliverMissing, answerHeld };
 }
 
 function countRedraws() {
@@ -84,7 +78,6 @@ const STORED = {
   year: 2026,
   teams: { NYY: { league: "AL", seed: 1 } },
   series: { AL_WC1: { winsA: 1, winsB: 0 } },
-  ranking: [],
   log: [{ kind: "lock", at: "2026-09-30T00:00:00Z" }],
 };
 
@@ -93,7 +86,7 @@ const READING_PART = { id: "2026-10-01-01", start: {}, changes: [] };
 
 beforeEach(() => {
   session.activeYear = 2026;
-  session.saveProblem = null;
+  session.loadProblem = null;
   session.isReordering = false;
   Object.assign(session, { seasonDoc: null, storedStandings: null, readings: null, live: null });
 });
@@ -171,7 +164,7 @@ test("a season that doesn't exist yet loads as an empty one", async () => {
 
   await watchYear(2026, IGNORED_REDRAWS);
 
-  assert.deepEqual(session.seasonDoc, { year: 2026, teams: {}, series: {}, ranking: [], log: [] });
+  assert.deepEqual(session.seasonDoc, { year: 2026, teams: {}, series: {}, log: [] });
 });
 
 test("standings and readings that can't be read are left out of the year's load", async () => {
@@ -192,48 +185,20 @@ test("a season that can't be read fails the year's load", async () => {
   await assert.rejects(watchYear(2026, IGNORED_REDRAWS), /unreadable/);
 });
 
-test("a ranking saved to an existing season only updates the ranking", async () => {
-  const documents = { "seasons/2026": structuredClone(STORED) };
-  const { database, writes } = createStore(documents);
-  session.db = database;
-  await watchYear(2026, IGNORED_REDRAWS);
-  await saveRanking(["NYY"]);
-  assert.deepEqual(writes, [
-    { path: "seasons/2026", kind: "update", fields: { ranking: ["NYY"] } },
-  ]);
-  assert.deepEqual(documents["seasons/2026"].teams, STORED.teams);
-});
-
-test("a failed save says so and never falls back to overwriting the season", async () => {
-  const documents = { "seasons/2026": structuredClone(STORED) };
-  const { database, writes } = createStore(documents, { failUpdates: true });
-  session.db = database;
-  await watchYear(2026, IGNORED_REDRAWS);
-  await assert.rejects(saveRanking(["NYY"]), /try later/);
-  assert.deepEqual(
-    writes.map((write) => write.kind),
-    ["update"],
-  );
-  assert.deepEqual(documents["seasons/2026"], STORED);
-  assert.match(session.saveProblem, /Couldn't save/);
-});
-
-test("a season saved for the first time is only updated, which the store creates", async () => {
-  const documents = {};
-  const { database, writes } = createStore(documents);
-  session.db = database;
-  await watchYear(2026, IGNORED_REDRAWS);
-  await saveRanking(["NYY"]);
-  assert.deepEqual(writes, [
-    { path: "seasons/2026", kind: "update", fields: { ranking: ["NYY"] } },
-  ]);
-});
-
 test("without a store, the page shows an empty season", () => {
   session.db = null;
   session.activeYear = 2025;
-  showUnsavedSeason(2025);
-  assert.deepEqual(session.seasonDoc, { year: 2025, teams: {}, series: {}, ranking: [], log: [] });
+  showEmptySeason(2025);
+  assert.deepEqual(session.seasonDoc, { year: 2025, teams: {}, series: {}, log: [] });
+});
+
+test("a page whose load failed stops reading the store and says so", () => {
+  session.db = createStore({}).database;
+
+  stopReadingAfterFailedLoad();
+
+  assert.equal(session.db, null);
+  assert.match(session.loadProblem, /Couldn't load the season/);
 });
 
 test("a season that answers after the viewer picked another year is dropped", async () => {
@@ -282,7 +247,7 @@ test("stored clubs the page doesn't know are dropped on load", async () => {
   assert.deepEqual(Object.keys(session.seasonDoc.teams), ["NYY"]);
 });
 
-test("an update that arrives during a drag waits for it, and keeps the drag's order", async () => {
+test("an update that arrives during a drag waits for it", async () => {
   const documents = { "seasons/2026": structuredClone(STORED) };
   const { database, deliver } = createStore(documents);
   session.db = database;
@@ -290,53 +255,14 @@ test("an update that arrives during a drag waits for it, and keeps the drag's or
   await watchYear(2026, onChanges);
 
   session.isReordering = true;
-  session.seasonDoc.ranking = ["NYY"];
   const newEntry = { kind: "elim", team: "SEA", at: "2026-10-01T00:00:00Z" };
   deliver("seasons/2026", { ...structuredClone(STORED), log: [...STORED.log, newEntry] });
   assert.equal(session.seasonDoc.log.length, 1);
   assert.equal(redraws.season, 0);
 
   session.isReordering = false;
-  applyDeferredSeason(true);
+  applyDeferredSeason();
   assert.deepEqual(session.seasonDoc.log, [...STORED.log, newEntry]);
-  assert.deepEqual(session.seasonDoc.ranking, ["NYY"]);
-});
-
-test("a drop that moved nothing takes the ranking from an update that arrived during it", async () => {
-  const documents = { "seasons/2026": structuredClone(STORED) };
-  const { database, deliver } = createStore(documents);
-  session.db = database;
-  await watchYear(2026, IGNORED_REDRAWS);
-
-  session.isReordering = true;
-  deliver("seasons/2026", { ...structuredClone(STORED), ranking: ["NYY"] });
-  session.isReordering = false;
-  applyDeferredSeason(false);
-  assert.deepEqual(session.seasonDoc.ranking, ["NYY"]);
-});
-
-test("while a newer ranking is being saved, the echo of an older one doesn't undo it", async () => {
-  const teams = {
-    NYY: STORED.teams.NYY,
-    TOR: { league: "AL", seed: 2 },
-    SEA: { league: "AL", seed: 3 },
-  };
-  const documents = { "seasons/2026": { ...structuredClone(STORED), teams } };
-  const { database, deliver } = createStore(documents);
-  session.db = database;
-  await watchYear(2026, IGNORED_REDRAWS);
-
-  const first = ["TOR", "NYY", "SEA"];
-  const second = ["TOR", "SEA", "NYY"];
-  await Promise.all([saveRanking(first), saveRanking(second)]);
-  deliver("seasons/2026", { ...documents["seasons/2026"], ranking: first });
-  assert.deepEqual(session.seasonDoc.ranking, second);
-  deliver("seasons/2026", { ...documents["seasons/2026"], ranking: second });
-  assert.deepEqual(session.seasonDoc.ranking, second);
-
-  const otherDevice = ["SEA", "TOR", "NYY"];
-  deliver("seasons/2026", { ...documents["seasons/2026"], ranking: otherDevice });
-  assert.deepEqual(session.seasonDoc.ranking, otherDevice);
 });
 
 // A season whose AL top seed swept through to win the World Series.

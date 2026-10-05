@@ -3,6 +3,7 @@ import { renderCatchUpLines } from "#shared/catch-up-note.js";
 import { nameDay } from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { fillStamp, renderStampLine, renderStampWhen } from "#shared/stamp.js";
+import { readRanking } from "./kept-on-device.js";
 import { findStandingsRow } from "./race.js";
 import { session } from "./session.js";
 import { formatStampName, describeLastStamp, describeUpNextGame } from "./stamp.js";
@@ -29,7 +30,7 @@ function buildStampContext() {
   const isAliveInBracket = (id) =>
     !!(session.state.teams && session.state.teams[id]) && !isEliminated(session.state, id);
   return {
-    ranking: (session.state && session.state.ranking) || [],
+    ranking: readRanking(session.activeYear),
     alive: projected ? isAliveInStandings : isAliveInBracket,
     seriesNote: projected ? () => "" : describeSeriesAfter,
     now: new Date(),
@@ -70,15 +71,10 @@ function renderStampLines() {
 }
 
 export function renderStamp() {
-  const problems = [session.liveProblem, session.saveProblem].filter(Boolean);
+  const problems = [session.liveProblem, session.loadProblem].filter(Boolean);
   fillStamp(
     document.getElementById("stamp"),
     [...renderCatchUpLines(), ...renderStampLines()],
     problems,
   );
-}
-
-// The failure is already on the stamp, so a rejected save needs nothing more here.
-export function showSaveResult(saving) {
-  return saving.then(renderStamp, () => renderStamp());
 }

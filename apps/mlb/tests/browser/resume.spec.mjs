@@ -70,20 +70,16 @@ test("a page whose first release check failed still reloads for a later deploy",
   await expectReload(page, () => comeBack(page));
 });
 
-/** @param {import("@playwright/test").Page} page */
-const readFirstRanked = (page) => page.locator("#rankList .rank-item").first();
+const BRACKET_SET = "The official bracket is set";
 
 /**
- * Saves a reversed ranking the page's socket never hears of.
+ * Saves an update the page's socket never hears of.
  * @param {Awaited<ReturnType<typeof openApp>>} app
  */
-async function reverseRankingWhileAway(app) {
+async function lockBracketWhileAway(app) {
   await app.updateFromWorker();
   await expect.poll(() => app.countOpenSockets()).toBeGreaterThan(0);
-  const season = await app.readDocument("seasons/2026");
-  const reversed = [...season.ranking].reverse();
-  await app.writeWhileAway("seasons/2026", { ...season, ranking: reversed });
-  return reversed;
+  await app.lockBracketWhileAway();
 }
 
 /**
@@ -107,24 +103,24 @@ test("a page asleep half an hour reads what it missed when it wakes, without rel
 }) => {
   await serveReleases(page);
   const app = await openApp(page);
-  const reversed = await reverseRankingWhileAway(app);
+  await lockBracketWhileAway(app);
   await markPage(page);
 
   await sleepUnannounced(page, 31);
 
-  await expect(readFirstRanked(page)).toHaveAttribute("data-id", reversed[0]);
+  await expect(page.locator("#updates")).toContainText(BRACKET_SET);
   expect(await isSameLoad(page)).toBe(true);
 });
 
 test("a page hidden for a moment reads what it missed when it's shown again", async ({ page }) => {
   await serveReleases(page);
   const app = await openApp(page);
-  const reversed = await reverseRankingWhileAway(app);
+  await lockBracketWhileAway(app);
   await markPage(page);
 
   await hideAndShow(page);
 
-  await expect(readFirstRanked(page)).toHaveAttribute("data-id", reversed[0]);
+  await expect(page.locator("#updates")).toContainText(BRACKET_SET);
   expect(await isSameLoad(page)).toBe(true);
 });
 
@@ -146,7 +142,7 @@ test("a page hidden a minute closes its socket, and opens another when it's show
 test("a page whose saved data couldn't load loads again when it comes back", async ({ page }) => {
   await serveReleases(page);
   await openApp(page, { portalReadsDocuments: true });
-  await expect(page.locator("#stamp")).toContainText("Couldn't load your saved data");
+  await expect(page.locator("#stamp")).toContainText("Couldn't load the season");
   await markPage(page);
 
   await expectReload(page, () => sleepUnannounced(page, 5));

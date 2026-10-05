@@ -52,7 +52,7 @@ test("an update saves the season, standings, and a reading, and tells open pages
   const season = read("seasons/2026");
   assert.deepEqual(season.teams, SNAPSHOT.teams);
   assert.deepEqual(season.series, SNAPSHOT.series);
-  assert.deepEqual(season.ranking, []);
+  assert.deepEqual(Object.keys(season).sort(), ["log", "projected", "series", "teams", "year"]);
   assert.deepEqual(read("standings/2026").divisions, SNAPSHOT.standings.divisions);
   assert.deepEqual(read(`readings-2026/${TODAY}-01`).start, createReading(SNAPSHOT));
   assert.deepEqual(read("live/status"), {
@@ -76,13 +76,9 @@ test("an update saves the season, standings, and a reading, and tells open pages
   assert.equal(context.alarm.at, NOW + MLBSnapshot.POLL_LIVE_MS);
 });
 
-test("an update keeps what the page saved, and writes nothing when nothing changed", async () => {
-  const { store, sent, read, context, clock } = createUpdatingStore({
-    stored: { "seasons/2026": { year: 2026, ranking: ["NYY", "LAD"], seenAt: "2026-09-24" } },
-  });
+test("an update writes nothing when nothing changed", async () => {
+  const { store, sent, context, clock } = createUpdatingStore();
   await store.alarm();
-  assert.deepEqual(read("seasons/2026").ranking, ["NYY", "LAD"]);
-  assert.equal(read("seasons/2026").seenAt, "2026-09-24");
 
   sent.length = 0;
   await fireNextAlarm(store, context, clock);

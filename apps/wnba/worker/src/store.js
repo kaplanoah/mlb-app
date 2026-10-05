@@ -9,10 +9,8 @@ import { createWatchedGameLoader } from "./watched-games.js";
 
 export { forwardToStore } from "../../../../shared/worker/season-store.js";
 
-// The page saves nothing to the store: each device keeps what it has seen for itself.
 export const SeasonStore = createSeasonStore({
   release: readReleaseCommit(PAGE_FILES),
-  pageFields: {},
   createLoadSnapshot: (storage) => createSnapshotServer({ storage }).loadSnapshot,
   loadCurrentSnapshot: SeasonUpdater.loadCurrentSnapshot,
   readUpdates: SeasonUpdater.readUpdates,

@@ -2,10 +2,9 @@ import { renderClub, renderRankTag } from "./clubs.js";
 import { describeEntry, describeUpdate } from "./entry-text.js";
 import { html } from "#shared/html.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
+import { keepSeenAt, readSeenAt } from "./kept-on-device.js";
 import { RELEASE_NOTES } from "./release-notes.js";
-import { saveSeenAt } from "./season-store.js";
 import { session, readSeasonYear } from "./session.js";
-import { showSaveResult } from "./stamp-view.js";
 import { TEAMS } from "./teams.js";
 import { renderMatchupButton } from "./games-view.js";
 import { describeGame, findCommonGames, groupUpdates, isResult } from "./update-groups.js";
@@ -35,11 +34,11 @@ const readNoticedAt = (entry) => Date.parse(entry.at);
 
 const FIRST_VISIT_SPAN_MS = 24 * 60 * 60 * 1000;
 
-const readSeenAt = () => (session.state.seenAt ? Date.parse(session.state.seenAt) : 0);
+const readActiveSeenAt = () => readSeenAt(session.activeYear);
 
 const isCurrentSeason = () => session.activeYear === readSeasonYear();
 
-const listFreshReleaseNotes = () => listFreshNotes(RELEASE_NOTES, readSeenAt());
+const listFreshReleaseNotes = () => listFreshNotes(RELEASE_NOTES, readActiveSeenAt());
 
 // Until its first dismissal, the box lists the day of updates up to the newest, not the whole
 // season, which a new store notices all at once.
@@ -49,7 +48,7 @@ function listFirstVisitEntries(entries) {
 }
 
 function listUnseenEntries(entries) {
-  const seen = readSeenAt();
+  const seen = readActiveSeenAt();
   return seen
     ? entries.filter((entry) => readNoticedAt(entry) > seen)
     : listFirstVisitEntries(entries);
@@ -126,7 +125,6 @@ function dismissUpdates() {
     ...listFreshUpdates().flatMap((group) => group.map(readNoticedAt)),
     ...listFreshReleaseNotes().map((note) => note.at),
   );
-  const saving = saveSeenAt(new Date(newest).toISOString());
+  keepSeenAt(session.activeYear, newest);
   renderUpdates();
-  return showSaveResult(saving);
 }

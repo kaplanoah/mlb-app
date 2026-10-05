@@ -7,7 +7,9 @@ import {
   buildSnapshotWithStarters,
   chooseSeason,
   EVENING_FIXTURE,
+  keepFromEarlierVisit,
   matchPath,
+  readKept,
 } from "./harness.mjs";
 import { createReading } from "../../page/js/readings.js";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
@@ -689,7 +691,7 @@ test("the bracket shows an eliminated club in taupe, without a line through its 
   page,
 }) => {
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await chooseSeason(page, "2025");
 
@@ -705,7 +707,7 @@ test("a club's seed is labeled beside its card only where it enters the bracket:
   page,
 }) => {
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await chooseSeason(page, "2025");
   const bracket = page.locator("#bracketWrap");
@@ -761,7 +763,7 @@ test("once a series' first game starts, both clubs' scores show 0, at the height
 
 test("a club's score shows its wins, and a swept club's shows 0", async ({ page }) => {
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await chooseSeason(page, "2025");
   const wildCard = page.locator("#bracketWrap .series").filter({ hasText: "Reds" });
@@ -776,7 +778,7 @@ test("a series winner's digit sits higher in its gold box than a dark box's, in 
   page,
 }) => {
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await chooseSeason(page, "2025");
   const wildCard = page.locator("#bracketWrap .series").filter({ hasText: "Reds" });
@@ -1155,7 +1157,7 @@ test("on a phone, the bracket opens on the earliest round still playing, and swi
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   const scroller = page.locator(".tree-scroll");
   await expect(page.locator('.box[data-round="WC"]').first()).toBeInViewport();
@@ -1197,7 +1199,7 @@ test("on a small tablet, which the app treats as a phone, the bracket opens on t
 }) => {
   await page.setViewportSize({ width: 760, height: 900 });
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await chooseSeason(page, "2025");
 
@@ -1212,7 +1214,7 @@ test("wider than a phone, the stacked bracket starts at the Wild Card with every
 }) => {
   await page.setViewportSize({ width: 1000, height: 900 });
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   const scroller = page.locator(".tree-scroll");
   const readScroll = () => scroller.evaluate((element) => element.scrollLeft);
@@ -1590,7 +1592,7 @@ test("while the Worker can't reach MLB, the page says so over the last scores it
   const app = await openApp(page);
   await expect(page.locator("#stamp > span").first()).toHaveText(/^NOW\s*Reds @ Braves 5-5/);
 
-  await app.writeFromAnotherDevice("live/status", {
+  await app.writeFromWorker("live/status", {
     error: "upstream_error",
     detail: "MLB Stats API answered 503 for /api/v1/schedule",
     write: "",
@@ -1618,7 +1620,6 @@ test("rebuilds updates from the saved readings as the Worker adds to them", asyn
         teams: currentSnapshot.teams,
         series: currentSnapshot.series,
         projected: true,
-        ranking: ["NYY", "LAD", "MIL"],
         log: [],
       },
       [`readings-2026/${part}`]: {
@@ -1659,7 +1660,7 @@ test("a release note shows in the Updates box, headed New in the app, until it's
       body: 'export const RELEASE_NOTES = [{ at: "2026-09-24T23:00:00Z", text: "Something new." }];',
     }),
   );
-  const app = await openApp(page);
+  await openApp(page);
   const updates = page.locator("#updates");
 
   await expect(updates.locator(".updates-count")).toHaveText("New in the app");
@@ -1667,9 +1668,9 @@ test("a release note shows in the Updates box, headed New in the app, until it's
 
   await page.getByRole("button", { name: "Dismiss updates" }).click();
   await expect(updates).toBeHidden();
-  await expect
-    .poll(async () => (await app.readDocument("seasons/2026"))?.seenAt)
-    .toBe("2026-09-24T23:00:00.000Z");
+  expect(await readKept(page, "updatesSeenAt")).toEqual({
+    2026: Date.parse("2026-09-24T23:00:00Z"),
+  });
   await page.reload();
   await expect(page.locator("#bracketWrap")).toBeVisible();
   await expect(updates).toBeHidden();
@@ -1679,7 +1680,7 @@ test("switching to 2025 shows the finished bracket and its champion, read from t
   page,
 }) => {
   const app = await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await expect.poll(() => app.countLiveReads()).toBe(1);
 
@@ -1745,7 +1746,9 @@ test("the bracket and standings scroll from the keyboard, even in Safari", async
   );
 });
 
-test("the ranking can be reordered from the keyboard, and saves", async ({ page }) => {
+test("the ranking can be reordered from the keyboard, and this device keeps it", async ({
+  page,
+}) => {
   const app = await openApp(page);
   await expect.poll(() => app.countLiveReads()).toBe(1);
   await openSettings(page);
@@ -1758,22 +1761,11 @@ test("the ranking can be reordered from the keyboard, and saves", async ({ page 
 
   await expect(page.locator("#rankList .rank-item").nth(1)).toHaveAttribute("data-id", movedClubId);
   await expect(page.locator("#rankList .rank-item").nth(1).locator(".grip")).toBeFocused();
-  await expect
-    .poll(async () => (await app.readDocument("seasons/2026"))?.ranking[1])
-    .toBe(movedClubId);
-});
+  expect(((await readKept(page, "rankings")) ?? {})[2026]?.[1]).toBe(movedClubId);
 
-test("a save that fails says so under the title", async ({ page }) => {
-  const app = await openApp(page);
-  await expect.poll(() => app.countLiveReads()).toBe(1);
-  app.failWrites();
+  await page.reload();
   await openSettings(page);
-  await expect(page.locator("#rankList .rank-item")).toHaveCount(12);
-
-  await page.locator("#rankList .grip").first().focus();
-  await page.keyboard.press("ArrowDown");
-
-  await expect(page.locator("#stamp")).toContainText("Couldn't save your last change.");
+  await expect(page.locator("#rankList .rank-item").nth(1)).toHaveAttribute("data-id", movedClubId);
 });
 
 test("markup in the shared store is shown as text", async ({ page }) => {
@@ -1785,7 +1777,6 @@ test("markup in the shared store is shown as text", async ({ page }) => {
         year: 2026,
         teams: {},
         series: {},
-        ranking: [],
         log: [
           { kind: "berth", team: "NYY", what: "division", div: markup, at: "2026-09-24T20:00:00Z" },
         ],
@@ -1806,7 +1797,7 @@ test("a stored field short a league says there's no field instead of breaking th
   );
   await openApp(page, {
     liveAvailable: false,
-    store: { "seasons/2026": { year: 2026, teams, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2026": { year: 2026, teams, series: {}, log: [] } },
   });
 
   await expect(page.getByRole("heading", { name: "No playoff field yet" })).toBeVisible();
@@ -1818,8 +1809,6 @@ const SEASON_WITH_TWO_UPDATES = {
   year: 2026,
   teams: {},
   series: {},
-  ranking: [],
-  seenAt: "2026-09-24T20:00:00Z",
   log: [
     {
       kind: "elim",
@@ -1832,9 +1821,14 @@ const SEASON_WITH_TWO_UPDATES = {
   ],
 };
 
+// When this device last dismissed the Updates box.
+const keepSeenAtFromEarlierVisit = (page) =>
+  keepFromEarlierVisit(page, "updatesSeenAt", { 2026: Date.parse("2026-09-24T20:00:00Z") });
+
 test("the update list shows when a change happened, not when the page noticed it", async ({
   page,
 }) => {
+  await keepSeenAtFromEarlierVisit(page);
   await openApp(page, { liveAvailable: false, store: { "seasons/2026": SEASON_WITH_TWO_UPDATES } });
 
   const updateTimes = page.locator("#updates .when");
@@ -1845,6 +1839,7 @@ test("the update list shows when a change happened, not when the page noticed it
 });
 
 test("the update list leaves 18px below it", async ({ page }) => {
+  await keepSeenAtFromEarlierVisit(page);
   await openApp(page, { liveAvailable: false, store: { "seasons/2026": SEASON_WITH_TWO_UPDATES } });
 
   await expect(page.locator("#updates")).toHaveCSS("margin-bottom", "18px");
@@ -1853,7 +1848,8 @@ test("the update list leaves 18px below it", async ({ page }) => {
 test("dismissing updates goes by the newest one's time, not this device's clock", async ({
   page,
 }) => {
-  const app = await openApp(page, {
+  await keepSeenAtFromEarlierVisit(page);
+  await openApp(page, {
     liveAvailable: false,
     now: "2026-09-25T03:00:00Z",
     store: { "seasons/2026": SEASON_WITH_TWO_UPDATES },
@@ -1861,9 +1857,9 @@ test("dismissing updates goes by the newest one's time, not this device's clock"
 
   await page.getByRole("button", { name: "Dismiss updates" }).click();
   await expect(page.locator("#updates")).toBeHidden();
-  await expect
-    .poll(async () => (await app.readDocument("seasons/2026"))?.seenAt)
-    .toBe("2026-09-25T00:40:00.000Z");
+  expect(await readKept(page, "updatesSeenAt")).toEqual({
+    2026: Date.parse("2026-09-25T00:40:00Z"),
+  });
 });
 
 const ELIMINATED_AT_8_10 = (team, winner) => ({
@@ -1983,7 +1979,7 @@ test("a page left open turns over when the store moves on to a new season", asyn
   await expect(page.locator("#yearSel")).toHaveValue("2026");
 
   // What the Worker's update saves once spring training has started.
-  await app.writeFromAnotherDevice("live/current", { season: 2027 });
+  await app.writeFromWorker("live/current", { season: 2027 });
 
   await expect(page.locator("#yearSel")).toHaveValue("2027");
   await expect(page.getByRole("heading", { name: "No playoff field yet" })).toBeVisible();

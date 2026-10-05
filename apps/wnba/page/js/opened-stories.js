@@ -1,6 +1,7 @@
 // The stories this device has opened from the News view, so each one's Read button shows a check.
-// Each device keeps its own, since the page saves nothing to the store, and forgets a story two
-// weeks after opening it, by when the view no longer shows it.
+// It forgets a story two weeks after opening it, by when the view no longer shows it.
+
+import { keepOnDevice, readFromDevice } from "#shared/device-storage.js";
 
 const STORAGE_KEY = "openedStories";
 const KEEP_MS = 14 * 24 * 60 * 60 * 1000;
@@ -23,24 +24,12 @@ export const keepRecentOpens = (opened, now) =>
     ),
   );
 
-// Storage can be off, as in a private window, and then no story shows as opened after a reload.
 /** @returns {OpenedStories} */
 function readSavedOpens() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return saved && typeof saved === "object" ? keepRecentOpens(saved, Date.now()) : {};
-  } catch {
-    return {};
-  }
-}
-
-/** @param {OpenedStories} opened */
-function saveOpens(opened) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(opened));
-  } catch {
-    // The check still shows until the page reloads.
-  }
+  const saved = readFromDevice(STORAGE_KEY);
+  return saved && typeof saved === "object"
+    ? keepRecentOpens(/** @type {OpenedStories} */ (saved), Date.now())
+    : {};
 }
 
 let opened = readSavedOpens();
@@ -58,7 +47,7 @@ export function startOpenedStories(list, onChange) {
     if (!link) return;
     const now = Date.now();
     opened = { ...keepRecentOpens(opened, now), [link.getAttribute("href") ?? ""]: now };
-    saveOpens(opened);
+    keepOnDevice(STORAGE_KEY, opened);
     onChange();
   });
 }

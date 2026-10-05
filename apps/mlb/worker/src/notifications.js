@@ -30,8 +30,8 @@ function listEntryClubs(entry, state) {
   }
 }
 
-// The ranking lists every club in the field, whether or not it was dragged into place.
-function isAboutRanked(entry, state) {
+// Every device's ranking lists every club in the field, so an update about any of them is news.
+function isAboutField(entry, state) {
   const clubs = listEntryClubs(entry, state);
   return clubs === null || clubs.some((id) => id && state.teams[id]);
 }
@@ -39,8 +39,7 @@ function isAboutRanked(entry, state) {
 const isRecent = (entry, now) =>
   Date.parse(entry.at) >= now - (isFoundEntry(entry) ? RECENT_MS : RECENT_GAME_MS);
 
-// Grouped before the ranking is checked, so a ranked club's update brings along the
-// eliminations it caused.
+// Grouped before the field is checked, so a club's update brings along the eliminations it caused.
 /**
  * @param {object} options
  * @param {Record<string, any>[]} options.before the updates before this snapshot was saved
@@ -51,7 +50,7 @@ const isRecent = (entry, now) =>
 export function findNotableUpdates({ before, after, state, now }) {
   const known = new Set(before.map(describeKey));
   const fresh = after.filter((entry) => !known.has(describeKey(entry)) && isRecent(entry, now));
-  return groupUpdates(fresh).filter((group) => group.some((entry) => isAboutRanked(entry, state)));
+  return groupUpdates(fresh).filter((group) => group.some((entry) => isAboutField(entry, state)));
 }
 
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);

@@ -26,7 +26,7 @@ export const session = {
   readings: null,
   live: null,
   liveProblem: null,
-  saveProblem: null,
+  loadProblem: null,
   state: null,
   standings: null,
   trackedTitles: {},

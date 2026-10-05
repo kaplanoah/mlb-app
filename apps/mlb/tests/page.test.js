@@ -5,6 +5,7 @@ import { composeState, session } from "../page/js/session.js";
 import { renderDivisionBlock, renderFieldBlock, renderNextCell } from "../page/js/standings.js";
 import { describeTeamStatus, nameSeries } from "../page/js/bracket.js";
 import { describeDrought, listRankedOrder } from "../page/js/clubs.js";
+import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
 import { renderGameList } from "../page/js/games-view.js";
 import { html } from "../../../shared/page/html.js";
@@ -126,10 +127,11 @@ test("Updates box: before its first dismissal, only the 24 hours up to the newes
   assert.deepEqual(listFreshTeams(), ["TB", "LAD"]);
 });
 
-test("Updates box: after a dismissal, everything noticed since, however long ago it happened", () => {
+test("Updates box: after a dismissal, everything noticed since, however long ago it happened", (t) => {
+  keepSeenAt(session.activeYear, Date.parse("2026-09-27T00:00:00Z"));
+  t.after(() => keepSeenAt(session.activeYear, 0));
   session.state = {
     teams: {},
-    seenAt: "2026-09-27T00:00:00Z",
     log: [
       clinchDivision("TB", "AL East", "2026-09-27T23:00:00Z"),
       clinchDivision("MIL", "NL Central", "2026-09-26T22:00:00Z"),
@@ -658,7 +660,7 @@ test("playoff field: each leader's lead over second place and its magic number",
 });
 
 test("standings rows keep room for a rank tag whether or not the club is ranked", () => {
-  session.state = { teams: { TB: { seed: 1 } }, ranking: ["TB"] };
+  session.state = { teams: { TB: { seed: 1 } } };
   const rendered = String(renderDivisionBlock("AL East", buildAlStandings()["AL East"]));
   assert.equal(rendered.match(/<td class="rank-cell"><span class="rank-slot">/g)?.length, 5);
   assert.equal(rendered.match(/class="rank-tag/g)?.length, 1);
@@ -713,7 +715,7 @@ test("a live answer without standings leaves the saved field showing", () => {
   const live = { season: 2026, asOf: "2026-09-24T22:00:00Z", slate: null, log: [] };
   try {
     Object.assign(session, { activeYear: 2026, readings: null });
-    session.seasonDoc = { year: 2026, teams: saved, series: {}, ranking: [], log: [] };
+    session.seasonDoc = { year: 2026, teams: saved, series: {}, log: [] };
     session.live = { ...live, projected: true, standings: null, teams: {}, series: {} };
     composeState();
     assert.deepEqual(session.state.teams, saved);
@@ -742,7 +744,7 @@ test("each series keeps whichever of the saved and live records has counted more
   const live = { season: 2026, asOf: "2026-09-30T00:23:00Z", slate: null, log: [] };
   try {
     Object.assign(session, { activeYear: 2026, readings: null });
-    session.seasonDoc = { year: 2026, teams, series: savedSeries, ranking: [], log: [] };
+    session.seasonDoc = { year: 2026, teams, series: savedSeries, log: [] };
     session.live = { ...live, projected: false, standings: {}, teams, series: liveSeries };
     composeState();
     assert.deepEqual(session.state.series, {
@@ -778,17 +780,25 @@ test("last year's champion is defending while this year's is undecided, whatever
   }
 });
 
-test("clubs never dragged into place follow the ranked ones by league and seed", () => {
-  session.state = {
-    teams: {
-      ATL: { league: "NL", seed: 1 },
-      NYY: { league: "AL", seed: 4 },
-      SEA: { league: "AL", seed: 2 },
-      TB: { league: "AL", seed: 1 },
-    },
-    ranking: ["SEA"],
-  };
-  assert.deepEqual(listRankedOrder(), ["SEA", "TB", "NYY", "ATL"]);
+const RANKED_FIELD = {
+  teams: {
+    ATL: { league: "NL", seed: 1 },
+    NYY: { league: "AL", seed: 4 },
+    SEA: { league: "AL", seed: 2 },
+    TB: { league: "AL", seed: 1 },
+  },
+};
+
+test("before a device's first drag, its ranking lists the clubs by name", () => {
+  session.state = RANKED_FIELD;
+  assert.deepEqual(listRankedOrder(), ["ATL", "SEA", "TB", "NYY"]);
+});
+
+test("clubs never dragged into place follow the ranked ones by name", (t) => {
+  keepRanking(session.activeYear, ["SEA", "BAL"]);
+  t.after(() => keepRanking(session.activeYear, []));
+  session.state = RANKED_FIELD;
+  assert.deepEqual(listRankedOrder(), ["SEA", "ATL", "TB", "NYY"]);
 });
 
 // Detroit went out in the Wild Card Series and New York in the Division Series.
@@ -1114,7 +1124,7 @@ test("games list: a delay shows under the start time or the score", () => {
 });
 
 test("games list: each club's seed, record, and race, without its rank", () => {
-  session.state = { teams: { NYY: { league: "AL", seed: 4 } }, ranking: ["NYY"] };
+  session.state = { teams: { NYY: { league: "AL", seed: 4 } } };
   session.standings = {
     divisions: {
       "AL East": [
@@ -1302,7 +1312,7 @@ const listTeamButtons = (rendered) =>
   ].map(([, id, name]) => `${id} ${name}`);
 
 test("a club's name in the games list, the standings, and the updates opens its sheet", () => {
-  session.state = { teams: { NYY: { league: "AL", seed: 4 } }, ranking: ["NYY"] };
+  session.state = { teams: { NYY: { league: "AL", seed: 4 } } };
   const yankees = { id: "NYY", w: 93, l: 68, gb: "-", elim: "-", lead: true };
   const orioles = { id: "BAL", w: 79, l: 82, gb: "14.0", elim: "E", wce: "E" };
   const slate = {

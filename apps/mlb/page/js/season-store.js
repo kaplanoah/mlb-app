@@ -4,13 +4,12 @@ import { nameReadingsCollection, sortParts } from "./readings.js";
 import { session, composeState } from "./session.js";
 import { TEAMS } from "./teams.js";
 
-const SAVE_FAILED = "Couldn't save your last change. Try again in a moment.";
-const LOAD_FAILED = "Couldn't load your saved data, so changes won't be saved this visit.";
+const LOAD_FAILED = "Couldn't load the season. Reload the page to try again.";
 
 let deferredSeason = null;
 
 function createEmptySeason(year) {
-  return { year, teams: {}, series: {}, ranking: [], log: [] };
+  return { year, teams: {}, series: {}, log: [] };
 }
 
 // The store hands documents back read-only, and this page edits its copies in place.
@@ -24,15 +23,14 @@ function normalizeSeason(doc, year) {
   const season = doc || createEmptySeason(year);
   season.teams = keepKnownClubs(season.teams);
   if (!season.series) season.series = {};
-  season.ranking = Array.isArray(season.ranking) ? season.ranking.filter((id) => TEAMS[id]) : [];
   if (!Array.isArray(season.log)) season.log = [];
   return season;
 }
 
-// Saving stops once a read fails, so nothing is written over data this page never saw.
-export function stopSavingAfterFailedLoad() {
+// A page whose load failed stops reading the store, and loads again when it's next opened.
+export function stopReadingAfterFailedLoad() {
   session.db = null;
-  session.saveProblem = LOAD_FAILED;
+  session.loadProblem = LOAD_FAILED;
 }
 
 function collectTrackedTitles(docs) {
@@ -98,17 +96,6 @@ function replaceSeason(incoming) {
   return true;
 }
 
-// Saves echo back in order, and the echo of one while a newer save is on its way would put
-// back an order this page has moved on from.
-let unechoedRankings = [];
-
-function keepNewerRanking(incoming) {
-  const index = unechoedRankings.indexOf(incoming.ranking.join());
-  if (index === -1) return incoming;
-  unechoedRankings = unechoedRankings.slice(index + 1);
-  return unechoedRankings.length ? { ...incoming, ranking: session.seasonDoc.ranking } : incoming;
-}
-
 // A loaded year's documents are never deleted and its readings never all go at once, so a document
 // that answers it doesn't exist, or a listing that comes back empty, as a store restarting for a
 // deploy can, is a gap, and the page keeps what it shows.
@@ -117,7 +104,7 @@ const isGapInLoadedYear = (snapshot) => isYearLoaded && !snapshot?.exists;
 // A drag keeps the order it shows, so a season that arrives during one waits for it to end.
 function applySeasonAnswer(snapshot, year) {
   if (isGapInLoadedYear(snapshot)) return false;
-  const incoming = keepNewerRanking(normalizeSeason(readDoc(snapshot), year));
+  const incoming = normalizeSeason(readDoc(snapshot), year);
   if (!session.isReordering) return replaceSeason(incoming);
   deferredSeason = incoming;
   return false;
@@ -149,7 +136,6 @@ function applyReadingsAnswer({ docs }) {
 export async function watchYear(year, { onSeasonChange, onStandingsChange, onReadingsChange }) {
   stopWatchingYear();
   deferredSeason = null;
-  unechoedRankings = [];
   const { db } = session;
   const readings = db.collection(nameReadingsCollection(year)).limit(READING_PARTS_LIMIT);
   await Promise.all([
@@ -172,8 +158,8 @@ export async function watchYear(year, { onSeasonChange, onStandingsChange, onRea
   composeState();
 }
 
-// Without the store, the page shows an empty season that it doesn't save.
-export function showUnsavedSeason(year) {
+// Without the store, the page shows an empty season.
+export function showEmptySeason(year) {
   stopWatchingYear();
   session.seasonDoc = normalizeSeason(null, year);
   session.storedStandings = null;
@@ -181,43 +167,9 @@ export function showUnsavedSeason(year) {
   composeState();
 }
 
-// A drag that moved a club keeps its own order over the one in the deferred update.
-export function applyDeferredSeason(hasMoved) {
+export function applyDeferredSeason() {
   if (!deferredSeason) return;
-  const incoming = hasMoved
-    ? { ...deferredSeason, ranking: session.seasonDoc.ranking }
-    : deferredSeason;
+  const incoming = deferredSeason;
   deferredSeason = null;
   if (replaceSeason(incoming)) composeState();
-}
-
-// Writing the whole document would overwrite fields another open view has changed since.
-async function writeSeason(fields) {
-  if (!session.db) return;
-  try {
-    await session.db.doc(`seasons/${session.activeYear}`).update(fields);
-    if (session.saveProblem === SAVE_FAILED) session.saveProblem = null;
-  } catch (error) {
-    session.saveProblem = SAVE_FAILED;
-    throw error;
-  }
-}
-
-export async function saveRanking(order) {
-  session.seasonDoc.ranking = order;
-  session.state.ranking = order;
-  const saved = order.join();
-  if (session.db) unechoedRankings.push(saved);
-  try {
-    await writeSeason({ ranking: order });
-  } catch (error) {
-    unechoedRankings = unechoedRankings.filter((pending) => pending !== saved);
-    throw error;
-  }
-}
-
-export async function saveSeenAt(at) {
-  session.seasonDoc.seenAt = at;
-  session.state.seenAt = at;
-  await writeSeason({ seenAt: at });
 }
