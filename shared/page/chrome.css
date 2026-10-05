@@ -2,8 +2,9 @@
  * The chrome every app's page shares: the settings button, the tabs (a floating glass bar on
  * phones), the settings dialog (a sheet on phones) and the lines at its foot, a sideways
  * bracket's round dots (pinned above the tab bar on phones), the bar and settings box that ask
- * a phone's browser to add the page to the Home Screen, the note a slow load shows, and the
- * Diagnostics switch and records at the very end of settings. Apps link it before their own
+ * a phone's browser to add the page to the Home Screen, the note a slow load shows, the header's
+ * line while the page catches up, the spokes a pull to refresh shows, and the Diagnostics switch
+ * and records at the very end of settings. Apps link it before their own
  * styles.css, which lays out the rest of the page and may refine these rules.
  *
  * An app's :root defines these tokens:
@@ -163,6 +164,61 @@ section.view.active {
   margin: 8px 0 18px;
   color: var(--ink-dim);
   font-size: var(--size-read);
+}
+
+/* The header's first line while the page catches up, as catch-up-note.js draws it: its icon at the
+   text's size beside the first line, and a problem's time in the problem's color. The ring keeps
+   turning under reduced motion, only slower, since a ring that stands still looks stuck. */
+.catch-up-line {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+.catch-up-line svg {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  margin-top: 0.1em;
+}
+.catch-up-line.stamp-err b {
+  color: inherit;
+}
+.catch-up-ring {
+  animation: catch-up-turn 0.75s linear infinite;
+}
+
+/* Pull to refresh, as pull-to-refresh.js draws it: spokes at the top of the screen that appear one
+   by one as the page is pulled, then step round, as the iPhone's own do, while it refreshes. */
+.pull-refresh {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  color: var(--ink-dim);
+  pointer-events: none;
+  -webkit-mask-image: conic-gradient(#000 0 calc(var(--pull-progress, 0) * 360deg), transparent 0);
+  mask-image: conic-gradient(#000 0 calc(var(--pull-progress, 0) * 360deg), transparent 0);
+}
+.pull-refresh svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pull-refresh.refreshing svg {
+  animation: catch-up-turn 0.8s steps(8) infinite;
+}
+@keyframes catch-up-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catch-up-ring,
+  .pull-refresh.refreshing svg {
+    animation-duration: 2.4s;
+  }
 }
 
 /* Settings are as tall as what they hold, up to nearly the screen's height, and their header
