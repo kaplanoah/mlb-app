@@ -182,9 +182,9 @@ test("a story's links open apart from the page, and neither they nor its photos 
 test("with no news, or none from the outlets this device reads, the view says so", () => {
   const athleticOnly = { id: "a", stories: [createStory({ source: "athletic" })] };
 
-  assert.equal(readText(renderNews([], ALL_ON, NOW)), "No news yet.");
+  assert.equal(readText(renderNews([], ALL_ON, NOW)), "No news yet");
   assert.equal(
     readText(renderNews([athleticOnly], { teamOutlets: true, paywalled: false }, NOW)),
-    "No news yet.",
+    "No news yet",
   );
 });
