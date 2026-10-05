@@ -9,13 +9,14 @@ import { keepOnDevice, readFromDevice } from "#shared/device-storage.js";
 import { html } from "#shared/html.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
 import { renderTeamName } from "./clubs.js";
+import { readGameDay } from "./days.js";
 import { renderGameOpenButton } from "./games-view.js";
 import { RELEASE_NOTES } from "./release-notes.js";
 import { session } from "./session.js";
 import { ROUNDS } from "./snapshot.js";
 
 /** @typedef {import("./games-view.js").Game} Game */
-/** @typedef {{ at: number, day: string, text: import("#shared/html.js").Markup, action: import("#shared/html.js").Markup | false }} PlayoffWin */
+/** @typedef {{ at: number, leagueDay: string, day: Date | null, text: import("#shared/html.js").Markup, action: import("#shared/html.js").Markup | false }} PlayoffWin */
 
 const SEEN_KEY = "updatesSeenAt";
 
@@ -111,7 +112,8 @@ function describePlayoffWin(game, games) {
   const at = readFinishedAt(game);
   return {
     at,
-    day: readLeagueDay(game, at),
+    leagueDay: readLeagueDay(game, at),
+    day: readGameDay(game),
     text: describeWin(game, games),
     action: renderGameOpenButton(game),
   };
@@ -135,7 +137,7 @@ export function listPlayoffWins(season) {
  * @param {PlayoffWin[]} wins newest first
  */
 function findLatestDayStart(wins) {
-  const latestDay = wins.filter((win) => win.day === wins[0].day);
+  const latestDay = wins.filter((win) => win.leagueDay === wins[0].leagueDay);
   return Math.min(...latestDay.map((win) => win.at)) - 1;
 }
 

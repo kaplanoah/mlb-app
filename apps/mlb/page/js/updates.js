@@ -1,5 +1,7 @@
 import { renderClub, renderRankTag } from "./clubs.js";
+import { readMlbDay } from "./dates.js";
 import { describeEntry, describeUpdate } from "./entry-text.js";
+import { readCalendarDate } from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
 import { keepSeenAt, readSeenAt } from "./kept-on-device.js";
@@ -105,16 +107,26 @@ function renderUpdateAction(group) {
   return Boolean(game) && renderMatchupButton(game, game.date === slate.today.date);
 }
 
-export function renderUpdates() {
-  const fresh = isCurrentSeason() ? listFreshUpdates() : [];
-  const updates = fresh.map((group) => ({
-    at: findHappenedAt(group),
+// An update's day is MLB's, as the Games view's are, so it counts from MLB's today too.
+function describeUpdateGroup(group) {
+  const at = findHappenedAt(group);
+  return {
+    at,
+    day: readCalendarDate(readMlbDay(at)),
     text: renderUpdateText(group),
     action: renderUpdateAction(group),
-  }));
+  };
+}
+
+/** What the box lists, newest first. */
+export const listUpdates = () => listFreshUpdates().map(describeUpdateGroup);
+
+export function renderUpdates() {
+  const updates = isCurrentSeason() ? listUpdates() : [];
   showUpdates(/** @type {HTMLElement} */ (document.getElementById("updates")), updates, {
     dismiss: dismissUpdates,
     notes: isCurrentSeason() ? listFreshReleaseNotes() : [],
+    today: readCalendarDate(readMlbDay(Date.now())),
   });
 }
 

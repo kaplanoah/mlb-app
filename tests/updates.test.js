@@ -35,6 +35,29 @@ test("the box counts its updates since the oldest, and names each one's time onc
     assert.match(markup.text, /aria-label="Dismiss updates"/);
   }));
 
+test("an update names the day it happened on, which a game past midnight sets", () =>
+  checkInTimeZone(EASTERN, () => {
+    const markup = renderUpdates(
+      [
+        {
+          at: at("2026-10-01T04:30:00Z"),
+          day: new Date(2026, 8, 30),
+          text: html`<b>Liberty</b> won`,
+        },
+        {
+          at: at("2026-09-30T04:06:00Z"),
+          day: new Date(2026, 8, 29),
+          text: html`<b>Fever</b> won`,
+        },
+      ],
+      [],
+      NOW,
+    );
+
+    assert.deepEqual(readCells(markup, "updates-count"), ["2 updates since Tuesday"]);
+    assert.deepEqual(readCells(markup, "when"), ["Yesterday", "Tuesday"]);
+  }));
+
 test("one update today reads in the singular, since earlier today", () =>
   checkInTimeZone(EASTERN, () => {
     const markup = renderUpdates([{ at: at("2026-10-01T20:00:00Z"), text: html`won` }], [], NOW);

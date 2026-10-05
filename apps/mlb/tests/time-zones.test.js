@@ -1,7 +1,7 @@
 // The page shows every time in the viewer's own time zone, while MLB's day stays Eastern.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readGameDay } from "../page/js/dates.js";
+import { readGameDay, readMlbDay } from "../page/js/dates.js";
 import { describeLastStamp } from "../page/js/stamp.js";
 import { renderNextCell } from "../page/js/standings.js";
 import { normalizeSpaces, readStampText } from "../../../tests/text.js";
@@ -106,4 +106,21 @@ test("MLB's day is Eastern wherever the page is open", () => {
       "2026-09-24",
       zone,
     );
+});
+
+test("MLB's day runs until 6 AM Eastern, through its night games", () => {
+  const pastMidnight = Date.parse("2026-10-04T04:06:00Z");
+  const morning = Date.parse("2026-10-04T10:00:00Z");
+  for (const zone of ["America/New_York", "America/Los_Angeles", "Asia/Tokyo"]) {
+    assert.equal(
+      checkInTimeZone(zone, () => readMlbDay(pastMidnight)),
+      "2026-10-03",
+      zone,
+    );
+    assert.equal(
+      checkInTimeZone(zone, () => readMlbDay(morning)),
+      "2026-10-04",
+      zone,
+    );
+  }
 });

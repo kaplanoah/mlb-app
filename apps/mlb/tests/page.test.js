@@ -14,6 +14,7 @@ import { formatStampName } from "../page/js/stamp.js";
 import {
   findUpdateGame,
   listFreshUpdates,
+  listUpdates,
   renderEntryText,
   renderUpdateText,
 } from "../page/js/updates.js";
@@ -139,6 +140,29 @@ test("Updates box: after a dismissal, everything noticed since, however long ago
     ],
   };
   assert.deepEqual(listFreshTeams(), ["TB", "CWS"]);
+});
+
+test("Updates box: a night game that ends past midnight happened on the day it was played", () => {
+  const brewersWin = (game, ended) => ({
+    at: ended,
+    kind: "game",
+    series: "NL_DS1",
+    won: "MIL",
+    lost: "SD",
+    game,
+    score: [game, 0],
+    runs: [3, 2],
+  });
+  session.state = {
+    teams: {},
+    // Saturday's ended at 12:06 AM Sunday, Eastern, and Sunday's that afternoon.
+    log: [brewersWin(1, "2026-10-04T04:06:00Z"), brewersWin(2, "2026-10-04T23:22:00Z")],
+  };
+
+  assert.deepEqual(
+    listUpdates().map((update) => update.day?.toDateString()),
+    ["Sun Oct 04 2026", "Sat Oct 03 2026"],
+  );
 });
 
 test("series names", () => {
