@@ -48,12 +48,26 @@ export function createTestStore(SeasonStore, { loadSnapshot, now, stored = {} })
   return { context, store, fireAlarm };
 }
 
+// Routes match with patterns rather than functions: Playwright checks a pattern itself, but asks the
+// test about every request a function might match, which slows every page load.
+export const TEST_SERVER = /^http:\/\/127\.0\.0\.1[:/]/;
+const OTHER_HOSTS = /^https?:\/\/(?!127\.0\.0\.1[:/])/;
+
+/** @param {string} text */
+const escapeForPattern = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Matches requests for `path`, whatever their query, or for anything under it when it ends with a
+ * slash.
+ * @param {string} path
+ */
+export function matchPath(path) {
+  const end = path.endsWith("/") ? "" : "(?:[?#]|$)";
+  return new RegExp(`^\\w+://[^/]+${escapeForPattern(path)}${end}`);
+}
+
 /** @param {import("@playwright/test").Page} page */
-const blockOtherHosts = (page) =>
-  page.route(
-    (url) => url.hostname !== "127.0.0.1",
-    (route) => route.abort(),
-  );
+const blockOtherHosts = (page) => page.route(OTHER_HOSTS, (route) => route.abort());
 
 /**
  * @param {import("@playwright/test").Route} route
@@ -79,11 +93,10 @@ async function answerFromStore(route, store) {
  * @param {import("@playwright/test").Page} page
  * @param {Parameters<typeof answerFromStore>[1]} store
  */
-const routeStoreRequests = (page, store) =>
-  page.route(
-    (url) => url.pathname.startsWith("/store/") || url.pathname.startsWith("/push/"),
-    (route) => answerFromStore(route, store),
-  );
+async function routeStoreRequests(page, store) {
+  await page.route(matchPath("/store/"), (route) => answerFromStore(route, store));
+  await page.route(matchPath("/push/"), (route) => answerFromStore(route, store));
+}
 
 /**
  * @template Item
@@ -192,10 +205,7 @@ export async function openLockedPage(page, { worker, testStore, accessCode, now 
     STORE: { idFromName: () => "store", get: () => testStore.store },
   };
   await blockOtherHosts(page);
-  await page.route(
-    (url) => url.pathname.startsWith(`/${PAGE_KEY}/`),
-    (route) => answerThroughWorker(route, worker, env),
-  );
+  await page.route(matchPath(`/${PAGE_KEY}/`), (route) => answerThroughWorker(route, worker, env));
   await page.routeWebSocket(
     (url) => url.pathname === `/${PAGE_KEY}/watch`,
     (socket) => testStore.context.ctx.acceptWebSocket({ send: (message) => socket.send(message) }),

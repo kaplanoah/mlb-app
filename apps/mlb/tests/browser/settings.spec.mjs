@@ -1,14 +1,19 @@
-import { test, expect, openApp, openSettings, chooseSeason, swipeSheetDown } from "./harness.mjs";
+import {
+  test,
+  expect,
+  openApp,
+  openSettings,
+  chooseSeason,
+  swipeSheetDown,
+  matchPath,
+} from "./harness.mjs";
 
 const PHONE = { width: 390, height: 844 };
 const RELEASE = { version: "2.13.0", commit: "abc1234", builtAt: "2026-09-28T00:10:41Z" };
 
 /** @param {import("@playwright/test").Page} page */
 const serveRelease = (page, release) =>
-  page.route(
-    (url) => url.pathname === "/version.json",
-    (route) => route.fulfill({ json: release }),
-  );
+  page.route(matchPath("/version.json"), (route) => route.fulfill({ json: release }));
 
 test("the sliders button opens settings, and Done, Escape, or the backdrop closes it", async ({
   page,

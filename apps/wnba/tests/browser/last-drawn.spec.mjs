@@ -1,9 +1,9 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-const holdPageCode = (page) => holdRequests(page, (url) => url.pathname.endsWith("/js/app.js"));
+const holdPageCode = (page) => holdRequests(page, matchPath("/js/app.js"));
 
 /** @param {import("@playwright/test").Page} page */
 const findFinalWinner = (page) => page.locator('[data-series="1-0"] .team-line.won');

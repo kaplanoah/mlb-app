@@ -1,4 +1,4 @@
-import { test, expect, openApp, GAMES } from "./harness.mjs";
+import { test, expect, openApp, GAMES, matchPath } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
 import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
@@ -91,7 +91,7 @@ async function openSheet(page, name) {
 }
 
 /** @param {import("@playwright/test").Page} page */
-const holdBoxScores = (page) => holdRequests(page, (url) => url.pathname === "/box-score");
+const holdBoxScores = (page) => holdRequests(page, matchPath("/box-score"));
 
 /**
  * Valkyries at Wings, Game 2, under way in the third quarter: the store's game, and the league's
@@ -340,7 +340,7 @@ test("while the lead loads after the box score, the sheet holds the chart's plac
 }) => {
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
-  const releaseLead = await holdRequests(page, (url) => url.pathname === "/lead");
+  const releaseLead = await holdRequests(page, matchPath("/lead"));
   const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
   const teamStats = sheet.locator(".sheet-part h3", { hasText: "Team stats" });
   await expect(sheet.locator(".line-score .total").last()).toHaveText("108");
@@ -632,9 +632,8 @@ test("a preview takes the season stats and leading scorers from the store as it 
 
 test("a sheet the Worker can't load says to try again", async ({ page }) => {
   await openApp(page);
-  await page.route(
-    (url) => url.pathname === "/box-score",
-    (route) => route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
+  await page.route(matchPath("/box-score"), (route) =>
+    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
   );
   const sheet = await openSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".sheet-message")).toHaveText(
@@ -673,7 +672,7 @@ test("while its meetings load, the sheet holds their shape, with the season stat
   page,
 }) => {
   await openApp(page);
-  const release = await holdRequests(page, (url) => url.pathname === "/preview");
+  const release = await holdRequests(page, matchPath("/preview"));
   const sheet = await openSheet(page, FEVER_AT_ACES);
 
   await expect(sheet.locator(".sheet-part-head h3")).toHaveText([
@@ -714,9 +713,8 @@ test("a sheet that can't load its box score eases from the box score's shape dow
   const readResizes = await recordSheetResizes(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await openApp(page);
-  await page.route(
-    (url) => url.pathname === "/box-score",
-    (route) => route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
+  await page.route(matchPath("/box-score"), (route) =>
+    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
   );
   const release = await holdBoxScores(page);
   const sheet = await openSheet(page, ACES_AT_FEVER);
@@ -734,9 +732,8 @@ test("with less motion asked for, a sheet takes its new height at once", async (
   const readResizes = await recordSheetResizes(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
-  await page.route(
-    (url) => url.pathname === "/box-score",
-    (route) => route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
+  await page.route(matchPath("/box-score"), (route) =>
+    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
   );
   const sheet = await openSheet(page, ACES_AT_FEVER);
 

@@ -1,6 +1,6 @@
 import { buildReleaseServer, servePageFiles } from "../../../../tests/browser/release-worker.mjs";
 import { NEXT_RELEASE, serveReleases } from "../../../../tests/browser/serve-releases.mjs";
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
 
 const MINUTE_MS = 60 * 1000;
 const LAST_RELEASE = { version: "1.4.0", commit: "abc1234", builtAt: "2026-10-01T22:00:00Z" };
@@ -162,11 +162,12 @@ test("a page whose first load failed loads the last season once the store answer
   const app = await openApp(page);
   await app.moveSeasonTo(2025);
   await page.addInitScript(() => localStorage.removeItem("lastSeen"));
-  const isStoreRead = (/** @type {URL} */ url) => url.pathname.startsWith("/store/");
-  await page.route(isStoreRead, (route) => route.fulfill({ status: 503, body: "" }));
+  // Unrouting by the handler too leaves the store's own route, which has the same pattern.
+  const failStore = (route) => route.fulfill({ status: 503, body: "" });
+  await page.route(matchPath("/store/"), failStore);
   await page.reload();
   await expect(page.locator("#stamp")).toContainText("Can't reach the page's server");
-  await page.unroute(isStoreRead);
+  await page.unroute(matchPath("/store/"), failStore);
 
   await sleepUnannounced(page, 5);
 

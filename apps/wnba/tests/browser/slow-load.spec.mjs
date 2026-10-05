@@ -1,11 +1,11 @@
-import { test, expect, openApp, NOW } from "./harness.mjs";
+import { test, expect, openApp, NOW, matchPath } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-const holdPageCode = (page) => holdRequests(page, (url) => url.pathname.endsWith("/js/app.js"));
+const holdPageCode = (page) => holdRequests(page, matchPath("/js/app.js"));
 
 // The markup after the views is read only once the page has started watching its load.
 const waitForLoadWatch = (page) => expect(page.locator("#settingsDialog")).toBeAttached();
@@ -31,7 +31,7 @@ test("a page whose styles took the whole wait says it's slow as soon as it shows
   page,
 }) => {
   const release = await holdPageCode(page);
-  const releaseStyles = await holdRequests(page, (url) => url.pathname.endsWith("/styles.css"));
+  const releaseStyles = await holdRequests(page, matchPath("/styles.css"));
   const styles = page.waitForRequest((request) => request.url().endsWith("/styles.css"));
   const opened = openApp(page);
   await styles;

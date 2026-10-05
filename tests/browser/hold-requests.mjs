@@ -1,15 +1,16 @@
 /**
- * Keeps the page's requests that match from being answered until the returned function is called.
+ * Keeps the page's requests that match `pattern` from being answered until the returned function
+ * is called.
  * @param {import("@playwright/test").Page} page
- * @param {(url: URL) => boolean} matches
+ * @param {RegExp} pattern
  * @returns {Promise<() => void>}
  */
-export async function holdRequests(page, matches) {
+export async function holdRequests(page, pattern) {
   let release = () => {};
   const held = new Promise((resolve) => {
     release = () => resolve(undefined);
   });
-  await page.route(matches, async (route) => {
+  await page.route(pattern, async (route) => {
     await held;
     await route.fallback();
   });

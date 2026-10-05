@@ -1,4 +1,11 @@
-import { test, expect, openApp, buildSnapshotWithStarters, swipeSheetDown } from "./harness.mjs";
+import {
+  test,
+  expect,
+  openApp,
+  buildSnapshotWithStarters,
+  swipeSheetDown,
+  matchPath,
+} from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
 import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
@@ -82,7 +89,7 @@ async function openMatchup(page, pitchers = PITCHERS, snapshot = buildSnapshotWi
 }
 
 /** @param {import("@playwright/test").Page} page */
-const holdPitchers = (page) => holdRequests(page, (url) => url.pathname === "/pitcher");
+const holdPitchers = (page) => holdRequests(page, matchPath("/pitcher"));
 
 /** @param {import("@playwright/test").Page} page */
 function countPitcherReads(page) {
@@ -516,7 +523,7 @@ test("while a club's last starters load, its side holds a list's shape, then fil
 }) => {
   await openApp(page, { rotations: { LAA: ANGELS_ROTATION } });
   await page.getByRole("tab", { name: "Games" }).click();
-  const release = await holdRequests(page, (url) => url.pathname === "/rotation");
+  const release = await holdRequests(page, matchPath("/rotation"));
   const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
   await row.getByRole("button", { name: "Pitching matchup: TBD vs TBD" }).click();
   const angels = page.getByRole("dialog").locator(".scout").first();
