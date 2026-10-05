@@ -90,7 +90,7 @@ async function openNewsWithStories(page, buildTopics = createTopics) {
   return app;
 }
 
-/** @param {(photoUrl: string) => any[]} photoUrl */
+/** @param {string} photoUrl */
 const createThreeTopics = (photoUrl) => [...createTopics(photoUrl), createAwardTopic(photoUrl)];
 
 /**
