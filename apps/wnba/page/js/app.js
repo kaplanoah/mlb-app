@@ -24,6 +24,7 @@ import { renderGames } from "./games-view.js";
 import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
+import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
 import { loadSeason, watchCurrentSeason, watchSeason, watchStatus } from "./season-data.js";
 import { session } from "./session.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
@@ -49,7 +50,11 @@ function drawNews() {
   if (session.news === undefined) return;
   const topics = session.news?.topics ?? [];
   const columnCount = wideScreen.matches ? 2 : 1;
-  setHtml(findElement("newsList"), renderNews(topics, readNewsChoices(), Date.now(), columnCount));
+  const opened = readOpenedStories();
+  setHtml(
+    findElement("newsList"),
+    renderNews(topics, readNewsChoices(), Date.now(), { columnCount, opened }),
+  );
 }
 
 function renderAll() {
@@ -130,6 +135,7 @@ async function boot() {
   startTeamSheet({ isTeam: (team) => team in TEAMS, renderSheet: renderShownTeam });
   startSettingsSheet();
   startNewsChoices(drawNews);
+  startOpenedStories(findElement("newsList"), drawNews);
   wideScreen.addEventListener("change", drawNews);
   startHomeScreen();
   startBracket();

@@ -140,11 +140,49 @@ test("a card shows its teams, the lead's headline, writer, outlet, day, and summ
 
   assert.equal(
     text,
-    "This week Photo: USA TODAY Sports Dream Liberty Film review: How the Dream changed " +
+    "This week Dream Liberty Photo: USA TODAY Sports Film review: How the Dream changed " +
       "Michael Waterloo | The IX | Today What happened. Read on The IX " +
       "More on this There's one key element Madeline Kenney | NY Post | Yesterday " +
       "Photo via NY Post What happened. Read on NY Post",
   );
+});
+
+test("a lead's photo credit sits beside its teams, and a card without one shows only the teams", () => {
+  const photo = { url: "https://example.com/photo.jpg", credit: "AP" };
+  const withCredit = { id: "credit", stories: [createStory({ id: "credit", photo })] };
+  const withoutCredit = {
+    id: "plain",
+    stories: [createStory({ id: "plain", photo: { ...photo, credit: "" } })],
+  };
+  const readTop = (topic) =>
+    renderNews([topic], ALL_ON, NOW).text.match(/<div class="news-top">[\s\S]*?<\/div>/)?.[0];
+
+  const top = readTop(withCredit);
+  assert.match(top, /class="news-teams"[\s\S]*Liberty[\s\S]*class="news-photo-credit">Photo: AP</);
+  assert.equal(readTop(withoutCredit), undefined);
+  assert.match(renderNews([withoutCredit], ALL_ON, NOW).text, /class="news-teams"/);
+});
+
+test("a story this device has opened shows a check in place of its arrow, and the others keep theirs", () => {
+  const topic = {
+    id: "opened",
+    stories: [
+      createStory({ id: "lead" }),
+      createStory({ id: "second", kind: "analysis", outlet: "The IX", source: "ix" }),
+    ],
+  };
+  const opened = { "https://example.com/lead": NOW };
+
+  const buttons =
+    renderNews([topic], ALL_ON, NOW, { opened }).text.match(
+      /<a\s+class="read-button[\s\S]*?<\/a\s*>/g,
+    ) ?? [];
+
+  assert.equal(buttons.length, 2);
+  assert.match(buttons[0], /class="read-button opened"[\s\S]*class="read-check"/);
+  assert.doesNotMatch(buttons[0], /read-arrow/);
+  assert.match(buttons[1], /class="read-button"[\s\S]*class="read-arrow"/);
+  assert.doesNotMatch(buttons[1], /read-check/);
 });
 
 test("a story's day is today, yesterday, its weekday within the week, and its date before that", () => {
@@ -214,7 +252,7 @@ test("in two columns, each card goes to the shorter one, so a short card sits un
   ];
   const readColumns = (columnCount) =>
     (
-      renderNews(topics, ALL_ON, NOW, columnCount).text.match(
+      renderNews(topics, ALL_ON, NOW, { columnCount }).text.match(
         /<ul class="news-column">[\s\S]*?<\/ul>/g,
       ) ?? []
     ).map((column) =>
