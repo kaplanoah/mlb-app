@@ -78,6 +78,9 @@
   --teal: #0b6b63;
   --teal-ink: #ffffff;
   --ink-mid: color-mix(in srgb, var(--ink-dim) 55%, var(--ink));
+  /* A link or team's name under the mouse. Maple's dark ink needs more of the orange than
+     Walnut's light ink to show it changed. */
+  --ink-hover: color-mix(in srgb, var(--ink) 50%, var(--orange));
   /* Bracket and game cards sit most of the way from the floor to a sheet, so they stand out
      without glare. */
   --tile: color-mix(in oklab, var(--card) 75%, var(--bg));
@@ -143,6 +146,7 @@
   --orange-ink: #1d0d03;
   --teal: #3cb4a4;
   --teal-ink: #06201c;
+  --ink-hover: color-mix(in srgb, var(--ink) 75%, var(--orange));
   --line: #5e4836;
   --scoreboard: #110b08;
   --shadow-ink: #000000;
@@ -1812,13 +1816,13 @@ h4.news-title {
   color: var(--ink-dim);
 }
 @media (hover: hover) {
-  .news-title a:hover {
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
+  .news-title a,
+  .read-button {
+    transition: color 0.15s;
   }
+  .news-title a:hover,
   .read-button:hover {
-    border-color: var(--ink-dim);
+    color: var(--ink-hover);
   }
 }
 .news-more {

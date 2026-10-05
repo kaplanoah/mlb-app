@@ -337,6 +337,75 @@ test("a story opened from its Read button shows a check in place of its arrow, a
   await expect(page.locator(".news-card").nth(1).locator(".read-check")).toHaveCount(1);
 });
 
+/**
+ * How far apart two colors are, summed over their red, green, and blue.
+ * @param {number[]} first
+ * @param {number[]} second
+ */
+const measureColorDistance = (first, second) =>
+  first.reduce((sum, channel, index) => sum + Math.abs(channel - second[index]), 0);
+
+/**
+ * A link's text and border colors once any change to them has finished, and the theme's orange,
+ * each as red, green, and blue, and whether it's underlined.
+ * @param {import("@playwright/test").Locator} link
+ */
+async function readSettledStyle(link) {
+  await expect.poll(() => link.evaluate((element) => element.getAnimations().length)).toBe(0);
+  return link.evaluate((element) => {
+    const context = /** @type {CanvasRenderingContext2D} */ (
+      document.createElement("canvas").getContext("2d")
+    );
+    const readChannels = (color) => {
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
+    const style = getComputedStyle(element);
+    return {
+      color: readChannels(style.color),
+      border: readChannels(style.borderTopColor),
+      underline: style.textDecorationLine,
+      orange: readChannels(getComputedStyle(document.documentElement).getPropertyValue("--orange")),
+    };
+  });
+}
+
+for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
+  test(`under the mouse, a headline and a Read button turn plainly toward orange, with no underline or new border, as a team's name does, in ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await openNewsWithStories(page);
+    const film = page.locator(".news-card").nth(1);
+    const headline = film.locator("h3.news-title a");
+    const button = film.getByRole("link", { name: /^Read on The Athletic/ });
+    const headlineAtRest = await readSettledStyle(headline);
+    const buttonAtRest = await readSettledStyle(button);
+
+    await headline.hover();
+    const headlineHovered = await readSettledStyle(headline);
+    await button.hover();
+    const buttonHovered = await readSettledStyle(button);
+    const teamName = film.locator(".news-teams .team-name").first();
+    await teamName.hover();
+    const teamNameHovered = await readSettledStyle(teamName);
+
+    for (const [atRest, hovered] of [
+      [headlineAtRest, headlineHovered],
+      [buttonAtRest, buttonHovered],
+    ]) {
+      expect(measureColorDistance(hovered.color, atRest.color)).toBeGreaterThan(60);
+      expect(measureColorDistance(hovered.color, atRest.orange)).toBeLessThan(
+        measureColorDistance(atRest.color, atRest.orange),
+      );
+      expect(hovered.underline).toBe("none");
+    }
+    expect(buttonHovered.border).toEqual(buttonAtRest.border);
+    expect(teamNameHovered.color).toEqual(headlineHovered.color);
+  });
+}
+
 test("on a wide screen, each of two columns stacks its own cards, as far apart as the page's sides", async ({
   page,
 }) => {
