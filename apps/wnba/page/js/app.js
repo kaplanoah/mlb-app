@@ -26,7 +26,7 @@ import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
-import { loadSeason, watchCurrentSeason, watchSeason, watchStatus } from "./season-data.js";
+import { loadSeason, startSeasonData } from "./season-data.js";
 import { session } from "./session.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
@@ -109,12 +109,8 @@ const renderShownTeam = (team) =>
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };
 
-// A page whose first load failed may be watching a season the store doesn't have yet, and the
-// store may have moved on to a new season, so it loads the season again.
 async function reloadSeason() {
-  const watchedYear = session.year;
   await loadSeason();
-  if (session.year !== watchedYear) watchSeason(showNewData);
   showNewData();
 }
 
@@ -148,11 +144,9 @@ async function boot() {
   startCaughtUpSweep(session.db, findElement("stamp"));
   startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
+  startSeasonData({ showChange: showNewData, showStamp: renderStamp });
   await loadSeason();
   redrawEased(drawLoadedSeason);
-  watchSeason(showNewData);
-  watchCurrentSeason(reloadSeason);
-  watchStatus(renderStamp);
   watchNews(() => redrawEased(drawNews));
   refreshClockEveryMinute();
   startServiceWorker();
