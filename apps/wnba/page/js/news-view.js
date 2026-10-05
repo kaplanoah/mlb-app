@@ -138,7 +138,7 @@ function renderCard({ teams, stories: [lead, second] }, now) {
  */
 export function renderNews(topics, choices, now) {
   const cards = buildNewsCards(topics, choices);
-  if (!cards.length) return html`<p class="empty-note">No news yet.</p>`;
+  if (!cards.length) return html`<p class="empty-note">No news yet</p>`;
   return html`<h2 class="section-label">This week</h2>
     <ul class="news-cards">
       ${cards.map((card) => html`<li>${renderCard(card, now)}</li>`)}

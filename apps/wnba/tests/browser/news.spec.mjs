@@ -62,7 +62,7 @@ const createTopics = (photoUrl) => [
 async function openNewsWithStories(page) {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "News" }).click();
-  await expect(page.locator("#newsList")).toHaveText("No news yet.");
+  await expect(page.locator("#newsList")).toHaveText("No news yet");
   await app.writeDocument("news/topics", {
     topics: createTopics(new URL("icon-180.png", page.url()).href),
   });
