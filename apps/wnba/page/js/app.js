@@ -7,7 +7,7 @@ import { startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
 import { fillGameLists, startGamePager } from "#shared/game-pager.js";
-import { keepLastSeen, readLastSeen } from "#shared/last-seen.js";
+import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
 import { startPageTabs } from "#shared/page-tabs.js";
@@ -143,6 +143,7 @@ async function boot() {
   startStandings();
   session.db = createWorkerStore();
   drawLastSeen();
+  reopenLastSheets();
   startCatchUpNote(session.db, renderStamp);
   startCaughtUpSweep(session.db, findElement("stamp"));
   startPullToRefresh({ store: session.db, catchUp });

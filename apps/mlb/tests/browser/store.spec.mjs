@@ -74,6 +74,8 @@ test.describe("on a phone", () => {
     ]);
     expect(storeWrites).toEqual([]);
 
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     await expect(page.locator("#updates")).toContainText("The official bracket is set");

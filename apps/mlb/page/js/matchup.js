@@ -32,6 +32,8 @@ const TAPE = [
 
 // Each opening counts, so a sheet reopened on another game ignores the first one's answers.
 let opening = 0;
+/** @type {{ game: MatchupGame, sides: any[] } | null} */
+let shown = null;
 
 const findDialog = () =>
   /** @type {HTMLDialogElement} */ (document.getElementById("matchupDialog"));
@@ -297,19 +299,25 @@ async function loadSide(side, game, season) {
     if (side.starter?.name) side.pitcher = await fetchPitcher(side.starter.id, season);
     else if (isAwaitingStarter(side, game))
       side.rotation = await fetchRotation(side.club, game.date);
+    side.failed = false;
   } catch {
     side.failed = true;
   }
 }
 
 /**
- * @param {{ date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters: object[], today: boolean }} game
+ * @typedef {{ date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters: object[], today: boolean }} MatchupGame
  */
-async function openMatchup(game) {
+
+/**
+ * Draws the matchup, then each side again as it loads.
+ * @param {MatchupGame} game
+ * @param {any[]} sides
+ */
+async function showMatchup(game, sides) {
   const sequence = ++opening;
-  const sides = listSides(game);
+  shown = { game, sides };
   renderMatchup(game, sides);
-  openSheet(findDialog());
   const season = session.activeYear;
   await Promise.all(
     sides.map((side) =>
@@ -318,6 +326,20 @@ async function openMatchup(game) {
       }),
     ),
   );
+}
+
+/** @param {MatchupGame} game */
+function openMatchup(game) {
+  showMatchup(game, listSides(game));
+  openSheet(findDialog());
+}
+
+// What each side showed stays until it loads again.
+/** @param {{ game: MatchupGame, sides: any[] } | null} saved */
+function reopenMatchup(saved) {
+  if (!saved?.game || !Array.isArray(saved.sides)) return false;
+  showMatchup(saved.game, saved.sides);
+  return true;
 }
 
 const readRowGame = (button) => JSON.parse(button.dataset.game);
@@ -332,5 +354,12 @@ function prepareFromRow(button) {
 export function startMatchups() {
   for (const holder of ["games-pages", "updates"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
-  wireSheet(findDialog(), { doneButton: findElement("matchupDoneBtn") });
+  const dialog = findDialog();
+  wireSheet(dialog, {
+    doneButton: findElement("matchupDoneBtn"),
+    keeper: { read: () => shown, reopen: reopenMatchup },
+  });
+  dialog.addEventListener("close", () => {
+    shown = null;
+  });
 }
