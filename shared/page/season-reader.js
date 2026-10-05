@@ -19,6 +19,8 @@ const nameSeasonPath = (year) => `seasons/${year}`;
  *   season's record, null when it has none
  * @property {() => void} showChange redraws for an answer that comes after the season has loaded
  * @property {(status: any) => void} showStatus takes the store's status of its last update
+ * @property {() => void} showLoadFailure says the new current season couldn't be read as the
+ *   store moved on to it, so the page loads the current season again later
  * @property {(year: number) => void} [noteCurrentYear] hears that the store names a new current
  *   season, whether or not the page is showing it
  */
@@ -30,6 +32,7 @@ export function createSeasonReader({
   keepSeason,
   showChange,
   showStatus,
+  showLoadFailure,
   noteCurrentYear = () => {},
 }) {
   /** @type {number | null} */
@@ -106,7 +109,7 @@ export function createSeasonReader({
     store.doc(CURRENT_PATH).onSnapshot(
       (/** @type {any} */ snapshot) => {
         const year = snapshot.exists ? snapshot.data().season : null;
-        if (year !== null && year !== currentYear) moveOnToYear(year).catch(() => {});
+        if (year !== null && year !== currentYear) moveOnToYear(year).catch(showLoadFailure);
       },
       () => {},
     );

@@ -143,7 +143,7 @@ async function boot() {
   startCaughtUpSweep(session.db, findElement("stamp"));
   startPullToRefresh({ store: session.db, catchUp });
   keepLastSeen(readShown);
-  startSeasonData({ showChange: showNewData, showStatus: renderStamp });
+  startSeasonData({ showChange: showNewData, showStamp: renderStamp });
   await loadSeason();
   redrawEased(drawLoadedSeason);
   watchNews(() => redrawEased(drawNews));

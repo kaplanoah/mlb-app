@@ -10,12 +10,16 @@ const UNREACHABLE = "Can't reach the page's server right now.";
 /** @type {ReturnType<typeof createSeasonReader> | null} */
 let reader = null;
 
+const noteUnreachable = () => {
+  session.problem = UNREACHABLE;
+};
+
 /**
  * Starts reading the season, and redraws with `showChange` for each change after it loads, and
- * with `showStatus` for each status of the store's last update.
- * @param {{ showChange: () => void, showStatus: () => void }} redraws
+ * with `showStamp` for each status of the store's last update or problem reading it.
+ * @param {{ showChange: () => void, showStamp: () => void }} redraws
  */
-export function startSeasonData({ showChange, showStatus }) {
+export function startSeasonData({ showChange, showStamp }) {
   reader = createSeasonReader({
     store: session.db,
     guessYear: (now) => readEasternDay(now).year,
@@ -23,7 +27,11 @@ export function startSeasonData({ showChange, showStatus }) {
     showChange,
     showStatus: (status) => {
       session.status = status;
-      showStatus();
+      showStamp();
+    },
+    showLoadFailure: () => {
+      noteUnreachable();
+      showStamp();
     },
   });
 }
@@ -34,6 +42,6 @@ export async function loadSeason() {
   try {
     await reader?.loadCurrentSeason();
   } catch {
-    session.problem = UNREACHABLE;
+    noteUnreachable();
   }
 }

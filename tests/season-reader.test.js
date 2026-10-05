@@ -34,7 +34,14 @@ const SEASON_2027 = { year: 2027, games: ["next opener"] };
 
 function startReader(documents, options = {}) {
   const { store, deliver } = createStore(documents, options);
-  const shown = { year: null, season: null, changes: 0, status: undefined, currentYears: [] };
+  const shown = {
+    year: null,
+    season: null,
+    changes: 0,
+    status: undefined,
+    currentYears: [],
+    failures: 0,
+  };
   const reader = createSeasonReader({
     store,
     guessYear: () => options.guessedYear ?? 2026,
@@ -43,6 +50,7 @@ function startReader(documents, options = {}) {
     showStatus: (status) => {
       shown.status = status;
     },
+    showLoadFailure: () => shown.failures++,
     noteCurrentYear: (year) => shown.currentYears.push(year),
   });
   return { reader, shown, deliver };
@@ -109,6 +117,27 @@ test("when the store moves on to a new season, a page showing the current one mo
 
   assert.deepEqual([shown.year, shown.season, shown.changes], [2027, SEASON_2027, 1]);
   assert.deepEqual(shown.currentYears, [2027]);
+});
+
+test("a new season that can't be read as the store moves on to it is a failure the page loads again from", async () => {
+  const documents = {
+    "live/current": { season: 2026 },
+    "seasons/2026": SEASON_2026,
+    "seasons/2027": SEASON_2027,
+  };
+  const unreadable = [];
+  const { reader, shown, deliver } = startReader(documents, { unreadable });
+  await reader.loadCurrentSeason();
+  await settle();
+
+  unreadable.push("seasons/2027");
+  deliver("live/current", { season: 2027 });
+  await settle();
+  assert.equal(shown.failures, 1);
+
+  unreadable.length = 0;
+  await reader.loadCurrentSeason();
+  assert.deepEqual([shown.year, shown.season], [2027, SEASON_2027]);
 });
 
 test("a page showing a past season stays on it when the store moves on, and hears of the new one", async () => {
