@@ -188,3 +188,39 @@ test("with no news, or none from the outlets this device reads, the view says so
     "No news yet",
   );
 });
+
+test("in two columns, each card goes to the shorter one, so a short card sits under a short one", () => {
+  const photo = { url: "https://example.com/photo.jpg", credit: "AP" };
+  const topics = [
+    {
+      id: "tall",
+      stories: [
+        createStory({ id: "tall", title: "Tall", photo, publishedAt: "2026-10-04T15:00:00.000Z" }),
+        createStory({ id: "more", kind: "analysis", publishedAt: "2026-10-04T14:00:00.000Z" }),
+      ],
+    },
+    { id: "short", stories: [createStory({ id: "short", title: "Short", photo })] },
+    {
+      id: "older",
+      stories: [
+        createStory({
+          id: "older",
+          title: "Older",
+          photo,
+          publishedAt: "2026-10-03T12:00:00.000Z",
+        }),
+      ],
+    },
+  ];
+  const readColumns = (columnCount) =>
+    (
+      renderNews(topics, ALL_ON, NOW, columnCount).text.match(
+        /<ul class="news-column">[\s\S]*?<\/ul>/g,
+      ) ?? []
+    ).map((column) =>
+      [...column.matchAll(/<h3[^>]*>\s*<a[^>]*>([^<]*)</g)].map((match) => match[1]),
+    );
+
+  assert.deepEqual(readColumns(1), [["Tall", "Short", "Older"]]);
+  assert.deepEqual(readColumns(2), [["Tall"], ["Short", "Older"]]);
+});
