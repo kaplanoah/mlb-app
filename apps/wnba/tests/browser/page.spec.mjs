@@ -1628,21 +1628,31 @@ test("the page shows the tab it was last on before its modules have loaded", asy
   await expect(page.locator("#view-bracket")).toHaveCSS("display", "none");
 });
 
-test("on a wide screen, Walnut's selected tab reads heavier, Maple's doesn't, and choosing a tab never changes its width", async ({
+test("on a wide screen, Walnut's selected tab reads heavier, Maple's doesn't, and the tabs keep Maple's size and place", async ({
   page,
 }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
+  await page.emulateMedia({ colorScheme: "light" });
   await openApp(page);
   const tabs = page.locator("nav.tabs").getByRole("tab");
-  const readWidths = () =>
-    tabs.evaluateAll((each) => each.map((tab) => tab.getBoundingClientRect().width));
+  const readBoxes = () =>
+    tabs.evaluateAll((each) =>
+      each.map((tab) => {
+        const box = tab.getBoundingClientRect();
+        const label = /** @type {Element} */ (
+          tab.querySelector(".tab-label")
+        ).getBoundingClientRect();
+        return [box.width, box.height, label.top - box.top];
+      }),
+    );
   const games = page.getByRole("tab", { name: "Games" });
-  const bracketSelectedWidths = await readWidths();
+  const mapleBoxes = await readBoxes();
 
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect(await readBoxes()).toEqual(mapleBoxes);
   await games.click();
   await expect(games).toHaveCSS("font-weight", "500");
   await expect(page.getByRole("tab", { name: "Bracket" })).toHaveCSS("font-weight", "400");
-  expect(await readWidths()).toEqual(bracketSelectedWidths);
+  expect(await readBoxes()).toEqual(mapleBoxes);
 
   await page.emulateMedia({ colorScheme: "light" });
   await expect(games).toHaveCSS("font-weight", "400");
