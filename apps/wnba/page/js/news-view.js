@@ -72,7 +72,7 @@ const renderMeta = (story, now) =>
 
 /** @param {NewsStory} story */
 const renderSummary = (story) =>
-  story.summary && html`<p class="news-summary">${story.summary}</p>`;
+  story.summary && html`<p class="news-summary" data-quoted>${story.summary}</p>`;
 
 /** @param {string[]} teams */
 function renderTeams(teams) {
@@ -103,7 +103,7 @@ function renderSecondStory(story, now) {
     <p class="news-more-label">More on this</p>
     <div class="news-more-main">
       <div class="news-more-text">
-        <h4 class="news-title">${renderStoryLink(story, story.title)}</h4>
+        <h4 class="news-title" data-quoted>${renderStoryLink(story, story.title)}</h4>
         ${renderMeta(story, now)}
         ${photoUrl && story.photo?.credit && html`<p class="news-credit">${describeCredit(story.photo.credit)}</p>`}
         ${renderSummary(story)}
@@ -123,7 +123,7 @@ function renderCard({ teams, stories: [lead, second] }, now) {
     ${renderLeadPhoto(lead.photo)}
     <div class="news-body">
       ${renderTeams(teams)}
-      <h3 class="news-title">${renderStoryLink(lead, lead.title)}</h3>
+      <h3 class="news-title" data-quoted>${renderStoryLink(lead, lead.title)}</h3>
       ${renderMeta(lead, now)} ${renderSummary(lead)} ${renderReadButton(lead)}
       ${second && renderSecondStory(second, now)}
     </div>

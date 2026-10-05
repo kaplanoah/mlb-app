@@ -1,6 +1,7 @@
 import { test, expect, openApp, EVENING_FIXTURE } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -19,6 +20,7 @@ test("a page whose code is slow to arrive says so until it draws the season", as
 
   await expect(note).toHaveText("Still loading. Your connection is slow.");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
   release();
   await opened;
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);

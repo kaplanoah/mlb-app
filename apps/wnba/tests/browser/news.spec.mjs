@@ -1,5 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -134,6 +135,7 @@ test("the News tab shows the news the Worker saves, newest topic first, with its
     "https://example.com/espn",
   );
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
 });
 
 test("switching off The Athletic or the Liberty's own outlets leaves their stories out, and the choice stays", async ({
