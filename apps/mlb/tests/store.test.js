@@ -62,49 +62,17 @@ test("a document reads back with sorted keys, and a missing one reads as null", 
 
   await write("seasons/2026", {
     year: 2026,
-    ranking: ["NYY", "LAD"],
     teams: { NYY: { seed: 4 }, LAD: { seed: 2 } },
+    log: [],
   });
   const data = await readData(env, "/store/seasons/2026");
   assert.deepEqual(data, {
-    ranking: ["NYY", "LAD"],
+    log: [],
     teams: { LAD: { seed: 2 }, NYY: { seed: 4 } },
     year: 2026,
   });
-  assert.deepEqual(Object.keys(data), ["ranking", "teams", "year"]);
+  assert.deepEqual(Object.keys(data), ["log", "teams", "year"]);
   assert.deepEqual(Object.keys(data.teams), ["LAD", "NYY"]);
-});
-
-test("the page's update replaces each field it names, and a null removes one", async () => {
-  const { env, write } = createFakeStore();
-  await write("seasons/2026", {
-    year: 2026,
-    ranking: ["NYY", "LAD"],
-    series: { WS: { winsA: 1, winsB: 0 } },
-    seenAt: "a",
-    log: [{ kind: "lock" }],
-  });
-  const response = await requestStore(env, "/store/seasons/2026", {
-    method: "PATCH",
-    body: { ranking: ["LAD"], seenAt: null },
-  });
-  assert.equal(response.status, 204);
-  assert.deepEqual(await readData(env, "/store/seasons/2026"), {
-    log: [{ kind: "lock" }],
-    ranking: ["LAD"],
-    series: { WS: { winsA: 1, winsB: 0 } },
-    year: 2026,
-  });
-});
-
-test("the page's update creates a season that isn't there yet", async () => {
-  const { env } = createFakeStore();
-  const response = await requestStore(env, "/store/seasons/2030", {
-    method: "PATCH",
-    body: { ranking: ["NYY"] },
-  });
-  assert.equal(response.status, 204);
-  assert.deepEqual(await readData(env, "/store/seasons/2030"), { ranking: ["NYY"], year: 2030 });
 });
 
 test("a collection lists its documents by id, up to the limit", async () => {
@@ -129,11 +97,11 @@ test("every write reaches each open watcher, with the document as saved", async 
   await requestStore(env, "/watch", { headers: { upgrade: "websocket" } });
 
   await write("seasons/2026", { year: 2026 });
-  await requestStore(env, "/store/seasons/2026", { method: "PATCH", body: { seenAt: "x" } });
+  await write("seasons/2026", { year: 2026, log: [] });
   for (const socket of sockets)
     assert.deepEqual(socket.sent, [
       { path: "seasons/2026", data: { year: 2026 } },
-      { path: "seasons/2026", data: { seenAt: "x", year: 2026 } },
+      { path: "seasons/2026", data: { log: [], year: 2026 } },
     ]);
 
   const plain = await requestStore(env, "/watch");
@@ -168,17 +136,13 @@ test("the store answers only under the key, and never sees it", async () => {
   assert.equal(seenPaths.length, 1, "nothing else reached the store");
 });
 
-test("bad names, bodies, and methods are refused without writing", async () => {
+test("bad names and methods are refused without writing", async () => {
   const { env, stored } = createFakeStore();
-  const patch = (path, body) => requestStore(env, path, { method: "PATCH", body });
   /** @type {[Response | Promise<Response>, number][]} */
   const refusals = [
     [requestStore(env, "/store/seasons/20 26"), 404],
     [requestStore(env, "/store/seasons/2026/extra"), 404],
     [requestStore(env, "/store/seasons/"), 404],
-    [patch("/store/seasons/2026", "[1, 2]"), 400],
-    [patch("/store/seasons/2026", "not json"), 400],
-    [patch("/store/seasons/2026", { seenAt: "x".repeat(70_000) }), 413],
     [requestStore(env, "/store/seasons/2026", { method: "POST" }), 405],
     [requestStore(env, "/store/seasons", { method: "PATCH", body: {} }), 405],
   ];
@@ -186,9 +150,9 @@ test("bad names, bodies, and methods are refused without writing", async () => {
   assert.equal(stored.size, 0);
 });
 
-test("the page can't replace or remove documents, or change anything but its own fields", async () => {
+test("the page can't change any document, since each device keeps its own ranking", async () => {
   const { env, stored, write } = createFakeStore();
-  const season = { year: 2026, ranking: ["NYY"], log: [{ kind: "lock" }] };
+  const season = { year: 2026, log: [{ kind: "lock" }] };
   await write("seasons/2026", season);
   await write("standings/2026", { divisions: {} });
   const patch = (path, body) => requestStore(env, path, { method: "PATCH", body });
@@ -196,16 +160,13 @@ test("the page can't replace or remove documents, or change anything but its own
   const refusals = [
     [requestStore(env, "/store/seasons/2026", { method: "PUT", body: {} }), 405],
     [requestStore(env, "/store/seasons/2026", { method: "DELETE" }), 405],
-    [patch("/store/standings/2026", { divisions: null }), 403],
-    [patch("/store/live/status", { error: "" }), 403],
-    [patch("/store/seasons/next", { ranking: [] }), 403],
-    [patch("/store/seasons/2026", { log: null }), 400],
-    [patch("/store/seasons/2026", { year: 1999 }), 400],
-    [patch("/store/seasons/2026", { ranking: "NYY" }), 400],
-    [patch("/store/seasons/2026", { teams: {} }), 400],
-    [patch("/store/seasons/2026", { series: {} }), 400],
+    [patch("/store/standings/2026", { divisions: null }), 405],
+    [patch("/store/seasons/2026", { ranking: ["NYY"] }), 405],
+    [patch("/store/seasons/2026", { seenAt: "2026-10-01T00:00:00Z" }), 405],
+    [patch("/store/seasons/2030", { ranking: ["NYY"] }), 405],
   ];
   for (const [pending, status] of refusals) assert.equal((await pending).status, status);
   assert.deepEqual(stored.get("seasons/2026"), season);
   assert.deepEqual(stored.get("standings/2026"), { divisions: {} });
+  assert.equal(stored.has("seasons/2030"), false);
 });

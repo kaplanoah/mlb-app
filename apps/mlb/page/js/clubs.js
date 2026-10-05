@@ -2,6 +2,7 @@ import { TEAMS } from "./teams.js";
 import { buildBracket } from "./bracket.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderTeamSheetButton } from "#shared/team-sheet.js";
+import { readRanking } from "./kept-on-device.js";
 import { session, readSeasonYear } from "./session.js";
 
 // A page saved before tracked titles were lists kept only a club's latest one, as a number.
@@ -97,22 +98,15 @@ export const renderClubName = (id) =>
     ? renderTeamSheetButton({ team: id, name: nameTeam(id), content: nameTeam(id) })
     : nameTeam(id);
 
-const readLeague = (id) => TEAMS[id]?.league || "";
-const readSeed = (teams, id) => teams[id].seed ?? 99;
-
-// `ranking` changes only on a drag, so it can name clubs that left the field and miss ones that arrived.
-// The store sorts a document's keys, so the ones that arrived go by league and seed.
+// A device's ranking changes only on a drag, so it can name clubs that left the field and miss ones
+// that arrived, which go by name, as every club does before the first drag.
 export function listRankedOrder() {
   const { state } = session;
   if (!state || !state.teams) return [];
-  const ranked = (state.ranking || []).filter((id) => state.teams[id]);
+  const ranked = readRanking(session.activeYear).filter((id) => state.teams[id]);
   const unranked = Object.keys(state.teams)
     .filter((id) => !ranked.includes(id))
-    .sort(
-      (first, second) =>
-        readLeague(first).localeCompare(readLeague(second)) ||
-        readSeed(state.teams, first) - readSeed(state.teams, second),
-    );
+    .sort((first, second) => nameTeam(first).localeCompare(nameTeam(second), "en"));
   return ranked.concat(unranked);
 }
 

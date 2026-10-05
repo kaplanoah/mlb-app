@@ -34,15 +34,14 @@ const readId = (path) => path.slice(path.lastIndexOf("/") + 1);
 const readCollectionName = (path) => path.slice(0, path.lastIndexOf("/"));
 const compareIds = ([first], [second]) => (first < second ? -1 : 1);
 
-async function requestJson(url, init = {}) {
+async function requestJson(url) {
   let response;
   try {
-    response = await fetch(url, { cache: "no-store", ...init });
+    response = await fetch(url, { cache: "no-store" });
   } catch (error) {
     throw new StoreError("unavailable", error instanceof Error ? error.message : String(error));
   }
   reloadWhenSignedOut(response);
-  if (response.status === 204) return null;
   const body = await response.json().catch(() => null);
   if (!response.ok)
     throw new StoreError(
@@ -67,12 +66,6 @@ async function readDocs(url) {
     throw new StoreError("bad_payload", "The store's answer had no documents.");
   return body.docs;
 }
-
-const sendJson = (method, data) => ({
-  method,
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify(data),
-});
 
 export function createWorkerStore(baseUrl = new URL("./", location.href)) {
   const listenersByPath = new Map();
@@ -390,16 +383,11 @@ export function createWorkerStore(baseUrl = new URL("./", location.href)) {
     };
   }
 
-  async function updateDoc(path, data) {
-    await requestJson(findUrl(path), sendJson("PATCH", data));
-  }
-
   function doc(path) {
     return {
       id: readId(path),
       path,
       get: () => readSnapshot(path),
-      update: (data) => updateDoc(path, data),
       onSnapshot: (onNext, onError = () => {}) => watchPath(path, onNext, onError),
     };
   }

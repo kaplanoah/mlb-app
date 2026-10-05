@@ -20,19 +20,19 @@ import { REORDER_EVENT } from "./ranking.js";
 import { renderAll } from "./render.js";
 import { reloadPage, watchReturns } from "#shared/resume.js";
 import { startServiceWorker } from "#shared/service-worker.js";
+import { keepRanking } from "./kept-on-device.js";
 import {
   applyDeferredSeason,
   loadSeasonList,
-  saveRanking,
-  showUnsavedSeason,
-  stopSavingAfterFailedLoad,
+  showEmptySeason,
+  stopReadingAfterFailedLoad,
   watchYear,
 } from "./season-store.js";
 import { composeState, session, readSeasonYear } from "./session.js";
 import { startSettings } from "./settings.js";
 import { renderTeamSheet } from "./team-view.js";
 import { TEAMS } from "./teams.js";
-import { renderStamp, showSaveResult } from "./stamp-view.js";
+import { renderStamp } from "./stamp-view.js";
 import { renderStandings } from "./standings.js";
 import { renderUpdates } from "./updates.js";
 import { startTeamSheet } from "#shared/team-sheet.js";
@@ -62,10 +62,10 @@ async function loadActiveSeason() {
       await watchYear(year, YEAR_REDRAWS);
       return;
     } catch {
-      stopSavingAfterFailedLoad();
+      stopReadingAfterFailedLoad();
     }
   }
-  showUnsavedSeason(year);
+  showEmptySeason(year);
 }
 
 async function switchYear(year) {
@@ -82,7 +82,7 @@ async function listYears() {
   try {
     return await loadSeasonList();
   } catch {
-    stopSavingAfterFailedLoad();
+    stopReadingAfterFailedLoad();
     return recent;
   }
 }
@@ -115,9 +115,8 @@ function followCurrentSeason() {
 // Sortable has already moved the dragged card, so redrawing the list keeps it where it was dropped.
 function finishReordering(order) {
   session.isReordering = false;
-  const hasMoved = order.join() !== listRankedOrder().join();
-  if (hasMoved) showSaveResult(saveRanking(order));
-  applyDeferredSeason(hasMoved);
+  if (order.join() !== listRankedOrder().join()) keepRanking(session.activeYear, order);
+  applyDeferredSeason();
   renderAll();
 }
 

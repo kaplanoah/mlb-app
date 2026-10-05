@@ -4,8 +4,7 @@ import { describeError, respondError, respondJson } from "./responses.js";
 
 // An app's saved data, kept in one Durable Object so every device reads the latest write.
 // Documents come back with sorted keys, and a missing one reads as null. The page can read
-// any document, but saves only its league's page fields of a season: each whole, with null
-// removing one. An alarm keeps the current season up to date from the league while no page is
+// any document but writes none: what a viewer chooses stays on their own device. An alarm keeps the current season up to date from the league while no page is
 // open, and tells subscribed devices about new updates. With no page open, only notifications need
 // the updates, and those can wait a little, so updates come less often until a page opens. Each
 // page says which documents it watches, and hears only of changes to those. A league can keep
@@ -34,8 +33,6 @@ import { describeError, respondError, respondJson } from "./responses.js";
 /**
  * What a league hands the store.
  * @typedef {object} League
- * @property {Record<string, (value: unknown) => boolean>} pageFields the season fields the page
- *   saves, each with its check
  * @property {(storage: import("./feed-keeper.js").FeedStorage) => (season: number) => Promise<any>} createLoadSnapshot
  *   reads the league, keeping what it may read again in `storage`
  * @property {(loadSnapshot: (season: number) => Promise<any>, now: number) => Promise<any>} loadCurrentSnapshot
@@ -54,7 +51,6 @@ import { describeError, respondError, respondJson } from "./responses.js";
  */
 
 const NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-const MAX_BODY_BYTES = 64 * 1024;
 const MAX_LISTED = 100;
 const STATUS_KEY = "live/status";
 // Which season the league's updates are for, so pages never go by their own clocks.
@@ -79,34 +75,6 @@ function sortKeys(value) {
       .sort()
       .map((key) => [key, sortKeys(value[key])]),
   );
-}
-
-const SEASON_ID = /^\d{4}$/;
-
-const isPageField = (pageFields, [key, value]) =>
-  Object.hasOwn(pageFields, key) && (value === null || pageFields[key](value));
-
-function replaceFields(stored, fields) {
-  const replaced = { ...stored };
-  for (const [key, value] of Object.entries(fields)) {
-    if (value === null) delete replaced[key];
-    else replaced[key] = value;
-  }
-  return replaced;
-}
-
-async function readObjectBody(request) {
-  const declared = Number(request.headers.get("content-length"));
-  if (declared > MAX_BODY_BYTES) return { status: 413, message: "The document is too large." };
-  const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) return { status: 413, message: "The document is too large." };
-  try {
-    const body = JSON.parse(text);
-    if (isPlainObject(body)) return { body };
-  } catch {
-    // Reported below with the same message as any other non-object.
-  }
-  return { status: 400, message: "The body must be a JSON object." };
 }
 
 function readPath(pathname) {
@@ -208,19 +176,9 @@ export const createSeasonStore = (league) =>
       if (pathname.startsWith("/push/")) return this.push.serveRequest(request, pathname);
       const path = readPath(pathname);
       if (!path) return respondError(404, "not_found", "No such path.");
-      if (path.id === undefined) {
-        if (request.method !== "GET") return respondError(405, "method_not_allowed", "GET only.");
-        return this.listDocs(path.collection, searchParams);
-      }
-      const key = `${path.collection}/${path.id}`;
-      if (request.method === "GET") return this.readDoc(key);
-      if (request.method !== "PATCH")
-        return respondError(405, "method_not_allowed", "GET or PATCH only.");
-      if (!Object.keys(league.pageFields).length)
-        return respondError(403, "permission_denied", "The page saves nothing here.");
-      if (path.collection !== "seasons" || !SEASON_ID.test(path.id))
-        return respondError(403, "permission_denied", "Only a season takes changes.");
-      return this.savePageFields(key, Number(path.id), request);
+      if (request.method !== "GET") return respondError(405, "method_not_allowed", "GET only.");
+      if (path.id === undefined) return this.listDocs(path.collection, searchParams);
+      return this.readDoc(`${path.collection}/${path.id}`);
     }
 
     async acceptWatcher(request) {
@@ -257,22 +215,6 @@ export const createSeasonStore = (league) =>
     async readDoc(key) {
       const data = await this.ctx.storage.get(key);
       return respondJson({ data: data ?? null });
-    }
-
-    // Creating a season here, with no read before it on the page, can't overwrite one the alarm
-    // or another device made first.
-    async savePageFields(key, year, request) {
-      const { body, status, message } = await readObjectBody(request);
-      if (!body) return respondError(status, "invalid_argument", message);
-      if (!Object.entries(body).every((field) => isPageField(league.pageFields, field)))
-        return respondError(
-          400,
-          "invalid_argument",
-          `A season takes only ${Object.keys(league.pageFields).join(" and ")}.`,
-        );
-      const stored = (await this.ctx.storage.get(key)) ?? { year };
-      await this.putDoc(key, replaceFields(stored, body));
-      return new Response(null, { status: 204 });
     }
 
     async putDoc(key, doc) {

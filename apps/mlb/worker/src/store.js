@@ -7,14 +7,7 @@ import { createSnapshotServer } from "./snapshot.js";
 
 export { forwardToStore } from "../../../../shared/worker/season-store.js";
 
-// Baseball's page saves the ranking and when updates were last seen.
-const PAGE_FIELDS = {
-  ranking: (value) => Array.isArray(value) && value.every((id) => typeof id === "string"),
-  seenAt: (value) => typeof value === "string",
-};
-
 export const SeasonStore = createSeasonStore({
-  pageFields: PAGE_FIELDS,
   createLoadSnapshot: (storage) => createSnapshotServer({ storage }).loadSnapshot,
   loadCurrentSnapshot: SeasonUpdater.loadCurrentSnapshot,
   readUpdates: SeasonUpdater.readUpdates,

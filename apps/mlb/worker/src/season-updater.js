@@ -34,10 +34,8 @@ function collectChangedFields(doc, snapshot) {
   return fields;
 }
 
-// The read and the write happen with no other request in between, so replacing whole fields
-// keeps whatever a page saved to the others.
 async function saveSeason(docs, year, snapshot) {
-  const doc = (await docs.read(nameSeasonKey(year))) ?? { year, ranking: [] };
+  const doc = (await docs.read(nameSeasonKey(year))) ?? { year };
   const fields = collectChangedFields(doc, snapshot);
   if (Object.keys(fields).length) await docs.write(nameSeasonKey(year), { ...doc, ...fields });
 }
@@ -58,7 +56,7 @@ async function saveReading(docs, year, snapshot) {
 async function removeExpiredReadings(docs, year, snapshot, parts) {
   const expired = Readings.findExpiredParts(parts, Readings.readReadingDay(snapshot));
   if (!expired.length) return;
-  const doc = (await docs.read(nameSeasonKey(year))) ?? { year, ranking: [] };
+  const doc = (await docs.read(nameSeasonKey(year))) ?? { year };
   const log = LogChanges.mergeLog(doc.log, Readings.rebuildLog(expired));
   if (!isSameJson(doc.log, log)) await docs.write(nameSeasonKey(year), { ...doc, log });
   const collection = Readings.nameReadingsCollection(year);

@@ -164,11 +164,10 @@ function moveMetsIntoField(snapshot) {
   return { ...snapshot, teams: { ...teams, NYM: { ...PHI, w: 83, l: 76 } } };
 }
 
-test("an update that finds a change for a ranked club notifies every device", async () => {
+test("an update that finds a change for a club in the field notifies every device", async () => {
   const { store, env, context, harness, clock } = createPushStore();
   const endpoints = [ENDPOINT, `${ENDPOINT}-2`];
   const devices = [await subscribe(env, endpoints[0]), await subscribe(env, endpoints[1])];
-  context.stored.set("seasons/2026", { year: 2026, ranking: ["PHI", "LAD"] });
   await store.alarm();
   assert.deepEqual(harness.pushes, [], "the first reading has nothing to compare with");
 
@@ -185,15 +184,6 @@ test("an update that finds a change for a ranked club notifies every device", as
   harness.pushes.length = 0;
   await fireNextAlarm(store, context, clock);
   assert.deepEqual(harness.pushes, [], "nothing new, nothing sent");
-});
-
-test("a club counts as ranked before the ranking is ever dragged", async () => {
-  const { store, env, harness, context, clock } = createPushStore();
-  await subscribe(env);
-  await store.alarm();
-  harness.snapshot = moveMetsIntoField(SNAPSHOT);
-  await fireNextAlarm(store, context, clock);
-  assert.equal(harness.pushes.length, 1);
 });
 
 test("an update's news goes out even when saving its status fails", async () => {
@@ -214,7 +204,6 @@ test("a push service that fails doesn't stop the season update", async () => {
   const { store, env, context, harness, clock } = createPushStore();
   context.ctx.acceptWebSocket({ send: () => {} });
   await subscribe(env);
-  context.stored.set("seasons/2026", { year: 2026, ranking: ["PHI"] });
   await store.alarm();
   harness.snapshot = moveMetsIntoField(SNAPSHOT);
   harness.pushStatus = 500;

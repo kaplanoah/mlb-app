@@ -1,6 +1,7 @@
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { session } from "../page/js/session.js";
+import { keepRanking } from "../page/js/kept-on-device.js";
 import { renderTeamSheet } from "../page/js/team-view.js";
 import { TEAMS } from "../page/js/teams.js";
 import { stripTags } from "../../../tests/text.js";
@@ -55,9 +56,10 @@ beforeEach(() => {
     currentSeason: 2026,
     activeYear: 2026,
     trackedTitles: {},
-    state: { teams: NL_FIELD, series: {}, projected: true, ranking: ["CHC", "PHI", "LAD"] },
+    state: { teams: NL_FIELD, series: {}, projected: true },
     standings: null,
   });
+  keepRanking(2026, ["CHC", "PHI", "LAD"]);
 });
 
 const NL_WEST_IN_SEPTEMBER = {

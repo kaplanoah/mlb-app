@@ -66,7 +66,7 @@ test("the sliders icon sits close to the stamp", async ({ page }) => {
 
 test("on a narrow phone, the icon keeps its distance from the title's year", async ({ page }) => {
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   await chooseSeason(page, "2025");
 
@@ -93,7 +93,7 @@ test("an earlier season shows its year by the title until the current one is bac
   page,
 }) => {
   await openApp(page, {
-    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, ranking: [], log: [] } },
+    store: { "seasons/2025": { year: 2025, teams: {}, series: {}, log: [] } },
   });
   const yearTag = page.locator("#yearTag");
   await expect(yearTag).toBeHidden();
@@ -354,7 +354,7 @@ test("on a wide screen, settings open as a modal with a close button", async ({ 
 
 const SMALL_PHONE = { width: 375, height: 667 };
 const LAPTOP = { width: 1280, height: 800 };
-const SEASON_2025 = { year: 2025, teams: {}, series: {}, ranking: [], log: [] };
+const SEASON_2025 = { year: 2025, teams: {}, series: {}, log: [] };
 
 /** @param {import("@playwright/test").Page} page */
 const scrollSettingsToEnd = (page) =>

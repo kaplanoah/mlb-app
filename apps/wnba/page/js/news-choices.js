@@ -1,36 +1,20 @@
 // The settings panel's News switches: the Liberty's own beat writers, and The Athletic, whose
-// stories mostly need a subscription. Both are on until switched off, and each device keeps its
-// own, since the page saves nothing to the store.
+// stories mostly need a subscription. Both are on until switched off.
+
+import { keepOnDevice, readFromDevice } from "#shared/device-storage.js";
 
 const STORAGE_KEY = "newsChoices";
 const SWITCH_IDS = { teamOutlets: "teamOutletsSwitch", paywalled: "paywalledSwitch" };
 
 /** @typedef {import("./news-picks.js").NewsChoices} NewsChoices */
 
-/** @type {NewsChoices} */
-const ALL_ON = { teamOutlets: true, paywalled: true };
-
-// Storage can be off, as in a private window, and then every outlet shows.
 /** @returns {NewsChoices} */
 function readSavedChoices() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return {
-      teamOutlets: saved?.teamOutlets !== false,
-      paywalled: saved?.paywalled !== false,
-    };
-  } catch {
-    return { ...ALL_ON };
-  }
-}
-
-/** @param {NewsChoices} choices */
-function saveChoices(choices) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(choices));
-  } catch {
-    // The choice still applies until the page reloads.
-  }
+  const saved = /** @type {Partial<NewsChoices> | null} */ (readFromDevice(STORAGE_KEY));
+  return {
+    teamOutlets: saved?.teamOutlets !== false,
+    paywalled: saved?.paywalled !== false,
+  };
 }
 
 let choices = readSavedChoices();
@@ -54,7 +38,7 @@ export function startNewsChoices(onChange) {
   for (const name of /** @type {(keyof NewsChoices)[]} */ (Object.keys(SWITCH_IDS))) {
     findSwitch(name).addEventListener("click", () => {
       choices = { ...choices, [name]: !choices[name] };
-      saveChoices(choices);
+      keepOnDevice(STORAGE_KEY, choices);
       showSwitches();
       onChange();
     });
