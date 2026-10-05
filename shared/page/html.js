@@ -43,13 +43,14 @@ const TEXT_ENTITIES = {
   "&#39;": "'",
   "&ndash;": "\u2013",
   "&mdash;": "\u2014",
+  "&nbsp;": "\u00a0",
 };
 
 // For places that show only text, like a notification.
 export const convertToText = (markup) =>
   renderValue(markup)
     .replace(/<[^>]*>/g, "")
-    .replace(/&(?:amp|lt|gt|quot|#39|ndash|mdash);/g, (entity) => TEXT_ENTITIES[entity]);
+    .replace(/&(?:amp|lt|gt|quot|#39|ndash|mdash|nbsp);/g, (entity) => TEXT_ENTITIES[entity]);
 
 const SEPARATOR = new Markup('<span class="sep">&bull;</span>');
 

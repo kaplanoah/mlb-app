@@ -2,9 +2,11 @@ import { findSeries } from "../../page/js/bracket.js";
 import { describeKey, isFoundEntry } from "../../page/js/changes.js";
 import { nameTeam } from "../../page/js/clubs.js";
 import { describeUpdate } from "../../page/js/entry-text.js";
-import { convertToText } from "#shared/html.js";
 import { groupUpdates } from "../../page/js/update-groups.js";
-import { capNotifications } from "../../../../shared/worker/notifications.js";
+import {
+  capNotifications,
+  describeAsNotification,
+} from "../../../../shared/worker/notifications.js";
 
 // Which new updates become notifications, and what they say.
 
@@ -12,7 +14,6 @@ import { capNotifications } from "../../../../shared/worker/notifications.js";
 const RECENT_MS = 60 * 60 * 1000;
 // A game's time is when it should have ended, which a delay can put hours before its final.
 const RECENT_GAME_MS = 24 * 60 * 60 * 1000;
-const SENTENCE_BREAK = " \u2014 ";
 
 // The clubs an update is about, or null when it is about the whole field.
 function listEntryClubs(entry, state) {
@@ -53,14 +54,9 @@ export function findNotableUpdates({ before, after, state, now }) {
   return groupUpdates(fresh).filter((group) => group.some((entry) => isAboutField(entry, state)));
 }
 
-const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
-
-// The sentence's main clause is the title, and what explains it is the body.
 export function describeNotification(group, context) {
   const markup = describeUpdate(group, { renderClub: nameTeam, ...context });
-  if (!markup) return null;
-  const [title, ...rest] = convertToText(markup).split(SENTENCE_BREAK);
-  return { title, body: capitalize(rest.join(SENTENCE_BREAK)), tag: describeKey(group[0]) };
+  return markup ? describeAsNotification(markup, describeKey(group[0])) : null;
 }
 
 export function listNotifications(groups, context) {
