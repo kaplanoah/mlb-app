@@ -3,6 +3,8 @@ import { reloadWhenSignedOut } from "./access.js";
 import { noteStep } from "./diagnostics.js";
 
 const RECONNECT_FIRST_MS = 1000;
+// Pull to refresh holds the page down while the store catches up, but no longer than this.
+const CATCH_UP_WAIT_MS = 10 * 1000;
 const RECONNECT_MAX_MS = 30 * 1000;
 // A proxy or captive portal can hold a socket's handshake open without ever answering it.
 const HANDSHAKE_WAIT_MS = 3 * 1000;
@@ -82,6 +84,8 @@ export function createWorkerStore(baseUrl = new URL("./", location.href)) {
   let reconnectTimer = null;
   let reconnectDelay = RECONNECT_FIRST_MS;
   let isCaughtUp = false;
+  /** @type {number | null} */
+  let syncedAt = null;
   /** @type {Set<(isCaughtUp: boolean) => void>} */
   const catchUpListeners = new Set();
   // Reads overlap, so one that started before a pushed change, or before a read that already
@@ -178,11 +182,15 @@ export function createWorkerStore(baseUrl = new URL("./", location.href)) {
 
   function markCaughtUp() {
     reconnectDelay = RECONNECT_FIRST_MS;
+    syncedAt = Date.now();
     if (!isCaughtUp) announceCatchUp(true);
   }
 
+  // A page that was caught up had what the store holds until the moment it fell behind.
   function markBehind() {
-    if (isCaughtUp) announceCatchUp(false);
+    if (!isCaughtUp) return;
+    syncedAt = Date.now();
+    announceCatchUp(false);
   }
 
   // A socket can hang without opening or closing, as on a phone that has just woken, so reads that
@@ -267,9 +275,11 @@ export function createWorkerStore(baseUrl = new URL("./", location.href)) {
 
   // A phone suspends a page in the background, and its socket can still look open after the
   // connection is gone, never to push again, so a page coming back reads again as a new socket
-  // opens.
-  function catchUp() {
+  // opens. A page still caught up as it left last had what the store holds when it left.
+  /** @param {number} [awayMs] how long the page was away */
+  function catchUp(awayMs = 0) {
     if (!hasWatchers()) return;
+    if (isCaughtUp) syncedAt = Date.now() - awayMs;
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
     reconnectDelay = RECONNECT_FIRST_MS;
@@ -303,6 +313,30 @@ export function createWorkerStore(baseUrl = new URL("./", location.href)) {
   function watchCatchUp(onChange) {
     catchUpListeners.add(onChange);
     onChange(isCaughtUp);
+  }
+
+  /** When the page last had what the store holds, or null before it first caught up. */
+  const readSyncedAt = () => syncedAt;
+
+  /**
+   * Resolves with true once the page has caught up, or with false once it has waited
+   * CATCH_UP_WAIT_MS.
+   * @returns {Promise<boolean>}
+   */
+  function waitForCatchUp() {
+    if (isCaughtUp) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const finish = (/** @type {boolean} */ hasCaughtUp) => {
+        clearTimeout(timer);
+        catchUpListeners.delete(listener);
+        resolve(hasCaughtUp);
+      };
+      const listener = (/** @type {boolean} */ caughtUp) => {
+        if (caughtUp) finish(true);
+      };
+      const timer = setTimeout(() => finish(false), CATCH_UP_WAIT_MS);
+      catchUpListeners.add(listener);
+    });
   }
 
   // A read sent before the socket opens can miss a change saved before the socket could hear of
@@ -382,5 +416,5 @@ export function createWorkerStore(baseUrl = new URL("./", location.href)) {
     };
   }
 
-  return { doc, collection, catchUp, pause, watchCatchUp };
+  return { doc, collection, catchUp, pause, watchCatchUp, readSyncedAt, waitForCatchUp };
 }
