@@ -1627,3 +1627,23 @@ test("the page shows the tab it was last on before its modules have loaded", asy
   await expect(page.locator("#view-standings")).toHaveCSS("display", "block");
   await expect(page.locator("#view-bracket")).toHaveCSS("display", "none");
 });
+
+test("on a wide screen, Walnut's selected tab reads heavier, Maple's doesn't, and choosing a tab never changes its width", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await openApp(page);
+  const tabs = page.locator("nav.tabs").getByRole("tab");
+  const readWidths = () =>
+    tabs.evaluateAll((each) => each.map((tab) => tab.getBoundingClientRect().width));
+  const games = page.getByRole("tab", { name: "Games" });
+  const bracketSelectedWidths = await readWidths();
+
+  await games.click();
+  await expect(games).toHaveCSS("font-weight", "500");
+  await expect(page.getByRole("tab", { name: "Bracket" })).toHaveCSS("font-weight", "400");
+  expect(await readWidths()).toEqual(bracketSelectedWidths);
+
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(games).toHaveCSS("font-weight", "400");
+});
