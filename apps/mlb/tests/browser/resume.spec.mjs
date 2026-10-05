@@ -1,5 +1,5 @@
 import { NEXT_RELEASE, serveReleases } from "../../../../tests/browser/serve-releases.mjs";
-import { test, expect, openApp, openSettings, EVENING_FIXTURE } from "./harness.mjs";
+import { test, expect, openApp, openSettings, EVENING_FIXTURE, ON_A_PHONE } from "./harness.mjs";
 
 const MINUTE_MS = 60 * 1000;
 
@@ -97,32 +97,6 @@ async function hideAndShow(page) {
   await setHidden(page, true);
   await setHidden(page, false);
 }
-
-test("a page asleep half an hour reads what it missed when it wakes, without reloading", async ({
-  page,
-}) => {
-  await serveReleases(page);
-  const app = await openApp(page);
-  await lockBracketWhileAway(app);
-  await markPage(page);
-
-  await sleepUnannounced(page, 31);
-
-  await expect(page.locator("#updates")).toContainText(BRACKET_SET);
-  expect(await isSameLoad(page)).toBe(true);
-});
-
-test("a page hidden for a moment reads what it missed when it's shown again", async ({ page }) => {
-  await serveReleases(page);
-  const app = await openApp(page);
-  await lockBracketWhileAway(app);
-  await markPage(page);
-
-  await hideAndShow(page);
-
-  await expect(page.locator("#updates")).toContainText(BRACKET_SET);
-  expect(await isSameLoad(page)).toBe(true);
-});
 
 test("a page hidden a minute closes its socket, and opens another when it's shown", async ({
   page,
@@ -294,4 +268,36 @@ test("a page coming back to nothing new lets a faded band pass through the heade
   await expect(stamp).toHaveClass(/caught-up-band/);
   await expect(stamp).toHaveCSS("animation-duration", "3.2s");
   await expect(stamp).toHaveCSS("mask-image", /rgba\(0, 0, 0, 0\.75\)/);
+});
+
+test.describe("on a phone", () => {
+  test.use(ON_A_PHONE);
+
+  test("a page asleep half an hour reads what it missed when it wakes, without reloading", async ({
+    page,
+  }) => {
+    await serveReleases(page);
+    const app = await openApp(page);
+    await lockBracketWhileAway(app);
+    await markPage(page);
+
+    await sleepUnannounced(page, 31);
+
+    await expect(page.locator("#updates")).toContainText(BRACKET_SET);
+    expect(await isSameLoad(page)).toBe(true);
+  });
+
+  test("a page hidden for a moment reads what it missed when it's shown again", async ({
+    page,
+  }) => {
+    await serveReleases(page);
+    const app = await openApp(page);
+    await lockBracketWhileAway(app);
+    await markPage(page);
+
+    await hideAndShow(page);
+
+    await expect(page.locator("#updates")).toContainText(BRACKET_SET);
+    expect(await isSameLoad(page)).toBe(true);
+  });
 });

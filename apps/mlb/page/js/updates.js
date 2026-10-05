@@ -1,5 +1,6 @@
 import { renderClub, renderRankTag } from "./clubs.js";
 import { describeEntry, describeUpdate } from "./entry-text.js";
+import { isTouchDevice } from "#shared/device.js";
 import { html } from "#shared/html.js";
 import { listFreshNotes, showUpdates } from "#shared/updates.js";
 import { keepSeenAt, readSeenAt } from "./kept-on-device.js";
@@ -105,8 +106,11 @@ function renderUpdateAction(group) {
   return Boolean(game) && renderMatchupButton(game, game.date === slate.today.date);
 }
 
+// Each device keeps its own dismissal, so the box shows only on phones and tablets, not again on
+// each computer.
 export function renderUpdates() {
-  const fresh = isCurrentSeason() ? listFreshUpdates() : [];
+  const isShown = isTouchDevice() && isCurrentSeason();
+  const fresh = isShown ? listFreshUpdates() : [];
   const updates = fresh.map((group) => ({
     at: findHappenedAt(group),
     text: renderUpdateText(group),
@@ -114,7 +118,7 @@ export function renderUpdates() {
   }));
   showUpdates(/** @type {HTMLElement} */ (document.getElementById("updates")), updates, {
     dismiss: dismissUpdates,
-    notes: isCurrentSeason() ? listFreshReleaseNotes() : [],
+    notes: isShown ? listFreshReleaseNotes() : [],
   });
 }
 
