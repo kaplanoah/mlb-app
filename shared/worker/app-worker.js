@@ -114,7 +114,7 @@ function createPageServer(pageFiles, releaseCommit) {
 const RELEASE_COMMIT_HEADER = "x-release-commit";
 
 /** @param {Parameters<typeof decodePageFiles>[0]} pageFiles */
-function readReleaseCommit(pageFiles) {
+export function readReleaseCommit(pageFiles) {
   const release = pageFiles["version.json"]?.text;
   return release ? JSON.parse(release).commit : null;
 }

@@ -1,5 +1,7 @@
 import { OFF_DAY_CHECK_MS } from "#shared/poll-schedule.js";
 import { choosePollDelay } from "../../page/js/snapshot.js";
+import PAGE_FILES from "#page-files/mlb";
+import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
 import { findNotableUpdates, listNotifications } from "./notifications.js";
 import * as SeasonUpdater from "./season-updater.js";
@@ -14,6 +16,7 @@ const PAGE_FIELDS = {
 };
 
 export const SeasonStore = createSeasonStore({
+  release: readReleaseCommit(PAGE_FILES),
   pageFields: PAGE_FIELDS,
   createLoadSnapshot: (storage) => createSnapshotServer({ storage }).loadSnapshot,
   loadCurrentSnapshot: SeasonUpdater.loadCurrentSnapshot,

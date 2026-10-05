@@ -51,6 +51,8 @@ import { describeError, respondError, respondJson } from "./responses.js";
  * @property {() => (id: string, snapshot: any, stored: any) => Promise<any>} [createLoadDetails]
  *   reads a game's details, or answers null while it needs none
  * @property {Record<string, BackgroundJob>} [backgroundJobs]
+ * @property {string | null} [release] the commit the Worker was built from, or null outside a
+ *   build
  */
 
 const NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -166,8 +168,13 @@ function openWatchSocket(ctx) {
 }
 
 /** @param {League} league */
-export const createSeasonStore = (league) =>
-  class SeasonStore {
+export function createSeasonStore(league) {
+  const release = league.release ?? null;
+
+  /** @param {{ release?: string | null } | undefined} schedule */
+  const isFromEarlierRelease = (schedule) => !!schedule && (schedule.release ?? null) !== release;
+
+  return class SeasonStore {
     constructor(
       ctx,
       env,
@@ -287,14 +294,19 @@ export const createSeasonStore = (league) =>
     }
 
     // A stored alarm outlives deploys, so this starts the updates only the first time, and brings
-    // the alarm forward for a job a deploy added, rather than leaving it until the last version's
-    // alarm comes due.
+    // the alarm forward for a job a deploy added, or for the season a deploy hasn't updated yet,
+    // rather than leaving it until the last version's alarm comes due.
     async startUpdating() {
       if (this.hasAlarm) return;
       const alarmAt = await this.ctx.storage.getAlarm();
-      if (alarmAt === null || (alarmAt > this.now() && (await this.hasUnstartedJob())))
+      if (alarmAt === null || (alarmAt > this.now() && (await this.isBehindDeploy())))
         await this.ctx.storage.setAlarm(this.now());
       this.hasAlarm = true;
+    }
+
+    async isBehindDeploy() {
+      const schedule = await this.ctx.storage.get(SCHEDULE_KEY);
+      return isFromEarlierRelease(schedule) || (await this.hasUnstartedJob());
     }
 
     async hasUnstartedJob() {
@@ -313,10 +325,11 @@ export const createSeasonStore = (league) =>
       await this.ctx.storage.setAlarm(Math.min(seasonDueAt, ...jobDueTimes));
     }
 
-    // A schedule saved before it had a due time reads as due.
+    // A schedule saved before it had a due time reads as due, as does one an earlier release saved,
+    // so what a deploy saves differently doesn't wait for the last release's schedule.
     async updateSeasonWhenDue(now) {
       const schedule = await this.ctx.storage.get(SCHEDULE_KEY);
-      if (schedule?.dueAt > now) return schedule.dueAt;
+      if (schedule?.dueAt > now && !isFromEarlierRelease(schedule)) return schedule.dueAt;
       let delay = RETRY_MS[0];
       try {
         delay = await this.updateSeason();
@@ -326,7 +339,7 @@ export const createSeasonStore = (league) =>
       }
       const at = this.now();
       const dueAt = at + this.slowWhenUnwatched(delay);
-      await this.ctx.storage.put(SCHEDULE_KEY, { at, delay, dueAt });
+      await this.ctx.storage.put(SCHEDULE_KEY, { at, delay, dueAt, release });
       return dueAt;
     }
 
@@ -494,6 +507,7 @@ export const createSeasonStore = (league) =>
       }
     }
   };
+}
 
 // Only the page's own origin talks to the store, so it gets no CORS headers.
 export function forwardToStore(request, env, storePath) {
