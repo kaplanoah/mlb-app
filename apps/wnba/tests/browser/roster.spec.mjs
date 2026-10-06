@@ -65,7 +65,7 @@ test("a team's Roster opens its roster over its sheet: each player by last name,
     "30",
     "F",
     `6'4"`,
-    "UConn",
+    "Connecticut",
     "32",
     "2016",
     "42",
@@ -75,6 +75,8 @@ test("a team's Roster opens its roster over its sheet: each player by last name,
     "3.3",
   ]);
   await expect(sheet.locator(".roster-coach")).toHaveText(/Head coach\s*Chris DeMarco/);
+  const astier = sheet.locator("table.roster tbody tr", { hasText: "Astier" });
+  await expect(astier.locator(".roster-country")).toHaveText("France");
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
@@ -180,13 +182,14 @@ test("the roster and the team's sheet under it open again on a reload", async ({
   await expect(page.locator("#teamSheet #teamTitle")).toHaveText("New York Liberty");
 });
 
-test("a past season's team sheet has no roster, since the roster is today's", async ({ page }) => {
+test("a past season's team has that season's roster, with no one out", async ({ page }) => {
   await openApp(page, { pastSeasons: { 2025: (season) => ({ ...season, season: 2025 }) } });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("combobox", { name: "Season" }).selectOption("2025");
   await page.keyboard.press("Escape");
-  const sheet = await openLibertySheet(page);
+  const sheet = await openLibertyRoster(page);
 
-  await expect(sheet.locator("table.players")).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Roster" })).toHaveCount(0);
+  await expect(sheet.locator("#rosterNote")).toHaveText(/Roster•\d+ players/);
+  await expect(sheet.locator("table.roster tbody tr", { hasText: "Ionescu" })).toBeVisible();
+  await expect(sheet.locator(".foul-chip")).toHaveCount(0);
 });

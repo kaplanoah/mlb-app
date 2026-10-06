@@ -83,3 +83,16 @@ export function readPlayoffRuns(allSeries) {
   }
   return runs;
 }
+
+/**
+ * Whether a team still has games to play this season: every team until the playoff field is set,
+ * then a team in the field until it goes out or wins it all.
+ * @param {Series[]} allSeries
+ * @param {string} team
+ */
+export function isStillPlaying(allSeries, team) {
+  const runs = readPlayoffRuns(allSeries);
+  if (!runs.size) return true;
+  const run = runs.get(team);
+  return !!run && !run.isOut && !run.isChampion;
+}

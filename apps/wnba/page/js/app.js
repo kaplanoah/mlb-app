@@ -29,6 +29,7 @@ import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
+import { refreshPlayerSheet, startPlayerSheet } from "./player-sheet.js";
 import { prepareRoster, startRosterSheet } from "./roster-sheet.js";
 import { renderRosterButton } from "./roster-view.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
@@ -89,6 +90,7 @@ function renderAll() {
   renderStamp();
   refreshGameSheet();
   refreshTeamSheet();
+  refreshPlayerSheet();
 }
 
 // What new data changes eases in, as does the season the store answers with after the one the page
@@ -120,15 +122,14 @@ function drawLastSeen() {
   }
 }
 
-// ESPN's roster is today's, so a past season's team has none.
 /** @param {string} team */
 function renderShownTeam(team) {
   const sheet = renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
-  return isPastSeason() ? sheet : { ...sheet, action: renderRosterButton(team) };
+  return { ...sheet, action: renderRosterButton(team) };
 }
 
 /** @param {string} team */
-const prepareNextFromTeam = (team) => (isPastSeason() ? null : prepareRoster(team));
+const prepareNextFromTeam = (team) => prepareRoster(team);
 
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };
@@ -190,6 +191,7 @@ async function boot() {
     prepareNext: prepareNextFromTeam,
   });
   startRosterSheet();
+  startPlayerSheet();
   startSettingsSheet();
   startNewsChoices(drawNews);
   startOpenedStories(findElement("newsList"), drawNews);

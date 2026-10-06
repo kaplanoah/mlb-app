@@ -60,3 +60,38 @@ export async function fetchWnbaJson(fetchImpl, url, cacheSeconds, hasData) {
   if (!hasData(answer)) throw new Error(`The WNBA answered ${path} with something other than data`);
   return answer;
 }
+
+/**
+ * The rows of one of the stats site's tables, each keyed by its column names.
+ * @param {any} answer
+ * @param {string} name
+ * @returns {Record<string, any>[]}
+ */
+export function readTable(answer, name) {
+  const table = (answer?.resultSets ?? []).find((/** @type {any} */ set) => set.name === name);
+  if (!table) return [];
+  return table.rowSet.map((/** @type {any[]} */ row) =>
+    Object.fromEntries(
+      table.headers.map((/** @type {string} */ header, /** @type {number} */ index) => [
+        header,
+        row[index],
+      ]),
+    ),
+  );
+}
+
+/**
+ * Whether an answer holds the named table, as one that's really the stats site's does.
+ * @param {string} name
+ */
+export const hasTable = (name) => (/** @type {any} */ answer) =>
+  Array.isArray(answer?.resultSets) &&
+  answer.resultSets.some((/** @type {any} */ set) => set?.name === name);
+
+/**
+ * Whether a season is the one being played now, or one not yet begun.
+ * @param {number} season
+ * @param {number} now
+ */
+export const isCurrentSeason = (season, now) =>
+  season >= /** @type {number} */ (SEASON_PARAM.readSeason(new URLSearchParams(), now));

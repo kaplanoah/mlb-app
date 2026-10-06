@@ -5,13 +5,14 @@
 
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import { renderPlayerButton } from "./player-button.js";
 import { renderSheetMessage } from "./sheet-parts.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
 /** @typedef {{ id: string, number: string | null, firstName: string, lastName: string, position: string | null, height: string | null, age: number | null, college: string | null, country: string | null, isOut: boolean, debut: number | null }} RosterPlayer */
-/** @typedef {{ team: string, firstName: string, lastName: string, games: number, minutes: number, points: number, rebounds: number, assists: number }} Averages */
+/** @typedef {{ id: number, team: string, firstName: string, lastName: string, games: number, minutes: number, points: number, rebounds: number, assists: number }} Averages */
 /** @typedef {RosterPlayer & { averages: Averages | null }} RosterRow */
-/** @typedef {{ team: string, coach: string | null, players: RosterPlayer[] }} Roster */
+/** @typedef {{ team: string, season: number, coach: string | null, players: RosterPlayer[] }} Roster */
 /** @typedef {{ key: string, isDescending: boolean }} RosterSort */
 /** @typedef {{ key: string, label: string, title?: string, className?: string, read: (row: RosterRow) => Markup | string | number, sortValue: (row: RosterRow) => string | number | null, isStat?: boolean }} RosterColumn */
 
@@ -22,29 +23,16 @@ const PENDING_ROWS = 12;
 
 const NONE = html`<span class="roster-none">-</span>`;
 
-// The league and ESPN spell a name alike but for the odd accent.
-/** @param {{ firstName: string, lastName: string }} player */
-const normalizeName = ({ firstName, lastName }) =>
-  `${firstName} ${lastName}`
-    .normalize("NFD")
-    .replace(/[^a-z]/gi, "")
-    .toLowerCase();
-
 /**
- * Each player on the roster beside her averages this season, or null for one who hasn't played.
+ * Each player on the roster beside her averages that season, or null for one who hasn't played.
+ * A player who changed teams has her whole season's averages on each team's roster.
  * @param {RosterPlayer[]} players
  * @param {Averages[]} averages every player's in the league
- * @param {string} team
  * @returns {RosterRow[]}
  */
-export function matchAverages(players, averages, team) {
-  const byName = new Map(
-    averages.filter((each) => each.team === team).map((each) => [normalizeName(each), each]),
-  );
-  return players.map((player) => ({
-    ...player,
-    averages: byName.get(normalizeName(player)) ?? null,
-  }));
+export function matchAverages(players, averages) {
+  const byId = new Map(averages.map((each) => [String(each.id), each]));
+  return players.map((player) => ({ ...player, averages: byId.get(player.id) ?? null }));
 }
 
 /** @param {string | null} height as 6'4" */
@@ -247,13 +235,20 @@ const renderHead = (sort) =>
 
 const OUT_CHIP = html`<span class="foul-chip"><span class="foul-chip-words">Out</span></span>`;
 
-/** @param {RosterRow} row */
-const renderRow = (row) =>
+/**
+ * @param {RosterRow} row
+ * @param {string} team
+ * @param {boolean} showsOut whether the Out chip shows, as it does only while the team still plays
+ */
+const renderRow = (row, team, showsOut) =>
   html`<tr data-key="${row.id}">
     <td class="roster-number">${NUMBER_COLUMN.read(row)}</td>
     <th scope="row" class="roster-player">
-      <span class="roster-first">${row.firstName}</span>
-      <span class="roster-last">${row.lastName}${row.isOut && OUT_CHIP}</span>
+      ${renderPlayerButton(
+        { ...row, team },
+        html`<span class="roster-first">${row.firstName}</span>
+          <span class="roster-last">${row.lastName}${showsOut && row.isOut && OUT_CHIP}</span>`,
+      )}
     </th>
     ${[...BIO_COLUMNS, ...STAT_COLUMNS].map(
       (column) => html`<td${renderClass(column)}>${column.read(row)}</td>`,
@@ -295,15 +290,19 @@ const renderCoach = (coach) =>
 /**
  * The roster's table and its head coach, or stand-ins for them while they load, or why they
  * didn't.
- * @param {{ roster: Roster | null, averages: Averages[], sort: RosterSort, isLoading: boolean }} shown
+ * @param {{ roster: Roster | null, averages: Averages[], sort: RosterSort, isLoading: boolean, showsOut: boolean }} shown
+ *   `showsOut` says whether a player out shows so, as she does only while her team still plays
  */
-export function renderRoster({ roster, averages, sort, isLoading }) {
+export function renderRoster({ roster, averages, sort, isLoading, showsOut }) {
   if (!roster && isLoading)
     return renderTable(Array.from({ length: PENDING_ROWS }, renderPendingRow), sort);
   if (!roster)
     return renderSheetMessage("Couldn't load the roster. Close and try again in a minute.");
-  const rows = sortRows(matchAverages(roster.players, averages, roster.team), sort);
-  return html`${renderTable(rows.map(renderRow), sort)}${renderCoach(roster.coach)}`;
+  const rows = sortRows(matchAverages(roster.players, averages), sort);
+  return html`${renderTable(
+    rows.map((row) => renderRow(row, roster.team, showsOut)),
+    sort,
+  )}${renderCoach(roster.coach)}`;
 }
 
 /**

@@ -393,6 +393,39 @@
           <div class="roster-body" id="rosterBody" data-last-drawn></div>
         </div>
       </section>
+
+      <section id="playerSheet" class="sheet-page" aria-labelledby="playerTitle" hidden>
+        <div class="sheet-content">
+          <div class="sheet-top">
+            <span class="sheet-grabber" aria-hidden="true"></span>
+            <div class="sheet-head">
+              <button type="button" class="sheet-back" id="playerBackBtn" hidden>
+                <!-- Phosphor's caret-left, at its Light weight. -->
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M164.24,203.76a6,6,0,1,1-8.48,8.48l-80-80a6,6,0,0,1,0-8.48l80-80a6,6,0,0,1,8.48,8.48L88.49,128Z"
+                  />
+                </svg>
+                <span class="sheet-back-label">Back</span>
+              </button>
+              <div class="sheet-title">
+                <h2 id="playerTitle" class="team-title" data-last-drawn>Player</h2>
+                <p class="sheet-note team-note" id="playerNote" data-last-drawn></p>
+              </div>
+              <button type="button" class="sheet-done" id="playerDoneBtn">
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M204.24,195.76a6,6,0,1,1-8.48,8.48L128,136.49,60.24,204.24a6,6,0,0,1-8.48-8.48L119.51,128,51.76,60.24a6,6,0,0,1,8.48-8.48L128,119.51l67.76-67.75a6,6,0,0,1,8.48,8.48L136.49,128Z"
+                  />
+                </svg>
+                <span class="sheet-done-label">Done</span>
+              </button>
+            </div>
+            <div class="player-facts-slot" id="playerFacts" data-last-drawn></div>
+          </div>
+          <div class="team-sheet-body player-body" id="playerBody" data-last-drawn></div>
+        </div>
+      </section>
     </div>
   </dialog>
 

@@ -24,7 +24,8 @@ const serveReleaseNote = (page) =>
   page.route("**/js/release-notes.js", (route) =>
     route.fulfill({
       contentType: "text/javascript",
-      body: 'export const RELEASE_NOTES = [{ at: "2026-09-30T20:55:00Z", text: "Game details now include channels." }];',
+      body: `import { html } from "#shared/html.js";
+export const RELEASE_NOTES = [{ at: "2026-09-30T20:55:00Z", text: html\`Tap a game, then <b>Channels</b>.\` }];`,
     }),
   );
 
@@ -162,7 +163,7 @@ test.describe("on a phone, in full motion", () => {
 test.describe("on a phone, with a release note out", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("the note sits under the finals, headed New in the app, and closes with them", async ({
+  test("the note sits under the finals, headed New in the app, its word in bold set like a team's name, and closes with them", async ({
     page,
   }) => {
     await serveReleaseNote(page);
@@ -173,9 +174,10 @@ test.describe("on a phone, with a release note out", () => {
       "2 updates since yesterday",
       "New in the app",
     ]);
-    await expect(updates.locator(".updates-notes .what")).toHaveText(
-      "Game details now include channels.",
-    );
+    await expect(updates.locator(".updates-notes .what")).toHaveText("Tap a game, then Channels.");
+    const bold = updates.locator(".updates-notes .what b");
+    await expect(bold).toHaveCSS("font-weight", "600");
+    await expect(bold).toHaveCSS("font-family", /Barlow Condensed/);
     const finals = await updates.locator(".updates-list").first().boundingBox();
     const notes = await updates.locator(".updates-notes").boundingBox();
     expect(notes.y).toBeGreaterThan(finals.y + finals.height);

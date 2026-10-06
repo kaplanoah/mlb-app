@@ -10,6 +10,7 @@ import {
   renderRosterButton,
   sortRows,
 } from "../page/js/roster-view.js";
+import { isStillPlaying } from "../page/js/series.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeRoster } from "../worker/src/roster.js";
 import { convertToText, Markup } from "../../../shared/page/html.js";
@@ -22,18 +23,28 @@ const GAMES = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-10-01-games.json`, "utf8"),
 );
 const ROSTERS = JSON.parse(
-  readFileSync(`${import.meta.dirname}/fixtures/2026-10-06-espn-rosters.json`, "utf8"),
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-06-league-rosters.json`, "utf8"),
 );
-const { averages: AVERAGES } = buildSnapshot(
+const { averages: AVERAGES, series: SERIES } = buildSnapshot(
   { ...AFTERNOON.responses, players: GAMES.preview.players },
   { season: 2026, now: Date.parse(AFTERNOON.now) },
 );
-const DEBUTS = new Map([["2998928", 2016]]);
-const LIBERTY = describeRoster("NYL", ROSTERS.teams.NYL.roster, DEBUTS);
+const LIBERTY = describeRoster({
+  team: "NYL",
+  season: 2026,
+  leagueRoster: ROSTERS.rosters["NYL:2026"],
+  playerList: ROSTERS.playerList,
+  espnRoster: ROSTERS.espnRosters.NYL,
+  now: Date.parse(ROSTERS.recordedAt),
+});
 
-/** @param {{ markup?: any, sort?: any, isLoading?: boolean, roster?: any }} [options] */
-const renderText = ({ sort = DEFAULT_SORT, isLoading = false, roster = LIBERTY } = {}) =>
-  renderRoster({ roster, averages: AVERAGES, sort, isLoading }).text;
+/** @param {{ sort?: any, isLoading?: boolean, roster?: any, showsOut?: boolean }} [options] */
+const renderText = ({
+  sort = DEFAULT_SORT,
+  isLoading = false,
+  roster = LIBERTY,
+  showsOut = true,
+} = {}) => renderRoster({ roster, averages: AVERAGES, sort, isLoading, showsOut }).text;
 
 // A line of facts as it reads, each separator a bar.
 /** @param {Markup} markup */
@@ -44,7 +55,7 @@ const listLastNames = (markup) =>
   [...markup.matchAll(/<span class="roster-last">([^<]+)/g)].map((match) => match[1]);
 
 test("each player on the roster has her averages from the league, or none before she's played", () => {
-  const rows = matchAverages(LIBERTY.players, AVERAGES, "NYL");
+  const rows = matchAverages(LIBERTY.players, AVERAGES);
   const findRow = (lastName) => rows.find((row) => row.lastName === lastName);
   assert.equal(rows.length, 15);
   assert.deepEqual(
@@ -54,10 +65,25 @@ test("each player on the roster has her averages from the league, or none before
   assert.equal(findRow("Balogun").averages, null);
 });
 
-test("a name the league spells with an accent ESPN leaves out still finds her averages", () => {
-  const player = { ...LIBERTY.players[0], firstName: "Leonie", lastName: "Fiebich" };
-  const averages = [{ ...AVERAGES[0], team: "NYL", firstName: "Léonie", lastName: "Fiebich" }];
-  assert.equal(matchAverages([player], averages, "NYL")[0].averages, averages[0]);
+test("a player finds her averages by the league's id, under whatever team they were last counted for", () => {
+  const player = { ...LIBERTY.players[0], id: "1630149" };
+  const averages = [{ ...AVERAGES[0], id: 1630149, team: "TOR" }];
+  assert.equal(matchAverages([player], averages)[0].averages, averages[0]);
+});
+
+test("a player out shows so only while her team still plays: until the playoff field is set, then until it's out", () => {
+  assert.match(renderText(), /Sabally<span class="foul-chip">/);
+  assert.doesNotMatch(renderText({ showsOut: false }), /foul-chip/);
+  assert.equal(isStillPlaying([], "PHX"), true);
+  assert.equal(isStillPlaying(SERIES, "NYL"), true);
+  assert.equal(isStillPlaying(SERIES, "PHX"), false);
+  const lost = {
+    ...SERIES[0],
+    top: { team: "MIN", seed: 1, wins: 2 },
+    bottom: { team: "NYL", seed: 8, wins: 0 },
+    winner: "MIN",
+  };
+  assert.equal(isStillPlaying([lost], "NYL"), false);
 });
 
 test("a column's first tap sorts the most first for an average and A to Z or the least first for the rest, and its second reverses it", () => {
@@ -74,7 +100,7 @@ test("a column's first tap sorts the most first for an average and A to Z or the
 });
 
 test("players without a value for the sorted column stay last either way, and ties go by name", () => {
-  const rows = matchAverages(LIBERTY.players, AVERAGES, "NYL");
+  const rows = matchAverages(LIBERTY.players, AVERAGES);
   const byPoints = sortRows(rows, { key: "points", isDescending: true }).map((row) => row.lastName);
   const byFewestPoints = sortRows(rows, { key: "points", isDescending: false }).map(
     (row) => row.lastName,
@@ -85,7 +111,7 @@ test("players without a value for the sorted column stay last either way, and ti
   const byHeight = sortRows(rows, { key: "height", isDescending: true }).map((row) => row.height);
   assert.deepEqual(byHeight.slice(0, 2), [`6'11"`, `6'6"`]);
   const byHome = sortRows(rows, { key: "home", isDescending: false }).map((row) => row.lastName);
-  assert.deepEqual(byHome.slice(-3), ["Astier", "Carrera", "Fauthoux"]);
+  assert.deepEqual(byHome.slice(-3), ["Sabally", "Gardner", "Carrera"]);
 });
 
 test("the roster lists its players by last name with their facts, their points, rebounds, and assists a game, and its coach", () => {
@@ -93,14 +119,14 @@ test("the roster lists its players by last name with their facts, their points, 
   assert.deepEqual(listLastNames(markup).slice(0, 3), ["Allen", "Astier", "Balogun"]);
   assert.match(markup, /<dt>Head coach<\/dt>\s*<dd>Chris DeMarco<\/dd>/);
   assert.match(markup, /Balogun<span class="foul-chip"><span class="foul-chip-words">Out/);
-  assert.match(markup, /<span class="roster-country">Australia<\/span>/);
+  assert.match(markup, /<span class="roster-country">France<\/span>/);
   assert.match(markup, /scope="colgroup">Per game</);
   assert.match(markup, /class="roster-player" aria-sort="ascending"/);
-  const stewart = markup.slice(markup.indexOf('data-key="2998928"'));
+  const stewart = markup.slice(markup.indexOf('data-key="1627668"'));
   const cells = [...stewart.slice(0, stewart.indexOf("</tr>")).matchAll(/<td[^>]*>([^<]*)/g)];
   assert.deepEqual(
     cells.map((cell) => convertToText(new Markup(cell[1]))),
-    ["30", "F", `6'4"`, "UConn", "32", "2016", "42", "32.9", "20.8", "8.3", "3.3"],
+    ["30", "F", `6'4"`, "Connecticut", "32", "2016", "42", "32.9", "20.8", "8.3", "3.3"],
   );
   assert.doesNotMatch(markup, /Steals|Blocks/);
 });
