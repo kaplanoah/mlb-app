@@ -349,20 +349,23 @@ const renderRank = (stat) =>
 /**
  * Why a stat may have no rank, or why the number ranked varies by stat.
  * @param {RegularSeason} season
+ * @param {boolean} isPastSeason
  */
-export function describeRankNote(season) {
+export function describeRankNote(season, isPastSeason) {
   if (season.stats.every((stat) => stat.rank != null))
     return `The number of ranked players varies by stat because the WNBA only ranks players who've played ${season.gamesNeeded} games or, for shooting percentages, made a certain number of shots`;
   if (season.games < season.gamesNeeded)
     return `The WNBA only ranks players who've played ${season.gamesNeeded} games or, for shooting percentages, made a certain number of shots. She's played ${season.games} ${season.games === 1 ? "game" : "games"}.`;
-  return "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.";
+  const shortfall = isPastSeason ? "She didn't make enough." : "She hasn't made enough yet.";
+  return `For shooting percentages, the WNBA only ranks players who've made a certain number of shots. ${shortfall}`;
 }
 
 /**
  * @param {string} team
  * @param {RegularSeason} season
+ * @param {boolean} isPastSeason
  */
-function renderRegularSeason(team, season) {
+function renderRegularSeason(team, season, isPastSeason) {
   const rows = RANKED_STATS.map(({ key, label, isShare }) => {
     const stat = season.stats.find((each) => each.key === key);
     if (!stat) return false;
@@ -376,7 +379,7 @@ function renderRegularSeason(team, season) {
     "Regular season",
     html`<div class="player-ranks" style="${formatMarkColors(team)}">
       ${rows}
-      <p class="player-rank-note">${describeRankNote(season)}</p>
+      <p class="player-rank-note">${describeRankNote(season, isPastSeason)}</p>
     </div>`,
     `${season.games} ${season.games === 1 ? "game" : "games"}`,
   );
@@ -400,5 +403,5 @@ export function renderPlayerBody({ player, isLoading, season, isPastSeason, now 
   const noGames = isPastSeason ? "No games this season" : "No games yet this season";
   return html`${hasPlayed ? renderLastGame(player, now) : renderSheetMessage(noGames)}
   ${renderPlayoffs(player, season, now)}
-  ${player.regularSeason && renderRegularSeason(player.team, player.regularSeason)}`;
+  ${player.regularSeason && renderRegularSeason(player.team, player.regularSeason, isPastSeason)}`;
 }

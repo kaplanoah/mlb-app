@@ -184,15 +184,19 @@ test("a stat she isn't ranked in shows her number alone, and the note says why",
   assert.match(readText(body), /Pts 20\.8 3P% 25\.4 76th of 76/);
   assert.equal(String(body.text).match(/player-curve-area/g)?.length, 1);
   assert.equal(
-    describeRankNote(player.regularSeason),
+    describeRankNote(player.regularSeason, false),
     "The WNBA only ranks players who've played 31 games or, for shooting percentages, made a certain number of shots. She's played 21 games.",
   );
   player.regularSeason.games = 1;
-  assert.match(describeRankNote(player.regularSeason), /She's played 1 game\.$/);
+  assert.match(describeRankNote(player.regularSeason, false), /She's played 1 game\.$/);
   player.regularSeason.games = 40;
   assert.equal(
-    describeRankNote(player.regularSeason),
+    describeRankNote(player.regularSeason, false),
     "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.",
+  );
+  assert.equal(
+    describeRankNote(player.regularSeason, true),
+    "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She didn't make enough.",
   );
 });
 
