@@ -8,7 +8,12 @@
  *   --pager-track-edge     the pill's inner outline
  *   --pager-thumb          the fill of the thumb under the shown list's name
  *   --pager-thumb-edge     the thumb's lit top edge
+ *   --pager-thumb-lift     the thumb's shadows, which lift it off the pill
  *   --pager-label          the names of the lists not showing
+ *   --held-bar-fade        how far the page's color fades out under the pill's bar while it's held
+ *                          at the top, or 0px for a bar that ends sharply
+ *   --held-bar-line        the line under the held bar, or transparent for none
+ * and chrome.css's --radius-track for the pill's corners.
  */
 
 /* The pill and the lists keep to a phone's width, centered on a wider screen. Their bar and the
@@ -34,7 +39,8 @@
   pointer-events: none;
 }
 .pager-bar.stuck {
-  background: linear-gradient(to bottom, var(--bg) calc(100% - 18px), transparent);
+  background: linear-gradient(to bottom, var(--bg) calc(100% - var(--held-bar-fade)), transparent);
+  box-shadow: 0 1px 0 var(--held-bar-line);
 }
 /* The lists sit side by side on a pill like the tab bar's, one slot for each of --list-count. Its
    thumb follows --swipe, set from the lists' scroll position: 0 at the first list, the last's
@@ -45,7 +51,7 @@
   grid-template-columns: repeat(var(--list-count), 1fr);
   padding: 3px;
   pointer-events: auto;
-  border-radius: 999px;
+  border-radius: var(--radius-track);
   background: var(--pager-track);
   box-shadow: inset 0 0 0 1px var(--pager-track-edge);
 }
@@ -55,11 +61,11 @@
   bottom: 3px;
   left: 3px;
   width: calc((100% - 6px) / var(--list-count));
-  border-radius: 999px;
+  border-radius: calc(var(--radius-track) - 3px);
   background: var(--pager-thumb);
   box-shadow:
     inset 0 1px 0 var(--pager-thumb-edge),
-    0 2px 6px -2px rgba(0, 0, 0, 0.5);
+    var(--pager-thumb-lift);
   transform: translateX(calc(var(--swipe, 0) * 100%));
   pointer-events: none;
 }
@@ -73,7 +79,7 @@
   letter-spacing: 0.09em;
   background: none;
   border: 0;
-  border-radius: 999px;
+  border-radius: calc(var(--radius-track) - 3px);
   color: color-mix(in srgb, var(--ink) calc(var(--nearness, 0) * 100%), var(--pager-label));
   padding: 7px 0;
   cursor: pointer;

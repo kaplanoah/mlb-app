@@ -51,7 +51,12 @@
   --gate-heading-font: "Chivo Mono", "JetBrains Mono", monospace;
   --gate-code-font: "Chivo Mono", "JetBrains Mono", monospace;
   --gate-problem: var(--copper-ink);
-  --radius: 6px;
+  --radius-card: 6px;
+  --radius-chip: 3px;
+  --radius-control: 6px;
+  --radius-track: 999px;
+  --radius-sheet: 12px;
+  --radius-sheet-phone: 22px;
   --select-arrow: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237fa88f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --tab-bar-ink: #fff;
   --glass-light: 255, 255, 255;
@@ -64,6 +69,9 @@
   --pager-track-edge: rgba(255, 255, 255, 0.06);
   --pager-thumb: rgba(255, 255, 255, 0.11);
   --pager-thumb-edge: rgba(255, 255, 255, 0.14);
+  --pager-thumb-lift: 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+  --held-bar-fade: 18px;
+  --held-bar-line: transparent;
   --pager-label: var(--ink-dim);
   --updates-head: var(--gold);
   --sheet-part-head: var(--gold);

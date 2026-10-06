@@ -3,15 +3,15 @@
  * updates.js draws it. Apps link it after chrome.css, before their own styles.css, which may
  * refine these rules.
  *
- * Beside chrome.css's --card, --card-border, --divider, --ink, and --ink-dim, an app's :root
- * defines this token:
+ * Beside chrome.css's --card, --card-border, --divider, --ink, --ink-dim, --radius-card, and
+ * --radius-control, an app's :root defines this token:
  *   --updates-head         the count across the top of the box
  */
 
 .updates {
   border: 1px solid var(--card-border);
   background: var(--card);
-  border-radius: 6px;
+  border-radius: var(--radius-card);
   padding: 10px 22px 10px 13px;
   margin: 0 0 18px;
   max-width: 900px;
@@ -46,7 +46,7 @@
   justify-content: center;
   background: transparent;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-control);
   color: color-mix(in srgb, var(--ink-dim) 62%, transparent);
   cursor: pointer;
 }

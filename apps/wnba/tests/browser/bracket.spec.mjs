@@ -479,7 +479,7 @@ test("a round's Best of sits just after its name", async ({ page }) => {
   expect(bestOf.left - name.right).toBeCloseTo(10, 0);
 });
 
-test("a series' winner has its wins on an orange block, cut through to the floor, its name at the weight of the rest", async ({
+test("a series' winner has its wins on a teal block, the color of a result, cut through to the floor, its name at the weight of the rest", async ({
   page,
 }) => {
   await openApp(page);
@@ -499,16 +499,16 @@ test("a series' winner has its wins on an orange block, cut through to the floor
         probe.style.color = `var(${token})`;
         return getComputedStyle(probe).color;
       };
-      const colors = { orange: read("--orange"), floor: read("--bg") };
+      const colors = { result: read("--teal"), floor: read("--bg") };
       probe.remove();
       return colors;
     });
   for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     await page.emulateMedia({ colorScheme });
     await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
-    const { orange, floor } = await readColors();
-    expect(await readBlock(won)).toEqual({ face: orange, number: floor });
-    expect((await readBlock(out)).face).not.toBe(orange);
+    const { result, floor } = await readColors();
+    expect(await readBlock(won)).toEqual({ face: result, number: floor });
+    expect((await readBlock(out)).face).not.toBe(result);
   }
   await expect(won.locator(".club")).toHaveCSS("font-weight", "600");
   await expect(out.locator(".club")).toHaveCSS("font-weight", "600");

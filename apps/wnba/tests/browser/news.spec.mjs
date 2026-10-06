@@ -379,8 +379,8 @@ const measureColorDistance = (first, second) =>
   first.reduce((sum, channel, index) => sum + Math.abs(channel - second[index]), 0);
 
 /**
- * A link's text and border colors once any change to them has finished, and the theme's orange,
- * each as red, green, and blue, and whether it's underlined.
+ * A link's text color once any change to it has finished, and the theme's orange, each as red,
+ * green, and blue, the edge drawn around it, and whether it's underlined.
  * @param {import("@playwright/test").Locator} link
  */
 async function readSettledStyle(link) {
@@ -397,7 +397,7 @@ async function readSettledStyle(link) {
     const style = getComputedStyle(element);
     return {
       color: readChannels(style.color),
-      border: readChannels(style.borderTopColor),
+      edge: `${style.borderTopWidth} ${style.borderTopStyle} ${style.boxShadow}`,
       underline: style.textDecorationLine,
       orange: readChannels(getComputedStyle(document.documentElement).getPropertyValue("--orange")),
     };
@@ -434,7 +434,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
       );
       expect(hovered.underline).toBe("none");
     }
-    expect(buttonHovered.border).toEqual(buttonAtRest.border);
+    expect(buttonHovered.edge).toEqual(buttonAtRest.edge);
     expect(teamNameHovered.color).toEqual(headlineHovered.color);
   });
 }

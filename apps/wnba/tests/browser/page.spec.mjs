@@ -823,11 +823,14 @@ test("a tap shows only the page's own states: no gray flash, and no hover left b
   expect(await listTouchHoverRules(page)).toEqual([]);
 });
 
-test("hovering the settings button shades a rounded square around its icon", async ({ page }) => {
+test("hovering the settings button shades a square with a button's corners around its icon", async ({
+  page,
+}) => {
   await openApp(page);
   const button = page.locator("#settingsBtn");
   await button.hover();
-  await expect(button).toHaveCSS("border-radius", "9px");
+  // The square sits inside the button's 4px of padding, which trims its corners to a button's 3px.
+  await expect(button).toHaveCSS("border-radius", "7px");
   await expect(button).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 });
 
@@ -959,7 +962,7 @@ test.describe("a team's sheet in each theme", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
   for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
-    test(`sets the button for the rest of a long list of titles in the teal of its part's title, not the orange accent, in ${colorScheme}`, async ({
+    test(`sets the button for the rest of a long list of titles in the orange of a tap, not the teal of its part's title, in ${colorScheme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme });
@@ -986,8 +989,8 @@ test.describe("a team's sheet in each theme", () => {
           accent: readColor(accent),
         };
       });
-      expect(colors.button).toBe(colors.head);
-      expect(colors.button).not.toBe(colors.accent);
+      expect(colors.button).toBe(colors.accent);
+      expect(colors.button).not.toBe(colors.head);
     });
   }
 });
@@ -1372,7 +1375,7 @@ test("a game's series line, score, and status each have room in its row", async 
     .locator(".scoreboard")
     .first()
     .evaluate((panel) => getComputedStyle(panel).borderRadius);
-  expect(corners).toBe("1px");
+  expect(corners).toBe("2px");
 });
 
 const DAY_ROOM_BY_WIDTH = [
@@ -1697,7 +1700,7 @@ test.describe("on a phone", () => {
     expect(await readGlass(".tab-pill")).toContain("saturate(1.25)");
   });
 
-  test("in Walnut, the Games pill's track and thumb are tinted warm, not white", async ({
+  test("in Walnut, the Games pill's track is raised like a game's card, and its thumb is tinted warm, not white", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1705,12 +1708,18 @@ test.describe("on a phone", () => {
     await chooseAppearance(page, "Walnut");
     await page.getByRole("tab", { name: "Games" }).click();
     const readFill = (selector) =>
-      page.locator(selector).evaluate((part) => getComputedStyle(part).backgroundColor);
-    for (const selector of ["#gamePager .pager-tabs", "#gamePager .pager-thumb"]) {
-      const [red, green, blue] = (await readFill(selector)).match(/[\d.]+/g).map(Number);
-      expect(red - blue, selector).toBeGreaterThanOrEqual(60);
-      expect(green, selector).toBeLessThan(red);
-    }
+      page
+        .locator(selector)
+        .first()
+        .evaluate((part) => getComputedStyle(part).backgroundColor);
+    expect(await readFill("#gamePager .pager-tabs")).toBe(
+      await readFill("#games-today .game-list"),
+    );
+    const [red, green, blue] = (await readFill("#gamePager .pager-thumb"))
+      .match(/[\d.]+/g)
+      .map(Number);
+    expect(red - blue).toBeGreaterThanOrEqual(60);
+    expect(green).toBeLessThan(red);
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({
