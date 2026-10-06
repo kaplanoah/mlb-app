@@ -120,15 +120,14 @@ function drawLastSeen() {
   }
 }
 
-// ESPN's roster is today's, so a past season's team has none.
 /** @param {string} team */
 function renderShownTeam(team) {
   const sheet = renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
-  return isPastSeason() ? sheet : { ...sheet, action: renderRosterButton(team) };
+  return { ...sheet, action: renderRosterButton(team) };
 }
 
 /** @param {string} team */
-const prepareNextFromTeam = (team) => (isPastSeason() ? null : prepareRoster(team));
+const prepareNextFromTeam = (team) => prepareRoster(team);
 
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };

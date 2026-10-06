@@ -9,8 +9,9 @@ import {
 import { createPreviewServer } from "../../worker/src/preview.js";
 import {
   createRosterServer,
-  nameRosterRequest,
-  nameSeasonsRequest,
+  nameEspnRosterRequest,
+  nameLeagueRosterRequest,
+  namePlayerListRequest,
 } from "../../worker/src/roster.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { SeasonStore } from "../../worker/src/store.js";
@@ -40,18 +41,25 @@ const GAMES = JSON.parse(
 const LEAD = JSON.parse(
   readFileSync(new URL("../fixtures/2026-10-01-espn-lead.json", import.meta.url), "utf8"),
 );
-// The Liberty's, the Dream's, the Aces', and the Fever's rosters as ESPN had them, with each player's seasons.
+// The league's rosters of the Liberty, Dream, Aces, Fever, and Wings this season and the Liberty's
+// last, its list of every player trimmed to theirs, and ESPN's rosters of today, as they were.
 const ROSTERS = JSON.parse(
-  readFileSync(new URL("../fixtures/2026-10-06-espn-rosters.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../fixtures/2026-10-06-league-rosters.json", import.meta.url), "utf8"),
 );
 
-const listRosterAnswers = () =>
-  Object.entries(ROSTERS.teams).flatMap(([team, { roster, seasons }]) => [
-    /** @type {[string, any]} */ ([nameRosterRequest(TEAMS[team].espnId), roster]),
-    ...Object.entries(seasons).map(
-      ([id, answer]) => /** @type {[string, any]} */ ([nameSeasonsRequest(id), answer]),
-    ),
-  ]);
+const listRosterAnswers = () => [
+  ...Object.entries(ROSTERS.rosters).map(([key, roster]) => {
+    const [team, season] = key.split(":");
+    return /** @type {[string, any]} */ ([nameLeagueRosterRequest(team, Number(season)), roster]);
+  }),
+  ...[2025, 2026].map(
+    (season) => /** @type {[string, any]} */ ([namePlayerListRequest(season), ROSTERS.playerList]),
+  ),
+  ...Object.entries(ROSTERS.espnRosters).map(
+    ([team, roster]) =>
+      /** @type {[string, any]} */ ([nameEspnRosterRequest(TEAMS[team].espnId), roster]),
+  ),
+];
 
 export { test, expect, matchPath, GAMES, NOW };
 
@@ -147,7 +155,7 @@ export async function openApp(
   const boxScores = createBoxScoreServer({ fetchImpl });
   const previews = createPreviewServer({ fetchImpl, now: () => Date.parse(NOW) });
   const leads = createLeadServer({ fetchImpl });
-  const rosters = createRosterServer({ fetchImpl });
+  const rosters = createRosterServer({ fetchImpl, now: () => Date.parse(NOW) });
   await page.route(matchPath("/lead"), (route) => answerFromWorker(route, leads.serveLead));
   await page.route(matchPath("/box-score"), (route) =>
     answerFromWorker(route, boxScores.serveBoxScore),

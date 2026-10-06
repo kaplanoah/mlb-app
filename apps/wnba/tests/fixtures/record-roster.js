@@ -1,63 +1,93 @@
 import fs from "node:fs";
 import path from "node:path";
 import { TEAMS } from "../../page/js/teams.js";
-import { nameRosterRequest, nameSeasonsRequest } from "../../worker/src/roster.js";
-import { ESPN_HEADERS } from "../../worker/src/wnba.js";
+import {
+  nameEspnRosterRequest,
+  nameLeagueRosterRequest,
+  namePlayerListRequest,
+} from "../../worker/src/roster.js";
+import { ESPN_HEADERS, FEED_HEADERS } from "../../worker/src/wnba.js";
 
-// Records what a team's Roster page reads from ESPN for the teams named: each roster, and each of
-// its players' seasons, trimmed to what the Worker reads.
+// Records what a team's Roster page reads for the teams and seasons named: the league's roster of
+// each, the league's list of every player trimmed to theirs, and ESPN's roster of today, trimmed
+// to who is out. Run with NODE_USE_ENV_PROXY=1 behind a proxy.
 
-async function fetchJson(url) {
-  const response = await fetch(url, { headers: ESPN_HEADERS });
+async function fetchJson(url, headers) {
+  const response = await fetch(url, { headers });
   if (!response.ok) throw new Error(`${response.status} for ${url}`);
   return response.json();
 }
 
 const trimAthlete = (athlete) => ({
-  id: athlete.id,
   firstName: athlete.firstName,
   lastName: athlete.lastName,
-  displayName: athlete.displayName,
-  jersey: athlete.jersey,
-  position: athlete.position && { abbreviation: athlete.position.abbreviation },
-  displayHeight: athlete.displayHeight,
-  age: athlete.age,
-  college: athlete.college && { name: athlete.college.name, shortName: athlete.college.shortName },
-  birthPlace: athlete.birthPlace && { country: athlete.birthPlace.country },
   injuries: (athlete.injuries ?? []).map(({ status }) => ({ status })),
 });
 
-const trimRoster = ({ athletes, coach }) => ({
-  athletes: athletes.map(trimAthlete),
-  coach: (coach ?? []).map(({ firstName, lastName }) => ({ firstName, lastName })),
-});
+const trimEspnRoster = ({ athletes }) => ({ athletes: athletes.map(trimAthlete) });
 
-const trimSeasons = ({ items }) => ({ items: items.map(({ $ref }) => ({ $ref })) });
-
-async function recordTeam(code) {
-  const roster = await fetchJson(nameRosterRequest(TEAMS[code].espnId));
-  const seasons = await Promise.all(
-    roster.athletes.map(async (athlete) => [
-      athlete.id,
-      trimSeasons(await fetchJson(nameSeasonsRequest(athlete.id))),
-    ]),
-  );
-  return [code, { roster: trimRoster(roster), seasons: Object.fromEntries(seasons) }];
+/**
+ * The list of every player, keeping only the rows of the players named.
+ * @param {any} list
+ * @param {Set<number>} ids
+ */
+function trimPlayerList(list, ids) {
+  const table = list.resultSets[0];
+  const idColumn = table.headers.indexOf("PERSON_ID");
+  return {
+    resultSets: [{ ...table, rowSet: table.rowSet.filter((row) => ids.has(row[idColumn])) }],
+  };
 }
 
-async function recordFixture(name, codes) {
-  const teams = Object.fromEntries(await Promise.all(codes.map(recordTeam)));
+/** @param {any} roster */
+function listRosterIds(roster) {
+  const table = roster.resultSets.find((set) => set.name === "CommonTeamRoster");
+  const idColumn = table.headers.indexOf("PLAYER_ID");
+  return table.rowSet.map((row) => row[idColumn]);
+}
+
+async function recordFixture(name, teamSeasons) {
+  const rosters = {};
+  const ids = new Set();
+  for (const [team, season] of teamSeasons) {
+    const roster = await fetchJson(nameLeagueRosterRequest(team, season), FEED_HEADERS);
+    rosters[`${team}:${season}`] = roster;
+    listRosterIds(roster).forEach((id) => ids.add(id));
+  }
+  const latest = Math.max(...teamSeasons.map(([, season]) => season));
+  const playerList = trimPlayerList(
+    await fetchJson(namePlayerListRequest(latest), FEED_HEADERS),
+    ids,
+  );
+  const espnRosters = {};
+  for (const team of new Set(teamSeasons.map(([team]) => team))) {
+    espnRosters[team] = trimEspnRoster(
+      await fetchJson(nameEspnRosterRequest(TEAMS[team].espnId), ESPN_HEADERS),
+    );
+  }
   const file = path.join(import.meta.dirname, `${name}.json`);
-  fs.writeFileSync(file, JSON.stringify({ recordedAt: new Date().toISOString(), teams }));
+  fs.writeFileSync(
+    file,
+    JSON.stringify({ recordedAt: new Date().toISOString(), rosters, playerList, espnRosters }),
+  );
   console.log(`Wrote ${file}`);
 }
 
-const [name, ...codes] = process.argv.slice(2);
-if (!name || !codes.length || !codes.every((code) => Object.hasOwn(TEAMS, code))) {
-  console.error("usage: node apps/wnba/tests/fixtures/record-roster.js <name> <team> [team ...]");
+const [name, ...pairs] = process.argv.slice(2);
+const teamSeasons = pairs.map((pair) => {
+  const [team, season] = pair.split(":");
+  return /** @type {[string, number]} */ ([team, Number(season)]);
+});
+const isValid = teamSeasons.every(
+  ([team, season]) => Object.hasOwn(TEAMS, team) && Number.isInteger(season),
+);
+if (!name || !teamSeasons.length || !isValid) {
+  console.error(
+    "usage: node apps/wnba/tests/fixtures/record-roster.js <name> <team:season> [team:season ...]",
+  );
   process.exit(1);
 }
-recordFixture(name, codes).catch((error) => {
+recordFixture(name, teamSeasons).catch((error) => {
   console.error(error.message);
   process.exit(1);
 });

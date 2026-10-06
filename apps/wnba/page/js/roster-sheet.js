@@ -1,14 +1,16 @@
 // The sheet a team's Roster button opens over its team's sheet, as a swipe left on that sheet does
-// too: the team's roster, which the Worker reads from ESPN, beside every player's averages, which
-// the store keeps, read together the first time the sheet shows a team and again once they're old,
-// sorted by the column the viewer picked until the sheet shows another team.
+// too: the team's roster for the season shown, which the Worker reads from the league, beside every
+// player's averages that season, which the store keeps, read together the first time the sheet
+// shows a team's season and again once they're old, sorted by the column the viewer picked until
+// the sheet shows another team. Who is out shows only while the team still plays.
 
 import { setHtml } from "#shared/html.js";
 import { redrawSheet } from "#shared/sheet-resize.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import { chooseSort, DEFAULT_SORT, describeRosterNote, renderRoster } from "./roster-view.js";
-import { session } from "./session.js";
+import { isStillPlaying } from "./series.js";
+import { isPastSeason, session } from "./session.js";
 import { renderTeamHeading } from "./team-view.js";
 import { TEAMS } from "./teams.js";
 
@@ -24,6 +26,7 @@ const RETRY_MS = 60 * 1000;
 // What a sheet opened over the roster's calls it on its back button.
 const NAME_FOR_BACK = "Roster";
 
+// Each read is kept by its team and season, as NYL:2026.
 /** @type {Map<string, RosterRead>} */
 const reads = new Map();
 /** @type {string | null} */
@@ -35,12 +38,15 @@ let sortedTeam = null;
 const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("rosterDialog"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
-/** @param {string} team */
-const fetchRoster = (team) =>
-  fetchFromWorker(`roster?team=${encodeURIComponent(team)}`, {
+/**
+ * @param {string} team
+ * @param {number} year
+ */
+const fetchRoster = (team, year) =>
+  fetchFromWorker(`roster?team=${encodeURIComponent(team)}&season=${year}`, {
     reuseMs: READ_AGAIN_MS,
     timeoutMs: FETCH_TIMEOUT_MS,
-    isExpected: (body) => body.team === team && Array.isArray(body.players),
+    isExpected: (body) => body.team === team && body.season === year && Array.isArray(body.players),
   });
 
 /** @param {number} year */
@@ -54,12 +60,14 @@ const fetchAverages = (year) =>
 /**
  * Keeps what a read found, or what the last one did where it failed.
  * @param {string} team
+ * @param {number} year
  * @param {RosterRead} read
  * @param {[PromiseSettledResult<any>, PromiseSettledResult<any>]} results
  */
-function keepRead(team, read, [roster, averages]) {
-  if (reads.get(team) !== read) return;
-  reads.set(team, {
+function keepRead(team, year, read, [roster, averages]) {
+  const key = `${team}:${year}`;
+  if (reads.get(key) !== read) return;
+  reads.set(key, {
     ...read,
     isLoading: false,
     roster: roster.status === "fulfilled" ? roster.value : read.roster,
@@ -74,11 +82,13 @@ const isFresh = (read) =>
   read.isLoading || Date.now() - read.at < (read.roster ? READ_AGAIN_MS : RETRY_MS);
 
 /**
- * The team's last read, after starting a new one when it has none or it's old.
+ * The team's last read for the season, after starting a new one when it has none or it's old.
  * @param {string} team
+ * @param {number} year
  */
-function readRoster(team) {
-  const kept = reads.get(team);
+function readRoster(team, year) {
+  const key = `${team}:${year}`;
+  const kept = reads.get(key);
   if (kept && isFresh(kept)) return kept;
   /** @type {RosterRead} */
   const read = {
@@ -87,21 +97,25 @@ function readRoster(team) {
     averages: kept?.averages ?? [],
     isLoading: true,
   };
-  reads.set(team, read);
-  Promise.allSettled([fetchRoster(team), fetchAverages(session.year)]).then((results) =>
-    keepRead(team, read, /** @type {any} */ (results)),
+  reads.set(key, read);
+  Promise.allSettled([fetchRoster(team, year), fetchAverages(year)]).then((results) =>
+    keepRead(team, year, read, /** @type {any} */ (results)),
   );
   return read;
 }
 
 function renderSheet() {
   if (!shownTeam) return;
-  const { roster, averages, isLoading } = readRoster(shownTeam);
+  const { roster, averages, isLoading } = readRoster(shownTeam, session.year);
   const team = shownTeam;
+  const showsOut = !isPastSeason() && isStillPlaying(session.season?.series ?? [], team);
   redrawSheet(findDialog(), () => {
     setHtml(findElement("rosterTitle"), renderTeamHeading(team));
     setHtml(findElement("rosterNote"), describeRosterNote(roster));
-    setHtml(findElement("rosterBody"), renderRoster({ roster, averages, sort, isLoading }));
+    setHtml(
+      findElement("rosterBody"),
+      renderRoster({ roster, averages, sort, isLoading, showsOut }),
+    );
   });
 }
 

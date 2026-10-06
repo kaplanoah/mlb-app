@@ -5,30 +5,34 @@ import { TEAMS } from "../page/js/teams.js";
 import {
   createRosterServer,
   describeRoster,
-  findDebut,
-  nameRosterRequest,
-  nameSeasonsRequest,
+  nameEspnRosterRequest,
+  nameLeagueRosterRequest,
+  namePlayerListRequest,
 } from "../worker/src/roster.js";
 
-// The Liberty's, the Dream's, the Aces', and the Fever's rosters as ESPN had them, with each player's seasons.
+// The league's rosters of the Liberty, Dream, Aces, Fever, and Wings this season and the Liberty's
+// last, its list of every player trimmed to theirs, and ESPN's rosters of today, as they were.
 const ROSTERS = JSON.parse(
-  readFileSync(`${import.meta.dirname}/fixtures/2026-10-06-espn-rosters.json`, "utf8"),
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-06-league-rosters.json`, "utf8"),
 );
+const NOW = Date.parse(ROSTERS.recordedAt);
 
-/** @param {string} team */
-function listAnswers(team) {
-  const { roster, seasons } = ROSTERS.teams[team];
-  return {
-    [nameRosterRequest(TEAMS[team].espnId)]: roster,
-    ...Object.fromEntries(
-      Object.entries(seasons).map(([id, answer]) => [nameSeasonsRequest(id), answer]),
-    ),
-  };
-}
+/**
+ * The answers to a team's reads for a season.
+ * @param {string} team
+ * @param {number} season
+ */
+const listAnswers = (team, season) => ({
+  [nameLeagueRosterRequest(team, season)]: ROSTERS.rosters[`${team}:${season}`],
+  [namePlayerListRequest(season)]: ROSTERS.playerList,
+  [nameEspnRosterRequest(TEAMS[team].espnId)]: ROSTERS.espnRosters[team],
+});
 
 /** @param {Record<string, any>} answers */
 function createFetch(answers) {
+  /** @type {string[]} */
   const asked = [];
+  /** @param {string} url */
   const fetchImpl = async (url) => {
     asked.push(url);
     return url in answers
@@ -38,97 +42,117 @@ function createFetch(answers) {
   return { fetchImpl, asked };
 }
 
-/** @param {Record<string, any>} answers */
-const askForRoster = async (answers, team) => {
+/**
+ * @param {Record<string, any>} answers
+ * @param {string} query
+ */
+async function askForRoster(answers, query) {
   const response = await createRosterServer({
     fetchImpl: createFetch(answers).fetchImpl,
-  }).serveRoster(new URL(`https://wnba.test/roster?team=${team}`));
+    now: () => NOW,
+  }).serveRoster(new URL(`https://wnba.test/roster?${query}`));
   return { status: response.status, body: await response.json() };
-};
+}
 
-/** @param {any} roster */
+/**
+ * @param {any} roster
+ * @param {string} lastName
+ */
 const findPlayer = (roster, lastName) =>
-  roster.players.find((player) => player.lastName === lastName);
+  roster.players.find((/** @type {any} */ player) => player.lastName === lastName);
 
-test("a team's roster lists each player's number, position, height, age, college or country, whether she's out, and her first season, with the head coach", async () => {
-  const { status, body } = await askForRoster(listAnswers("NYL"), "NYL");
+test("a team's roster lists each player by the league's id, with her number, position, height, age, college or country, whether she's out, and her first season, and the head coach", async () => {
+  const { status, body } = await askForRoster(listAnswers("NYL", 2026), "team=NYL&season=2026");
 
   assert.equal(status, 200);
   assert.equal(body.team, "NYL");
+  assert.equal(body.season, 2026);
   assert.equal(body.coach, "Chris DeMarco");
   assert.equal(body.players.length, 15);
   assert.deepEqual(findPlayer(body, "Stewart"), {
-    id: "2998928",
+    id: "1627668",
     number: "30",
     firstName: "Breanna",
     lastName: "Stewart",
     position: "F",
     height: `6'4"`,
     age: 32,
-    college: "UConn",
+    college: "Connecticut",
     country: "USA",
     isOut: false,
     debut: 2016,
   });
-  assert.equal(findPlayer(body, "Balogun").isOut, true);
-  assert.deepEqual(
-    [findPlayer(body, "Allen").college, findPlayer(body, "Allen").country],
-    [null, "Australia"],
-  );
+  assert.equal(findPlayer(body, "Sabally").isOut, true);
+});
+
+test("a player who skipped college has her country, as the league lists every player's", async () => {
+  const { body } = await askForRoster(listAnswers("NYL", 2026), "team=NYL&season=2026");
+
   assert.deepEqual(
     [findPlayer(body, "Astier").college, findPlayer(body, "Astier").country],
-    [null, null],
+    [null, "France"],
   );
+  assert.equal(findPlayer(body, "Astier").debut, 2026);
 });
 
-test("a player's first season is the earliest ESPN lists her in", () => {
-  const items = ["2026", "2019", "2023"].map((year) => ({
-    $ref: `http://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/seasons/${year}?lang=en`,
-  }));
-  assert.equal(findDebut({ items }), 2019);
-  assert.equal(findDebut({ items: [] }), null);
-  assert.equal(findDebut(null), null);
+test("a past season's roster is that season's, with each player's age then, and no one out, since who is out is today's news", async () => {
+  const { fetchImpl, asked } = createFetch(listAnswers("NYL", 2025));
+  const response = await createRosterServer({ fetchImpl, now: () => NOW }).serveRoster(
+    new URL("https://wnba.test/roster?team=NYL&season=2025"),
+  );
+  const body = await response.json();
+
+  assert.equal(body.season, 2025);
+  assert.ok(body.players.length > 0);
+  assert.ok(body.players.every((/** @type {any} */ player) => !player.isOut));
+  assert.equal(findPlayer(body, "Ionescu").age, 27);
+  assert.ok(!asked.includes(nameEspnRosterRequest(TEAMS.NYL.espnId)));
 });
 
-test("a player whose seasons don't answer has no first season, and the rest of the roster still shows", async () => {
-  const answers = listAnswers("ATL");
-  const { roster } = ROSTERS.teams.ATL;
-  const missing = roster.athletes[0];
-  delete answers[nameSeasonsRequest(missing.id)];
+test("today's roster still shows when ESPN doesn't answer, with no one out", async () => {
+  /** @type {Record<string, any>} */
+  const answers = listAnswers("NYL", 2026);
+  delete answers[nameEspnRosterRequest(TEAMS.NYL.espnId)];
 
-  const { status, body } = await askForRoster(answers, "ATL");
+  const { status, body } = await askForRoster(answers, "team=NYL&season=2026");
 
   assert.equal(status, 200);
-  assert.equal(body.coach, "Karl Smesko");
-  assert.equal(findPlayer(body, missing.lastName).debut, null);
-  assert.equal(
-    body.players.filter((player) => player.debut !== null).length,
-    roster.athletes.length - 1,
-  );
+  assert.equal(body.players.length, 15);
+  assert.ok(body.players.every((/** @type {any} */ player) => !player.isOut));
 });
 
-test("a roster asked for no team, or one ESPN doesn't answer, says why", async () => {
-  assert.deepEqual(await askForRoster(listAnswers("NYL"), "XYZ"), {
+test("a roster asked for no team or no real season, or one the league doesn't answer, says why", async () => {
+  assert.deepEqual(await askForRoster(listAnswers("NYL", 2026), "team=XYZ"), {
     status: 400,
     body: { error: "team must name a WNBA team" },
   });
-  const failed = await askForRoster({}, "NYL");
+  assert.equal((await askForRoster(listAnswers("NYL", 2026), "team=NYL&season=1990")).status, 400);
+  const failed = await askForRoster({}, "team=NYL&season=2026");
   assert.equal(failed.status, 502);
-  assert.match(failed.body.error, /^Couldn't read ESPN: ESPN answered 404/);
+  assert.match(failed.body.error, /^Couldn't read the WNBA: The WNBA answered 404/);
 });
 
 test("a roster read again soon reuses the one just read", async () => {
-  const { fetchImpl, asked } = createFetch(listAnswers("NYL"));
-  const server = createRosterServer({ fetchImpl, now: () => 0 });
-  await server.loadRoster("NYL");
+  const { fetchImpl, asked } = createFetch(listAnswers("NYL", 2026));
+  const server = createRosterServer({ fetchImpl, now: () => NOW });
+  await server.loadRoster("NYL:2026");
   const reads = asked.length;
-  await server.loadRoster("NYL");
+  await server.loadRoster("NYL:2026");
   assert.equal(asked.length, reads);
 });
 
-test("each player's first season comes from her seasons, and a roster without them still describes her", () => {
-  const { roster } = ROSTERS.teams.NYL;
-  const described = describeRoster("NYL", roster, new Map());
-  assert.ok(described.players.every((player) => player.debut === null));
-  assert.equal(described.players.length, roster.athletes.length);
+test("a player the list doesn't have yet keeps her roster name, with no college, country, or first season", () => {
+  const described = describeRoster({
+    team: "NYL",
+    season: 2026,
+    leagueRoster: ROSTERS.rosters["NYL:2026"],
+    playerList: { resultSets: [{ name: "PlayerIndex", headers: ["PERSON_ID"], rowSet: [] }] },
+    espnRoster: null,
+    now: NOW,
+  });
+  const stewart = findPlayer(described, "Stewart");
+  assert.deepEqual(
+    [stewart.firstName, stewart.college, stewart.country, stewart.debut],
+    ["Breanna", null, null, null],
+  );
 });
