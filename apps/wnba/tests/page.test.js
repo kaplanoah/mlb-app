@@ -78,7 +78,7 @@ const LIVE_TONIGHT = replaceGame(SEASON, "1042600132", {
 test("a team's dot shows its logo's colors, top then bottom, with a lighter half given less room", () => {
   assert.match(renderDot("WAS").text, /--color:#002b5c;--color2:#e03a3e;--split:51%/);
   assert.match(renderDot("IND").text, /--color:#20305d;--color2:#fad412;--split:52%/);
-  assert.match(renderDot("NYL").text, /--color:#87d5b5;--color2:#100f0d;--split:49%/);
+  assert.match(renderDot("NYL").text, /--color:#87d5b5;--color2:#100f0d;--split:48%/);
   assert.match(renderDot("PHX").text, /--color:#fa4b0a;--color2:#3c286e;--split:50%/);
 });
 

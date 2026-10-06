@@ -21,6 +21,10 @@ const MARK_CONTRAST = 3;
 const MARK_CONTRAST_ROOM = 0.1;
 // How far apart two hues may be and still read as the same color.
 const SAME_HUE_DEGREES = 3;
+// A dot's half this dark reads as black.
+const BLACK_LUMINANCE = 0.01;
+// A light half looks largest against black, so it takes this share of the dot.
+const LIGHT_ON_BLACK_SPLIT = 48;
 
 /**
  * A token's value in the block of styles.css that a selector opens.
@@ -53,6 +57,23 @@ function measureContrast(first, second) {
 }
 
 // The lead chart's tile is a mix of the sheet and the floor, so reading on both reads on it too.
+test("every dot with a black half gives its light half the same smaller share", () => {
+  const shares = CODES.flatMap((code) => {
+    const { color, color2, dotSplit } = TEAMS[code];
+    if (measureLuminance(color2) < BLACK_LUMINANCE) return [[code, dotSplit]];
+    if (measureLuminance(color) < BLACK_LUMINANCE) return [[code, 100 - dotSplit]];
+    return [];
+  });
+  assert.deepEqual(
+    shares.map(([code]) => code),
+    ["GSV", "LVA", "NYL"],
+  );
+  assert.deepEqual(
+    shares,
+    shares.map(([code]) => [code, LIGHT_ON_BLACK_SPLIT]),
+  );
+});
+
 test("every team's chart colors read as text on the sheet and the floor, on each theme", () => {
   const surfaces = {
     light: [readToken(":root", "--card"), readToken(":root", "--bg")],
