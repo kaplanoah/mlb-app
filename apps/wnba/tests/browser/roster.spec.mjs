@@ -306,6 +306,21 @@ test.describe("in full motion", () => {
     await expect.poll(() => readLeft(sheet)).toBe(PHONE.width);
   });
 
+  test("on a phone, the roster under a player's sheet slides a little way left, like any sheet under another, however wide its table", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const sheet = await openLibertyRoster(page);
+    await expectShown(sheet);
+
+    await sheet.getByRole("button", { name: "Leonie Fiebich" }).click();
+    await expectShown(page.locator("#playerSheet"));
+
+    const content = sheet.locator(":scope > .sheet-content");
+    expect(await readLeft(content)).toBeCloseTo(-0.28 * PHONE.width, 0);
+  });
+
   test("on a phone, a short swipe right on the roster's title springs back to the roster once the finger lifts", async ({
     page,
   }) => {
