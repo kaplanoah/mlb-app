@@ -229,7 +229,7 @@ test("on a phone, the matchup rises as a sheet that a swipe down closes", async 
   expect(Math.round((await sheet.boundingBox()).x)).toBe(0);
 
   await swipeSheetDown(page, {
-    target: "#matchupDialog .sheet-top",
+    target: "#matchupSheet .sheet-top",
     distance: 200,
     steps: 10,
     stepMs: 30,
@@ -256,8 +256,8 @@ test("on a phone, Done and a tap outside slide the matchup down as its backdrop 
     await close();
     await expect(sheet, way).toBeHidden();
     expect(await readMotions(), way).toEqual([
-      { id: "matchupDialog", part: "sheet", to: { transform: "translateY(100%)" } },
-      { id: "matchupDialog", part: "::backdrop", to: { opacity: 0 } },
+      { id: "matchupSheet", part: "sheet", to: { transform: "translateY(100%)" } },
+      { id: "matchupSheet", part: "::backdrop", to: { opacity: 0 } },
     ]);
   }
 });
@@ -581,7 +581,7 @@ test("a matchup whose starters can't load eases from their shape down to the mes
   release();
   await expect(sheet.locator(".scout-note")).toHaveCount(2);
   await expect(sheet.locator(".placeholder")).toHaveCount(0);
-  const resizes = (await readResizes()).filter((resize) => resize.id === "matchupDialog");
+  const resizes = (await readResizes()).filter((resize) => resize.id === "matchupSheet");
   expect(resizes.length).toBeGreaterThan(0);
   const [from] = resizes[0].heights.map(parseFloat);
   const [, to] = resizes.at(-1).heights.map(parseFloat);

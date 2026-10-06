@@ -1,7 +1,8 @@
 /*
  * A sheet that a tap on the page opens over it, like a game's details: a modal on wide screens,
- * and on phones a sheet from the bottom as tall as its content, up to nearly the screen's height,
- * that sheet-swipe.js closes with a swipe down. Its dialog has the sheet-panel class, and holds a
+ * and on phones a sheet from the bottom, nearly the screen's height either way, that
+ * sheet-swipe.js closes with a swipe down. Its dialog has the sheet-panel class, and holds a
+ * .sheet-row of .sheet-page sheets side by side, as sheet.js fills it. Each sheet holds a
  * .sheet-content with chrome.css's .sheet-top over the rest, which scrolls with it and never past
  * its top or bottom. Apps link it after chrome.css, before their own styles.css, and theme it with
  * chrome.css's tokens.
@@ -17,10 +18,11 @@
  * While a sheet's details load, placeholders hold their place in the shape they'll have, and
  * sheet-resize.js eases the sheet to its new height once they arrive.
  *
- * A sheet opened from another, as sheet.js stacks them, slides in from the right over it, and the
- * one under it steps aside and dims. Its .sheet-back, in its head, names the one under it in
- * --accent, and a .sheet-action across from it, like a team's Roster or the forward button that
- * names the sheet a step back left, takes the same color.
+ * A sheet opened from another slides in from the right over it, as the row scrolls, and the one
+ * it came from slides a little way left under it and dims, where the browser can tie a motion to
+ * a scroll. Its .sheet-back, in its head, names the one it came from in --accent, and a
+ * .sheet-action across from it, like a team's Roster or the forward button that names the sheet a
+ * step back left, takes the same color.
  *
  * Where to watch a game, as network-logos.js builds it, is a line of its channels, or a note to
  * check back while they aren't listed, which takes these tokens from the app's :root:
@@ -34,19 +36,55 @@
 .sheet-panel {
   width: calc(100% - 24px);
   max-width: 440px;
-  max-height: calc(100% - 48px);
+  height: calc(100% - 48px);
+  max-height: none;
   padding: 0;
+  overflow: hidden;
   background: var(--card);
   color: var(--ink);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
   overscroll-behavior: none;
-  /* A swipe across is sheet-steps.js's to follow, so the browser never starts one of its own. */
-  touch-action: pan-y pinch-zoom;
+}
+.sheet-panel[open] {
+  display: flex;
+  flex-direction: column;
 }
 .sheet-panel::backdrop {
   background: rgba(0, 0, 0, 0.6);
+}
+/* The row scrolls from sheet to sheet and stops only on one, never past the first or last. Behind
+   the sheets it's black, so a sheet that lets it through dims. */
+.sheet-row {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  background: #000;
+}
+.sheet-row::-webkit-scrollbar {
+  display: none;
+}
+/* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole
+   sheet. A sideways scroll in it, like a wide table's, goes on to the row once at its edge. */
+.sheet-page {
+  position: relative;
+  flex: 0 0 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  background: var(--card);
+  outline: none;
+}
+.sheet-page[hidden] {
+  display: none;
 }
 /* A sheet looks the same on every screen: its title centered at one size over 18px sides, with
    Done, where it shows, at the right edge. Only its shape and its ways to close differ. */
@@ -126,32 +164,21 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
   outline-offset: 2px;
 }
 
-/* A sheet opened over another covers that one's backdrop, which stays as it is. The one under it
-   dims, and on a phone steps aside and a little down, so none of it shows past the rounded
-   corners of the one over it, while a finger moving either one holds them where it puts them. It
-   stays drawn, so a swipe that brings it out never waits on it. */
-.sheet-panel[data-stacked]::backdrop {
-  background: transparent;
-}
-.sheet-panel[data-covered] {
-  filter: brightness(0.75);
-}
-.sheet-panel[data-covered][data-dragged] {
-  filter: none;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .sheet-panel {
-    transition:
-      transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  .sheet-panel[open][data-stacked] {
-    animation: sheet-push 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+/* A sheet leaving to the left, as the one after it slides in, moves at a fraction of the row's
+   pace and lets the row's black through. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .sheet-page {
+      animation: sheet-page-under linear both;
+      animation-timeline: view(inline);
+      animation-range: exit;
+    }
   }
 }
-@keyframes sheet-push {
-  from {
-    transform: translateX(100%);
+@keyframes sheet-page-under {
+  to {
+    transform: translateX(72%);
+    opacity: 0.75;
   }
 }
 .sheet-note {
@@ -279,14 +306,11 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
   .sheet-panel {
     width: 100%;
     max-width: none;
-    max-height: calc(100% - 44px - env(safe-area-inset-top));
+    height: calc(100% - 44px - env(safe-area-inset-top));
     margin: auto 0 0;
     border-width: 1px 0 0;
     border-radius: 22px 22px 0 0;
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
-  }
-  .sheet-panel[data-covered] {
-    transform: translate(-28%, 24px);
   }
   /* Done shows only to screen readers here, so an action takes the head's right edge. */
   .sheet-action {
@@ -302,28 +326,17 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
     .sheet-panel[open]::backdrop {
       animation: backdrop-fade-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    .sheet-panel[open][data-stacked] {
-      animation-name: sheet-push;
-    }
-    /* A sheet the page put back open as it loaded was already showing, so it doesn't rise again. */
-    .sheet-panel[open][data-reopened],
-    .sheet-panel[open][data-reopened]::backdrop {
-      animation: none;
-    }
   }
 }
 /* A sheet a finger is moving goes where the finger puts it. One the page put back open as it
-   loaded was already showing, and one a finger brings in comes from where the finger is. */
+   loaded was already showing, so it doesn't rise again. */
 .sheet-panel[data-dragged] {
-  transition: none;
   will-change: transform;
 }
 .sheet-panel[open][data-reopened],
-.sheet-panel[open][data-still],
-.sheet-panel[open][data-still]::backdrop {
+.sheet-panel[open][data-reopened]::backdrop {
   animation: none;
 }
-
 /* Text still loading, as placeholder.js draws it: the sample text hidden under a pulsing bar. */
 .placeholder {
   border-radius: 4px;

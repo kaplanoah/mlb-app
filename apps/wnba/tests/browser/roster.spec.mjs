@@ -11,7 +11,7 @@ const PHONE = { width: 390, height: 844 };
 async function openLibertySheet(page) {
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-  const sheet = page.locator("#teamDialog");
+  const sheet = page.locator("#teamSheet");
   await expect(sheet.locator("#teamTitle")).toHaveText("New York Liberty");
   return sheet;
 }
@@ -20,7 +20,7 @@ async function openLibertySheet(page) {
 async function openLibertyRoster(page) {
   const teamSheet = await openLibertySheet(page);
   await teamSheet.getByRole("button", { name: "Roster" }).click();
-  const sheet = page.locator("#rosterDialog");
+  const sheet = page.locator("#rosterSheet");
   await expect(sheet.locator(".roster-coach")).toBeVisible();
   return sheet;
 }
@@ -80,7 +80,7 @@ test("a team's Roster opens its roster over its sheet: each player by last name,
 
   await sheet.getByRole("button", { name: "Back to Team" }).click();
   await expect(sheet).toBeHidden();
-  await expect(page.locator("#teamDialog table.players")).toBeVisible();
+  await expect(page.locator("#teamSheet table.players")).toBeVisible();
 });
 
 test("a tap on a column's name sorts by it, the most first for an average, and a second tap reverses it, with players who haven't played last", async ({
@@ -151,7 +151,7 @@ test("on a phone, a swipe left on a team's sheet opens its roster, and a swipe r
   await page.setViewportSize(PHONE);
   await openApp(page);
   const teamSheet = await openLibertySheet(page);
-  const rosterSheet = page.locator("#rosterDialog");
+  const rosterSheet = page.locator("#rosterSheet");
 
   await (
     await drag(page, { x: 300, y: 400 }, { x: -200 })
@@ -173,11 +173,11 @@ test("the roster and the team's sheet under it open again on a reload", async ({
 
   await page.reload();
 
-  const sheet = page.locator("#rosterDialog");
+  const sheet = page.locator("#rosterSheet");
   await expect(sheet.locator(".roster-coach")).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Back to Team" })).toBeVisible();
   await sheet.getByRole("button", { name: "Back to Team" }).click();
-  await expect(page.locator("#teamDialog #teamTitle")).toHaveText("New York Liberty");
+  await expect(page.locator("#teamSheet #teamTitle")).toHaveText("New York Liberty");
 });
 
 test("a past season's team sheet has no roster, since the roster is today's", async ({ page }) => {

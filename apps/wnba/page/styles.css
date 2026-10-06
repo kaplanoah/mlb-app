@@ -651,24 +651,24 @@ header.top h1 {
    hairline like a bracket card's border. The band's title sits --band-space-top under its top, or
    its grabber on a phone, and its bottom has --band-space-bottom of room. A team's sheet bands
    its title the same way. */
-#gameDialog {
+#gameSheet {
   --band-space-top: 12px;
   --band-space-bottom: 15px;
 }
-:is(#gameDialog, #teamDialog, #rosterDialog) {
+:is(#gameSheet, #teamSheet, #rosterSheet) {
   --band-edge: color-mix(in srgb, var(--line), var(--tile));
 }
-:is(#gameDialog, #teamDialog, #rosterDialog) .sheet-top {
+:is(#gameSheet, #teamSheet, #rosterSheet) .sheet-top {
   padding-top: var(--band-space-top);
 }
-#gameDialog .sheet-top {
+#gameSheet .sheet-top {
   background: var(--tile);
 }
 @media (max-width: 779px) {
-  :is(#gameDialog, #teamDialog, #rosterDialog) .sheet-top {
+  :is(#gameSheet, #teamSheet, #rosterSheet) .sheet-top {
     padding-top: 0;
   }
-  :is(#gameDialog, #teamDialog, #rosterDialog) .sheet-grabber {
+  :is(#gameSheet, #teamSheet, #rosterSheet) .sheet-grabber {
     margin-bottom: var(--band-space-top);
   }
 }
@@ -1040,22 +1040,18 @@ table.players td.quiet-stat {
 /* A team's roster: its sheet scrolls as one, both ways, while its title and the coach stay across
    the sheet's width, and each player's number and name stay at its left. The column names stop at
    the sheet's top. */
-#rosterDialog {
+#rosterSheet {
   container-type: inline-size;
   --roster-number-width: 22px;
   --roster-number-gap: 11px;
   --roster-name-left: calc(18px + var(--roster-number-width) + var(--roster-number-gap));
 }
-/* The roster's table scrolls across under a finger too, before a swipe steps back. */
-#rosterDialog {
-  touch-action: pan-x pan-y pinch-zoom;
-}
-#rosterDialog .sheet-content {
+#rosterSheet .sheet-content {
   box-sizing: border-box;
   width: max-content;
   min-width: 100%;
 }
-#rosterDialog .sheet-top {
+#rosterSheet .sheet-top {
   position: sticky;
   left: 0;
   z-index: 4;
@@ -1067,7 +1063,7 @@ table.players td.quiet-stat {
   gap: 8px;
   padding-top: 15px;
 }
-#rosterDialog :is(.roster-coach, .sheet-message) {
+#rosterSheet :is(.roster-coach, .sheet-message) {
   position: sticky;
   left: 18px;
   box-sizing: border-box;
@@ -1731,11 +1727,11 @@ table.standings tr.playoff-line + tr td {
    --part-space-below each title. Last 10 and Streak sit --form-space-above under the numbers
    before them, --form-space-between apart, and the two sides over its numbers are named at
    --side-name-size. */
-:is(#teamDialog, #rosterDialog) {
+:is(#teamSheet, #rosterSheet) {
   --band-space-top: 12px;
   --band-space-bottom: 23px;
 }
-:is(#teamDialog, #rosterDialog) .sheet-top {
+:is(#teamSheet, #rosterSheet) .sheet-top {
   padding-bottom: var(--band-space-bottom);
   border-bottom: 1px solid var(--band-edge);
   background: var(--tile);

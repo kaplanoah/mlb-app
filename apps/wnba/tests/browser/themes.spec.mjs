@@ -64,16 +64,16 @@ const VIEWS = [
     name: "a team's sheet",
     open: (page) =>
       page.getByRole("button", { name: "Team details: Minnesota Lynx" }).first().click(),
-    shown: (page) => page.locator("#teamDialog table.players"),
+    shown: (page) => page.locator("#teamSheet table.players"),
     close: (page) => page.keyboard.press("Escape"),
   },
   {
     name: "a team's roster",
     open: async (page) => {
       await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-      await page.locator("#teamDialog").getByRole("button", { name: "Roster" }).click();
+      await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
     },
-    shown: (page) => page.locator("#rosterDialog .roster-coach"),
+    shown: (page) => page.locator("#rosterSheet .roster-coach"),
     close: (page) => page.keyboard.press("Escape"),
   },
   {

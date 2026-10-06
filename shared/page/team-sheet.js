@@ -1,12 +1,11 @@
 // The sheet a team's name or dot opens wherever it shows. Phones show it as a sheet from the
-// bottom, wider screens as a modal, like a game's sheet, over a sheet it opens from, and in place
+// bottom, wider screens as a modal, like a game's sheet, beside a sheet it opens from, and in place
 // of another team's. Each league hands it which teams it knows and what a team's sheet shows, and
 // builds the buttons that open it with renderTeamSheetButton. A league may put an action across
-// from the title, like the WNBA's Roster, and name the sheet a swipe left from it opens.
+// from the title, like the WNBA's Roster, and name the sheet that waits beside it for a swipe left.
 
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { renderSheetPart } from "./sheet-part.js";
-import { redrawSheet } from "./sheet-resize.js";
 import { openSheet, wireSheet } from "./sheet.js";
 
 /** @typedef {import("./html.js").Markup} Markup */
@@ -16,9 +15,9 @@ import { openSheet, wireSheet } from "./sheet.js";
  * @property {(team: string) => boolean} isTeam
  * @property {(team: string) => TeamSheet} renderSheet
  * @property {(team: string) => string} nameTeam a team's short name, for the forward button that
- *   steps back to its sheet
- * @property {(team: string) => HTMLDialogElement | null} [prepareNext] the sheet a swipe left from
- *   a team's opens over it, filled in and ready to open
+ *   steps forward to its sheet
+ * @property {(team: string) => HTMLElement | null} [prepareNext] the sheet that waits beside a
+ *   team's for a swipe left, filled in and ready to show
  */
 
 /** @type {League | null} */
@@ -31,19 +30,17 @@ const TITLES_SHOWN = 3;
 // A shorter list reads in about the room its button would take, so it shows whole.
 const MOST_TITLES_LISTED = 6;
 
-const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("teamDialog"));
+const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("teamSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 function renderSheet() {
   if (!league || !shownTeam) return;
   const { heading, note, body, action = false } = league.renderSheet(shownTeam);
-  redrawSheet(findDialog(), () => {
-    setHtml(findElement("teamTitle"), heading);
-    setHtml(findElement("teamNote"), note);
-    const actionSlot = document.getElementById("teamAction");
-    if (actionSlot) setHtml(actionSlot, action || "");
-    setHtml(findElement("teamBody"), body);
-  });
+  setHtml(findElement("teamTitle"), heading);
+  setHtml(findElement("teamNote"), note);
+  const actionSlot = document.getElementById("teamAction");
+  if (actionSlot) setHtml(actionSlot, action || "");
+  setHtml(findElement("teamBody"), body);
 }
 
 /** @param {string} team */
@@ -52,7 +49,7 @@ function openTeamSheet(team) {
   shownTeam = team;
   areAllTitlesShown = false;
   renderSheet();
-  openSheet(findDialog());
+  openSheet(findSheet());
 }
 
 const readShownTeam = () => shownTeam && { team: shownTeam, areAllTitlesShown };
@@ -87,19 +84,18 @@ function showAllTitlesOnTap(event) {
 /** @param {League} teams */
 export function startTeamSheet(teams) {
   league = teams;
-  const dialog = findDialog();
-  wireSheet(dialog, {
+  wireSheet(findSheet(), {
     doneButton: findElement("teamDoneBtn"),
     backButton: document.getElementById("teamBackBtn") ?? undefined,
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
     name: "Team",
     nameForForward: () => (shownTeam && league?.nameTeam(shownTeam)) || "Team",
     prepareNext: () => (shownTeam && league?.prepareNext?.(shownTeam)) || null,
+    forget: () => {
+      shownTeam = null;
+    },
   });
   findElement("teamBody").addEventListener("click", showAllTitlesOnTap);
-  dialog.addEventListener("close", () => {
-    shownTeam = null;
-  });
   document.addEventListener("click", openFromTap);
 }
 

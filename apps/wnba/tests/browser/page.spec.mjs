@@ -86,11 +86,11 @@ test("every piece of text keeps to the type scale, in every view", async ({ page
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("button", { name: "Team details: Minnesota Lynx" }).first().click();
-  await expect(page.locator("#teamDialog table.players")).toBeVisible();
+  await expect(page.locator("#teamSheet table.players")).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
   await page.keyboard.press("Escape");
-  await expect(page.locator("#teamDialog")).toBeHidden();
+  await expect(page.locator("#teamSheet")).toBeHidden();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.locator("#settingsDialog")).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
@@ -850,7 +850,7 @@ test.describe("on a phone, the text", () => {
     await expect(standings.locator("td.place").first()).toHaveCSS("width", "28px");
 
     await standings.locator('tr[data-team="NYL"] td.season').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     await expect(sheet.locator(".team-game")).toHaveCount(3);
     expect(await listOffScaleText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
@@ -895,7 +895,7 @@ test.describe("on a phone, a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     await expect(sheet.locator("table.players")).toBeVisible();
 
     await expect(sheet.locator("#teamTitle")).toHaveCSS("font-weight", "600");
@@ -920,7 +920,7 @@ test.describe("on a phone, a team's sheet", () => {
     expect(colors.titles).toBe(colors.title);
 
     const backgrounds = await page.evaluate(() =>
-      ["#teamDialog .sheet-top", "#gameDialog .sheet-top", "#teamDialog"].map(
+      ["#teamSheet .sheet-top", "#gameSheet .sheet-top", "#teamSheet"].map(
         (selector) => getComputedStyle(document.querySelector(selector)).backgroundColor,
       ),
     );
@@ -932,7 +932,7 @@ test.describe("on a phone, a team's sheet", () => {
     expect(Math.round(firstPart.y - (top.y + top.height))).toBe(15);
     const [line, cardBorder] = await page.evaluate(() =>
       [
-        getComputedStyle(document.querySelector("#teamDialog .sheet-top")),
+        getComputedStyle(document.querySelector("#teamSheet .sheet-top")),
         getComputedStyle(document.querySelector(".series")),
       ].map((style, index) =>
         index ? style.borderTopColor : `${style.borderBottomWidth} ${style.borderBottomColor}`,
@@ -953,7 +953,7 @@ test.describe("a team's sheet in each theme", () => {
       await openApp(page);
       await page.getByRole("tab", { name: "Standings" }).click();
       await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
-      const titles = page.locator("#teamDialog .team-titles");
+      const titles = page.locator("#teamSheet .team-titles");
       await expect(titles).toHaveText("None yet");
 
       // No team has won enough titles yet to show the button, so it stands in one like the sheet's.
@@ -988,7 +988,7 @@ test.describe("a team's sheet", () => {
     const app = await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="LVA"] td.recent').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
 
     await expect(sheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
     await expect(sheet.locator("#teamNote")).toHaveText("West\u20223 seed\u202231-13");
@@ -1009,7 +1009,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
 
     await expect(sheet.locator(".sheet-part h3")).toHaveText([
       "Playoffs",
@@ -1029,7 +1029,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     await expect(sheet.locator("table.players")).toBeVisible();
 
     const styles = await sheet.evaluate((dialog) => {
@@ -1062,7 +1062,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
-    const next = page.locator("#teamDialog .team-game.next");
+    const next = page.locator("#teamSheet .team-game.next");
     const icon = next.locator(".next-game-icon");
 
     await expect(icon).toHaveCSS("width", "14px");
@@ -1079,7 +1079,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     const rows = await sheet
       .locator(".team-game")
       .evaluateAll((games) => games.map((game) => game.getBoundingClientRect().toJSON()));
@@ -1103,7 +1103,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
-    const club = page.locator("#teamDialog .team-tape .tape-teams .club").first();
+    const club = page.locator("#teamSheet .team-tape .tape-teams .club").first();
     const record = club.locator(".team-record");
     await expect(record).toHaveText("2-0");
 
@@ -1129,7 +1129,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     const numbers = await sheet.locator(".team-tape").last().boundingBox();
     const form = await sheet.locator(".team-form").boundingBox();
     const [lastTen, streak] = await sheet
@@ -1143,7 +1143,7 @@ test.describe("a team's sheet", () => {
   test("a team's sheet is titled with its name, set like every other team's", async ({ page }) => {
     await openApp(page);
     await page.locator('#bracketWrap .team-line[data-team="NYL"]').first().click();
-    const title = page.locator("#teamDialog #teamTitle");
+    const title = page.locator("#teamSheet #teamTitle");
 
     await expect(title).toHaveText("New York Liberty");
     await expect(title).toHaveCSS("font-family", /^"Barlow Condensed"/);
@@ -1171,7 +1171,7 @@ test.describe("a team's sheet", () => {
   test("a team in the bracket opens its sheet", async ({ page }) => {
     await openApp(page);
     await page.locator('#bracketWrap .team-line[data-team="NYL"]').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
 
     await expect(sheet.locator("#teamTitle")).toHaveText("New York Liberty");
     await expect(sheet.locator(".team-game")).toHaveCount(3);
@@ -1182,7 +1182,7 @@ test.describe("a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.locator('#bracketWrap .team-line[data-team="NYL"]').first().click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     await expect(sheet.locator("#teamTitle")).toHaveText("New York Liberty");
     const opponent = sheet.locator(".team-matchup").first().getByRole("button");
     const label = await opponent.getAttribute("aria-label");
@@ -1201,7 +1201,7 @@ test.describe("a team's sheet", () => {
     await fever.focus();
     await page.keyboard.press("Enter");
 
-    await expect(page.locator("#teamDialog #teamTitle")).toHaveText("Indiana Fever");
+    await expect(page.locator("#teamSheet #teamTitle")).toHaveText("Indiana Fever");
   });
 
   test("redrawing the standings each minute keeps keyboard focus on the team it was on", async ({
@@ -1227,12 +1227,12 @@ test("a team's leading scorers set their shooting and minutes a step back, a sma
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
   const quiet = page
-    .locator("#teamDialog table.players tbody tr:not(.players-head)")
+    .locator("#teamSheet table.players tbody tr:not(.players-head)")
     .first()
     .locator("td.quiet-stat");
   await expect(quiet).toHaveText(["46.2", "32.6"]);
   const minutes = quiet.last();
-  await expect(page.locator("#teamDialog table.players .first-name").first()).toHaveCSS(
+  await expect(page.locator("#teamSheet table.players .first-name").first()).toHaveCSS(
     "margin-right",
     "1px",
   );
@@ -1273,7 +1273,7 @@ test.describe("on a phone", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    const sheet = page.locator("#teamDialog");
+    const sheet = page.locator("#teamSheet");
     for (const code of ["LVA", "LAS", "CON", "CHI"]) {
       await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
       const names = sheet.locator('table.players th[scope="row"]');

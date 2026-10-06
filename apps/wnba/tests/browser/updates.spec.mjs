@@ -90,17 +90,17 @@ test.describe("on a phone, tapping an update", () => {
   test("opens that update's game's sheet, even on a team's name", async ({ page }) => {
     await openApp(page, { isShowingUpdates: true });
     await expect(page.locator("#updates .what")).toHaveCount(2);
-    const sheet = page.locator("#gameDialog");
+    const sheet = page.locator("#gameSheet");
 
     await tapTeamName(page, 0, "Minnesota Lynx");
     await expect(sheet.locator("#gameWhen")).toContainText("Liberty won");
-    await expect(page.locator("#teamDialog")).toBeHidden();
+    await expect(page.locator("#teamSheet")).toBeHidden();
     await page.locator("#gameDoneBtn").dispatchEvent("click");
     await expect(sheet).toBeHidden();
 
     await tapTeamName(page, 1, "Indiana Fever");
     await expect(sheet.locator("#gameWhen")).toContainText("Fever won");
-    await expect(page.locator("#teamDialog")).toBeHidden();
+    await expect(page.locator("#teamSheet")).toBeHidden();
   });
 });
 

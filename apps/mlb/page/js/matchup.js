@@ -14,7 +14,6 @@ import { renderPlaceholder } from "#shared/placeholder.js";
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
 import { session } from "./session.js";
-import { redrawSheet } from "#shared/sheet-resize.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { PENDING_TAPE_SIDE, renderTapeRow } from "#shared/tape.js";
 
@@ -35,8 +34,7 @@ let opening = 0;
 /** @type {{ game: MatchupGame, sides: any[] } | null} */
 let shown = null;
 
-const findDialog = () =>
-  /** @type {HTMLDialogElement} */ (document.getElementById("matchupDialog"));
+const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("matchupSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 function renderWhen(game) {
@@ -276,11 +274,9 @@ const isLoadingSide = (side, game) =>
 
 function renderMatchup(game, sides) {
   const body = findElement("matchupBody");
-  redrawSheet(findDialog(), () => {
-    setHtml(findElement("matchupWhen"), renderWhen(game));
-    setHtml(body, renderBody(game, sides));
-    body.setAttribute("aria-busy", String(sides.some((side) => isLoadingSide(side, game))));
-  });
+  setHtml(findElement("matchupWhen"), renderWhen(game));
+  setHtml(body, renderBody(game, sides));
+  body.setAttribute("aria-busy", String(sides.some((side) => isLoadingSide(side, game))));
 }
 
 const listSides = (game) =>
@@ -331,7 +327,7 @@ async function showMatchup(game, sides) {
 /** @param {MatchupGame} game */
 function openMatchup(game) {
   showMatchup(game, listSides(game));
-  openSheet(findDialog());
+  openSheet(findSheet());
 }
 
 // What each side showed stays until it loads again.
@@ -354,14 +350,13 @@ function prepareFromRow(button) {
 export function startMatchups() {
   for (const holder of ["games-pages", "updates"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
-  const dialog = findDialog();
-  wireSheet(dialog, {
+  wireSheet(findSheet(), {
     doneButton: findElement("matchupDoneBtn"),
     forwardButton: findElement("matchupForwardBtn"),
     keeper: { read: () => shown, reopen: reopenMatchup },
     name: "Game",
-  });
-  dialog.addEventListener("close", () => {
-    shown = null;
+    forget: () => {
+      shown = null;
+    },
   });
 }

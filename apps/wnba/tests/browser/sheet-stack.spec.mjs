@@ -15,13 +15,13 @@ async function openFeverOverGame(page) {
   const list = page.locator("#games-previous");
   await expect(list).not.toHaveAttribute("inert");
   await list.getByRole("button", { name: ACES_AT_FEVER }).click();
-  const gameSheet = page.locator("#gameDialog");
+  const gameSheet = page.locator("#gameSheet");
   await expect(gameSheet.locator(".line-score")).toBeVisible();
   await gameSheet
     .locator(".faceoff")
     .getByRole("button", { name: "Team details: Indiana Fever" })
     .click();
-  const teamSheet = page.locator("#teamDialog");
+  const teamSheet = page.locator("#teamSheet");
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
   return { gameSheet, teamSheet };
 }
@@ -129,7 +129,7 @@ test("a team's sheet slides in from the right over the game's, which dims and st
   const { gameSheet, teamSheet } = await openFeverOverGame(page);
 
   expect(await readMotions()).toContainEqual({
-    id: "teamDialog",
+    id: "teamSheet",
     part: "sheet",
     name: "sheet-push",
   });
@@ -145,7 +145,7 @@ test("a team's sheet slides in from the right over the game's, which dims and st
 
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
   expect(await readMotions()).toContainEqual({
-    id: "teamDialog",
+    id: "teamSheet",
     part: "sheet",
     to: { transform: "translateX(100%)" },
   });

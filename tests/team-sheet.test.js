@@ -20,7 +20,7 @@ function createPage() {
   );
   globalThis.getComputedStyle = /** @type {any} */ (() => ({ height: "400px" }));
   const dialog = Object.assign(new EventTarget(), {
-    id: "teamDialog",
+    id: "teamSheet",
     open: false,
     scrollTop: 0,
     showModal() {
@@ -37,7 +37,7 @@ function createPage() {
     querySelector: () => ({ classList: { toggle: () => {} } }),
   });
   const elements = {
-    teamDialog: dialog,
+    teamSheet: dialog,
     teamTitle: { innerHTML: "" },
     teamNote: { innerHTML: "" },
     teamAction: { innerHTML: "" },
@@ -202,7 +202,7 @@ test("a sheet a reload put back open shows its team again, with every title if t
   page.dialog.close();
 
   page.dialog.open = true;
-  reopenSheets([{ id: "teamDialog", scrollTop: 0, subject: { team: "XYZ" } }]);
+  reopenSheets([{ id: "teamSheet", scrollTop: 0, subject: { team: "XYZ" } }]);
   assert.equal(page.dialog.open, false);
 });
 

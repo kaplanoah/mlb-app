@@ -140,10 +140,10 @@ test("on a phone, a swipe at the sheet's top that goes up first moves the sheet 
 
 test("the sheets showing are listed in the order they opened, with where each is scrolled and what each shows, and Done closes them all", () => {
   const { dialog: game, doneButton: gameDone } = createDialog({
-    id: "gameDialog",
+    id: "gameSheet",
     keeper: keepShown({ id: "game-1" }),
   });
-  const { dialog: team } = createDialog({ id: "teamDialog", keeper: keepShown({ team: "NY" }) });
+  const { dialog: team } = createDialog({ id: "teamSheet", keeper: keepShown({ team: "NY" }) });
   const { dialog: settings } = createDialog({ id: "settingsDialog" });
 
   openSheet(/** @type {any} */ (team));
@@ -151,8 +151,8 @@ test("the sheets showing are listed in the order they opened, with where each is
   openSheet(/** @type {any} */ (settings));
   game.scrollTop = 240;
   assert.deepEqual(listOpenSheets(), [
-    { id: "teamDialog", scrollTop: 0, subject: { team: "NY" }, backLabel: null },
-    { id: "gameDialog", scrollTop: 240, subject: { id: "game-1" }, backLabel: null },
+    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" }, backLabel: null },
+    { id: "gameSheet", scrollTop: 240, subject: { id: "game-1" }, backLabel: null },
     { id: "settingsDialog", scrollTop: 0, subject: null, backLabel: null },
   ]);
 
@@ -168,17 +168,17 @@ test("a page that loads again has each sheet it put back open show what it showe
   /** @type {unknown[]} */
   const reopened = [];
   const { dialog: game } = createDialog({
-    id: "gameDialog",
+    id: "gameSheet",
     open: true,
     keeper: keepShown(null, (subject) => reopened.push(subject) > 0),
   });
   const { dialog: team } = createDialog({
-    id: "teamDialog",
+    id: "teamSheet",
     open: true,
     keeper: keepShown(null, () => false),
   });
   const { dialog: matchup } = createDialog({
-    id: "matchupDialog",
+    id: "matchupSheet",
     open: true,
     keeper: keepShown(null, () => {
       throw new TypeError("an earlier release's subject");
@@ -189,9 +189,9 @@ test("a page that loads again has each sheet it put back open show what it showe
 
   reopenSheets([
     { id: "settingsDialog", scrollTop: 0, subject: null },
-    { id: "gameDialog", scrollTop: 120, subject: { id: "game-1" } },
-    { id: "teamDialog", scrollTop: 0, subject: { team: "NY" } },
-    { id: "matchupDialog", scrollTop: 0, subject: { game: {} } },
+    { id: "gameSheet", scrollTop: 120, subject: { id: "game-1" } },
+    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" } },
+    { id: "matchupSheet", scrollTop: 0, subject: { game: {} } },
     { id: "goneDialog", scrollTop: 0, subject: null },
     null,
   ]);
@@ -203,28 +203,28 @@ test("a page that loads again has each sheet it put back open show what it showe
   );
   assert.deepEqual(
     listOpenSheets().map(({ id }) => id),
-    ["settingsDialog", "gameDialog"],
+    ["settingsDialog", "gameSheet"],
   );
   game.close();
   settings.close();
 });
 
 test("a sheet put back open rises again only once it has closed", () => {
-  const { dialog } = createDialog({ id: "gameDialog", open: true, keeper: keepShown(null) });
+  const { dialog } = createDialog({ id: "gameSheet", open: true, keeper: keepShown(null) });
   placeDialogs([dialog]);
 
-  reopenSheets([{ id: "gameDialog", scrollTop: 0, subject: null }]);
+  reopenSheets([{ id: "gameSheet", scrollTop: 0, subject: null }]);
   assert.ok(dialog.attributes.has("data-reopened"));
   dialog.close();
   assert.ok(!dialog.attributes.has("data-reopened"));
 });
 
 test("saved sheets that can't be read leave every sheet as it is", () => {
-  const { dialog } = createDialog({ id: "gameDialog", open: true, keeper: keepShown(null) });
+  const { dialog } = createDialog({ id: "gameSheet", open: true, keeper: keepShown(null) });
   placeDialogs([dialog]);
 
   reopenSheets("{not json");
-  reopenSheets({ id: "gameDialog" });
+  reopenSheets({ id: "gameSheet" });
   assert.equal(dialog.open, true);
   assert.deepEqual(listOpenSheets(), []);
 });

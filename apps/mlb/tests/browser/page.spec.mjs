@@ -2101,11 +2101,11 @@ for (const { screen, viewport } of [
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
-      await expect(page.locator("#teamDialog .team-stats")).toBeVisible();
+      await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
-      await expect(page.locator("#teamDialog")).toBeHidden();
+      await expect(page.locator("#teamSheet")).toBeHidden();
       await openSettings(page);
       await expect(page.locator("#settingsDialog")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);

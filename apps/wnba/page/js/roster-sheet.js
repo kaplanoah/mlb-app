@@ -1,10 +1,9 @@
-// The sheet a team's Roster button opens over its team's sheet, as a swipe left on that sheet does
-// too: the team's roster, which the Worker reads from ESPN, beside every player's averages, which
-// the store keeps, read together the first time the sheet shows a team and again once they're old,
-// sorted by the column the viewer picked until the sheet shows another team.
+// The sheet beside a team's that its Roster button, or a swipe left, brings in: the team's roster,
+// which the Worker reads from ESPN, beside every player's averages, which the store keeps, read
+// together as the team's sheet shows and again once they're old, sorted by the column the viewer
+// picked until the sheet shows another team.
 
 import { setHtml } from "#shared/html.js";
-import { redrawSheet } from "#shared/sheet-resize.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import { chooseSort, DEFAULT_SORT, describeRosterNote, renderRoster } from "./roster-view.js";
@@ -30,7 +29,7 @@ let sort = DEFAULT_SORT;
 /** @type {string | null} */
 let sortedTeam = null;
 
-const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("rosterDialog"));
+const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("rosterSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 /** @param {string} team */
@@ -96,11 +95,9 @@ function renderSheet() {
   if (!shownTeam) return;
   const { roster, averages, isLoading } = readRoster(shownTeam);
   const team = shownTeam;
-  redrawSheet(findDialog(), () => {
-    setHtml(findElement("rosterTitle"), renderTeamHeading(team));
-    setHtml(findElement("rosterNote"), describeRosterNote(roster));
-    setHtml(findElement("rosterBody"), renderRoster({ roster, averages, sort, isLoading }));
-  });
+  setHtml(findElement("rosterTitle"), renderTeamHeading(team));
+  setHtml(findElement("rosterNote"), describeRosterNote(roster));
+  setHtml(findElement("rosterBody"), renderRoster({ roster, averages, sort, isLoading }));
 }
 
 /**
@@ -115,7 +112,7 @@ export function prepareRoster(team) {
   }
   shownTeam = team;
   renderSheet();
-  return findDialog();
+  return findSheet();
 }
 
 /** @param {{ team?: unknown } | null} saved */
@@ -146,22 +143,22 @@ function sortOnTap(event) {
 }
 
 // The line at the pinned names' edge shows only once the table has scrolled under them.
-/** @param {HTMLElement} dialog */
-const markScrolledAcross = (dialog) =>
-  dialog.classList.toggle("is-scrolled-across", dialog.scrollLeft > 0);
+/** @param {HTMLElement} sheet */
+const markScrolledAcross = (sheet) =>
+  sheet.classList.toggle("is-scrolled-across", sheet.scrollLeft > 0);
 
 export function startRosterSheet() {
-  const dialog = findDialog();
-  wireSheet(dialog, {
+  const sheet = findSheet();
+  wireSheet(sheet, {
     doneButton: findElement("rosterDoneBtn"),
     backButton: findElement("rosterBackBtn"),
     keeper: { read: () => shownTeam && { team: shownTeam }, reopen: reopenRoster },
     name: "Roster",
+    forget: () => {
+      shownTeam = null;
+    },
   });
   findElement("teamDialog").addEventListener("click", openOnTap);
   findElement("rosterBody").addEventListener("click", sortOnTap);
-  dialog.addEventListener("scroll", () => markScrolledAcross(dialog), { passive: true });
-  dialog.addEventListener("close", () => {
-    shownTeam = null;
-  });
+  sheet.addEventListener("scroll", () => markScrolledAcross(sheet), { passive: true });
 }
