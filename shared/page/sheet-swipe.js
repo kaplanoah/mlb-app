@@ -30,6 +30,12 @@ export function slideSheet(dialog, to) {
   });
 }
 
+// A sheet still opening goes straight to where it was opening to, so a finger moves it from there.
+/** @param {HTMLElement} sheet */
+export function finishOpening(sheet) {
+  for (const motion of sheet.getAnimations()) if (motion instanceof CSSAnimation) motion.finish();
+}
+
 /** @param {HTMLDialogElement} dialog */
 function fadeBackdropOut(dialog) {
   const duration = prefersReducedMotion() ? 0 : SHEET_MOTION_MS;
@@ -142,6 +148,7 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, listStack }) {
   /** @param {number} offset */
   function moveStack(offset) {
     for (const sheet of listStack()) {
+      if (!sheet.hasAttribute("data-dragged")) finishOpening(sheet);
       sheet.setAttribute("data-dragged", "");
       sheet.style.transform = `translateY(${offset}px)`;
     }

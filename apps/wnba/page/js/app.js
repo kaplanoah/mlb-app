@@ -34,7 +34,7 @@ import { renderRosterButton } from "./roster-view.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
 import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
-import { isPlayoffsOver } from "./series.js";
+import { isPlayoffsOver, nameTeam } from "./series.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
 import { renderTeamSheet } from "./team-view.js";
@@ -185,6 +185,7 @@ async function boot() {
   startGameSheet();
   startTeamSheet({
     isTeam: (team) => team in TEAMS,
+    nameTeam,
     renderSheet: renderShownTeam,
     prepareNext: prepareNextFromTeam,
   });

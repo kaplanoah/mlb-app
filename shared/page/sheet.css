@@ -19,7 +19,8 @@
  *
  * A sheet opened from another, as sheet.js stacks them, slides in from the right over it, and the
  * one under it steps aside and dims. Its .sheet-back, in its head, names the one under it in
- * --accent, as does a .sheet-action across from it, like a team's Roster.
+ * --accent, and a .sheet-action across from it, like a team's Roster or the forward button that
+ * names the sheet a step back left, takes the same color.
  *
  * Where to watch a game, as network-logos.js builds it, is a line of its channels, or a note to
  * check back while they aren't listed, which takes these tokens from the app's :root:
@@ -41,6 +42,8 @@
   border-radius: 12px;
   box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
   overscroll-behavior: none;
+  /* A swipe across is sheet-steps.js's to follow, so the browser never starts one of its own. */
+  touch-action: pan-y pinch-zoom;
 }
 .sheet-panel::backdrop {
   background: rgba(0, 0, 0, 0.6);
@@ -94,7 +97,8 @@
 .sheet-action {
   right: 44px;
 }
-.sheet-back[hidden] {
+.sheet-back[hidden],
+.sheet-action[hidden] {
   display: none;
 }
 /* A slot an app fills with an action, which places the action itself. */
@@ -124,18 +128,31 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 
 /* A sheet opened over another covers that one's backdrop, which stays as it is. The one under it
    dims, and on a phone steps aside, while a finger moving either one holds them where it puts
-   them. */
+   them. Once it has, it hides, so none of it shows past the rounded corners of the one over it,
+   until a finger or a step back brings it out again. */
 .sheet-panel[data-stacked]::backdrop {
   background: transparent;
 }
 .sheet-panel[data-covered] {
   filter: brightness(0.75);
+  visibility: hidden;
+}
+.sheet-panel[data-covered][data-dragged] {
+  filter: none;
+  visibility: visible;
 }
 @media (prefers-reduced-motion: no-preference) {
   .sheet-panel {
     transition:
       transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s;
+  }
+  .sheet-panel[data-covered] {
+    transition:
+      transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s 0.3s;
   }
   .sheet-panel[open][data-stacked] {
     animation: sheet-push 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -304,13 +321,15 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
     }
   }
 }
-/* A sheet a finger is moving goes where the finger puts it, and one the page put back open as it
-   loaded was already showing. */
-.sheet-panel[open][data-dragged] {
+/* A sheet a finger is moving goes where the finger puts it. One the page put back open as it
+   loaded was already showing, and one a finger brings in comes from where the finger is. */
+.sheet-panel[data-dragged] {
   transition: none;
-  animation: none;
+  will-change: transform;
 }
-.sheet-panel[open][data-reopened] {
+.sheet-panel[open][data-reopened],
+.sheet-panel[open][data-still],
+.sheet-panel[open][data-still]::backdrop {
   animation: none;
 }
 

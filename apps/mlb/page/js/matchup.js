@@ -364,6 +364,7 @@ export function startMatchups() {
   const dialog = findDialog();
   wireSheet(dialog, {
     doneButton: findElement("matchupDoneBtn"),
+    forwardButton: findElement("matchupForwardBtn"),
     keeper: { read: () => shown, reopen: reopenMatchup },
     nameForBack,
   });

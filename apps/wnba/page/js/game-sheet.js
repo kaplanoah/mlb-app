@@ -306,6 +306,7 @@ export function startGameSheet() {
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(dialog, {
     doneButton: findElement("gameDoneBtn"),
+    forwardButton: findElement("gameForwardBtn"),
     keeper: { read: readShownGame, reopen: reopenGameSheet },
     nameForBack,
   });

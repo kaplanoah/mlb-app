@@ -83,6 +83,8 @@ function createPhoneSheet() {
     scrollTop: 0,
     style: { transform: "", minHeight: "" },
     getBoundingClientRect: () => ({ height: 400, width: 390 }),
+    getAnimations: () => [],
+    hasAttribute: () => false,
     setAttribute() {},
     removeAttribute() {},
     showModal() {
