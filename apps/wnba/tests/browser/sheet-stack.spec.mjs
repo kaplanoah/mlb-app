@@ -159,15 +159,15 @@ test.describe("with reduced motion", () => {
     const { gameSheet, teamSheet } = await openFeverFromGame(page);
     const dialog = page.locator("#sheetDialog");
 
-    await expect(dialog).toHaveCSS("border-top-left-radius", "22px");
+    await expect(dialog).toHaveCSS("border-top-left-radius", "14px");
     await expect(dialog).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(dialog.locator(".sheet-row")).toHaveCSS("overscroll-behavior-x", "none");
     for (const sheet of [gameSheet, teamSheet]) {
-      await expect(sheet).toHaveCSS("border-top-left-radius", "22px 21px");
+      await expect(sheet).toHaveCSS("border-top-left-radius", "14px 13px");
       const band = await sheet
         .locator(".sheet-top")
         .evaluate((top) => getComputedStyle(top).backgroundColor);
-      await expect(sheet).toHaveCSS("box-shadow", `${band} 22px 0px 0px 0px`);
+      await expect(sheet).toHaveCSS("box-shadow", `${band} 14px 0px 0px 0px`);
     }
   });
 

@@ -61,10 +61,38 @@
 
 /*
  * Maple, a light court floor, and Walnut, dark stained wood, following the phone's setting.
- * Orange marks what's happening now, live games and today's, and a bracket's winners. Teal marks
- * structure: section labels, the playoff line, Bonus, and how a finished series ended in the Games
- * list. A bracket card's note keeps to the plain ink unless its game is live. Text stops at 600,
- * but for the Games list's day numbers.
+ *
+ * Hardwood, the one system every rule below follows through these tokens, which a test checks.
+ *
+ * Color. Orange and teal each have two jobs, and everything else is in ink:
+ *   --now        orange: what's happening now, like a live clock, foul trouble, Bonus, today's
+ *                games, and a problem right now, like being offline
+ *   --action     orange: where to tap, like the button that's on, a text action like Roster, and an
+ *                outlined button's icon
+ *   --structure  teal: what organizes the page, like a section's or a part's heading, the month
+ *                over a date, a table's group heading, the playoff line, and a seed
+ *   --result     teal: how something ended, like a win, a winning streak, a decided series, a
+ *                bracket's winner, and the champion
+ * A category, like a conference, stays in ink, so a color always means one of these four. Only
+ * :root names orange or teal, and the focus ring is teal, so it shows around an orange button.
+ *
+ * Corners are square, like the court's boards and the scoreboard's digits: --radius-card and
+ * --radius-chip, then --radius-control on buttons and fields, a little rounder, and on a track of
+ * choices the room around what's chosen in it more, so the chosen one takes a button's corners.
+ * Dots are round, app icons keep their own shape, and the floating tab bar stays a capsule for its
+ * glass.
+ *
+ * Surfaces. A card, a track of choices, and an outlined button are --raised off the floor, inside
+ * an --edge. A bar held at the top is the floor's own color, with a line under it once the page
+ * scrolls under it, never a fade.
+ *
+ * Buttons say what they do in sentence case, as capitals are only for labels and chips. The one
+ * that's on, like the list a pill shows, is filled orange, inside a darker edge so it reads the
+ * same height as the rest, which are raised and outlined, in ink, with any icon in orange; one in
+ * a sheet's corner is orange text. A switch stays round, like the phone's own.
+ * Each is --control-height tall at --control-weight, its words centered on their capitals.
+ *
+ * Text stops at 600, but for the Games list's day numbers.
  */
 :root {
   --bg: #ead5b2;
@@ -86,11 +114,30 @@
   --quiet-stat-ink: var(--ink-dim);
   /* A link or team's name under the mouse. Maple's dark ink needs more of the orange than
      Walnut's light ink to show it changed. */
-  --ink-hover: color-mix(in srgb, var(--ink) 50%, var(--orange));
+  --ink-hover: color-mix(in srgb, var(--ink) 50%, var(--action));
   /* Bracket and game cards sit most of the way from the floor to a sheet, so they stand out
      without glare. */
   --tile: color-mix(in oklab, var(--card) 75%, var(--bg));
   --line: color-mix(in srgb, var(--card-border) 80%, var(--ink) 20%);
+  --now: var(--orange);
+  --now-ink: var(--orange-ink);
+  --action: var(--orange);
+  --action-ink: var(--orange-ink);
+  --structure: var(--teal);
+  --result: var(--teal);
+  --result-ink: var(--teal-ink);
+  --raised: var(--tile);
+  --edge: color-mix(in srgb, var(--line), var(--tile));
+  --radius-card: 2px;
+  --radius-chip: 2px;
+  --radius-control: 3px;
+  --track-room: 3px;
+  --radius-track: calc(var(--radius-control) + var(--track-room));
+  --radius-sheet: 14px;
+  --radius-sheet-phone: 14px;
+  --control-height: 30px;
+  --control-weight: 500;
+  --control-room: 13px;
   --scoreboard: #24180e;
   --led: #f84434;
   --led-dim: #e8291c;
@@ -99,8 +146,8 @@
   --block-side: #d6bfa0;
   --dot-shadow: color-mix(in srgb, var(--shadow-ink) 30%, transparent);
   --dot-light: rgba(255, 255, 255, 0.49);
-  --accent: var(--orange);
-  --accent-ink: var(--orange-ink);
+  --accent: var(--action);
+  --accent-ink: var(--action-ink);
   --focus-ring: var(--teal);
   --tab-bar-ink: var(--ink);
   --glass-light: 255, 248, 236;
@@ -117,18 +164,21 @@
   --size-read-condensed: 1.03125rem;
   --gate-heading-font: var(--heading);
   --gate-code-font: var(--numbers);
-  --gate-problem: var(--orange);
+  --gate-problem: var(--now);
   --text: "Barlow", system-ui, sans-serif;
-  --radius: 2px;
   --page-gutter: 16px;
   --header-gap: 14px;
-  --pager-track: rgba(42, 28, 16, 0.07);
-  --pager-track-edge: rgba(42, 28, 16, 0.08);
-  --pager-thumb: var(--card);
-  --pager-thumb-edge: rgba(255, 255, 255, 0.6);
+  --pager-track: var(--raised);
+  --pager-track-edge: var(--edge);
+  --pager-thumb: var(--action);
+  --pager-thumb-edge: transparent;
+  --pager-thumb-lift: inset 0 0 0 1px color-mix(in srgb, var(--action) 70%, var(--shadow-ink));
   --pager-label: var(--ink-mid);
-  --updates-head: var(--teal);
-  --sheet-part-head: var(--teal);
+  --pager-chosen-label: var(--action-ink);
+  --held-bar-fade: 0px;
+  --held-bar-line: var(--divider);
+  --updates-head: var(--structure);
+  --sheet-part-head: var(--structure);
   --game-row-height: 90px;
   --game-side-offset: 9px;
   --game-label-offset: -32px;
@@ -154,7 +204,7 @@
   --orange-ink: #1d0d03;
   --teal: #3cb4a4;
   --teal-ink: #06201c;
-  --ink-hover: color-mix(in srgb, var(--ink) 75%, var(--orange));
+  --ink-hover: color-mix(in srgb, var(--ink) 75%, var(--action));
   --line: #5e4836;
   --scoreboard: #110b08;
   --shadow-ink: #000000;
@@ -168,11 +218,6 @@
   --glass-pill: rgba(255, 255, 255, 0.11);
   --glass-solid: rgba(42, 31, 24, 0.94);
   --glass-contrast: #000000;
-  /* Tinted cream, since plain white over the walnut reads grey. */
-  --pager-track: rgba(255, 214, 170, 0.06);
-  --pager-track-edge: rgba(255, 214, 170, 0.06);
-  --pager-thumb: rgba(255, 214, 170, 0.12);
-  --pager-thumb-edge: rgba(255, 226, 196, 0.16);
   --logos-for-light: none;
   --logos-for-dark: inline;
   color-scheme: dark;
@@ -279,7 +324,7 @@ header.top h1 {
   font-size: 0.95em;
 }
 .stamp-err {
-  color: var(--orange);
+  color: var(--now);
 }
 
 .section-label {
@@ -289,7 +334,7 @@ header.top h1 {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--teal);
+  color: var(--structure);
 }
 .empty-note {
   margin: 8px 0 18px;
@@ -348,9 +393,9 @@ header.top h1 {
 /* A bracket's series and a day's games are one kind of card. */
 .series,
 .game-day .game-list {
-  background: var(--tile);
-  border: 1px solid color-mix(in srgb, var(--line), var(--tile));
-  border-radius: var(--radius);
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-card);
 }
 .team-line .club,
 .game-side .club {
@@ -391,7 +436,7 @@ header.top h1 {
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--teal);
+  color: var(--structure);
 }
 .day-number {
   font-family: var(--display);
@@ -509,7 +554,7 @@ header.top h1 {
   height: calc(var(--digit-height) * 1.5);
   min-width: calc(var(--digit-height) * 1.2);
   padding: 0 5px 0 8px;
-  border-radius: 1px;
+  border-radius: var(--radius-chip);
   background: var(--scoreboard);
 }
 .scoreboard svg {
@@ -574,7 +619,7 @@ header.top h1 {
 }
 .series-label.decided,
 .series-label.decided .series-count {
-  color: var(--teal);
+  color: var(--result);
 }
 .clock {
   font-family: var(--numbers);
@@ -582,23 +627,24 @@ header.top h1 {
   font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--orange);
+  color: var(--now);
 }
 /* A break between periods is a word, not a time, so it takes the status's capitals, in the live
    game's orange. */
 .break {
-  color: var(--orange);
+  color: var(--now);
 }
 .time {
   font-family: var(--numbers);
   font-size: 1.1rem;
   font-weight: 600;
 }
+/* Bonus is happening now, so it's outlined in orange, like foul trouble. */
 .bonus {
-  padding: 1px 6px;
-  border-radius: var(--radius);
-  background: var(--teal);
-  color: var(--teal-ink);
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-chip);
+  color: var(--now);
   font-family: var(--display);
   font-size: var(--size-small);
   font-weight: 600;
@@ -659,8 +705,8 @@ header.top h1 {
    its grabber on a phone, and its bottom has --band-space-bottom of room. A game's band runs on
    through its teams, whose face-off draws the hairline. */
 .sheet-page {
-  --sheet-band: var(--tile);
-  --band-edge: color-mix(in srgb, var(--line), var(--tile));
+  --sheet-band: var(--raised);
+  --band-edge: var(--edge);
   --band-space-top: 12px;
   --band-space-bottom: 23px;
 }
@@ -955,7 +1001,7 @@ table.line-score td {
   width: 11%;
 }
 table.line-score .now {
-  color: var(--orange);
+  color: var(--now);
 }
 table.line-score th.now {
   font-weight: 600;
@@ -1031,7 +1077,7 @@ table.players td.quiet-stat {
   margin-left: 6px;
   padding: 0 5px;
   border: 1px solid currentColor;
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   font-family: var(--display);
   font-size: var(--size-small);
   font-weight: 600;
@@ -1039,7 +1085,7 @@ table.players td.quiet-stat {
   text-transform: uppercase;
   vertical-align: 1px;
   white-space: nowrap;
-  color: var(--orange);
+  color: var(--now);
 }
 /* Capitals sit low in Barlow's line, so a chip's words rise half a pixel to center between its
    borders. */
@@ -1457,7 +1503,7 @@ th[aria-sort="ascending"] .roster-caret {
   color: var(--ink-dim);
 }
 .card-note.live {
-  color: var(--orange);
+  color: var(--now);
 }
 .team-line {
   position: relative;
@@ -1552,17 +1598,17 @@ th[aria-sort="ascending"] .roster-caret {
 .team-line.out .wins {
   color: var(--ink-dim);
 }
-/* A series' winner has its block painted orange, its number in the floor's color as if cut
+/* A series' winner has its block painted teal, its number in the floor's color as if cut
    through to it. */
 .team-line.won .wins {
   color: var(--bg);
   text-shadow: none;
 }
 .team-line.won .wins::before {
-  background: color-mix(in oklab, var(--orange) 60%, var(--shadow-ink));
+  background: color-mix(in oklab, var(--result) 60%, var(--shadow-ink));
 }
 .team-line.won .wins::after {
-  background: var(--orange);
+  background: var(--result);
   box-shadow: none;
 }
 .team-line.out {
@@ -1590,6 +1636,11 @@ th[aria-sort="ascending"] .roster-caret {
 
 /* The Updates box's count is a label like the sheets' titles, and its team names are set like
    every other team's. */
+/* The Updates box is a card like any other, raised off the floor inside an edge. */
+.updates {
+  border-color: var(--edge);
+  background: var(--raised);
+}
 .updates-count {
   font-family: var(--display);
   font-weight: 600;
@@ -1608,9 +1659,13 @@ th[aria-sort="ascending"] .roster-caret {
   font-weight: 500;
 }
 
-/* Barlow reads lighter than baseball's monospace, so the names in a pill are a little heavier. */
+/* A pill's names are buttons, so they're in sentence case at a button's weight. */
 .pager-tabs button {
-  font-weight: 500;
+  padding-block: 5px;
+  font-size: var(--size-glance);
+  font-weight: var(--control-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
 }
 
 /* Standings: one table at a phone's width for the league and each conference, side by side under
@@ -1635,7 +1690,7 @@ table.standings tr.groups th {
   padding-bottom: 6px;
   font-size: var(--size-small);
   letter-spacing: 0.1em;
-  color: var(--teal);
+  color: var(--structure);
 }
 table.standings td {
   padding: 10px 0 10px 12px;
@@ -1712,25 +1767,20 @@ table.standings td.team .club {
 .conference-tag {
   padding: 3px 4px;
   border: 1px solid currentColor;
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   font-family: var(--display);
   font-size: var(--size-small);
   font-weight: 600;
   line-height: 1;
   text-box: trim-both cap alphabetic;
-}
-.conference-tag.east {
-  color: var(--teal);
-}
-.conference-tag.west {
-  color: var(--orange);
+  color: var(--ink-mid);
 }
 .seed-note {
   font-family: var(--display);
   font-size: var(--size-small);
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--teal);
+  color: var(--structure);
 }
 /* One cell across the table, so its dashes run unbroken, in place of the line above the first
    team below it, so every row keeps its spacing. */
@@ -1740,8 +1790,8 @@ table.standings tr.playoff-line td {
   border-top: 0;
   font-size: 0;
   line-height: 0;
-  background: linear-gradient(to right, var(--teal) 3px, transparent 3px) left center / 6px 1.5px
-    repeat-x;
+  background: linear-gradient(to right, var(--structure) 3px, transparent 3px) left center / 6px
+    1.5px repeat-x;
 }
 table.standings tr.playoff-line + tr td {
   border-top: 0;
@@ -1786,8 +1836,8 @@ table.standings tr.playoff-line + tr td {
   background: color-mix(in srgb, var(--ink) 15%, transparent);
 }
 .status-chip.champion {
-  background: var(--orange);
-  color: var(--orange-ink);
+  background: var(--result);
+  color: var(--result-ink);
 }
 .status-chip.out {
   background: color-mix(in srgb, var(--ink-dim) 16%, transparent);
@@ -1829,7 +1879,7 @@ table.standings tr.playoff-line + tr td {
   text-align: center;
 }
 .team-result.won {
-  color: var(--teal);
+  color: var(--result);
 }
 .team-result.lost {
   color: var(--ink-dim);
@@ -1860,7 +1910,7 @@ table.standings tr.playoff-line + tr td {
 }
 .team-game.soon .team-result,
 .team-game.soon .team-when {
-  color: var(--orange);
+  color: var(--now);
   font-weight: 600;
 }
 /* Each part's numbers face off like a game preview's: the team on the left in its color for the
@@ -1915,7 +1965,7 @@ table.standings tr.playoff-line + tr td {
   margin: 0;
 }
 .team-form .streak-won {
-  color: var(--teal);
+  color: var(--result);
 }
 .team-titles {
   margin: 0;
@@ -1952,9 +2002,9 @@ table.standings tr.playoff-line + tr td {
 }
 .news-card {
   overflow: hidden;
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  background: var(--card);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-card);
+  background: var(--raised);
 }
 .news-photo {
   display: block;
@@ -2047,42 +2097,43 @@ h4.news-title {
 .read-button {
   display: inline-flex;
   align-items: center;
-  padding: 8px 6.5px 8px 12px;
-  border: 1px solid var(--card-border);
-  border-radius: 3px;
-  background: var(--bg);
+  height: var(--control-height);
+  padding: 0 calc(var(--control-room) - 5.5px) 0 var(--control-room);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--edge);
   font-size: var(--size-glance);
-  font-weight: 600;
+  font-weight: var(--control-weight);
   color: var(--ink);
   text-decoration: none;
   white-space: nowrap;
 }
 .read-button.opened {
-  padding-right: 7px;
-  border-color: var(--divider);
+  padding-right: calc(var(--control-room) - 5px);
   background: transparent;
+  box-shadow: inset 0 0 0 1px var(--divider);
   color: var(--ink-mid);
 }
 /* A hidden copy at the unread weight keeps the label as wide once its story is opened. */
 .read-label {
   display: inline-grid;
-  translate: 0 -0.5px;
+  text-box: trim-both cap alphabetic;
 }
 .read-label::after {
   content: attr(data-label);
   height: 0;
   overflow: hidden;
   visibility: hidden;
-  font-weight: 600;
+  font-weight: var(--control-weight);
 }
 .read-button.opened .read-label {
-  font-weight: 500;
+  font-weight: 400;
 }
 .read-arrow {
   width: 16.5px;
   height: 16.5px;
   margin-left: 3px;
-  color: var(--orange);
+  color: var(--action);
 }
 .read-check {
   width: 16px;
@@ -2131,7 +2182,7 @@ h4.news-title {
   display: block;
   width: 76px;
   height: 76px;
-  border-radius: 3px;
+  border-radius: var(--radius-card);
   object-fit: cover;
   background: var(--tile);
 }

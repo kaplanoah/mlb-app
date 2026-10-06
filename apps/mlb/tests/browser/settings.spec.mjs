@@ -22,6 +22,17 @@ const RELEASE = { version: "2.13.0", commit: "abc1234", builtAt: "2026-09-28T00:
 const serveRelease = (page, release) =>
   page.route(matchPath("/version.json"), (route) => route.fulfill({ json: release }));
 
+test("settings barely dim the page behind them, as every sheet does", async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  const settings = page.locator("#settingsDialog");
+  await expect(settings).toBeVisible();
+  const dim = await settings.evaluate(
+    (dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor,
+  );
+  expect(dim).toBe("rgba(0, 0, 0, 0.01)");
+});
+
 test("the sliders button opens settings, and Done, Escape, or the backdrop closes it", async ({
   page,
 }) => {

@@ -12,7 +12,15 @@
  *   --ink, --ink-mid, --ink-dim                text, from brightest to dimmest
  *   --accent, --accent-ink                     the selected tab and a switch that is on, and text on it
  *   --focus-ring                               the keyboard focus ring
- *   --radius                                   a card's corners
+ *   --radius-card                              a card's corners, like the Updates box's
+ *   --radius-chip                              a chip's corners, like a status beside a title
+ *   --radius-control                           a button's or a field's corners, and the hover square
+ *                                              behind an icon button
+ *   --radius-track                             the corners of a track that holds choices, like a
+ *                                              pager's pill; what sits inside it takes those less
+ *                                              the room around it
+ *   --radius-sheet, --radius-sheet-phone       a sheet's corners, and the settings dialog's, on wide
+ *                                              screens and on phones
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
  *                                              the app has one
  *   --tab-bar-ink                              the glass tab bar's icons and labels
@@ -53,8 +61,8 @@
   margin: -8px -10px -8px -14px;
   padding: 4px;
   border: 0;
-  /* The padding trims this to a smaller rounding on the hover square. */
-  border-radius: 9px;
+  /* The padding trims this to a control's rounding on the hover square. */
+  border-radius: calc(var(--radius-control) + 4px);
   background: none;
   /* The hover square stays inside the padding, smaller than the tap area. */
   background-clip: content-box;
@@ -111,7 +119,7 @@ nav.tabs {
   border: 1px solid var(--card-border);
   color: var(--ink-dim);
   padding: 6px 18px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
 }
 .tab-list button.active {
@@ -306,12 +314,13 @@ section.view.active {
   background: var(--card);
   color: var(--ink);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
-  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+  border-radius: var(--radius-sheet);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.01);
   overscroll-behavior: none;
 }
+/* Settings barely dim the page behind them, as a phone's own sheets do. */
 .settings-panel::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.01);
 }
 /* What they hold fills them, the copyright at their foot, so Diagnostics stay just out of sight. */
 .settings-body {
@@ -415,7 +424,7 @@ section.view.active {
   height: 28px;
   padding: 0 12px;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-control);
   background: var(--accent);
   color: var(--accent-ink);
   font: inherit;
@@ -431,7 +440,7 @@ section.view.active {
 }
 .diagnostics-record {
   border: 1px solid var(--card-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   background: var(--card);
 }
 .diagnostics-record summary {
@@ -495,7 +504,7 @@ section.view.active {
   margin-right: -8px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: none;
   color: var(--ink-dim);
   cursor: pointer;
@@ -581,7 +590,7 @@ section.view.active {
   color: var(--ink);
   background: var(--bg) var(--select-arrow) no-repeat right 10px center / 10px 6px;
   border: 1px solid var(--card-border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 7px 32px 7px 12px;
   cursor: pointer;
   appearance: none;
@@ -599,6 +608,7 @@ section.view.active {
   flex-shrink: 0;
   padding: 0;
   border: 1px solid var(--card-border);
+  /* A switch is round in every app, whatever its corners elsewhere, like the phone's own. */
   border-radius: 14px;
   background: var(--divider);
   cursor: pointer;
@@ -663,7 +673,7 @@ body:has(> .home-screen-bar:not([hidden])) {
   padding: 12px 14px;
   background: color-mix(in oklab, var(--card) 50%, var(--bg));
   border: 1px solid var(--card-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
 }
 .home-screen-bar[hidden],
 .home-screen-tip[hidden] {
@@ -711,7 +721,7 @@ body:has(> .home-screen-bar:not([hidden])) {
   flex: none;
   padding: 5px 9px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--accent);
   color: var(--accent-ink);
   font: inherit;
@@ -815,8 +825,8 @@ body:has(> .home-screen-bar:not([hidden])) {
     height: calc(100% - 44px - env(safe-area-inset-top));
     margin: auto 0 0;
     border-width: 1px 0 0;
-    border-radius: 22px 22px 0 0;
-    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+    border-radius: var(--radius-sheet-phone) var(--radius-sheet-phone) 0 0;
+    box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.01);
   }
   @media (prefers-reduced-motion: no-preference) {
     .settings-panel[open] {
@@ -845,7 +855,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     width: 48px;
     height: 5px;
     margin: 8px auto 12px;
-    border-radius: 3px;
+    border-radius: var(--radius-chip);
     background: color-mix(in srgb, var(--ink) 25%, transparent);
   }
   /* Done has no room of its own here, so the title sits a set distance under the grabber however
@@ -885,7 +895,9 @@ body:has(> .home-screen-bar:not([hidden])) {
     display: block;
     height: var(--tab-bar-height);
   }
-  /* The shadow sits on its own layer: Chrome misplaces an SVG backdrop filter on an element with one. */
+  /* The bar is a capsule in every app, whatever its corners elsewhere, since glass-lens.js bends
+     light as a capsule's rim does. The shadow sits on its own layer: Chrome misplaces an SVG
+     backdrop filter on an element with one. */
   .tab-bar::before {
     content: "";
     position: absolute;
