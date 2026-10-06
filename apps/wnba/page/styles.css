@@ -1063,9 +1063,10 @@ table.players td.quiet-stat {
   width: 100cqw;
 }
 #rosterBody {
+  --roster-space-above: 15px;
   display: grid;
   gap: 8px;
-  padding-top: 15px;
+  padding-top: var(--roster-space-above);
 }
 #rosterSheet :is(.roster-coach, .sheet-message) {
   position: sticky;
@@ -1100,6 +1101,9 @@ table.roster .roster-head th {
 table.roster .roster-bands th {
   padding-bottom: 2px;
   text-align: left;
+}
+table.roster tbody tr:has(.player-open) {
+  cursor: pointer;
 }
 table.roster tbody td,
 table.roster tbody th {
@@ -1185,6 +1189,10 @@ table.roster .roster-player::after {
 }
 .is-scrolled-across table.roster .roster-player::after {
   visibility: visible;
+}
+/* It runs up through the room above the table to the band under the title. */
+table.roster .roster-bands .roster-player::after {
+  top: calc(-1 * var(--roster-space-above));
 }
 table.roster tbody th.roster-player {
   line-height: 1.2;

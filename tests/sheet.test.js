@@ -365,9 +365,16 @@ test("a row partway between two sheets settles on neither, and one a pixel off s
 function createPhoneSheet() {
   globalThis.matchMedia = /** @type {any} */ ((query) => ({ matches: query.includes("width") }));
   globalThis.document = /** @type {any} */ ({ activeElement: null });
+  /** @type {KeyframeAnimationOptions[]} */
+  const motions = [];
   const dialog = Object.assign(new FakeDialog("settingsDialog"), {
     getAnimations: () => [],
-    animate() {
+    /**
+     * @param {Keyframe[]} _keyframes
+     * @param {KeyframeAnimationOptions} options
+     */
+    animate(_keyframes, options) {
+      motions.push(options);
       /** @type {{ cancel: () => void, finished?: Promise<unknown> }} */
       const motion = { cancel() {} };
       motion.finished = Promise.resolve(motion);
@@ -384,11 +391,11 @@ function createPhoneSheet() {
     const touches = clientY === undefined ? [] : [{ clientX: 0, clientY }];
     dialog.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { touches }));
   };
-  return { dialog, touch };
+  return { dialog, touch, motions };
 }
 
-test("on a phone, a swipe down that scrolls the sheet back to its top goes on to move the sheet and close it", async () => {
-  const { dialog, touch } = createPhoneSheet();
+test("on a phone, a swipe down that scrolls the sheet back to its top goes on to move the sheet and close it, at the pace and easing of the phone's own sheets", async () => {
+  const { dialog, touch, motions } = createPhoneSheet();
   dialog.scrollTop = 300;
 
   touch("touchstart", 100);
@@ -401,6 +408,10 @@ test("on a phone, a swipe down that scrolls the sheet back to its top goes on to
   touch("touchend");
   await new Promise((resolve) => setTimeout(resolve));
   assert.equal(dialog.open, false);
+  assert.deepEqual(
+    motions.map(({ duration, easing }) => ({ duration, easing })),
+    Array(2).fill({ duration: 500, easing: "cubic-bezier(0.32, 0.72, 0, 1)" }),
+  );
 });
 
 test("on a phone, a swipe at the sheet's top that goes up first moves the sheet from its highest point", () => {

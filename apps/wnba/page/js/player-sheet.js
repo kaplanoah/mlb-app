@@ -130,11 +130,18 @@ function reopenPlayer(saved) {
   return true;
 }
 
+// A tap anywhere in a roster's row opens its player, whose name is the row's button.
+/** @param {Element} target */
+const findPlayerButton = (target) =>
+  /** @type {HTMLElement | null} */ (
+    target.closest("[data-player]") ??
+      target.closest("table.roster tbody tr")?.querySelector("[data-player]") ??
+      null
+  );
+
 /** @param {Event} event */
 function openOnTap(event) {
-  const button = /** @type {HTMLElement | null} */ (
-    /** @type {Element} */ (event.target).closest("[data-player]")
-  );
+  const button = findPlayerButton(/** @type {Element} */ (event.target));
   const { player: id, playerTeam: team, playerName: name } = button?.dataset ?? {};
   if (!id || !team || !name) return;
   openSheet(preparePlayer({ id, team, name }));

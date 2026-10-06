@@ -107,7 +107,7 @@ test("a tap on a column's name sorts by it, the most first for an average, and a
   );
 });
 
-test("on a phone, swiping the roster across keeps each player's number and name and the sheet's title in place, with a line at the names' edge only once it has moved", async ({
+test("on a phone, swiping the roster across keeps each player's number and name and the sheet's title in place, with a line at the names' edge, from the title's band down, only once it has moved", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -128,6 +128,16 @@ test("on a phone, swiping the roster across keeps each player's number and name 
   expect(after[3].x).toBeLessThan(before[3].x - 150);
   await expect.poll(readEdge).toBe("visible");
   expect(after[1].x).toBe(after[0].x + after[0].width);
+  const edgeTop = await sheet
+    .locator(".roster-bands .roster-player")
+    .evaluate(
+      (cell) =>
+        cell.getBoundingClientRect().top + parseFloat(getComputedStyle(cell, "::after").top),
+    );
+  expect(edgeTop).toBe(
+    (await readBox(sheet.locator(".sheet-top"))).y +
+      (await readBox(sheet.locator(".sheet-top"))).height,
+  );
 });
 
 test("on a phone, scrolling down the roster takes its title away and stops the column names at the sheet's top", async ({
