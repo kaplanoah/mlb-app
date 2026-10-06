@@ -28,7 +28,7 @@ const DISMISS_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
  */
 /**
  * When it went out, as an ISO time, and what it says, with any word that should stand out, like a
- * button's name, in <b>.
+ * button's name, in <b>, which the box sets like a team's name in an update.
  * @typedef {{ at: string, text: string | Markup }} ReleaseNote
  */
 /** @typedef {{ at: number, text: string | Markup }} Note a release note to show */
