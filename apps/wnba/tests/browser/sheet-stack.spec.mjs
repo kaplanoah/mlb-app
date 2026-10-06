@@ -70,6 +70,41 @@ function isMonotonic(lefts) {
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
+  test("every sheet bands its top alike, in the same tint over the same hairline, which a game's face-off draws under its teams", async ({
+    page,
+  }) => {
+    await openApp(page);
+    const { teamSheet } = await openFeverFromGame(page);
+    await teamSheet.getByRole("button", { name: "Roster" }).click();
+    await page.locator("#rosterSheet").getByRole("button", { name: "Aliyah Boston" }).click();
+    await expect(page.locator("#playerSheet .player-facts")).toBeVisible();
+    // Where each sheet's band ends: a game's runs on through its face-off.
+    const bandEnds = {
+      gameSheet: ".faceoff",
+      teamSheet: ".sheet-top",
+      rosterSheet: ".sheet-top",
+      playerSheet: ".sheet-top",
+    };
+
+    const sheets = await page.locator(".sheet-page").evaluateAll(
+      (pages, ends) =>
+        pages.map((sheet) => {
+          const top = getComputedStyle(sheet.querySelector(".sheet-top"));
+          const end = ends[sheet.id] && getComputedStyle(sheet.querySelector(ends[sheet.id]));
+          return {
+            id: sheet.id,
+            band: [top.backgroundColor, end?.borderBottomWidth, end?.borderBottomColor],
+          };
+        }),
+      bandEnds,
+    );
+
+    expect(sheets.map((sheet) => sheet.id)).toEqual(Object.keys(bandEnds));
+    const [first, ...rest] = sheets;
+    for (const sheet of rest) expect(sheet.band, sheet.id).toEqual(first.band);
+    expect(first.band[1]).toBe("1px");
+  });
+
   test("going back from a team leaves a forward button on the game that names the team and goes to it again, until another opens", async ({
     page,
   }) => {

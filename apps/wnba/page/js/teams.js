@@ -5,7 +5,7 @@
 // less, by eye. `chartColors` are what the game sheet draws the team's side of its charts and bars
 // in, on each theme, first choice then other, each its color made just dark or light enough for
 // the team's name to read in it. The first choice is the color that best tells the team apart,
-// which is usually its dot's top. `titles` are the seasons the franchise won the WNBA Finals
+// which is usually its dot's top. `markColors` mark a player on the curves of her sheet, on each theme: the color its first chart color comes from, made only as dark or light as a mark needs to stand out, so it stays as near the team's own as it can. `titles` are the seasons the franchise won the WNBA Finals
 // before the current one, which the page counts from its bracket, and `titlesAs` names the team
 // the franchise was when it won them, if it has since moved.
 export const TEAMS = {
@@ -18,6 +18,7 @@ export const TEAMS = {
     color2: "#4891ce",
     dotSplit: 51,
     chartColors: { light: ["#bb012e", "#0b5f99"], dark: ["#ff3e54", "#4891ce"] },
+    markColors: { light: "#e3173e", dark: "#e3173e" },
     titles: [],
   },
   CHI: {
@@ -29,6 +30,7 @@ export const TEAMS = {
     color2: "#ffd520",
     dotSplit: 51,
     chartColors: { light: ["#186099", "#6f5b01"], dark: ["#4d90cd", "#ffd520"] },
+    markColors: { light: "#4588c5", dark: "#4d90cd" },
     titles: [2021],
   },
   CON: {
@@ -40,6 +42,7 @@ export const TEAMS = {
     color2: "#0a2240",
     dotSplit: 49,
     chartColors: { light: ["#ae2d00", "#0a2240"], dark: ["#f45427", "#708cb1"] },
+    markColors: { light: "#eb4c1d", dark: "#f05023" },
     titles: [],
   },
   DAL: {
@@ -51,6 +54,7 @@ export const TEAMS = {
     color2: "#c4d600",
     dotSplit: 52,
     chartColors: { light: ["#5a6200", "#002b5c"], dark: ["#c4d600", "#618dc6"] },
+    markColors: { light: "#7f8b00", dark: "#c4d600" },
     titles: [2003, 2006, 2008],
     titlesAs: "Detroit Shock",
   },
@@ -63,6 +67,7 @@ export const TEAMS = {
     color2: "#000000",
     dotSplit: 48,
     chartColors: { light: ["#6f4f88", "#000000"], dark: ["#b896d4", "#e4e4e4"] },
+    markColors: { light: "#9876b2", dark: "#b896d4" },
     titles: [],
   },
   IND: {
@@ -74,6 +79,7 @@ export const TEAMS = {
     color2: "#fad412",
     dotSplit: 52,
     chartColors: { light: ["#20305d", "#6d5b00"], dark: ["#748abe", "#fad412"] },
+    markColors: { light: "#20305d", dark: "#566a9c" },
     titles: [2012],
   },
   LAS: {
@@ -85,6 +91,7 @@ export const TEAMS = {
     color2: "#fdb927",
     dotSplit: 52,
     chartColors: { light: ["#552583", "#7a5600"], dark: ["#a275d9", "#fdb927"] },
+    markColors: { light: "#552583", dark: "#8355b6" },
     titles: [2001, 2002, 2016],
   },
   LVA: {
@@ -96,6 +103,7 @@ export const TEAMS = {
     color2: "#a7a8aa",
     dotSplit: 51,
     chartColors: { light: ["#000000", "#5c5d5e"], dark: ["#e4e4e4", "#a7a8aa"] },
+    markColors: { light: "#000000", dark: "#a7a8aa" },
     titles: [2022, 2023, 2025],
   },
   MIN: {
@@ -107,6 +115,7 @@ export const TEAMS = {
     color2: "#6cc32e",
     dotSplit: 51,
     chartColors: { light: ["#315c98", "#326900"], dark: ["#5f8ccc", "#6cc32e"] },
+    markColors: { light: "#315c98", dark: "#406caa" },
     titles: [2011, 2013, 2015, 2017],
   },
   NYL: {
@@ -118,6 +127,7 @@ export const TEAMS = {
     color2: "#100f0d",
     dotSplit: 49,
     chartColors: { light: ["#11694d", "#100f0d"], dark: ["#87d5b5", "#e4e4e4"] },
+    markColors: { light: "#449274", dark: "#87d5b5" },
     titles: [2024],
   },
   PDX: {
@@ -129,6 +139,7 @@ export const TEAMS = {
     color2: "#ffffff",
     dotSplit: 52,
     chartColors: { light: ["#bb0127", "#5c5c5c"], dark: ["#f74c54", "#ffffff"] },
+    markColors: { light: "#c8102e", dark: "#d11f35" },
     titles: [],
   },
   PHX: {
@@ -140,6 +151,7 @@ export const TEAMS = {
     color2: "#3c286e",
     dotSplit: 50,
     chartColors: { light: ["#aa2f02", "#3c286e"], dark: ["#fa4b0a", "#8f7fcd"] },
+    markColors: { light: "#f14501", dark: "#fa4b0a" },
     titles: [2007, 2009, 2014],
   },
   SEA: {
@@ -151,6 +163,7 @@ export const TEAMS = {
     color2: "#fee11a",
     dotSplit: 52,
     chartColors: { light: ["#2c5235", "#6a5d01"], dark: ["#6b9473", "#fee11a"] },
+    markColors: { light: "#2c5235", dark: "#4d7455" },
     titles: [2004, 2010, 2018, 2020],
   },
   TOR: {
@@ -162,6 +175,7 @@ export const TEAMS = {
     color2: "#b3c7e7",
     dotSplit: 51,
     chartColors: { light: ["#441e36", "#4c5d79"], dark: ["#ab7d98", "#b3c7e7"] },
+    markColors: { light: "#441e36", dark: "#8a5e78" },
     titles: [],
   },
   WAS: {
@@ -173,6 +187,7 @@ export const TEAMS = {
     color2: "#e03a3e",
     dotSplit: 51,
     chartColors: { light: ["#bc021f", "#002b5c"], dark: ["#f44e4e", "#618dc6"] },
+    markColors: { light: "#e03a3e", dark: "#e03a3e" },
     titles: [2019],
   },
 };
