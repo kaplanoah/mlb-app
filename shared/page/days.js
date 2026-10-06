@@ -146,3 +146,16 @@ export function nameDay(
     : nameOtherDay(date, daysAway);
   return isCapitalized ? capitalize(name) : name;
 }
+
+/**
+ * A day as a back button names it, short: "Yesterday", "Today", or "Tomorrow", its short weekday
+ * within a week either way, and its short date further off.
+ * @param {Date} date
+ * @param {Date} now
+ */
+export const nameShortDay = (date, now) =>
+  nameDay(date, now, {
+    nameOtherDay: (day, daysAway) =>
+      Math.abs(daysAway) < 7 ? formatShortWeekday(day) : formatShortDate(day),
+    isCapitalized: true,
+  });

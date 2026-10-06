@@ -1,5 +1,5 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
-import { renderClub } from "./clubs.js";
+import { renderPlainClub } from "./clubs.js";
 import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
 import { fillGameLists } from "#shared/game-pager.js";
 import { html } from "#shared/html.js";
@@ -55,8 +55,9 @@ function describeStatus(game) {
 }
 
 // Not a .team-name: its clipped overflow cuts off the slant of the italic's last letter in Safari.
+// The row opens its matchup wherever it's tapped, so its clubs are plain.
 function renderSideClub(id) {
-  if (id) return renderClub(id);
+  if (id) return renderPlainClub(id);
   return html`<span class="club"><span class="dot unknown-club"></span><span class="tbd">TBD</span></span>`;
 }
 

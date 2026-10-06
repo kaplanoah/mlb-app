@@ -17,6 +17,10 @@
  * While a sheet's details load, placeholders hold their place in the shape they'll have, and
  * sheet-resize.js eases the sheet to its new height once they arrive.
  *
+ * A sheet opened from another, as sheet.js stacks them, slides in from the right over it, and the
+ * one under it steps aside and dims. Its .sheet-back, in its head, names the one under it in
+ * --accent, as does a .sheet-action across from it, like a team's Roster.
+ *
  * Where to watch a game, as network-logos.js builds it, is a line of its channels, or a note to
  * check back while they aren't listed, which takes these tokens from the app's :root:
  *   --network-logo-height    a logo's height, which each logo scales so a square badge and a
@@ -65,6 +69,82 @@
 .sheet-content .sheet-done {
   position: absolute;
   right: 0;
+}
+/* The back button sits at the head's left edge, and an action across from it, left of Done where
+   Done shows. The title keeps clear of both. */
+.sheet-back,
+.sheet-action {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sheet-back {
+  left: -5px;
+}
+.sheet-action {
+  right: 44px;
+}
+.sheet-back[hidden] {
+  display: none;
+}
+/* A slot an app fills with an action, which places the action itself. */
+.sheet-head-slot {
+  display: contents;
+}
+.sheet-back svg {
+  width: 18px;
+  height: 18px;
+}
+.sheet-action svg {
+  width: 14px;
+  height: 14px;
+}
+.sheet-head:has(> .sheet-back:not([hidden])) .sheet-title {
+  min-width: 0;
+  padding-inline: 76px;
+}
+.sheet-head:has(.sheet-action:not([hidden])) .sheet-title {
+  min-width: 0;
+  padding-inline: 116px;
+}
+body.kbd :is(.sheet-back, .sheet-action):focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* A sheet opened over another covers that one's backdrop, which stays as it is. The one under it
+   dims, and on a phone steps aside, while a finger moving either one holds them where it puts
+   them. */
+.sheet-panel[data-stacked]::backdrop {
+  background: transparent;
+}
+.sheet-panel[data-covered] {
+  filter: brightness(0.75);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-panel {
+    transition:
+      transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .sheet-panel[open][data-stacked] {
+    animation: sheet-push 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes sheet-push {
+  from {
+    transform: translateX(100%);
+  }
 }
 .sheet-note {
   margin: 0;
@@ -197,6 +277,16 @@
     border-radius: 22px 22px 0 0;
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
   }
+  .sheet-panel[data-covered] {
+    transform: translateX(-28%);
+  }
+  /* Done shows only to screen readers here, so an action takes the head's right edge. */
+  .sheet-action {
+    right: 0;
+  }
+  .sheet-head:has(.sheet-action:not([hidden])) .sheet-title {
+    padding-inline: 76px;
+  }
   @media (prefers-reduced-motion: no-preference) {
     .sheet-panel[open] {
       animation: sheet-rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -204,12 +294,24 @@
     .sheet-panel[open]::backdrop {
       animation: backdrop-fade-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
+    .sheet-panel[open][data-stacked] {
+      animation-name: sheet-push;
+    }
     /* A sheet the page put back open as it loaded was already showing, so it doesn't rise again. */
     .sheet-panel[open][data-reopened],
     .sheet-panel[open][data-reopened]::backdrop {
       animation: none;
     }
   }
+}
+/* A sheet a finger is moving goes where the finger puts it, and one the page put back open as it
+   loaded was already showing. */
+.sheet-panel[open][data-dragged] {
+  transition: none;
+  animation: none;
+}
+.sheet-panel[open][data-reopened] {
+  animation: none;
 }
 
 /* Text still loading, as placeholder.js draws it: the sample text hidden under a pulsing bar. */

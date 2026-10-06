@@ -20,35 +20,28 @@ async function showGames(page) {
   return page.getByRole("button", { name: ASTROS_AT_ATHLETICS });
 }
 
-test("a club's name in a game's row opens its sheet, and the rest of the row opens the matchup", async ({
+test("a game's row names its clubs plainly, and a tap anywhere on it, their names too, opens the matchup", async ({
   page,
 }) => {
   const gameButton = await showGames(page);
   const row = gameButton.locator("xpath=..");
-  const astros = row.getByRole("button", { name: "Team details: Astros" });
-  const astrosBox = await astros.boundingBox();
-  const awaySideBox = await row.locator(".game-side.away").boundingBox();
-  expect(astrosBox.width).toBeLessThan(awaySideBox.width);
+  await expect(row.getByRole("button", { name: /^Team details/ })).toHaveCount(0);
 
-  await astros.click();
-  const teamSheet = page.locator("#teamDialog");
-  await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
-  await expect(teamSheet.locator("#teamNote")).toContainText("AL West");
-  await expect(page.locator("#matchupDialog")).toBeHidden();
-  await teamSheet.getByRole("button", { name: "Done" }).click();
-  await expect(teamSheet).toBeHidden();
-
-  await gameButton.click();
+  // The row's button lies over its names, so a click on a name lands on it.
+  await row.scrollIntoViewIfNeeded();
+  const astros = await row.locator(".game-side.away .club").boundingBox();
+  if (!astros) throw new Error("The Astros' name isn't shown");
+  await page.mouse.click(astros.x + astros.width / 2, astros.y + astros.height / 2);
   await expect(page.locator("#matchupDialog")).toBeVisible();
-  await expect(teamSheet).toBeHidden();
+  await expect(page.locator("#teamDialog")).toBeHidden();
 });
 
-test("a club's sheet open on a reload shows again, and its Done closes it", async ({ page }) => {
-  const gameButton = await showGames(page);
-  await gameButton
-    .locator("xpath=..")
-    .getByRole("button", { name: "Team details: Astros" })
-    .click();
+test("a club's sheet open over the matchup on a reload shows again over it, and its Done closes both", async ({
+  page,
+}) => {
+  await (await showGames(page)).click();
+  const matchup = page.locator("#matchupDialog");
+  await matchup.getByRole("button", { name: "Team details: Astros" }).first().click();
   const teamSheet = page.locator("#teamDialog");
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
 
@@ -56,8 +49,10 @@ test("a club's sheet open on a reload shows again, and its Done closes it", asyn
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
   await expect(teamSheet.locator("#teamNote")).toContainText("AL West");
+  await expect(teamSheet.getByRole("button", { name: /^Back to / })).toBeVisible();
   await teamSheet.getByRole("button", { name: "Done" }).click();
   await expect(teamSheet).toBeHidden();
+  await expect(matchup).toBeHidden();
 });
 
 // The White Sox clinching with their 9-1 win at Kansas City, one of the evening's finals.
@@ -120,26 +115,24 @@ test.describe("on a phone", () => {
     page,
   }) => {
     const gameButton = await showGames(page);
-    await tapOn(
-      page,
-      gameButton.locator("xpath=..").getByRole("button", { name: "Team details: Astros" }),
-    );
+    await tapOn(page, gameButton.locator("xpath=..").locator(".game-side.away .club"));
 
     await expect(page.locator("#matchupDialog")).toBeVisible();
     await expect(page.locator("#teamDialog")).toBeHidden();
   });
 });
 
-test("a club's name in the matchup opens its sheet over it, and Done goes back to the matchup", async ({
+test("a club's name in the matchup opens its sheet over it, whose back button goes back to the matchup", async ({
   page,
 }) => {
   await (await showGames(page)).click();
   const matchup = page.locator("#matchupDialog");
-  await matchup.getByRole("button", { name: "Team details: Athletics" }).click();
+  await matchup.getByRole("button", { name: "Team details: Athletics" }).first().click();
   const teamSheet = page.locator("#teamDialog");
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Athletics");
-  await teamSheet.getByRole("button", { name: "Done" }).click();
+  await expect(matchup).toHaveAttribute("data-covered");
+  await teamSheet.getByRole("button", { name: /^Back to / }).click();
   await expect(teamSheet).toBeHidden();
   await expect(matchup).toBeVisible();
 });

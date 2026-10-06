@@ -12,6 +12,7 @@ import {
   formatWeekdayAndDate,
   formatWeekdayOrDate,
   nameDay,
+  nameShortDay,
   readCalendarDate,
   readEasternDay,
   readPlayingDay,
@@ -139,6 +140,15 @@ test("a day near now is yesterday, today, or tomorrow, then its weekday, then it
     assert.equal(nameDay(new Date(2026, 9, 7, 20), now), "Wednesday");
     assert.equal(nameDay(new Date(2026, 8, 24, 20), now), "Sep 24");
     assert.equal(nameDay(new Date(2026, 9, 8, 20), now), "Oct 8");
+  }));
+
+test("a back button names a day short: yesterday, today, or tomorrow, then its short weekday, then its date", () =>
+  checkInTimeZone(EASTERN, () => {
+    const now = new Date(2026, 9, 1, 12);
+    assert.equal(nameShortDay(new Date(2026, 8, 30, 20), now), "Yesterday");
+    assert.equal(nameShortDay(new Date(2026, 9, 1, 20), now), "Today");
+    assert.equal(nameShortDay(new Date(2026, 8, 28, 20), now), "Mon");
+    assert.equal(nameShortDay(new Date(2026, 8, 2, 20), now), "Sep 2");
   }));
 
 test("a day's name says only the near days asked for, in the form asked for", () =>

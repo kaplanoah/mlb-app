@@ -71,9 +71,9 @@ const VIEWS = [
     name: "a team's roster",
     open: async (page) => {
       await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-      await page.locator("#teamPages").getByRole("tab", { name: "Roster" }).click();
+      await page.locator("#teamDialog").getByRole("button", { name: "Roster" }).click();
     },
-    shown: (page) => page.locator("#teamDialog .roster-coach"),
+    shown: (page) => page.locator("#rosterDialog .roster-coach"),
     close: (page) => page.keyboard.press("Escape"),
   },
   {

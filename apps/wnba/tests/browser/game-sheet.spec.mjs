@@ -851,7 +851,9 @@ test("a reload shows the open sheet where it was scrolled before the page's code
   await expect(sheet).toBeHidden();
 });
 
-test("a team's sheet open over a game's opens over it again on a reload", async ({ page }) => {
+test("a team's sheet open over a game's opens over it again on a reload, its back button still naming the game", async ({
+  page,
+}) => {
   await openApp(page);
   const gameSheet = await openSheet(page, ACES_AT_FEVER);
   await gameSheet
@@ -864,10 +866,11 @@ test("a team's sheet open over a game's opens over it again on a reload", async 
   await page.reload();
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
-  await expect(page.locator("#gameDialog")).toBeVisible();
-  await page.keyboard.press("Escape");
+  await expect(page.locator("#gameDialog")).toBeAttached();
+  await teamSheet.getByRole("button", { name: "Back to Game 2" }).click();
   await expect(teamSheet).toBeHidden();
   await expect(page.locator("#gameDialog .foul-chip")).toHaveText(["Fouled out"]);
+  await expect(page.locator("#gameDialog .foul-chip")).toBeVisible();
 });
 
 test("a sheet whose game the season no longer has closes once the page's code arrives", async ({
@@ -1037,29 +1040,23 @@ test.describe("on a phone, with less motion", () => {
   });
 });
 
-test("a team's name in a game's row opens its sheet, set like the row's other names, and the rest of the row opens the game", async ({
+test("a game's row names its teams in their own type, and a tap anywhere on it, its teams' names too, opens the game", async ({
   page,
 }) => {
   await openApp(page);
   const gameButton = await findGameButton(page, ACES_AT_FEVER);
   const row = gameButton.locator("xpath=..");
-  const fever = row.getByRole("button", { name: "Team details: Indiana Fever" });
+  const fever = row.locator(".game-side.home .team-name");
   await expect(fever).toHaveCSS("font-family", /^"Barlow Condensed"/);
   await expect(fever).toHaveCSS("font-weight", "600");
-  const aces = row.getByRole("button", { name: "Team details: Las Vegas Aces" });
-  const acesBox = await aces.boundingBox();
-  const awaySideBox = await row.locator(".game-side.away").boundingBox();
-  expect(acesBox.width).toBeLessThan(awaySideBox.width / 2);
+  await expect(row.getByRole("button", { name: /^Team details/ })).toHaveCount(0);
 
-  await fever.click();
-  const teamSheet = page.locator("#teamDialog");
-  await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
-  await expect(page.locator("#gameDialog")).toBeHidden();
-  await teamSheet.getByRole("button", { name: "Done" }).click();
-  await expect(teamSheet).toBeHidden();
-
-  await gameButton.click();
+  // The row's button lies over its names, so a click on a name lands on it.
+  const box = await fever.boundingBox();
+  if (!box) throw new Error("The Fever's name isn't shown");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.locator("#gameTitle")).toHaveText("First Round Game 2");
+  await expect(page.locator("#teamDialog")).toBeHidden();
 });
 
 test.describe("on a phone", () => {
@@ -1071,7 +1068,7 @@ test.describe("on a phone", () => {
     await openApp(page);
     const fever = (await findGameButton(page, ACES_AT_FEVER))
       .locator("xpath=..")
-      .getByRole("button", { name: "Team details: Indiana Fever" });
+      .locator(".game-side.home .team-name");
     await fever.scrollIntoViewIfNeeded();
     const box = await fever.boundingBox();
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
@@ -1081,7 +1078,7 @@ test.describe("on a phone", () => {
   });
 });
 
-test("a team's name in a game's sheet opens its sheet over the game's, and Done goes back to the game", async ({
+test("a team's name in a game's sheet opens its sheet over the game's, whose back button names the game and goes back to it, and Done closes both", async ({
   page,
 }) => {
   await openApp(page);
@@ -1097,13 +1094,39 @@ test("a team's name in a game's sheet opens its sheet over the game's, and Done 
       .getByRole("button", { name: "Team details: Las Vegas Aces" })
       .click();
     await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
-    await teamSheet.getByRole("button", { name: "Done" }).click();
+    await expect(teamSheet).toHaveAttribute("data-stacked");
+    await expect(gameSheet).toHaveAttribute("data-covered");
+    await teamSheet.getByRole("button", { name: "Back to Game 2" }).click();
     await expect(teamSheet).toBeHidden();
     await expect(gameSheet).toBeVisible();
+    await expect(gameSheet).not.toHaveAttribute("data-covered");
   }
+
+  await gameSheet
+    .locator(".faceoff")
+    .getByRole("button", { name: "Team details: Las Vegas Aces" })
+    .click();
+  await teamSheet.getByRole("button", { name: "Done" }).click();
+  await expect(teamSheet).toBeHidden();
+  await expect(gameSheet).toBeHidden();
 });
 
-test("closing a team's sheet over a game's sheet leaves no focus ring around the game's", async ({
+test("Escape closes a team's sheet and the game's under it at once", async ({ page }) => {
+  await openApp(page);
+  await (await findGameButton(page, ACES_AT_FEVER)).click();
+  const gameSheet = page.locator("#gameDialog");
+  await gameSheet
+    .locator(".faceoff")
+    .getByRole("button", { name: "Team details: Las Vegas Aces" })
+    .click();
+  await expect(page.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#teamDialog")).toBeHidden();
+  await expect(gameSheet).toBeHidden();
+});
+
+test("going back from a team's sheet to a game's leaves no focus ring around the game's", async ({
   page,
 }) => {
   await openApp(page);
@@ -1119,7 +1142,7 @@ test("closing a team's sheet over a game's sheet leaves no focus ring around the
   const teamSheet = page.locator("#teamDialog");
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
 
-  await page.keyboard.press("Escape");
+  await teamSheet.getByRole("button", { name: "Back to Game 2" }).dispatchEvent("click");
   await expect(teamSheet).toBeHidden();
   await expect(gameSheet).toBeFocused();
   await expect(gameSheet).toHaveCSS("outline-style", "none");

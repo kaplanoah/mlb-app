@@ -1,7 +1,7 @@
 import { countDaysBetween, formatClockTime, formatShortMonth } from "#shared/days.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { html } from "#shared/html.js";
-import { renderClub } from "./clubs.js";
+import { renderClub, renderPlainClub } from "./clubs.js";
 import { abbreviateDay, nameListDay, readGameDay } from "./days.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { describeSeriesAfterWin, nameTeam } from "./series.js";
@@ -117,7 +117,11 @@ function renderSeriesLabel(game, games) {
   >`;
 }
 
+/** @param {Game} game */
+const hasBothTeams = (game) => !!game.away.team && !!game.home.team;
+
 // Every game holds a line for Bonus under each team, so the teams stay put as it comes and goes.
+// A row that opens its game opens it wherever it's tapped, so its teams are plain.
 /**
  * @param {Game} game
  * @param {"away" | "home"} place
@@ -125,8 +129,9 @@ function renderSeriesLabel(game, games) {
 function describeSide(game, place) {
   const side = game[place];
   const bonus = game.state === "live" && side.isInBonus && html`<span class="bonus">Bonus</span>`;
+  const renderSideClub = hasBothTeams(game) && side.team ? renderPlainClub : renderClub;
   return {
-    lines: renderClub(side.team, { seed: side.seed }),
+    lines: renderSideClub(side.team, { seed: side.seed }),
     classes: [findLoser(game) === place && "lost"],
     extra: html`${bonus}`,
   };
@@ -135,9 +140,6 @@ function describeSide(game, place) {
 /** @param {Game} game */
 export const nameGame = (game) =>
   game.round ? `${ROUNDS[game.round].name} Game ${game.number}` : "Game";
-
-/** @param {Game} game */
-const hasBothTeams = (game) => !!game.away.team && !!game.home.team;
 
 /** @param {Game} game */
 function nameOpenButton(game) {

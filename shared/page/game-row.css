@@ -120,17 +120,11 @@
     --row-highlight: color-mix(in srgb, var(--ink) 5%, transparent);
   }
 }
-/* The sides sit above the action and let taps through to it. With a mouse, a team's name stops
-   them and opens the team's sheet while the rest of the row opens the game. On a touch screen,
-   where a thumb easily lands on a name, a tap anywhere on the row opens the game. */
-.game-row .game-side {
+/* The sides sit above the action and let taps through to it, so a tap anywhere on the row, a
+   team's name too, opens the game. */
+.game-row:has(> .game-open) .game-side {
   z-index: 1;
   pointer-events: none;
-}
-@media (hover: hover), (pointer: fine) {
-  .game-row .team-open {
-    pointer-events: auto;
-  }
 }
 .game-side.away .team-open {
   align-self: flex-start;

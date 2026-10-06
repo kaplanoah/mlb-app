@@ -745,21 +745,23 @@ const listTeamButtons = (markup) =>
     ([, team]) => team,
   );
 
-test("each team in the Games lists opens its sheet, and a team still TBD opens nothing", () => {
+test("a game's row that opens the game names its teams plainly, and a row still waiting on a team has the other open its sheet", () => {
   const lists = renderGames(SEASON, NOW);
   const markup = {
     text: Object.values(lists)
       .map((list) => list.text)
       .join(""),
   };
-  const sides = SEASON.games
-    .filter((game) => game.away.team || game.home.team)
-    .flatMap((game) => [game.away.team, game.home.team]);
-  assert.deepEqual(listTeamButtons(markup).sort(), sides.filter(Boolean).sort());
+  const waiting = SEASON.games.filter((game) => !game.away.team !== !game.home.team);
+  assert.ok(waiting.length > 0);
+  assert.deepEqual(
+    listTeamButtons(markup).sort(),
+    waiting.map((game) => game.away.team || game.home.team).sort(),
+  );
   assert.match(markup.text, /<span class="club tbd">/);
   assert.match(
     lists.previous.text,
-    /<button type="button" class="club team-open" data-team="LVA" aria-label="Team details: Las Vegas Aces">/,
+    /<span class="club"><span class="dot"[^>]*><\/span><span class="seed">3<\/span><span class="team-name">Aces<\/span><\/span>/,
   );
 });
 

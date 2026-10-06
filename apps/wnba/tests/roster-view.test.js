@@ -4,13 +4,16 @@ import { readFileSync } from "node:fs";
 import {
   chooseSort,
   DEFAULT_SORT,
+  describeRosterNote,
   matchAverages,
   renderRoster,
+  renderRosterButton,
   sortRows,
 } from "../page/js/roster-view.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeRoster } from "../worker/src/roster.js";
 import { convertToText, Markup } from "../../../shared/page/html.js";
+import { stripTags } from "../../../tests/text.js";
 
 const AFTERNOON = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-09-30-afternoon.json`, "utf8"),
@@ -31,6 +34,10 @@ const LIBERTY = describeRoster("NYL", ROSTERS.teams.NYL.roster, DEBUTS);
 /** @param {{ markup?: any, sort?: any, isLoading?: boolean, roster?: any }} [options] */
 const renderText = ({ sort = DEFAULT_SORT, isLoading = false, roster = LIBERTY } = {}) =>
   renderRoster({ roster, averages: AVERAGES, sort, isLoading }).text;
+
+// A line of facts as it reads, each separator a bar.
+/** @param {Markup} markup */
+const readFacts = (markup) => stripTags(markup).replace(/&bull;/g, " | ");
 
 /** @param {string} markup */
 const listLastNames = (markup) =>
@@ -81,10 +88,9 @@ test("players without a value for the sorted column stay last either way, and ti
   assert.deepEqual(byHome.slice(-3), ["Astier", "Carrera", "Fauthoux"]);
 });
 
-test("the roster lists its players by last name with their facts and averages, its coach, and how many it has", () => {
+test("the roster lists its players by last name with their facts, their points, rebounds, and assists a game, and its coach", () => {
   const markup = renderText();
   assert.deepEqual(listLastNames(markup).slice(0, 3), ["Allen", "Astier", "Balogun"]);
-  assert.match(markup, /15 players/);
   assert.match(markup, /<dt>Head coach<\/dt>\s*<dd>Chris DeMarco<\/dd>/);
   assert.match(markup, /Balogun<span class="foul-chip"><span class="foul-chip-words">Out/);
   assert.match(markup, /<span class="roster-country">Australia<\/span>/);
@@ -94,7 +100,20 @@ test("the roster lists its players by last name with their facts and averages, i
   const cells = [...stewart.slice(0, stewart.indexOf("</tr>")).matchAll(/<td[^>]*>([^<]*)/g)];
   assert.deepEqual(
     cells.map((cell) => convertToText(new Markup(cell[1]))),
-    ["30", "F", `6'4"`, "UConn", "32", "2016", "42", "32.9", "20.8", "8.3", "3.3", "1.4", "1.3"],
+    ["30", "F", `6'4"`, "UConn", "32", "2016", "42", "32.9", "20.8", "8.3", "3.3"],
+  );
+  assert.doesNotMatch(markup, /Steals|Blocks/);
+});
+
+test("the roster's sheet says it's the roster, and how many players it has once it's loaded", () => {
+  assert.equal(readFacts(describeRosterNote(LIBERTY)), "Roster | 15 players");
+  assert.equal(readFacts(describeRosterNote(null)), "Roster");
+});
+
+test("a team's Roster button names the team it opens the roster of", () => {
+  assert.match(
+    renderRosterButton("NYL").text,
+    /^<button type="button" class="sheet-action" data-roster="NYL">Roster<svg/,
   );
 });
 
@@ -108,7 +127,7 @@ test("the sorted column says which way it sorts", () => {
 test("while the roster loads, stand-ins hold its shape, and a roster that didn't load says to try again", () => {
   const loading = renderText({ roster: null, isLoading: true });
   assert.match(loading, /class="placeholder"/);
-  assert.doesNotMatch(loading, /players<\/span>/);
+  assert.doesNotMatch(loading, /<dt>Head coach/);
   assert.match(
     renderText({ roster: null, isLoading: false }),
     /Couldn&#39;t load the roster\. Close and try again in a minute\./,

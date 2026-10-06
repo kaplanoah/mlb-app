@@ -1,7 +1,8 @@
 /*
  * A team's sheet, as team-sheet.js opens it, and the buttons on a team's name or dot that open it.
- * The sheet is sheet.css's: its title is the team's dot and name over a note of its facts, then
- * titled parts of its season, with its numbers in a grid and its facts in lines after a label.
+ * The sheet is sheet.css's: its title, a .team-title, is the team's dot and name over a .team-note
+ * of its facts, then titled parts of its season, with its numbers in a grid and its facts in lines
+ * after a label.
  * Apps link it after sheet.css, before their own styles.css, which sets the title's font and may
  * refine these rules.
  *
@@ -9,10 +10,6 @@
  * --sheet-part-head, an app's :root defines these tokens:
  *   --ink-mid              text between --ink and --ink-dim, for the note and the labels
  *   --ink-hover            a team's name under the pointer, --ink with enough of --accent to see
- *
- * A sheet with more than one page has a pill under its title, drawn by pager.css, which the app
- * links too, and its :root also defines:
- *   --team-pages-thumb     the thumb under the shown page's name, which stands out from --card
  */
 
 /* The button only clears the browser's own look, so a team's name keeps the type of wherever it
@@ -54,24 +51,8 @@ body.kbd .team-open:focus {
     padding-top: 2px;
   }
 }
-/* The pill between a sheet's pages. Its thumb slides to the page a tap shows. */
-.team-pages {
-  --pager-thumb: var(--team-pages-thumb);
-  margin-top: 12px;
-}
-.team-pages .pager-thumb {
-  transition: transform 0.25s ease;
-}
-.team-pages button[aria-selected="true"] {
-  --nearness: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .team-pages .pager-thumb {
-    transition: none;
-  }
-}
-
-#teamTitle {
+/* A team's name and dot, over its facts, wherever a sheet's title names the team. */
+.sheet-head h2.team-title {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -79,11 +60,11 @@ body.kbd .team-open:focus {
   font-weight: 600;
   text-transform: none;
 }
-#teamTitle .dot {
+.sheet-head .team-title .dot {
   width: 14px;
   height: 14px;
 }
-#teamNote {
+.sheet-head .team-note {
   font-weight: 500;
   color: var(--ink-mid);
 }

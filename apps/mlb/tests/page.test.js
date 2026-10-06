@@ -1306,7 +1306,7 @@ const listTeamButtons = (rendered) =>
     ),
   ].map(([, id, name]) => `${id} ${name}`);
 
-test("a club's name in the games list, the standings, and the updates opens its sheet", () => {
+test("a club's name in the standings and the updates opens its sheet, and in a game's row, which opens the matchup wherever it's tapped, it's plain", () => {
   session.state = { teams: { NYY: { league: "AL", seed: 4 } } };
   const yankees = { id: "NYY", w: 93, l: 68, gb: "-", elim: "-", lead: true };
   const orioles = { id: "BAL", w: 79, l: 82, gb: "14.0", elim: "E", wce: "E" };
@@ -1321,7 +1321,9 @@ test("a club's name in the games list, the standings, and the updates opens its 
   const standings = String(renderDivisionBlock("AL East", [yankees, orioles]));
   const update = renderEntryText({ kind: "elim", team: "BAL" });
 
-  assert.deepEqual(listTeamButtons(renderGameList(slate, "today")), ["BAL Orioles", "NYY Yankees"]);
+  const games = String(renderGameList(slate, "today"));
+  assert.deepEqual(listTeamButtons(games), []);
+  assert.equal([...games.matchAll(/<span class="club">/g)].length, 2);
   assert.deepEqual(listTeamButtons(standings), ["NYY Yankees", "BAL Orioles"]);
   assert.deepEqual(
     [...standings.matchAll(/<tr class="[^"]*" data-team="(\w+)">/g)].map(([, id]) => id),
