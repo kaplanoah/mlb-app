@@ -113,13 +113,13 @@ export const renderPlayerHeading = (subject, player, showsOut) =>
   html`${renderDot(subject.team)}<span>${player ? `${player.firstName} ${player.lastName}` : subject.name}</span>${showsOut && player?.facts?.isOut && OUT_CHIP}`;
 
 /**
- * Her team, her number, and her college, or her country for a player who skipped college.
+ * Her team, her number, and her college, or her country for a player who skipped college, or just
+ * her team until her facts load.
  * @param {PlayerSubject} subject
  * @param {Player | null} player
  */
 export function describePlayerNote(subject, player) {
-  if (!player) return renderPlaceholder("Liberty #00 Connecticut");
-  const facts = player.facts;
+  const facts = player?.facts;
   return joinWithSeparator(
     [
       renderTeamName(subject.team),
@@ -133,10 +133,14 @@ export function describePlayerNote(subject, player) {
  * Her position, age, height, and first season, each under its label, leaving out any the league
  * doesn't have.
  * @param {Player | null} player
+ * @param {boolean} isLoading
  */
-export function renderPlayerFacts(player) {
+export function renderPlayerFacts(player, isLoading) {
   if (!player)
-    return html`<div class="player-facts">${renderPlaceholder("Position 00 0'0\" 0000")}</div>`;
+    return (
+      isLoading &&
+      html`<div class="player-facts">${renderPlaceholder("Position 00 0'0\" 0000")}</div>`
+    );
   const facts = player.facts;
   /** @type {[string, string | number | null | undefined][]} */
   const cells = [
@@ -186,12 +190,12 @@ const renderCount = (count, unit) =>
 /**
  * Her points, rebounds, assists, and minutes in her last game, and her season's averages under
  * them, then how she shot and what she took away.
- * @param {PlayerGame} game
- * @param {RegularSeason | null} season
+ * @param {Player} player
  * @param {number} now
  */
-function renderLastGame(game, season, now) {
-  const averages = season?.averages;
+function renderLastGame({ lastGame: game, regularSeason }, now) {
+  if (!game) return false;
+  const averages = regularSeason?.averages;
   const cells = [
     { label: "Pts", title: "Points", game: game.points, average: averages?.points },
     { label: "Reb", title: "Rebounds", game: game.rebounds, average: averages?.rebounds },
@@ -392,12 +396,9 @@ export function renderPlayerBody({ player, isLoading, season, isPastSeason, now 
   if (!player && isLoading) return renderPending();
   if (!player)
     return renderSheetMessage("Couldn't load her numbers. Close and try again in a minute.");
-  const parts = [
-    player.lastGame && renderLastGame(player.lastGame, player.regularSeason, now),
-    renderPlayoffs(player, season, now),
-    player.regularSeason && renderRegularSeason(player.team, player.regularSeason),
-  ].filter(Boolean);
-  if (!parts.length)
-    return renderSheetMessage(isPastSeason ? "No games this season" : "No games yet this season");
-  return html`${parts}`;
+  const hasPlayed = !!(player.lastGame || player.regularSeason);
+  const noGames = isPastSeason ? "No games this season" : "No games yet this season";
+  return html`${hasPlayed ? renderLastGame(player, now) : renderSheetMessage(noGames)}
+  ${renderPlayoffs(player, season, now)}
+  ${player.regularSeason && renderRegularSeason(player.team, player.regularSeason)}`;
 }

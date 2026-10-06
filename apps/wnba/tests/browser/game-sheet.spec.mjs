@@ -1,4 +1,12 @@
-import { test, expect, openApp, GAMES, matchPath } from "./harness.mjs";
+import {
+  test,
+  expect,
+  openApp,
+  openGameSheet,
+  findGameButton,
+  GAMES,
+  matchPath,
+} from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
 import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
@@ -63,35 +71,6 @@ const readPaintedBackground = (locator) =>
     return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
   });
 
-/**
- * Shows the Games list that has the game a button names, and finds the button once the list has
- * come to rest, before which a tap on it does nothing.
- * @param {import("@playwright/test").Page} page
- * @param {string} name
- */
-async function findGameButton(page, name) {
-  await page.getByRole("tab", { name: "Games" }).click();
-  for (const list of ["Today", "Previous", "Next"]) {
-    await page.getByRole("tab", { name: list }).click();
-    const games = page.locator(`#games-${list.toLowerCase()}`);
-    const button = games.getByRole("button", { name });
-    if (!(await button.count())) continue;
-    await expect(games).not.toHaveAttribute("inert");
-    return button;
-  }
-  throw new Error(`No game is named ${name}`);
-}
-
-/**
- * Opens the sheet of the game a button names, from whichever of the Games lists has it.
- * @param {import("@playwright/test").Page} page
- * @param {string} name
- */
-async function openSheet(page, name) {
-  await (await findGameButton(page, name)).click();
-  return page.getByRole("dialog");
-}
-
 /** @param {import("@playwright/test").Page} page */
 const holdBoxScores = (page) => holdRequests(page, matchPath("/box-score"));
 
@@ -123,7 +102,7 @@ test("tapping a final opens its sheet with the score, the box score, and the top
   page,
 }) => {
   await openApp(page);
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
 
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("First Round Game 2");
   await expect(sheet.locator("#gameWhen")).toHaveText("Fever won to tie 1-1•Yesterday");
@@ -156,7 +135,7 @@ test("only the team rows of By quarter have a line above them, not its heading r
   page,
 }) => {
   await openApp(page);
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
   const lineScore = sheet.locator(".line-score");
   await expect(lineScore.locator("tbody tr")).toHaveCount(2);
 
@@ -183,7 +162,7 @@ test("a final's sheet charts the lead through the game under its quarters, and o
 }) => {
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
 
   const chart = sheet.locator(".lead-chart");
   await expect(chart.getByRole("img")).toHaveAttribute(
@@ -200,7 +179,7 @@ test("a final's sheet charts the lead through the game under its quarters, and o
   await sheet.getByRole("button", { name: "Done" }).click();
   await expect(sheet).toBeHidden();
 
-  await openSheet(page, ACES_AT_FEVER);
+  await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".line-score tbody tr")).toHaveCount(2);
   await expect(sheet.locator(".sheet-part h3")).toHaveText([
     "By quarter",
@@ -214,7 +193,7 @@ test("the lead chart keeps each biggest lead's label on its tile and each team's
 }) => {
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   const chart = sheet.locator(".lead-chart");
   await expect(chart.locator(".lead-peak-label")).toHaveText(["Valkyries +8", "Wings +8"]);
 
@@ -249,7 +228,7 @@ for (const { screen, viewport } of [
     test("the lead chart's words show at the type scale's smallest size", async ({ page }) => {
       const app = await openApp(page);
       await app.changeSeason(finishValkyriesAtWings);
-      const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+      const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
       const words = sheet.locator(
         ".lead-chart :is(.lead-side, .lead-reach, .lead-peak-label, .lead-period)",
       );
@@ -267,7 +246,7 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
 }) => {
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   await expect(sheet.locator(".lead-peak-label")).toHaveCount(2);
   const layout = await sheet.locator(".game-sheet-body").evaluate((body) => {
     const measure = (/** @type {Element} */ element) => element.getBoundingClientRect();
@@ -310,7 +289,7 @@ for (const [device, viewport] of Object.entries({
   }) => {
     await page.setViewportSize(viewport);
     await openApp(page);
-    const sheet = await openSheet(page, ACES_AT_FEVER);
+    const sheet = await openGameSheet(page, ACES_AT_FEVER);
     await expect(sheet.locator(".faceoff .score")).toHaveText(/89\s*99/);
     const band = await sheet.evaluate((dialog) => {
       const find = (/** @type {string} */ selector) =>
@@ -346,7 +325,7 @@ test("a box score's and a preview's two teams line their numbers up column for c
     [ACES_AT_FEVER, "Caitlin Clark"],
     [FEVER_AT_ACES, "Kelsey Mitchell"],
   ]) {
-    const sheet = await openSheet(page, name);
+    const sheet = await openGameSheet(page, name);
     await expect(sheet.getByText(player)).toBeVisible();
     const columns = await sheet.locator("table.players .players-head").evaluateAll((heads) =>
       heads.map((head) =>
@@ -372,7 +351,7 @@ test("a box score's names rise a pixel beside the numbers, a fouled-out chip sta
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
   const name = sheet.locator('table.players th[scope="row"]', { hasText: "Caitlin Clark" });
   await expect(name.locator(".foul-chip")).toHaveText("Fouled out");
   await expect(name).toHaveCSS("top", "-1px");
@@ -386,7 +365,7 @@ test("while the lead loads after the box score, the sheet holds the chart's plac
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
   const releaseLead = await holdRequests(page, matchPath("/lead"));
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   const teamStats = sheet.locator(".sheet-part h3", { hasText: "Team stats" });
   await expect(sheet.locator(".line-score .total").last()).toHaveText("108");
   await expect(sheet.locator(".lead-tile.pending")).toBeVisible();
@@ -405,7 +384,7 @@ test("each team's side of the lead chart and the team stats takes its color, on 
   await page.emulateMedia({ colorScheme: "light" });
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   const chart = sheet.locator(".lead-chart");
   const fieldGoals = sheet.locator(".tape-row").first();
   await expect(fieldGoals.locator(".home .tape-bar i")).toHaveClass("lead");
@@ -433,7 +412,7 @@ test("the side behind on a measure gets a paler bar of its own team's hue, on ea
   await page.emulateMedia({ colorScheme: "light" });
   const app = await openApp(page);
   await app.changeSeason(finishValkyriesAtWings);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   const behind = sheet.locator(".tape-row").first().locator(".away .tape-bar i");
   await expect(behind).not.toHaveClass("lead");
 
@@ -509,7 +488,7 @@ test("a live game's sheet reads its box score and lead once, then takes what the
   await app.changeSeason(startValkyriesAtWings);
   const boxScoreReads = countBoxScoreReads(page);
   const leadReads = countLeadReads(page);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   await expect(sheet.locator(".lead-chart")).toBeVisible();
   await expect.poll(() => app.listWatchedPaths()).toContain("games/1042600112");
 
@@ -534,7 +513,7 @@ test("details saved before the sheet's own read don't take a live box score back
   earlier.away.score -= 10;
   await app.saveGameDetails("1042600112", { boxScore: earlier, lead: null });
 
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   await expect(sheet.locator(".line-score")).toBeVisible();
   await expect.poll(() => app.listWatchedPaths()).toContain("games/1042600112");
   await page.clock.runFor(POLL_LIVE_MS);
@@ -554,7 +533,7 @@ for (const { screen, viewport } of [
     }) => {
       const app = await openApp(page, { league: { boxScores: { 1042600112: liveBoxScore } } });
       await app.changeSeason(startValkyriesAtWings);
-      const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+      const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
       await expect(page.locator(".bonus").first()).toBeAttached();
       await expect(sheet.locator(".line-score th.now")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
@@ -563,13 +542,13 @@ for (const { screen, viewport } of [
       await expect(page.locator(".clock").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
-      const final = await openSheet(page, ACES_AT_FEVER);
+      const final = await openGameSheet(page, ACES_AT_FEVER);
       await expect(final.locator(".line-score")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(final).toBeHidden();
-      const preview = await openSheet(page, FEVER_AT_ACES);
+      const preview = await openGameSheet(page, FEVER_AT_ACES);
       await expect(preview.locator(".meeting-score").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
@@ -582,7 +561,7 @@ test("a live game's sheet shows its game as it goes, and stops watching it once 
 }) => {
   const app = await openApp(page, { league: { boxScores: { 1042600112: liveBoxScore } } });
   await app.changeSeason(startValkyriesAtWings);
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
 
   await expect(sheet.locator(".faceoff .clock")).toHaveText("Q3 4:32");
   await expect(sheet.locator(".faceoff-side.home .bonus")).toHaveText("Bonus");
@@ -607,7 +586,7 @@ test("a game that hasn't started previews the meetings, the season stats, and th
   page,
 }) => {
   await openApp(page);
-  const sheet = await openSheet(page, FEVER_AT_ACES);
+  const sheet = await openGameSheet(page, FEVER_AT_ACES);
 
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("First Round Game 3");
   await expect(sheet.locator(".faceoff .time")).toHaveText(/^9:00\sPM$/);
@@ -634,7 +613,7 @@ test("a sheet open on a preview switches to the box score once the game starts",
   page,
 }) => {
   const app = await openApp(page, { league: { boxScores: { 1042600112: liveBoxScore } } });
-  const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   await expect(sheet.locator(".meetings")).toBeVisible();
 
   await app.changeSeason(startValkyriesAtWings);
@@ -648,13 +627,13 @@ test("a game the league has no box score for says so, and a preview whose meetin
   page,
 }) => {
   await openApp(page, { league: { isScheduleRefused: true } });
-  const sheet = await openSheet(page, "Game details: Fever at Aces, First Round Game 1");
+  const sheet = await openGameSheet(page, "Game details: Fever at Aces, First Round Game 1");
   await expect(sheet.locator(".sheet-message")).toHaveText(
     "The league hasn't posted a box score for this game yet.",
   );
   await sheet.getByRole("button", { name: "Done" }).click();
 
-  const preview = await openSheet(page, FEVER_AT_ACES);
+  const preview = await openGameSheet(page, FEVER_AT_ACES);
   await expect(preview.locator(".sheet-message")).toHaveText(
     "Couldn't load this season's meetings.",
   );
@@ -666,7 +645,7 @@ test("a preview takes the season stats and leading scorers from the store as it 
   page,
 }) => {
   const app = await openApp(page);
-  const sheet = await openSheet(page, FEVER_AT_ACES);
+  const sheet = await openGameSheet(page, FEVER_AT_ACES);
   await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
 
   await app.changeSeason((season) => ({ ...season, leaders: [] }));
@@ -680,7 +659,7 @@ test("a sheet the Worker can't load says to try again", async ({ page }) => {
   await page.route(matchPath("/box-score"), (route) =>
     route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
   );
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".sheet-message")).toHaveText(
     "Couldn't load the box score. Close and try again in a minute.",
   );
@@ -691,7 +670,7 @@ test("while its box score loads, the sheet holds the box score's shape, then fil
 }) => {
   await openApp(page);
   const release = await holdBoxScores(page);
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
   const body = sheet.locator("#gameBody");
 
   await expect(body).toHaveAttribute("aria-busy", "true");
@@ -718,7 +697,7 @@ test("while its meetings load, the sheet holds their shape, with the season stat
 }) => {
   await openApp(page);
   const release = await holdRequests(page, matchPath("/preview"));
-  const sheet = await openSheet(page, FEVER_AT_ACES);
+  const sheet = await openGameSheet(page, FEVER_AT_ACES);
 
   await expect(sheet.locator(".sheet-part-head h3")).toHaveText([
     "Meetings",
@@ -762,7 +741,7 @@ test("a sheet that can't load its box score eases from the box score's shape dow
     route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
   );
   const release = await holdBoxScores(page);
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".tape-label")).toHaveCount(8);
 
   release();
@@ -780,7 +759,7 @@ test("with less motion asked for, a sheet takes its new height at once", async (
   await page.route(matchPath("/box-score"), (route) =>
     route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
   );
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
 
   await expect(sheet.locator(".sheet-message")).toBeVisible();
   expect(await readResizes()).toEqual([]);
@@ -791,7 +770,7 @@ test("no text in a game's sheet is smaller than 10.5px, in its box score or its 
 }) => {
   await openApp(page);
   for (const name of [ACES_AT_FEVER, FEVER_AT_ACES]) {
-    const sheet = await openSheet(page, name);
+    const sheet = await openGameSheet(page, name);
     await expect(sheet.locator("#gameBody")).toHaveAttribute("aria-busy", "false");
     const smallest = await sheet.evaluate((dialog) =>
       Math.min(
@@ -827,7 +806,7 @@ test("a reload shows the open sheet where it was scrolled before the page's code
   page,
 }) => {
   await openApp(page);
-  const sheet = await openSheet(page, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
   await sheet.evaluate((dialog) => {
     dialog.scrollTop = 200;
@@ -855,7 +834,7 @@ test("a team's sheet open over a game's opens over it again on a reload, its bac
   page,
 }) => {
   await openApp(page);
-  const gameSheet = await openSheet(page, ACES_AT_FEVER);
+  const gameSheet = await openGameSheet(page, ACES_AT_FEVER);
   await gameSheet
     .locator(".faceoff")
     .getByRole("button", { name: "Team details: Las Vegas Aces" })
@@ -900,7 +879,7 @@ test.describe("on a phone", () => {
   }) => {
     const readMotions = await recordSheetMotions(page);
     await openApp(page);
-    const sheet = await openSheet(page, ACES_AT_FEVER);
+    const sheet = await openGameSheet(page, ACES_AT_FEVER);
     await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
     const answered = page.waitForResponse(matchPath("/box-score"));
     const listSheetMotions = async () =>
@@ -913,7 +892,7 @@ test.describe("on a phone", () => {
     expect(await listSheetMotions()).toEqual([]);
     await sheet.getByRole("button", { name: "Done" }).dispatchEvent("click");
     await expect(sheet).toBeHidden();
-    await openSheet(page, ACES_AT_FEVER);
+    await openGameSheet(page, ACES_AT_FEVER);
     await expect.poll(listSheetMotions).toContainEqual({
       id: "gameDialog",
       part: "sheet",
@@ -925,7 +904,7 @@ test.describe("on a phone", () => {
     page,
   }) => {
     await openApp(page);
-    const sheet = await openSheet(page, ACES_AT_FEVER);
+    const sheet = await openGameSheet(page, ACES_AT_FEVER);
     await expect(sheet.locator(".sheet-grabber")).toBeVisible();
     await page.waitForFunction(() => document.getAnimations().length === 0);
     await expect(sheet.getByRole("button", { name: "Done" })).toHaveCSS("width", "1px");
@@ -939,7 +918,7 @@ test.describe("on a phone", () => {
     page,
   }) => {
     await openApp(page);
-    const sheet = await openSheet(page, ACES_AT_FEVER);
+    const sheet = await openGameSheet(page, ACES_AT_FEVER);
     await expect(sheet.locator(".tape-row").first()).toBeVisible();
     await expect(sheet).toHaveCSS("overscroll-behavior-y", "none");
 
@@ -960,7 +939,7 @@ test.describe("on a phone", () => {
       Escape: () => page.keyboard.press("Escape"),
     };
     for (const [way, close] of Object.entries(closings)) {
-      const sheet = await openSheet(page, ACES_AT_FEVER);
+      const sheet = await openGameSheet(page, ACES_AT_FEVER);
       await expect.poll(readMotions, way).toContainEqual({
         id: "gameDialog",
         part: "::backdrop",
@@ -1017,7 +996,7 @@ test.describe("on a phone, with less motion", () => {
 
   test("a team stat's label that takes two lines splits them evenly", async ({ page }) => {
     await openApp(page);
-    const sheet = await openSheet(page, ACES_AT_FEVER);
+    const sheet = await openGameSheet(page, ACES_AT_FEVER);
     const label = sheet.locator(".tape-label", { hasText: "Points in the paint" });
     await expect(label).toBeVisible();
 
@@ -1029,7 +1008,7 @@ test.describe("on a phone, with less motion", () => {
   }) => {
     const app = await openApp(page, { league: { boxScores: { 1042600112: liveBoxScore } } });
     await app.changeSeason(startValkyriesAtWings);
-    const sheet = await openSheet(page, VALKYRIES_AT_WINGS);
+    const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
     const note = sheet.locator(".tape-note");
     await expect(note).toContainText("Timeouts left");
 

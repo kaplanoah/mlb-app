@@ -100,7 +100,7 @@ function renderSheet() {
   redrawSheet(findDialog(), () => {
     setHtml(findElement("playerTitle"), renderPlayerHeading(subject, player, showsOut));
     setHtml(findElement("playerNote"), describePlayerNote(subject, player));
-    setHtml(findElement("playerFacts"), renderPlayerFacts(player) || "");
+    setHtml(findElement("playerFacts"), renderPlayerFacts(player, isLoading) || "");
     setHtml(
       findElement("playerBody"),
       renderPlayerBody({
@@ -145,6 +145,13 @@ function openOnTap(event) {
   openSheet(preparePlayer({ id, team, name }));
 }
 
+// A forward button back to her sheet names her by her last name, once it has loaded.
+function nameForForward() {
+  if (!shownPlayer) return NAME_FOR_BACK;
+  const { player } = readPlayer(shownPlayer, session.year);
+  return player?.lastName ?? shownPlayer.name;
+}
+
 /** Redraws the open sheet from what the page shows now. */
 export const refreshPlayerSheet = () => renderSheet();
 
@@ -155,6 +162,7 @@ export function startPlayerSheet() {
     backButton: findElement("playerBackBtn"),
     keeper: { read: () => shownPlayer, reopen: reopenPlayer },
     nameForBack: () => NAME_FOR_BACK,
+    nameForForward,
   });
   document.addEventListener("click", openOnTap);
   dialog.addEventListener("close", () => {

@@ -6,6 +6,12 @@ import {
   nameScoreboardRequest,
   nameSummaryRequest,
 } from "../../worker/src/lead.js";
+import {
+  createPlayerServer,
+  nameGameLogRequest,
+  nameTeamGameLogRequest,
+  nameTotalsRequest,
+} from "../../worker/src/player.js";
 import { createPreviewServer } from "../../worker/src/preview.js";
 import {
   createRosterServer,
@@ -61,6 +67,34 @@ const listRosterAnswers = () => [
   ),
 ];
 
+// The league's totals, team game logs, and the game logs of a few players, as a player's sheet
+// reads them: the Liberty's Stewart, Fiebich, Sabally, Balogun, and Astier, the Aces' Wilson, and
+// the Fever's Boston this season, and the Liberty's Ionescu last.
+const PLAYERS = JSON.parse(
+  readFileSync(new URL("../fixtures/2026-10-06-players.json", import.meta.url), "utf8"),
+);
+
+const listPlayerAnswers = () => [
+  ...Object.entries(PLAYERS.totals).map(
+    ([season, totals]) =>
+      /** @type {[string, any]} */ ([nameTotalsRequest(Number(season)), totals]),
+  ),
+  ...Object.entries(PLAYERS.teamGames).map(([key, games]) => {
+    const [season, seasonType] = key.split(":");
+    return /** @type {[string, any]} */ ([
+      nameTeamGameLogRequest(Number(season), seasonType),
+      games,
+    ]);
+  }),
+  ...Object.entries(PLAYERS.gameLogs).map(([key, games]) => {
+    const [id, season, seasonType] = key.split(":");
+    return /** @type {[string, any]} */ ([
+      nameGameLogRequest(id, Number(season), seasonType),
+      games,
+    ]);
+  }),
+];
+
 export { test, expect, matchPath, GAMES, NOW };
 
 /**
@@ -82,6 +116,7 @@ function createLeagueFetch({
     [nameScoreboardRequest(LEAD.game.start), LEAD.scoreboard],
     [nameSummaryRequest(LEAD.eventId), leadSummary],
     ...listRosterAnswers(),
+    ...listPlayerAnswers(),
   ]);
   if (!isScheduleRefused) answers.set(REQUESTS.schedule, GAMES.preview.schedule);
   return async (url) =>
@@ -156,6 +191,11 @@ export async function openApp(
   const previews = createPreviewServer({ fetchImpl, now: () => Date.parse(NOW) });
   const leads = createLeadServer({ fetchImpl });
   const rosters = createRosterServer({ fetchImpl, now: () => Date.parse(NOW) });
+  const players = createPlayerServer({
+    loadRoster: rosters.loadRoster,
+    fetchImpl,
+    now: () => Date.parse(NOW),
+  });
   await page.route(matchPath("/lead"), (route) => answerFromWorker(route, leads.serveLead));
   await page.route(matchPath("/box-score"), (route) =>
     answerFromWorker(route, boxScores.serveBoxScore),
@@ -164,6 +204,7 @@ export async function openApp(
     answerFromWorker(route, previews.servePreview),
   );
   await page.route(matchPath("/roster"), (route) => answerFromWorker(route, rosters.serveRoster));
+  await page.route(matchPath("/player"), (route) => answerFromWorker(route, players.servePlayer));
   await loadPageAt(page, NOW);
 
   return {
@@ -217,4 +258,33 @@ export async function openApp(
 export async function openLockedApp(page, { accessCode }) {
   const testStore = await createAfternoonStore();
   return openLockedPage(page, { worker, testStore, accessCode, now: NOW });
+}
+
+/**
+ * Shows the Games list that has the game a button names, and finds the button once the list has
+ * come to rest, before which a tap on it does nothing.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} name
+ */
+export async function findGameButton(page, name) {
+  await page.getByRole("tab", { name: "Games" }).click();
+  for (const list of ["Today", "Previous", "Next"]) {
+    await page.getByRole("tab", { name: list }).click();
+    const games = page.locator(`#games-${list.toLowerCase()}`);
+    const button = games.getByRole("button", { name });
+    if (!(await button.count())) continue;
+    await expect(games).not.toHaveAttribute("inert");
+    return button;
+  }
+  throw new Error(`No game is named ${name}`);
+}
+
+/**
+ * Opens the sheet of the game a button names, from whichever of the Games lists has it.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} name
+ */
+export async function openGameSheet(page, name) {
+  await (await findGameButton(page, name)).click();
+  return page.getByRole("dialog");
 }
