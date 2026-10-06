@@ -694,7 +694,7 @@ test("a Games list's day reads its month, date, and weekday at their sizes, weig
   expect(weekday.top - date.bottom).toBeCloseTo(4, 1);
 });
 
-test("a game's dots, names, and time center on their capitals, level with each other, and each seed a quarter pixel above", async ({
+test("a game's dots, names, and time center on their capitals, level with each other, the seed on the right half a pixel lower", async ({
   page,
 }) => {
   await openApp(page);
@@ -723,7 +723,7 @@ test("a game's dots, names, and time center on their capitals, level with each o
   );
   const { ".game-side.away .dot": dot, ...letters } = pieces;
   for (const [selector, { middle, height, fontSize }] of Object.entries(letters)) {
-    const nudge = selector.endsWith(".seed") ? -0.25 : 0;
+    const nudge = selector === ".game-side.home .seed" ? 0.5 : 0;
     expect(height, selector).toBeLessThan(fontSize * 0.8);
     expect(middle - dot.middle, selector).toBeCloseTo(nudge, 1);
   }
@@ -830,7 +830,7 @@ test("every score panel is one size, a game past 100 like any other", async ({ p
   expect(texts.some((text) => Number(text) >= 100)).toBe(true);
 });
 
-test("a seed sits a little lighter than its team's name, a quarter pixel above the name's middle", async ({
+test("a seed sits a little lighter than its team's name, centered on its row like the name", async ({
   page,
 }) => {
   await openApp(page);
@@ -847,7 +847,7 @@ test("a seed sits a little lighter than its team's name, a quarter pixel above t
     };
   });
   expect([seedWeight, nameWeight]).toEqual(["400", "600"]);
-  expect(offset).toBeCloseTo(-0.25, 1);
+  expect(offset).toBeCloseTo(0, 1);
   const isLoaded = await page.evaluate(() => document.fonts.check('400 12px "Barlow Condensed"'));
   expect(isLoaded).toBe(true);
 });

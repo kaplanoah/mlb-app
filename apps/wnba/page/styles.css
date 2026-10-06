@@ -401,7 +401,12 @@ header.top h1 {
   overflow: clip visible;
 }
 .game-side .seed {
-  translate: 0 -0.25px;
+  translate: none;
+}
+/* Matched by eye: a seed after its name looks higher beside the name's capitals than one before
+   it. */
+.game-side.home .seed {
+  translate: 0 0.5px;
 }
 
 /* A bracket's series and a day's games are one kind of card. */
@@ -1574,7 +1579,7 @@ th[aria-sort="ascending"] .roster-caret {
   width: 27px;
   height: 28px;
   margin: 0 2px 2px 0;
-  translate: 0 0.5px;
+  translate: none;
   filter: drop-shadow(0.27px 0.27px 1.38px color-mix(in srgb, var(--shadow-ink) 10%, transparent))
     drop-shadow(1.06px 1.06px 8.5px color-mix(in srgb, var(--shadow-ink) 8%, transparent));
   color: var(--ink-mid);
