@@ -846,7 +846,7 @@ test("a team's sheet open over a game's opens over it again on a reload, its bac
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
   await expect(page.locator("#gameSheet")).toBeAttached();
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-  await expectSteppedAway(teamSheet);
+  await expect(teamSheet).toBeHidden();
   await expect(page.locator("#gameSheet .foul-chip")).toHaveText(["Fouled out"]);
   await expect(page.locator("#gameSheet .foul-chip")).toBeVisible();
 });
@@ -1075,7 +1075,7 @@ test("a team's name in a game's sheet opens its sheet over the game's, whose bac
     await expectShown(teamSheet);
     await expectSteppedAway(gameSheet);
     await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-    await expectSteppedAway(teamSheet);
+    await expect(teamSheet).toBeHidden();
     await expectShown(gameSheet);
   }
 
@@ -1120,7 +1120,7 @@ test("going back from a team's sheet to a game's leaves no focus ring around the
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
 
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).dispatchEvent("click");
-  await expectSteppedAway(teamSheet);
+  await expect(teamSheet).toBeHidden();
   await expect(gameSheet).toBeFocused();
   await expect(gameSheet).toHaveCSS("outline-style", "none");
 });

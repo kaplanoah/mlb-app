@@ -79,7 +79,6 @@ function renderSheet(team) {
 
 startTeamSheet({
   isTeam: (team) => ["NYY", "BOS", "NYM"].includes(team),
-  nameTeam: (team) => team,
   renderSheet,
 });
 

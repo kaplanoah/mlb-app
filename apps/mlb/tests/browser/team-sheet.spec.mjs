@@ -135,7 +135,7 @@ test("a club's name in the matchup opens its sheet over it, whose back button go
   await expectShown(teamSheet);
   await expectSteppedAway(matchup);
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-  await expectSteppedAway(teamSheet);
+  await expect(teamSheet).toBeHidden();
   await expectShown(matchup);
 });
 

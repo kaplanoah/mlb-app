@@ -140,15 +140,14 @@ class FakeDialog extends FakeElement {
   }
 }
 
-/** @param {string} labelClass */
-function createStepButton(labelClass) {
+function createBackButton() {
   const button = new FakeElement();
-  button.append(new FakeElement({ className: labelClass }));
+  button.append(new FakeElement({ className: "sheet-back-label" }));
   return button;
 }
 
 /** @param {FakeElement} button */
-function readStepLabel(button) {
+function readBackLabel(button) {
   if (button.hidden) return null;
   return { text: button.children[0].textContent, ariaLabel: button.getAttribute("aria-label") };
 }
@@ -168,8 +167,7 @@ function findById(root, id) {
 }
 
 /**
- * A dialog with a row of sheets, each with Done, a back button, and a forward button, on a wide
- * screen, where a dialog closes at once instead of sliding down.
+ * A dialog with a row of sheets, each with Done and a back button, on a wide screen, where a dialog closes at once instead of sliding down.
  * @param {string[]} ids
  * @param {Record<string, Partial<SheetParts>>} [partsById]
  */
@@ -185,7 +183,7 @@ function createRowDialog(ids, partsById = {}) {
     getElementById: (/** @type {string} */ id) => findById(dialog, id),
   });
   const row = dialog.append(new FakeRow());
-  /** @typedef {{ sheet: FakeElement, doneButton: FakeElement, backButton: FakeElement, forwardButton: FakeElement }} FakeSheet */
+  /** @typedef {{ sheet: FakeElement, doneButton: FakeElement, backButton: FakeElement }} FakeSheet */
   const sheets = /** @type {Record<string, FakeSheet>} */ (
     Object.fromEntries(
       ids.map((id) => {
@@ -194,8 +192,7 @@ function createRowDialog(ids, partsById = {}) {
         sheet.setAttribute("aria-labelledby", `${id}Title`);
         const parts = {
           doneButton: new FakeElement(),
-          backButton: createStepButton("sheet-back-label"),
-          forwardButton: createStepButton("sheet-forward-label"),
+          backButton: createBackButton(),
           ...partsById[id],
         };
         wireSheet(/** @type {any} */ (sheet), /** @type {any} */ (parts));
@@ -269,60 +266,54 @@ test("a sheet opened from another comes in after it, with a back button that nam
   assert.equal(findReachable(row), "teamSheet");
   assert.equal(focused, sheets.teamSheet.sheet);
   assert.equal(dialog.getAttribute("aria-labelledby"), "teamSheetTitle");
-  assert.deepEqual(readStepLabel(sheets.teamSheet.backButton), {
+  assert.deepEqual(readBackLabel(sheets.teamSheet.backButton), {
     text: "Game",
     ariaLabel: "Back to Game",
   });
-  assert.equal(readStepLabel(sheets.gameSheet.backButton), null);
+  assert.equal(readBackLabel(sheets.gameSheet.backButton), null);
   dialog.close();
 });
 
-test("back scrolls to the sheet before, whose forward button names the one it left, and forward scrolls there again", () => {
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
-    gameSheet: { name: "Game" },
-    teamSheet: { name: "Team", nameForForward: () => "Fever" },
-  });
-  open(sheets.gameSheet.sheet);
-  open(sheets.teamSheet.sheet);
-
-  click(sheets.teamSheet.backButton);
-  assert.equal(row.scrollLeft, 0);
-  assert.equal(findReachable(row), "gameSheet");
-  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
-  assert.deepEqual(readStepLabel(sheets.gameSheet.forwardButton), {
-    text: "Fever",
-    ariaLabel: "Forward to Fever",
-  });
-
-  click(sheets.gameSheet.forwardButton);
-  assert.equal(row.scrollLeft, ROW_WIDTH);
-  assert.equal(findReachable(row), "teamSheet");
-  dialog.close();
-});
-
-test("a sheet opened from one with sheets after it takes their place, and they let go of what they showed", () => {
+test("back scrolls to the sheet before and takes the one it left out of the row, which lets go of what it showed", () => {
   /** @type {string[]} */
   const forgotten = [];
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet", "rosterSheet"], {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
     teamSheet: { forget: () => forgotten.push("team") },
-    rosterSheet: { forget: () => forgotten.push("roster") },
   });
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
-  open(sheets.rosterSheet.sheet);
-  click(sheets.rosterSheet.backButton);
+
   click(sheets.teamSheet.backButton);
 
-  open(sheets.teamSheet.sheet);
-
-  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
-  assert.deepEqual(forgotten, ["roster"]);
-  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(row.scrollLeft, 0);
+  assert.equal(findReachable(row), "gameSheet");
+  assert.deepEqual(listInRow(row), ["gameSheet"]);
+  assert.deepEqual(forgotten, ["team"]);
   dialog.close();
-  assert.deepEqual(forgotten, ["roster", "team"]);
 });
 
-test("a sheet that names its next one has it wait after it for a swipe, which no forward button names until it has shown", () => {
+test("a sheet opened from one with a sheet waiting after it takes its place, and the one waiting lets go of what it showed", () => {
+  /** @type {string[]} */
+  const forgotten = [];
+  /** @type {Record<string, any>} */
+  const sheets = {};
+  const created = createRowDialog(["teamSheet", "rosterSheet", "playerSheet"], {
+    teamSheet: { prepareNext: () => sheets.rosterSheet.sheet },
+    rosterSheet: { forget: () => forgotten.push("roster") },
+  });
+  Object.assign(sheets, created.sheets);
+  const { dialog, row } = created;
+  open(sheets.teamSheet.sheet);
+
+  open(sheets.playerSheet.sheet);
+
+  assert.deepEqual(listInRow(row), ["teamSheet", "playerSheet"]);
+  assert.deepEqual(forgotten, ["roster"]);
+  assert.equal(findReachable(row), "playerSheet");
+  dialog.close();
+});
+
+test("a sheet that names its next one has it wait after it for a swipe, again after a step back from it", () => {
   /** @type {Record<string, any>} */
   const sheets = {};
   const created = createRowDialog(["teamSheet", "rosterSheet"], {
@@ -335,8 +326,7 @@ test("a sheet that names its next one has it wait after it for a swipe, which no
   open(sheets.teamSheet.sheet);
   assert.deepEqual(listInRow(row), ["teamSheet", "rosterSheet"]);
   assert.equal(findReachable(row), "teamSheet");
-  assert.equal(readStepLabel(sheets.teamSheet.forwardButton), null);
-  assert.deepEqual(readStepLabel(sheets.rosterSheet.backButton), {
+  assert.deepEqual(readBackLabel(sheets.rosterSheet.backButton), {
     text: "Team",
     ariaLabel: "Back to Team",
   });
@@ -344,11 +334,12 @@ test("a sheet that names its next one has it wait after it for a swipe, which no
   row.scrollTo({ left: ROW_WIDTH });
   assert.equal(findReachable(row), "rosterSheet");
   click(sheets.rosterSheet.backButton);
-  assert.equal(readStepLabel(sheets.teamSheet.forwardButton)?.text, "Roster");
+  assert.deepEqual(listInRow(row), ["teamSheet", "rosterSheet"]);
+  assert.equal(findReachable(row), "teamSheet");
   dialog.close();
 });
 
-test("a row partway between two sheets settles on neither, and one a pixel off settles on the nearer", () => {
+test("a row partway between two sheets settles on neither, and one a pixel off settles on the nearer, keeping the sheet it left until it comes to rest", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
@@ -357,6 +348,9 @@ test("a row partway between two sheets settles on neither, and one a pixel off s
   assert.equal(findReachable(row), "teamSheet");
   row.scrollTo({ left: 1 });
   assert.equal(findReachable(row), "gameSheet");
+  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
+  row.scrollTo({ left: 0 });
+  assert.deepEqual(listInRow(row), ["gameSheet"]);
   dialog.close();
 });
 
@@ -494,7 +488,7 @@ test("a page that loads again puts back a sheet after the one it was opened from
 
   assert.equal(row.scrollLeft, ROW_WIDTH);
   assert.equal(findReachable(row), "teamSheet");
-  assert.equal(readStepLabel(sheets.teamSheet.backButton)?.text, "Game");
+  assert.equal(readBackLabel(sheets.teamSheet.backButton)?.text, "Game");
   dialog.close();
 });
 

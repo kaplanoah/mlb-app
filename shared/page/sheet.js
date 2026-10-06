@@ -2,9 +2,10 @@
 // as tall as the screen allows. A sheet is a page in a dialog. A dialog with a .sheet-row holds
 // several side by side, like a game's, a team's, and its roster's, and a sheet opened from
 // another slides in beside it, with a back button that names the one it came from. The row
-// scrolls between them as the browser scrolls anything, so a swipe right goes back and a swipe
-// left forward again, and both follow the finger and settle on a sheet with the phone's own
-// momentum; the back and forward buttons scroll it the same way. Done, a click on the backdrop,
+// scrolls between them as the browser scrolls anything, so a swipe right goes back, following the
+// finger and settling on a sheet with the phone's own momentum; the back button scrolls it the
+// same way. A step back takes the sheet it left out of the row, so a swipe left only ever brings in
+// the sheet the shown one names as its next, like a team's roster. Done, a click on the backdrop,
 // Escape, and on phones a swipe down close the dialog. A page that loads again shows the sheets it
 // showed before, where they were scrolled (show-last-drawn.js), and each sheet's code takes back
 // what it showed.
@@ -23,14 +24,10 @@ import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
  * @property {HTMLElement} doneButton
  * @property {HTMLElement} [backButton] shown when the sheet opened from another, with its
  *   `.sheet-back-label` naming that one
- * @property {HTMLElement} [forwardButton] shown when a step back has left a sheet beside it to
- *   step forward to, with its `.sheet-forward-label` naming that one
  * @property {(target: EventTarget) => boolean} [isOwnGesture] a touch on a target this claims,
  *   like a drag handle or a picker, never moves the sheet
  * @property {SheetKeeper} [keeper]
  * @property {string} [name] what the back button of a sheet opened from it calls it
- * @property {() => string} [nameForForward] what the forward button of the sheet it opened from
- *   calls it, once a step back has left it there, when that's more than its `name`
  * @property {() => HTMLElement | null} [prepareNext] the sheet a swipe left from this one shows
  *   when nothing else is beside it, filled in and ready to show
  * @property {() => void} [forget] lets go of what the sheet showed once it's no longer beside the
@@ -38,12 +35,14 @@ import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
  */
 /**
  * A dialog's sheets, in the row's order, and the one it shows. `prepared` is a sheet that waits
- * beside the last one for a swipe left, which no forward button names.
+ * beside the last one for a swipe left.
  * @typedef {{ sheets: HTMLElement[], shown: number, prepared: HTMLElement | null }} Stack
  */
 
-// A row settles on a sheet within this many pixels of its edge.
+// A row settles on a sheet within this many pixels of its edge, and has come to rest on it within
+// less than a pixel.
 const SETTLED_PX = 2;
+const AT_REST_PX = 1;
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
@@ -81,45 +80,25 @@ const findShownSheet = (dialog) => {
 /** @param {HTMLElement} sheet */
 const nameSheet = (sheet) => sheetParts.get(sheet)?.name ?? "Back";
 
-/** @param {HTMLElement} sheet */
-const nameSheetForForward = (sheet) => {
-  const parts = sheetParts.get(sheet);
-  return parts?.nameForForward?.() ?? parts?.name ?? "Forward";
-};
-
 /**
  * @param {HTMLElement | undefined} button
- * @param {string | null} name what it steps to, or null to hide it
- * @param {{ labelClass: string, verb: string }} kind
+ * @param {HTMLElement | undefined} before the sheet it steps back to, if any
  */
-function labelStepButton(button, name, { labelClass, verb }) {
+function labelBackButton(button, before) {
   if (!button) return;
-  button.hidden = name === null;
-  if (name === null) return;
-  const label = button.querySelector(labelClass);
+  button.hidden = !before;
+  if (!before) return;
+  const name = nameSheet(before);
+  const label = button.querySelector(".sheet-back-label");
   if (label) label.textContent = name;
-  button.setAttribute("aria-label", `${verb} ${name}`);
+  button.setAttribute("aria-label", `Back to ${name}`);
 }
 
 /** @param {Stack} stack */
-function labelStepButtons({ sheets, prepared }) {
-  sheets.forEach((sheet, index) => {
-    const parts = sheetParts.get(sheet);
-    const before = sheets[index - 1];
-    const after = sheets[index + 1];
-    labelStepButton(parts?.backButton, before ? nameSheet(before) : null, {
-      labelClass: ".sheet-back-label",
-      verb: "Back to",
-    });
-    labelStepButton(
-      parts?.forwardButton,
-      after && after !== prepared ? nameSheetForForward(after) : null,
-      {
-        labelClass: ".sheet-forward-label",
-        verb: "Forward to",
-      },
-    );
-  });
+function labelBackButtons({ sheets }) {
+  sheets.forEach((sheet, index) =>
+    labelBackButton(sheetParts.get(sheet)?.backButton, sheets[index - 1]),
+  );
 }
 
 // Each sheet in the stack takes its place in the row, later ones drawn over earlier ones, and the
@@ -135,7 +114,7 @@ function placeSheets(dialog) {
     sheet.style.order = index < 0 ? "" : String(index);
     sheet.inert = index !== stack.shown;
   }
-  labelStepButtons(stack);
+  labelBackButtons(stack);
 }
 
 /** @param {HTMLElement} sheet */
@@ -187,13 +166,29 @@ function settleOnSheet(dialog, index) {
   focusShownSheet(dialog);
 }
 
+/**
+ * Takes the sheets a step back left out of the row, keeping any that waits for a swipe left.
+ * @param {HTMLDialogElement} dialog
+ */
+function dropSteppedAway(dialog) {
+  const stack = readStack(dialog);
+  const next = stack.sheets[stack.shown + 1];
+  if (!next || next === stack.prepared) return;
+  dropSheetsAhead(stack);
+  prepareNextSheet(dialog);
+  placeSheets(dialog);
+}
+
 /** @param {HTMLDialogElement} dialog */
 function settleWhereScrolled(dialog) {
   const row = findRow(dialog);
   if (!row?.clientWidth) return;
   const index = Math.round(row.scrollLeft / row.clientWidth);
-  if (Math.abs(row.scrollLeft - index * row.clientWidth) > SETTLED_PX) return;
+  const offset = Math.abs(row.scrollLeft - index * row.clientWidth);
+  if (offset > SETTLED_PX) return;
   if (index !== readStack(dialog).shown) settleOnSheet(dialog, index);
+  // A sheet sliding away leaves the row only once it's out of sight.
+  if (offset < AT_REST_PX) dropSteppedAway(dialog);
 }
 
 /**
@@ -214,14 +209,6 @@ function stepBack(sheet) {
   const dialog = findDialog(sheet);
   const index = readStack(dialog).sheets.indexOf(sheet);
   if (index > 0) scrollToSheet(dialog, index - 1);
-}
-
-/** @param {HTMLElement} sheet */
-function stepForward(sheet) {
-  const dialog = findDialog(sheet);
-  const { sheets } = readStack(dialog);
-  const index = sheets.indexOf(sheet);
-  if (index >= 0 && sheets[index + 1]) scrollToSheet(dialog, index + 1);
 }
 
 /**
@@ -331,7 +318,6 @@ export function wireSheet(sheet, parts) {
   if (sheet !== dialog) sheet.tabIndex = -1;
   parts.doneButton.addEventListener("click", () => closeSheet(dialog));
   parts.backButton?.addEventListener("click", () => stepBack(sheet));
-  parts.forwardButton?.addEventListener("click", () => stepForward(sheet));
   wireDialog(dialog);
 }
 
