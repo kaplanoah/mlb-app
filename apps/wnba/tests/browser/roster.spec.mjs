@@ -57,8 +57,9 @@ test("a team's Roster opens its roster over its sheet: each player by last name,
   await openApp(page);
   const sheet = await openLibertyRoster(page);
 
-  await expect(sheet.locator("#rosterTitle")).toHaveText("New York Liberty");
-  await expect(sheet.locator("#rosterNote")).toHaveText("Roster•15 players");
+  await expect(sheet.locator("#rosterTitle")).toHaveText("Liberty Roster");
+  await expect(sheet.locator("#rosterTitle .dot")).toBeVisible();
+  await expect(sheet.locator("#rosterNote")).toHaveText("2026•15 players");
   await expect(sheet.getByRole("button", { name: "Back to Team" })).toBeVisible();
   expect((await readLastNames(sheet)).slice(0, 3)).toEqual(["Allen", "Astier", "BalogunOut"]);
   const stewart = sheet.locator("table.roster tbody tr", { hasText: "Stewart" });
@@ -238,7 +239,7 @@ test("a past season's team has that season's roster, with no one out", async ({ 
   await page.keyboard.press("Escape");
   const sheet = await openLibertyRoster(page);
 
-  await expect(sheet.locator("#rosterNote")).toHaveText(/Roster•\d+ players/);
+  await expect(sheet.locator("#rosterNote")).toHaveText(/^2025•\d+ players$/);
   await expect(sheet.locator("table.roster tbody tr", { hasText: "Ionescu" })).toBeVisible();
   await expect(sheet.locator(".foul-chip")).toHaveCount(0);
 });

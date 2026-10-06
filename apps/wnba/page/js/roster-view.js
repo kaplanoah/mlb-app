@@ -5,8 +5,10 @@
 
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import { renderDot } from "./clubs.js";
 import { renderPlayerButton } from "./player-button.js";
 import { renderSheetMessage } from "./sheet-parts.js";
+import { TEAMS } from "./teams.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
 /** @typedef {{ id: string, number: string | null, firstName: string, lastName: string, position: string | null, height: string | null, age: number | null, college: string | null, country: string | null, isOut: boolean, debut: number | null }} RosterPlayer */
@@ -306,12 +308,21 @@ export function renderRoster({ roster, averages, sort, isLoading, showsOut }) {
 }
 
 /**
- * What the roster's sheet says under the team's name: that it's the roster, and how many players
- * it has once it's loaded.
- * @param {Roster | null} roster
+ * The roster's title, the team's dot and its name without its city, then Roster, so it reads
+ * apart from the team's own sheet under it.
+ * @param {string} team
  */
-export const describeRosterNote = (roster) =>
-  joinWithSeparator(roster ? ["Roster", `${roster.players.length} players`] : ["Roster"]);
+export const renderRosterHeading = (team) =>
+  html`${renderDot(team)}<span>${TEAMS[team].name} Roster</span>`;
+
+/**
+ * What the roster's sheet says under its title: the season, and how many players it has once
+ * it's loaded.
+ * @param {Roster | null} roster
+ * @param {number} year
+ */
+export const describeRosterNote = (roster, year) =>
+  joinWithSeparator(roster ? [String(year), `${roster.players.length} players`] : [String(year)]);
 
 // Phosphor's caret-right, at its Light weight.
 const NEXT_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
