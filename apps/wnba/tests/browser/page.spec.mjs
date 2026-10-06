@@ -62,12 +62,25 @@ test("a losing score is lit at three quarters, without the winner's glow", async
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await page.getByRole("tab", { name: "Previous" }).click();
-  const loser = page.locator("#games-previous .scoreboard.lost rect.on").first();
-  const winner = page.locator("#games-previous .scoreboard:not(.lost) rect.on").first();
-  await expect(loser).toHaveCSS("opacity", "0.75");
-  await expect(loser).toHaveCSS("filter", "none");
-  await expect(winner).toHaveCSS("opacity", "1");
-  await expect(winner).not.toHaveCSS("filter", "none");
+  const loser = page.locator("#games-previous .scoreboard.lost");
+  const winner = page.locator("#games-previous .scoreboard:not(.lost)");
+  await expect(loser.locator("rect.on").first()).toHaveCSS("opacity", "0.75");
+  await expect(loser.locator("svg").first()).toHaveCSS("filter", "none");
+  await expect(winner.locator("rect.on").first()).toHaveCSS("opacity", "1");
+  await expect(winner.locator("svg").first()).not.toHaveCSS("filter", "none");
+});
+
+test("a score's glow is on its digits' svgs, since Safari draws no filter on an svg's shapes", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expect(page.locator("#games-previous .scoreboard rect.on").first()).toBeVisible();
+  const shapeFilters = await page
+    .locator(".scoreboard rect")
+    .evaluateAll((shapes) => [...new Set(shapes.map((shape) => getComputedStyle(shape).filter))]);
+  expect(shapeFilters).toEqual(["none"]);
 });
 
 test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
