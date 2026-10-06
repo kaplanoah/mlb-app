@@ -3,14 +3,15 @@
 // sheet past that edge instead. So a swipe right that isn't scrolling the sheet back, one that
 // starts on its top or while it's at its left edge, moves the row with the finger instead, and
 // once the finger lifts, the row goes on to the sheet before, or back to this one, as a swipe
-// between sheets does. The row doesn't snap while the finger moves it, and `scrollToSheet` lets it
-// snap again once it arrives.
+// between sheets does.
 
 // A touch has to move this far before it counts as a swipe, so a tap stays a tap.
 const SWIPE_START_PX = 6;
 // A swipe goes back once it has moved this share of the row's width, or is this fast as it lifts.
 const BACK_SHARE = 0.3;
 const BACK_SPEED_PX_PER_MS = 0.3;
+// The row has arrived on a sheet within this many pixels of its edge.
+const ARRIVED_PX = 2;
 
 /** @param {HTMLElement} sheet */
 const scrollsSideways = (sheet) => sheet.scrollWidth > sheet.clientWidth;
@@ -19,12 +20,28 @@ const scrollsSideways = (sheet) => sheet.scrollWidth > sheet.clientWidth;
 const isOnTop = (target) => target instanceof Element && target.closest(".sheet-top") !== null;
 
 /**
+ * Lets the row snap again once it has arrived at `left`.
+ * @param {HTMLElement} row
+ * @param {number} left
+ */
+function snapOnArrival(row, left) {
+  const hasArrived = () => Math.abs(row.scrollLeft - left) <= ARRIVED_PX;
+  if (hasArrived()) return row.classList.remove("is-swiped");
+  const release = () => {
+    if (!hasArrived()) return;
+    row.classList.remove("is-swiped");
+    row.removeEventListener("scroll", release);
+  };
+  row.addEventListener("scroll", release, { passive: true });
+}
+
+/**
  * Moves the row with a swipe right that starts on a sideways sheet's top or at its left edge, and
  * settles it on a sheet once the finger lifts.
  * @param {HTMLElement} row
  * @param {{ findShownSheet: () => HTMLElement, readShown: () => number, scrollToSheet: (index: number) => void }} options
  *   `readShown` is the shown sheet's place in the row, and `scrollToSheet` brings the row to the
- *   sheet at a place, letting it snap again once there
+ *   sheet at a place
  */
 export function stepBackOnEdgeSwipe(row, { findShownSheet, readShown, scrollToSheet }) {
   /** @type {{ index: number, originX: number, originY: number, rowStart: number, lastX: number, lastTime: number, speed: number, isDragging: boolean } | null} */
@@ -82,7 +99,7 @@ export function stepBackOnEdgeSwipe(row, { findShownSheet, readShown, scrollToSh
         return;
       }
       swipe.isDragging = true;
-      row.classList.add("is-moving");
+      row.classList.add("is-swiped");
     }
     if (event.cancelable) event.preventDefault();
     trackSpeed(clientX, event.timeStamp);
@@ -98,6 +115,7 @@ export function stepBackOnEdgeSwipe(row, { findShownSheet, readShown, scrollToSh
     const moved = rowStart - row.scrollLeft;
     const isFarOrFast = moved > row.clientWidth * BACK_SHARE || speed > BACK_SPEED_PX_PER_MS;
     const isBack = event.type === "touchend" && isFarOrFast;
+    snapOnArrival(row, isBack ? rowStart - row.clientWidth : rowStart);
     scrollToSheet(isBack ? index - 1 : index);
   }
 
