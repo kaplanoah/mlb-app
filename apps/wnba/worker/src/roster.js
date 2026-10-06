@@ -2,6 +2,7 @@ import { TEAMS } from "../../page/js/teams.js";
 import { normalizeName } from "../../page/js/player-names.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 import { createReusedLoader, fetchUpstream } from "../../../../shared/worker/upstream.js";
+import { readKeptDoc } from "./store-docs.js";
 import {
   ESPN_HEADERS,
   SEASON_PARAM,
@@ -241,24 +242,9 @@ export function createRosterServer({
   const loadRoster = createReusedLoader(readRoster, ROSTER_REUSE_MS, now);
 
   /**
-   * The roster the store keeps, or null when it doesn't keep it, or can't be read.
-   * @param {string} team
-   * @param {number} season
-   * @param {(key: string) => Promise<any>} readDoc
-   */
-  async function readRosterFromStore(team, season, readDoc) {
-    try {
-      return await readDoc(nameRosterKey(season, team));
-    } catch (error) {
-      console.error(`Reading ${team}'s roster from the store failed: ${describeError(error)}`);
-      return null;
-    }
-  }
-
-  /**
    * @param {URL} url
-   * @param {(key: string) => Promise<any>} [readDoc] the store's documents, when the Worker has a
-   *   store
+   * @param {import("./store-docs.js").ReadDoc} [readDoc] the store's documents, when the Worker
+   *   has a store
    */
   async function serveRoster(url, readDoc) {
     const team = readTeam(url.searchParams);
@@ -266,7 +252,7 @@ export function createRosterServer({
     const season = SEASON_PARAM.readSeason(url.searchParams, now());
     if (season == null) return respondJson({ error: SEASON_PARAM.rule }, 400);
     try {
-      const saved = readDoc ? await readRosterFromStore(team, season, readDoc) : null;
+      const saved = await readKeptDoc(readDoc, nameRosterKey(season, team));
       return respondJson(saved ?? (await loadRoster(`${team}:${season}`)));
     } catch (error) {
       return respondJson({ error: `Couldn't read the WNBA: ${describeError(error)}` }, 502);

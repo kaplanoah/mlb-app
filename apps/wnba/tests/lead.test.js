@@ -21,6 +21,7 @@ const GAMES = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-10-01-games.json`, "utf8"),
 );
 const TEAMS = { away: "GSV", home: "DAL" };
+const GAME = { id: "1042600112", ...TEAMS, start: LEAD.game.start };
 
 /** @param {Record<string, any>} answers */
 const createFetch = (answers) => async (url) =>
@@ -33,10 +34,15 @@ const ESPN_ANSWERS = {
   [nameSummaryRequest(LEAD.eventId)]: LEAD.summary,
 };
 
-/** @param {Record<string, string>} params */
-const askForLead = (answers, params) =>
+/**
+ * @param {Record<string, any>} answers
+ * @param {Record<string, string>} params
+ * @param {(key: string) => Promise<any>} [readDoc]
+ */
+const askForLead = (answers, params, readDoc) =>
   createLeadServer({ fetchImpl: createFetch(answers) }).serveLead(
     new URL(`https://wnba.test/lead?${new URLSearchParams(params)}`),
+    readDoc,
   );
 
 test("ESPN's game is the day's one between the same away and home teams, on the league's Eastern day", () => {
@@ -80,7 +86,7 @@ test("a basket in a period's last minute counts its tenths of a second", () => {
 });
 
 test("the Worker answers a game's lead, says when ESPN has no such game, and turns away a bad ask", async () => {
-  const answer = await askForLead(ESPN_ANSWERS, { ...TEAMS, start: LEAD.game.start });
+  const answer = await askForLead(ESPN_ANSWERS, GAME);
   const body = await answer.json();
   assert.equal(answer.status, 200);
   assert.deepEqual(
@@ -88,37 +94,65 @@ test("the Worker answers a game's lead, says when ESPN has no such game, and tur
     ["GSV", "DAL", LEAD.game.start, 5],
   );
 
-  const missing = await askForLead(ESPN_ANSWERS, {
-    away: "IND",
-    home: "LVA",
-    start: LEAD.game.start,
-  });
+  const missing = await askForLead(ESPN_ANSWERS, { ...GAME, away: "IND", home: "LVA" });
   assert.equal(missing.status, 404);
 
-  const refused = await askForLead({}, { ...TEAMS, start: LEAD.game.start });
+  const refused = await askForLead({}, GAME);
   assert.equal(refused.status, 502);
 
-  for (const params of [{ ...TEAMS }, { away: "GSV", home: "GSV", start: LEAD.game.start }]) {
+  for (const params of [
+    { ...TEAMS, id: GAME.id },
+    { ...TEAMS, start: LEAD.game.start },
+    { ...GAME, id: "../x" },
+    { ...GAME, home: "GSV" },
+  ]) {
     assert.equal((await askForLead(ESPN_ANSWERS, params)).status, 400);
   }
 });
 
-test("a finished game's lead is read from ESPN once and kept", async () => {
-  let reads = 0;
-  const answer = createFetch(ESPN_ANSWERS);
-  const server = createLeadServer({
-    fetchImpl: async (url) => {
-      reads += 1;
+/**
+ * Answers ESPN's feeds from the fixture, counting each read.
+ * @param {Record<string, any>} answers
+ */
+function createCountedFetch(answers) {
+  const counted = { reads: 0 };
+  const answer = createFetch(answers);
+  return Object.assign(counted, {
+    fetchImpl: async (/** @type {string} */ url) => {
+      counted.reads += 1;
       return answer(url);
     },
   });
-  const query = new URLSearchParams({ ...TEAMS, start: LEAD.game.start });
-  const askLead = () => server.serveLead(new URL(`https://wnba.test/lead?${query}`));
+}
 
-  assert.equal((await askLead()).status, 200);
-  assert.equal(reads, 2);
-  assert.equal((await askLead()).status, 200);
-  assert.equal(reads, 2);
+test("a finished game's lead comes from the store, and from ESPN while the store keeps none or the game isn't over", async () => {
+  const espn = createCountedFetch(ESPN_ANSWERS);
+  const server = createLeadServer({ fetchImpl: espn.fetchImpl });
+  const fromEspn = await (await askForLead(ESPN_ANSWERS, GAME)).json();
+  /** @param {any} lead */
+  const askWithKept = async (lead) => {
+    const url = new URL(`https://wnba.test/lead?${new URLSearchParams(GAME)}`);
+    const answer = await server.serveLead(url, async (key) =>
+      key === `games/${GAME.id}` ? { boxScore: null, lead } : null,
+    );
+    return answer.json();
+  };
+
+  assert.deepEqual(await askWithKept(fromEspn), fromEspn);
+  assert.equal(espn.reads, 0);
+
+  assert.deepEqual(await askWithKept({ ...fromEspn, isOver: false }), fromEspn);
+  assert.equal(espn.reads, 2);
+  assert.deepEqual(await askWithKept(null), fromEspn);
+  assert.equal(espn.reads, 3, "ESPN's game is found on its day's scoreboard once");
+});
+
+test("a store that can't be read leaves the lead to ESPN", async () => {
+  const answer = await askForLead(ESPN_ANSWERS, GAME, async () => {
+    throw new Error("The store answered 500");
+  });
+  assert.equal(answer.status, 200);
+  assert.equal((await answer.json()).periods, 5);
 });
 
 test("a game ended when ESPN logged its last play, and its end is unknown until then", () => {

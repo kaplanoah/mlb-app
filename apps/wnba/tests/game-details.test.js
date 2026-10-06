@@ -7,7 +7,12 @@ import {
   nameBoxScoreRequest,
 } from "../worker/src/box-score.js";
 import { REQUESTS } from "../page/js/snapshot.js";
-import { createPreviewServer, describePreview } from "../worker/src/preview.js";
+import {
+  createPreviewServer,
+  describePreview,
+  listUpcomingMeetings,
+  nameMeetingsKey,
+} from "../worker/src/preview.js";
 
 const GAMES = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-10-01-games.json`, "utf8"),
@@ -94,13 +99,36 @@ test("the box score route reads the league's CDN as its own site would, briefly 
   assert.equal(init.cf.cacheTtl, 5);
 });
 
-test("a finished game's box score is read once and kept, and a live one's every time", async () => {
+/**
+ * A store that keeps one game's details.
+ * @param {string} id
+ * @param {any} details
+ */
+const keepDetails = (id, details) => async (/** @type {string} */ key) =>
+  key === `games/${id}` ? details : null;
+
+test("a finished game's box score comes from the store, and from the league while the store keeps none or the game isn't over", async () => {
   const league = createLeague();
   const server = createBoxScoreServer({ fetchImpl: league.fetchImpl });
-  await askBoxScore(server, `id=${ACES_AT_FEVER}`);
-  await askBoxScore(server, `id=${ACES_AT_FEVER}`);
-  assert.equal(league.reads.length, 1);
+  const fromLeague = await (await askBoxScore(server, `id=${ACES_AT_FEVER}`)).json();
+  const askWithKept = async (/** @type {any} */ boxScore) =>
+    (
+      await server.serveBoxScore(
+        new URL(`https://app.example/k3y/box-score?id=${ACES_AT_FEVER}`),
+        keepDetails(ACES_AT_FEVER, { boxScore, lead: null }),
+      )
+    ).json();
+  league.reads.length = 0;
 
+  assert.deepEqual(await askWithKept(fromLeague), fromLeague);
+  assert.equal(league.reads.length, 0);
+
+  assert.deepEqual(await askWithKept({ ...fromLeague, state: "live" }), fromLeague);
+  assert.deepEqual(await askWithKept(null), fromLeague);
+  assert.equal(league.reads.length, 2);
+});
+
+test("a live game's box score is read from the league every time", async () => {
   const live = structuredClone(GAMES.boxScores[VALKYRIES_AT_WINGS]);
   live.game.gameStatus = 2;
   let liveReads = 0;
@@ -113,6 +141,18 @@ test("a finished game's box score is read once and kept, and a live one's every 
   await askBoxScore(liveServer, `id=${VALKYRIES_AT_WINGS}`);
   await askBoxScore(liveServer, `id=${VALKYRIES_AT_WINGS}`);
   assert.equal(liveReads, 2);
+});
+
+test("a store that can't be read leaves the box score to the league", async () => {
+  const server = createBoxScoreServer({ fetchImpl: createLeague().fetchImpl });
+  const response = await server.serveBoxScore(
+    new URL(`https://app.example/k3y/box-score?id=${ACES_AT_FEVER}`),
+    async () => {
+      throw new Error("The store answered 500");
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).home.team, "IND");
 });
 
 test("a game without a box score yet is a 404, and a league that fails is a 502", async () => {
@@ -247,4 +287,82 @@ test("a preview needs two different teams and a season, and is refused before re
     assert.equal((await askPreview(server, query)).status, 400, query);
   }
   assert.equal(league.reads.length, 0);
+});
+
+/**
+ * @param {string} id
+ * @param {string} state
+ * @param {string | null} away
+ * @param {string | null} home
+ */
+const createGame = (id, state, away, home) => ({
+  id,
+  state,
+  away: { team: away },
+  home: { team: home },
+});
+
+test("each upcoming game's meetings are kept once for its two teams, whichever is home", () => {
+  const games = [
+    createGame("1042600123", "pre", "IND", "LVA"),
+    createGame("1042600124", "pre", "LVA", "IND"),
+    createGame("1042600201", "pre", "NYL", null),
+    createGame("1042600131", "final", "WAS", "ATL"),
+  ];
+
+  const pairs = listUpcomingMeetings(GAMES.preview.schedule, { season: 2026, games });
+
+  assert.deepEqual(pairs, [
+    {
+      season: 2026,
+      teams: ["IND", "LVA"],
+      meetings: describePreview(GAMES.preview.schedule, { season: 2026, away: "IND", home: "LVA" })
+        .meetings,
+    },
+  ]);
+  assert.equal(nameMeetingsKey(2026, ["LVA", "IND"]), "meetings/2026-IND-LVA");
+  assert.deepEqual(listUpcomingMeetings(null, { season: 2026, games }), []);
+  assert.deepEqual(listUpcomingMeetings(GAMES.preview.schedule, { season: 2025, games }), []);
+});
+
+test("a preview from the store is the one the schedule makes, either team at home, read without the league", async () => {
+  const [pair] = listUpcomingMeetings(GAMES.preview.schedule, {
+    season: 2026,
+    games: [createGame("1042600123", "pre", "IND", "LVA")],
+  });
+  const readDoc = async (/** @type {string} */ key) =>
+    key === nameMeetingsKey(2026, pair.teams) ? pair : null;
+
+  for (const query of ["season=2026&away=IND&home=LVA", "season=2026&away=LVA&home=IND"]) {
+    const league = createLeague();
+    const server = createPreviewServer({ fetchImpl: league.fetchImpl, now: () => NOW });
+    const fromStore = await server.servePreview(
+      new URL(`https://app.example/k3y/preview?${query}`),
+      readDoc,
+    );
+    assert.equal(league.reads.length, 0);
+    const fromLeague = await askPreview(server, query);
+    assert.deepEqual(await fromStore.json(), await fromLeague.json());
+  }
+});
+
+test("a preview the store doesn't keep, or can't read, comes from the schedule", async () => {
+  for (const readDoc of [
+    async () => null,
+    async () => {
+      throw new Error("The store answered 500");
+    },
+  ]) {
+    const league = createLeague();
+    const server = createPreviewServer({ fetchImpl: league.fetchImpl, now: () => NOW });
+    const response = await server.servePreview(
+      new URL("https://app.example/k3y/preview?season=2026&away=IND&home=LVA"),
+      readDoc,
+    );
+    assert.equal((await response.json()).meetings.length, 3);
+    assert.deepEqual(
+      league.reads.map((read) => read.url),
+      [REQUESTS.schedule],
+    );
+  }
 });

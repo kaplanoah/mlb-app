@@ -1,5 +1,5 @@
-import { createBoxScoreServer } from "./box-score.js";
-import { createLeadServer } from "./lead.js";
+import { fetchBoxScore } from "./box-score.js";
+import { createLeadReader } from "./lead.js";
 
 // The details of each game a page has open, which the store reads with each update and pushes to
 // the pages watching: its box score and its lead. A game that hasn't started has none, and one
@@ -7,8 +7,7 @@ import { createLeadServer } from "./lead.js";
 
 /** @param {{ fetchImpl?: (input: string, init: object) => Promise<Response> }} [options] */
 export function createWatchedGameLoader({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
-  const boxScores = createBoxScoreServer({ fetchImpl });
-  const leads = createLeadServer({ fetchImpl });
+  const readLead = createLeadReader({ fetchImpl });
 
   /**
    * @param {string} id
@@ -20,8 +19,8 @@ export function createWatchedGameLoader({ fetchImpl = (input, init) => fetch(inp
     if (!game || game.state === "pre" || stored?.boxScore?.state === "final") return null;
     const teams = { away: game.away.team, home: game.home.team, start: game.start };
     const [boxScore, lead] = await Promise.all([
-      boxScores.loadBoxScore(id).catch(() => stored?.boxScore ?? null),
-      leads.loadLead(teams).catch(() => stored?.lead ?? null),
+      fetchBoxScore(fetchImpl, id).catch(() => stored?.boxScore ?? null),
+      readLead(teams).catch(() => stored?.lead ?? null),
     ]);
     return { boxScore, lead };
   };

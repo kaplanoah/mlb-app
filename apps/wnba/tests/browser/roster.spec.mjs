@@ -1,6 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
-import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
+import { expectShown, expectSteppedAway, readLeft } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -159,21 +159,39 @@ test("on a phone, the line at the names' edge keeps 10px clear of the longest na
   expect(Math.min(...gaps)).toBeCloseTo(10, 0);
 });
 
-test("on a phone, the roster scrolled across stops at its edges, and back at its left edge a swipe right goes back to the team", async ({
+test("on a phone, the roster never springs past its edges, and at its left edge a swipe right on the table goes back to the team", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
   const sheet = await openLibertyRoster(page);
-  await expect(sheet).toHaveCSS("overscroll-behavior-x", "auto");
-
-  await scrollSheet(sheet, { left: 200 });
   await expect(sheet).toHaveCSS("overscroll-behavior-x", "none");
 
-  await scrollSheet(sheet, { left: 0 });
-  await expect(sheet).toHaveCSS("overscroll-behavior-x", "auto");
   await (
-    await drag(page, { x: 60, y: 300 }, { x: 250 })
+    await drag(page, { x: 60, y: 400 }, { x: 250 })
+  )();
+
+  await expectShown(page.locator("#teamSheet"));
+  await expectSteppedAway(sheet);
+});
+
+test("on a phone, a swipe right on the roster scrolled across scrolls the table back, and on its title goes back to the team", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const sheet = await openLibertyRoster(page);
+  await scrollSheet(sheet, { left: 300 });
+
+  await (
+    await drag(page, { x: 60, y: 400 }, { x: 150 })
+  )();
+  await expect.poll(() => sheet.evaluate((element) => element.scrollLeft)).toBeLessThan(300);
+  await expectShown(sheet);
+
+  const title = await readBox(sheet.locator("#rosterTitle"));
+  await (
+    await drag(page, { x: 60, y: title.y + title.height / 2 }, { x: 250 })
   )();
   await expectShown(page.locator("#teamSheet"));
   await expectSteppedAway(sheet);
@@ -242,4 +260,86 @@ test("a past season's team has that season's roster, with no one out", async ({ 
   await expect(sheet.locator("#rosterNote")).toHaveText(/^2025•\d+ players$/);
   await expect(sheet.locator("table.roster tbody tr", { hasText: "Ionescu" })).toBeVisible();
   await expect(sheet.locator(".foul-chip")).toHaveCount(0);
+});
+
+test.describe("in full motion", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("on a phone, a finger on the roster's title moves it right with the finger, and once it lifts, the roster slides on off the screen without stepping back", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const sheet = await openLibertyRoster(page);
+    await expectShown(sheet);
+    await scrollSheet(sheet, { left: 300 });
+    const title = await readBox(sheet.locator("#rosterTitle"));
+
+    const release = await drag(
+      page,
+      { x: 60, y: title.y + title.height / 2 },
+      { x: 150 },
+      { durationMs: 1000 },
+    );
+    expect(await readLeft(sheet)).toBeCloseTo(150, -1);
+    expect(await sheet.evaluate((element) => element.scrollLeft)).toBe(300);
+
+    await page.evaluate(() => {
+      const roster = /** @type {HTMLElement} */ (document.getElementById("rosterSheet"));
+      const row = /** @type {HTMLElement} */ (roster.closest(".sheet-row"));
+      const noted = /** @type {number[]} */ ([]);
+      const note = () => {
+        noted.push(Math.round(roster.getBoundingClientRect().x - row.getBoundingClientRect().x));
+        if (!roster.inert) requestAnimationFrame(note);
+      };
+      requestAnimationFrame(note);
+      Object.assign(window, { rosterLefts: noted });
+    });
+    await release();
+    await expectShown(page.locator("#teamSheet"));
+    const noted = await page.evaluate(
+      () => /** @type {number[]} */ (/** @type {any} */ (window).rosterLefts),
+    );
+
+    expect(noted.length).toBeGreaterThan(5);
+    expect(noted.every((left, index) => index === 0 || left >= noted[index - 1])).toBe(true);
+    await expect.poll(() => readLeft(sheet)).toBe(PHONE.width);
+  });
+
+  test("on a phone, the roster under a player's sheet slides a little way left, like any sheet under another, however wide its table", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const sheet = await openLibertyRoster(page);
+    await expectShown(sheet);
+
+    await sheet.getByRole("button", { name: "Leonie Fiebich" }).click();
+    await expectShown(page.locator("#playerSheet"));
+
+    const content = sheet.locator(":scope > .sheet-content");
+    expect(await readLeft(content)).toBeCloseTo(-0.28 * PHONE.width, 0);
+  });
+
+  test("on a phone, a short swipe right on the roster's title springs back to the roster once the finger lifts", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const sheet = await openLibertyRoster(page);
+    await expectShown(sheet);
+    const title = await readBox(sheet.locator("#rosterTitle"));
+
+    const release = await drag(
+      page,
+      { x: 60, y: title.y + title.height / 2 },
+      { x: 46 },
+      { durationMs: 1000 },
+    );
+    expect(await readLeft(sheet)).toBeGreaterThan(30);
+    await release();
+
+    await expectShown(sheet);
+    await expect(page.locator("#sheetDialog .sheet-row")).not.toHaveClass(/is-swiped/);
+  });
 });

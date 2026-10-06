@@ -644,6 +644,24 @@ test("a game the league has no box score for says so, and a preview whose meetin
   await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
 });
 
+test("a final's box score and a preview's meetings open from what the store keeps, with the league down", async ({
+  page,
+}) => {
+  await openApp(page, { isLeagueDownForPage: true });
+
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
+  await expect(sheet.locator(".line-score tbody tr").first()).toHaveText(
+    /Aces\s*26\s*17\s*17\s*29\s*89/,
+  );
+  await sheet.getByRole("button", { name: "Done" }).click();
+
+  const preview = await openGameSheet(page, FEVER_AT_ACES);
+  await expect(preview.locator(".meetings li")).toHaveCount(3);
+  await expect(preview.locator(".meetings li").first()).toHaveText(
+    /Aug 6\s*Aces\s*86-84\s*at Fever/,
+  );
+});
+
 test("a preview takes the season stats and leading scorers from the store as it changes", async ({
   page,
 }) => {
