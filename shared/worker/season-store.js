@@ -453,10 +453,22 @@ export function createSeasonStore(league) {
   };
 }
 
+const findStore = (env) => env.STORE.get(env.STORE.idFromName("store"));
+
 // Only the page's own origin talks to the store, so it gets no CORS headers.
 export function forwardToStore(request, env, storePath) {
   const url = new URL(request.url);
   url.pathname = storePath;
-  const store = env.STORE.get(env.STORE.idFromName("store"));
-  return store.fetch(new Request(url, request));
+  return findStore(env).fetch(new Request(url, request));
+}
+
+/**
+ * A document the store keeps, as null when it has none, for the Worker's own reads.
+ * @param {any} env the Worker's bindings
+ * @param {string} key a document's path, as rosters/2026-NYL
+ */
+export async function readStoreDoc(env, key) {
+  const response = await findStore(env).fetch(`https://store/store/${key}`);
+  if (!response.ok) throw new Error(`The store answered ${response.status} for ${key}`);
+  return (await response.json()).data;
 }

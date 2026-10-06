@@ -81,6 +81,30 @@ export function readTable(answer, name) {
 }
 
 /**
+ * An answer from the stats site with only the named columns in each of its tables, so what's kept
+ * of it stays small.
+ * @param {any} answer
+ * @param {string[]} columns
+ */
+export function trimColumns(answer, columns) {
+  return {
+    resultSets: answer.resultSets.map((/** @type {any} */ table) => {
+      const kept = table.headers.flatMap(
+        (/** @type {string} */ header, /** @type {number} */ index) =>
+          columns.includes(header) ? [index] : [],
+      );
+      return {
+        name: table.name,
+        headers: kept.map((/** @type {number} */ index) => table.headers[index]),
+        rowSet: table.rowSet.map((/** @type {any[]} */ row) =>
+          kept.map((/** @type {number} */ index) => row[index]),
+        ),
+      };
+    }),
+  };
+}
+
+/**
  * Whether an answer holds the named table, as one that's really the stats site's does.
  * @param {string} name
  */

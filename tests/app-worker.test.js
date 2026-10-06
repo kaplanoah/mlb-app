@@ -122,6 +122,31 @@ async function signIn(env = LOCKED_ENV) {
   return readCookie(response);
 }
 
+test("an app's own read gets the Worker's bindings, so it can read the store", async () => {
+  /** @type {any[]} */
+  const handed = [];
+  const worker = createAppWorker({
+    pageFiles: PAGE_FILES,
+    serveSnapshot: answerNothing,
+    forwardToStore: answerNothing,
+    reads: {
+      "/roster": (url, env) => {
+        handed.push([url.searchParams.get("team"), env.STORE]);
+        return answerOk();
+      },
+    },
+  });
+  const env = { APP_KEY: "key", STORE: "the store" };
+
+  const response = await worker.fetch(
+    new Request("https://worker.example/key/roster?team=NYL"),
+    env,
+  );
+
+  assert.equal(await response.text(), "data");
+  assert.deepEqual(handed, [["NYL", "the store"]]);
+});
+
 const DATA_PATHS = ["/snapshot", "/box-score", "/store/seasons/2026", "/watch", "/push/key"];
 
 test("without an access code, the page and its data open as they always have", async () => {

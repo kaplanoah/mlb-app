@@ -1,6 +1,6 @@
 // The sheet a tap on a player's name opens, beside the sheet it was in: her facts and numbers for
-// the season shown, which the Worker reads from the league, read the first time the sheet shows
-// her season and again once they're old. She shows as out only while her team still plays.
+// the season shown, which the store keeps, read the first time the sheet shows her season and
+// again once they're old. She shows as out only while her team still plays.
 
 import { setHtml } from "#shared/html.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";

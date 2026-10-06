@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { TEAMS } from "../page/js/teams.js";
 import {
   createPlayerServer,
+  describeRanks,
   describeRegularSeason,
   nameGameLogRequest,
   nameTeamGameLogRequest,
@@ -15,6 +16,7 @@ import {
   nameLeagueRosterRequest,
   namePlayerListRequest,
 } from "../worker/src/roster.js";
+import { readTable } from "../worker/src/wnba.js";
 
 // Every player's totals, every team's games, and the game logs of a few players, as the league
 // answered the morning after the Liberty's last game, beside the rosters recorded that morning.
@@ -42,7 +44,7 @@ function listAnswers() {
   }
   for (const [key, games] of Object.entries(PLAYERS.gameLogs)) {
     const [id, season, seasonType] = key.split(":");
-    answers[nameGameLogRequest(id, Number(season), seasonType)] = games;
+    answers[nameGameLogRequest(Number(season), seasonType, id)] = games;
   }
   for (const [key, roster] of Object.entries(ROSTERS.rosters)) {
     const [team, season] = key.split(":");
@@ -154,12 +156,14 @@ test("part way through a season the rule asks for its share of the games the mos
   const table = teamGames.resultSets[0];
   const dateColumn = table.headers.indexOf("GAME_DATE");
   table.rowSet = table.rowSet.filter((/** @type {any[]} */ row) => row[dateColumn] < "2026-07-01");
-  const before = describeRegularSeason(
-    STEWART,
-    PLAYERS.totals[2026],
-    PLAYERS.teamGames["2026:Regular Season"],
+  const stewart = readTable(PLAYERS.totals[2026], "LeagueDashPlayerStats").find(
+    (row) => String(row.PLAYER_ID) === STEWART,
   );
-  const midway = describeRegularSeason(STEWART, PLAYERS.totals[2026], teamGames);
+  const before = describeRegularSeason(
+    stewart,
+    describeRanks(PLAYERS.totals[2026], PLAYERS.teamGames["2026:Regular Season"]),
+  );
+  const midway = describeRegularSeason(stewart, describeRanks(PLAYERS.totals[2026], teamGames));
 
   assert.ok(midway && before);
   assert.ok(midway.gamesNeeded < before.gamesNeeded);
@@ -206,7 +210,7 @@ test("a player asked for with no id, team, or real season, or one the league doe
   assert.equal((await askForPlayer(answers, `id=${STEWART}&team=NYL&season=1990`)).status, 400);
   const unknown = { ...answers };
   for (const seasonType of ["Regular Season", "Playoffs"])
-    unknown[nameGameLogRequest("1", 2026, seasonType)] =
+    unknown[nameGameLogRequest(2026, seasonType, "1")] =
       PLAYERS.gameLogs[`${BALOGUN}:2026:Playoffs`];
   assert.equal((await askForPlayer(unknown, "id=1&team=NYL&season=2026")).status, 404);
   const failed = await askForPlayer({}, `id=${STEWART}&team=NYL&season=2026`);

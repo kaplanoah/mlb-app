@@ -19,15 +19,20 @@ export { expect };
 
 /**
  * An app's store in a stand-in Durable Object, holding `stored`, whose clock starts at `now`, and
- * whose pushes all succeed. `fireAlarm` runs its next update.
+ * whose pushes all succeed, as does every other request but what `fetchImpl` answers.
+ * `fireAlarm` runs its next update.
  * @template {{ fetch: (request: Request) => Promise<Response>, webSocketMessage: (socket: any, message: string | Buffer) => void, alarm: () => Promise<void> }} Store
  * @param {new (ctx: any, env: object, options: object) => Store} SeasonStore the app's store class
  * @param {object} options
  * @param {(season: string) => Promise<object>} options.loadSnapshot
  * @param {string} options.now
  * @param {Record<string, unknown>} [options.stored] documents by path
+ * @param {(url: string) => Promise<Response>} [options.fetchImpl] what the store's own jobs read
  */
-export function createTestStore(SeasonStore, { loadSnapshot, now, stored = {} }) {
+export function createTestStore(
+  SeasonStore,
+  { loadSnapshot, now, stored = {}, fetchImpl = async () => new Response(null, { status: 201 }) },
+) {
   const context = createDurableObjectContext();
   for (const [path, data] of Object.entries(stored)) context.stored.set(path, data);
   const clock = { now: Date.parse(now) };
@@ -37,7 +42,7 @@ export function createTestStore(SeasonStore, { loadSnapshot, now, stored = {} })
     {
       loadSnapshot,
       now: () => clock.now,
-      fetchImpl: async () => new Response(null, { status: 201 }),
+      fetchImpl,
     },
   );
   // The store's next update runs when its alarm comes due, so firing it moves the clock there.
