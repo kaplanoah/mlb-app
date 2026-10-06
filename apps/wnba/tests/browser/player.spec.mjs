@@ -1,4 +1,5 @@
 import { test, expect, openApp, openGameSheet } from "./harness.mjs";
+import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -53,8 +54,8 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await sheet.getByRole("button", { name: "Back to Roster" }).click();
-  await expect(sheet).toBeHidden();
-  await expect(page.locator("#rosterSheet")).toBeVisible();
+  await expectSteppedAway(sheet);
+  await expectShown(page.locator("#rosterSheet"));
 });
 
 test("her last game's AVG hangs left of the four columns, which center on the sheet by themselves", async ({
@@ -109,7 +110,7 @@ test("a top scorer's name in a box score opens her sheet over the game's, and a 
   await expect(sheet.getByRole("button", { name: "Back to Game" })).toBeVisible();
 
   await sheet.getByRole("button", { name: "Back to Game" }).click();
-  await expect(sheet).toBeHidden();
+  await expectSteppedAway(sheet);
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();

@@ -7,8 +7,10 @@ import {
   matchPath,
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
-import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
-import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
+import {
+  recordSheetMotions,
+  waitForTimedMotions,
+} from "../../../../tests/browser/sheet-motions.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -85,7 +87,7 @@ async function showGames(page, pitchers = PITCHERS, snapshot = buildSnapshotWith
 async function openMatchup(page, pitchers = PITCHERS, snapshot = buildSnapshotWithStarters()) {
   await showGames(page, pitchers, snapshot);
   await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-  return page.getByRole("dialog");
+  return page.locator("#matchupSheet");
 }
 
 /** @param {import("@playwright/test").Page} page */
@@ -158,10 +160,10 @@ test("on a desktop, the title centers over the sheet, with Done at its right edg
   await page.emulateMedia({ reducedMotion: "reduce" });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
-  const { titleCenter, sheetCenter, doneRight, sheetRight } = await sheet.evaluate((dialog) => {
-    const box = dialog.getBoundingClientRect();
-    const title = dialog.querySelector(".sheet-title").getBoundingClientRect();
-    const done = dialog.querySelector(".sheet-done").getBoundingClientRect();
+  const { titleCenter, sheetCenter, doneRight, sheetRight } = await sheet.evaluate((matchup) => {
+    const box = /** @type {Element} */ (matchup.closest("dialog")).getBoundingClientRect();
+    const title = matchup.querySelector(".sheet-title").getBoundingClientRect();
+    const done = matchup.querySelector(".sheet-done").getBoundingClientRect();
     return {
       titleCenter: title.left + title.width / 2,
       sheetCenter: box.left + box.width / 2,
@@ -171,9 +173,9 @@ test("on a desktop, the title centers over the sheet, with Done at its right edg
   });
   expect(titleCenter).toBeCloseTo(sheetCenter, 0);
   expect(sheetRight - doneRight).toBeCloseTo(11, 0);
-  const sides = await sheet.evaluate((dialog) => {
-    const box = dialog.getBoundingClientRect();
-    const faceoff = dialog.querySelector(".faceoff").getBoundingClientRect();
+  const sides = await sheet.evaluate((matchup) => {
+    const box = /** @type {Element} */ (matchup.closest("dialog")).getBoundingClientRect();
+    const faceoff = matchup.querySelector(".faceoff").getBoundingClientRect();
     return [faceoff.left - box.left, box.right - faceoff.right];
   });
   expect(sides.map(Math.round)).toEqual([19, 19]);
@@ -223,7 +225,7 @@ test("on a phone, the matchup rises as a sheet that a swipe down closes", async 
   await page.setViewportSize({ width: 390, height: 844 });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
-  await page.waitForFunction(() => document.getAnimations().length === 0);
+  await waitForTimedMotions(page);
   const done = sheet.getByRole("button", { name: "Done" });
   expect((await done.boundingBox()).width).toBeLessThanOrEqual(1);
   expect(Math.round((await sheet.boundingBox()).x)).toBe(0);
@@ -249,15 +251,15 @@ test("on a phone, Done and a tap outside slide the matchup down as its backdrop 
   await showGames(page);
   for (const [way, close] of Object.entries(closings)) {
     await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-    const sheet = page.getByRole("dialog");
-    await page.waitForFunction(() => document.getAnimations().length === 0);
+    const sheet = page.locator("#matchupSheet");
+    await waitForTimedMotions(page);
     await readMotions();
 
     await close();
     await expect(sheet, way).toBeHidden();
     expect(await readMotions(), way).toEqual([
-      { id: "matchupSheet", part: "sheet", to: { transform: "translateY(100%)" } },
-      { id: "matchupSheet", part: "::backdrop", to: { opacity: 0 } },
+      { id: "sheetDialog", part: "sheet", to: { transform: "translateY(100%)" } },
+      { id: "sheetDialog", part: "::backdrop", to: { opacity: 0 } },
     ]);
   }
 });
@@ -266,12 +268,13 @@ test("on a phone, the matchup rises only when the viewer allows motion", async (
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const sheet = await openMatchup(page);
-  await expect(sheet).toHaveCSS("animation-name", "none");
+  const dialog = page.locator("#sheetDialog");
+  await expect(dialog).toHaveCSS("animation-name", "none");
 
   await sheet.press("Escape");
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-  await expect(sheet).toHaveCSS("animation-name", "sheet-rise");
+  await expect(dialog).toHaveCSS("animation-name", "sheet-rise");
 });
 
 test("each bar is the share of starters he beats, gold for whichever starter ranks higher", async ({
@@ -326,7 +329,7 @@ test("a game on a later day without its starters says to check back for them, un
   const reads = countPitcherReads(page);
   await showGames(page);
   await page.locator("#games-next .game-open").first().click();
-  const sheet = page.getByRole("dialog");
+  const sheet = page.locator("#matchupSheet");
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Pitching matchup");
   await expect(sheet.locator(".pitcher-last")).toHaveText(["Still TBD", "Still TBD"]);
   await expect(sheet.locator(".pitcher-id .club")).toHaveCount(2);
@@ -338,7 +341,7 @@ test("a game on a later day without its starters says to check back for them, un
 test("a finished game without its starters has nothing to check back for", async ({ page }) => {
   await showGames(page);
   await page.locator("#games-today .game-row.final .game-open").first().click();
-  const sheet = page.getByRole("dialog");
+  const sheet = page.locator("#matchupSheet");
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Pitching matchup");
   await expect(sheet.locator(".pitcher-id .club")).toHaveCount(2);
   await expect(sheet.locator(".check-back")).toHaveCount(0);
@@ -404,7 +407,7 @@ async function openStillTbd(page, rotations) {
   const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
   await expect(row.locator(".starter.pending")).toHaveText(["Still TBD", "Still TBD"]);
   await row.getByRole("button", { name: "Pitching matchup: TBD vs TBD" }).click();
-  return page.getByRole("dialog");
+  return page.locator("#matchupSheet");
 }
 
 test("a game later today without a starter says Still TBD, and opens to who started lately and how rested each is", async ({
@@ -519,7 +522,7 @@ test("while the starters' numbers load, the matchup holds their shape, then fill
   await showGames(page);
   const release = await holdPitchers(page);
   await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-  const sheet = page.getByRole("dialog");
+  const sheet = page.locator("#matchupSheet");
   const body = sheet.locator("#matchupBody");
 
   await expect(body).toHaveAttribute("aria-busy", "true");
@@ -544,7 +547,7 @@ test("while a club's last starters load, its side holds a list's shape, then fil
   const release = await holdRequests(page, matchPath("/rotation"));
   const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
   await row.getByRole("button", { name: "Pitching matchup: TBD vs TBD" }).click();
-  const angels = page.getByRole("dialog").locator(".scout").first();
+  const angels = page.locator("#matchupSheet").locator(".scout").first();
 
   await expect(angels.locator("h3")).toHaveText("AngelsWho's rested");
   await expect(angels.locator(".rotation li")).toHaveCount(5);
@@ -564,28 +567,8 @@ test("a finger coming down on a game starts reading its starters' numbers", asyn
   await expect.poll(() => reads.count).toBe(2);
 
   await button.click();
-  await expect(page.getByRole("dialog").locator(".pitch-mix")).toHaveCount(2);
+  await expect(page.locator("#matchupSheet").locator(".pitch-mix")).toHaveCount(2);
   expect(reads.count).toBe(2);
-});
-
-test("a matchup whose starters can't load eases from their shape down to the messages", async ({
-  page,
-}) => {
-  const readResizes = await recordSheetResizes(page);
-  await showGames(page, {});
-  const release = await holdPitchers(page);
-  await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-  const sheet = page.getByRole("dialog");
-  await expect(sheet.locator(".tape-label")).toHaveCount(4);
-
-  release();
-  await expect(sheet.locator(".scout-note")).toHaveCount(2);
-  await expect(sheet.locator(".placeholder")).toHaveCount(0);
-  const resizes = (await readResizes()).filter((resize) => resize.id === "matchupSheet");
-  expect(resizes.length).toBeGreaterThan(0);
-  const [from] = resizes[0].heights.map(parseFloat);
-  const [, to] = resizes.at(-1).heights.map(parseFloat);
-  expect(to).toBeLessThan(from);
 });
 
 for (const { screen, viewport } of [

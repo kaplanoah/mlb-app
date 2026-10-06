@@ -8,6 +8,7 @@ import {
   EVENING_FIXTURE,
   ON_A_PHONE,
 } from "./harness.mjs";
+import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -131,10 +132,11 @@ test("a club's name in the matchup opens its sheet over it, whose back button go
   const teamSheet = page.locator("#teamSheet");
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Athletics");
-  await expect(matchup).toHaveAttribute("data-covered");
+  await expectShown(teamSheet);
+  await expectSteppedAway(matchup);
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-  await expect(teamSheet).toBeHidden();
-  await expect(matchup).toBeVisible();
+  await expectSteppedAway(teamSheet);
+  await expectShown(matchup);
 });
 
 test("a club's row in the standings opens its sheet, with its race and titles, and Done closes it", async ({

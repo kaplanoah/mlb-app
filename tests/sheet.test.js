@@ -3,47 +3,217 @@ import assert from "node:assert/strict";
 import { listOpenSheets, openSheet, reopenSheets, wireSheet } from "../shared/page/sheet.js";
 
 /** @typedef {import("../shared/page/sheet.js").SheetKeeper} SheetKeeper */
+/** @typedef {import("../shared/page/sheet.js").SheetParts} SheetParts */
 
-// A stand-in for a dialog on a wide screen, where a sheet closes at once instead of sliding down.
-/** @param {{ id?: string, open?: boolean, keeper?: SheetKeeper }} [options] */
-function createDialog({ id = "sheetDialog", open = false, keeper } = {}) {
-  globalThis.matchMedia = /** @type {any} */ (() => ({ matches: false }));
-  const dialog = Object.assign(new EventTarget(), {
-    id,
-    open,
-    scrollTop: 0,
-    timesShown: 0,
-    attributes: new Set(open ? ["data-reopened"] : []),
-    style: { minHeight: "" },
-    getBoundingClientRect: () => ({ height: 400 }),
-    /** @param {string} name */
-    setAttribute(name) {
-      dialog.attributes.add(name);
-    },
-    showModal() {
-      dialog.open = true;
-      dialog.timesShown += 1;
-    },
-    close() {
-      dialog.open = false;
-      dialog.dispatchEvent(new Event("close"));
-    },
-    /** @param {string} name */
-    removeAttribute(name) {
-      dialog.attributes.delete(name);
-    },
-  });
-  const doneButton = new EventTarget();
-  wireSheet(/** @type {any} */ (dialog), { doneButton: /** @type {any} */ (doneButton), keeper });
-  return { dialog, doneButton };
+const ROW_WIDTH = 390;
+
+/** @type {FakeElement | null} */
+let focused = null;
+
+// Just enough of an element for sheet.js: its family, attributes, and what it can be asked.
+class FakeElement extends EventTarget {
+  /** @param {{ id?: string, tag?: string, className?: string }} [options] */
+  constructor({ id = "", tag = "div", className = "" } = {}) {
+    super();
+    this.id = id;
+    this.tag = tag;
+    this.className = className;
+    /** @type {FakeElement[]} */
+    this.children = [];
+    /** @type {FakeElement | null} */
+    this.parentElement = null;
+    /** @type {Map<string, string>} */
+    this.attributes = new Map();
+    this.hidden = false;
+    this.inert = false;
+    this.tabIndex = 0;
+    this.scrollTop = 0;
+    this.scrollLeft = 0;
+    this.clientWidth = ROW_WIDTH;
+    this.textContent = "";
+    this.style = { order: "", transform: "" };
+  }
+
+  /**
+   * @template {FakeElement} T
+   * @param {T} child
+   */
+  append(child) {
+    child.parentElement = this;
+    this.children.push(child);
+    return child;
+  }
+
+  /**
+   * @param {string} name
+   * @param {string} value
+   */
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
+  }
+
+  /** @param {string} name */
+  getAttribute(name) {
+    return this.attributes.get(name) ?? null;
+  }
+
+  /** @param {string} name */
+  hasAttribute(name) {
+    return this.attributes.has(name);
+  }
+
+  /** @param {string} name */
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  }
+
+  /** @param {string} selector "dialog" or one class */
+  matches(selector) {
+    return selector === this.tag || selector === `.${this.className}`;
+  }
+
+  /** @param {string} selector */
+  closest(selector) {
+    for (let element = /** @type {FakeElement | null} */ (this); element;) {
+      if (element.matches(selector)) return element;
+      element = element.parentElement;
+    }
+    return null;
+  }
+
+  /**
+   * @param {string} selector ":scope > .x" for a child, or ".x" for any element inside
+   * @returns {FakeElement | null}
+   */
+  querySelector(selector) {
+    const isOwn = selector.startsWith(":scope > ");
+    const wanted = isOwn ? selector.slice(":scope > ".length) : selector;
+    for (const child of this.children) {
+      if (child.matches(wanted)) return child;
+      const found = isOwn ? null : child.querySelector(wanted);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /** @param {FakeElement | null} other */
+  contains(other) {
+    for (let element = other; element; element = element.parentElement)
+      if (element === this) return true;
+    return false;
+  }
+
+  focus() {
+    focused = this;
+  }
 }
 
-/** @param {{ id: string }[]} dialogs what the page's dialogs are */
-function placeDialogs(dialogs) {
+// A row scrolls at once, as it does when less motion is asked for, and says so.
+class FakeRow extends FakeElement {
+  constructor() {
+    super({ className: "sheet-row" });
+  }
+
+  /** @param {{ left: number }} options */
+  scrollTo({ left }) {
+    this.scrollLeft = left;
+    this.dispatchEvent(new Event("scroll"));
+  }
+}
+
+class FakeDialog extends FakeElement {
+  /** @param {string} id */
+  constructor(id) {
+    super({ id, tag: "dialog" });
+    this.open = false;
+    this.timesShown = 0;
+  }
+
+  showModal() {
+    this.open = true;
+    this.timesShown += 1;
+  }
+
+  close() {
+    this.open = false;
+    this.dispatchEvent(new Event("close"));
+  }
+}
+
+/** @param {string} labelClass */
+function createStepButton(labelClass) {
+  const button = new FakeElement();
+  button.append(new FakeElement({ className: labelClass }));
+  return button;
+}
+
+/** @param {FakeElement} button */
+function readStepLabel(button) {
+  if (button.hidden) return null;
+  return { text: button.children[0].textContent, ariaLabel: button.getAttribute("aria-label") };
+}
+
+/**
+ * @param {FakeElement} root
+ * @param {string} id
+ * @returns {FakeElement | null}
+ */
+function findById(root, id) {
+  if (root.id === id) return root;
+  for (const child of root.children) {
+    const found = findById(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * A dialog with a row of sheets, each with Done, a back button, and a forward button, on a wide
+ * screen, where a dialog closes at once instead of sliding down.
+ * @param {string[]} ids
+ * @param {Record<string, Partial<SheetParts>>} [partsById]
+ */
+function createRowDialog(ids, partsById = {}) {
+  globalThis.matchMedia = /** @type {any} */ (
+    (query) => ({ matches: query.includes("reduced-motion") })
+  );
+  const dialog = new FakeDialog("sheetDialog");
   globalThis.document = /** @type {any} */ ({
-    getElementById: (/** @type {string} */ id) => dialogs.find((dialog) => dialog.id === id),
+    get activeElement() {
+      return focused;
+    },
+    getElementById: (/** @type {string} */ id) => findById(dialog, id),
   });
+  const row = dialog.append(new FakeRow());
+  /** @typedef {{ sheet: FakeElement, doneButton: FakeElement, backButton: FakeElement, forwardButton: FakeElement }} FakeSheet */
+  const sheets = /** @type {Record<string, FakeSheet>} */ (
+    Object.fromEntries(
+      ids.map((id) => {
+        const sheet = row.append(new FakeElement({ id, tag: "section", className: "sheet-page" }));
+        sheet.hidden = true;
+        sheet.setAttribute("aria-labelledby", `${id}Title`);
+        const parts = {
+          doneButton: new FakeElement(),
+          backButton: createStepButton("sheet-back-label"),
+          forwardButton: createStepButton("sheet-forward-label"),
+          ...partsById[id],
+        };
+        wireSheet(/** @type {any} */ (sheet), /** @type {any} */ (parts));
+        return [id, { sheet, ...parts }];
+      }),
+    )
+  );
+  return { dialog, row, sheets };
 }
+
+/** @param {EventTarget} target */
+const click = (target) => target.dispatchEvent(new Event("click"));
+
+/** @param {FakeElement} row */
+const listInRow = (row) => row.children.filter((sheet) => !sheet.hidden).map((sheet) => sheet.id);
+
+/** @param {FakeElement} row */
+const findReachable = (row) => row.children.find((sheet) => !sheet.hidden && !sheet.inert)?.id;
 
 /**
  * A sheet's code that shows what it's handed, or can't.
@@ -52,58 +222,164 @@ function placeDialogs(dialogs) {
  */
 const keepShown = (shown, reopen = () => true) => ({ read: () => shown, reopen });
 
-test("a sheet opens at its top, and opening it again keeps it open there", () => {
-  const { dialog } = createDialog();
+/** @param {FakeElement} sheet */
+const open = (sheet) => openSheet(/** @type {any} */ (sheet));
 
-  openSheet(/** @type {any} */ (dialog));
-  dialog.scrollTop = 300;
-  openSheet(/** @type {any} */ (dialog));
+test("a sheet opens its dialog with it alone in the row, at its top, and opening it again keeps it open there", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
+  const { sheet } = sheets.gameSheet;
+
+  open(sheet);
+  sheet.scrollTop = 300;
+  open(sheet);
   assert.equal(dialog.open, true);
   assert.equal(dialog.timesShown, 1);
-  assert.equal(dialog.scrollTop, 0);
+  assert.equal(sheet.scrollTop, 0);
+  assert.deepEqual(listInRow(row), ["gameSheet"]);
+  assert.equal(dialog.getAttribute("aria-labelledby"), "gameSheetTitle");
   dialog.close();
 });
 
-test("Done and a click on the backdrop close the sheet", () => {
-  const { dialog, doneButton } = createDialog();
+test("Done and a click on the backdrop close the dialog, and its sheets leave the row", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet"]);
 
-  openSheet(/** @type {any} */ (dialog));
-  doneButton.dispatchEvent(new Event("click"));
+  open(sheets.gameSheet.sheet);
+  click(sheets.gameSheet.doneButton);
   assert.equal(dialog.open, false);
-  openSheet(/** @type {any} */ (dialog));
-  dialog.dispatchEvent(new Event("click"));
+  assert.deepEqual(listInRow(row), []);
+  open(sheets.gameSheet.sheet);
+  click(dialog);
   assert.equal(dialog.open, false);
 });
 
-// A stand-in for a sheet on a phone, which a swipe down moves and closes.
+test("a sheet opened from another comes in after it, with a back button that names it, and only the one shown can be reached", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
+    gameSheet: { name: "Game" },
+  });
+
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+
+  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
+  assert.deepEqual(
+    [sheets.gameSheet.sheet.style.order, sheets.teamSheet.sheet.style.order],
+    ["0", "1"],
+  );
+  assert.equal(row.scrollLeft, ROW_WIDTH);
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(focused, sheets.teamSheet.sheet);
+  assert.equal(dialog.getAttribute("aria-labelledby"), "teamSheetTitle");
+  assert.deepEqual(readStepLabel(sheets.teamSheet.backButton), {
+    text: "Game",
+    ariaLabel: "Back to Game",
+  });
+  assert.equal(readStepLabel(sheets.gameSheet.backButton), null);
+  dialog.close();
+});
+
+test("back scrolls to the sheet before, whose forward button names the one it left, and forward scrolls there again", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
+    gameSheet: { name: "Game" },
+    teamSheet: { name: "Team", nameForForward: () => "Fever" },
+  });
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+
+  click(sheets.teamSheet.backButton);
+  assert.equal(row.scrollLeft, 0);
+  assert.equal(findReachable(row), "gameSheet");
+  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
+  assert.deepEqual(readStepLabel(sheets.gameSheet.forwardButton), {
+    text: "Fever",
+    ariaLabel: "Forward to Fever",
+  });
+
+  click(sheets.gameSheet.forwardButton);
+  assert.equal(row.scrollLeft, ROW_WIDTH);
+  assert.equal(findReachable(row), "teamSheet");
+  dialog.close();
+});
+
+test("a sheet opened from one with sheets after it takes their place, and they let go of what they showed", () => {
+  /** @type {string[]} */
+  const forgotten = [];
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet", "rosterSheet"], {
+    teamSheet: { forget: () => forgotten.push("team") },
+    rosterSheet: { forget: () => forgotten.push("roster") },
+  });
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+  open(sheets.rosterSheet.sheet);
+  click(sheets.rosterSheet.backButton);
+  click(sheets.teamSheet.backButton);
+
+  open(sheets.teamSheet.sheet);
+
+  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
+  assert.deepEqual(forgotten, ["roster"]);
+  assert.equal(findReachable(row), "teamSheet");
+  dialog.close();
+  assert.deepEqual(forgotten, ["roster", "team"]);
+});
+
+test("a sheet that names its next one has it wait after it for a swipe, which no forward button names until it has shown", () => {
+  /** @type {Record<string, any>} */
+  const sheets = {};
+  const created = createRowDialog(["teamSheet", "rosterSheet"], {
+    teamSheet: { name: "Team", prepareNext: () => sheets.rosterSheet.sheet },
+    rosterSheet: { name: "Roster" },
+  });
+  Object.assign(sheets, created.sheets);
+  const { dialog, row } = created;
+
+  open(sheets.teamSheet.sheet);
+  assert.deepEqual(listInRow(row), ["teamSheet", "rosterSheet"]);
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(readStepLabel(sheets.teamSheet.forwardButton), null);
+  assert.deepEqual(readStepLabel(sheets.rosterSheet.backButton), {
+    text: "Team",
+    ariaLabel: "Back to Team",
+  });
+
+  row.scrollTo({ left: ROW_WIDTH });
+  assert.equal(findReachable(row), "rosterSheet");
+  click(sheets.rosterSheet.backButton);
+  assert.equal(readStepLabel(sheets.teamSheet.forwardButton)?.text, "Roster");
+  dialog.close();
+});
+
+test("a row partway between two sheets settles on neither, and one a pixel off settles on the nearer", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+
+  row.scrollTo({ left: ROW_WIDTH / 2 });
+  assert.equal(findReachable(row), "teamSheet");
+  row.scrollTo({ left: 1 });
+  assert.equal(findReachable(row), "gameSheet");
+  dialog.close();
+});
+
+// A stand-in for settings on a phone, a dialog that is its own sheet, which a swipe down moves and
+// closes.
 function createPhoneSheet() {
   globalThis.matchMedia = /** @type {any} */ ((query) => ({ matches: query.includes("width") }));
-  const dialog = Object.assign(new EventTarget(), {
-    open: false,
-    scrollTop: 0,
-    style: { transform: "", minHeight: "" },
-    getBoundingClientRect: () => ({ height: 400, width: 390 }),
+  globalThis.document = /** @type {any} */ ({ activeElement: null });
+  const dialog = Object.assign(new FakeDialog("settingsDialog"), {
     getAnimations: () => [],
-    hasAttribute: () => false,
-    setAttribute() {},
-    removeAttribute() {},
-    showModal() {
-      dialog.open = true;
-    },
     animate() {
       /** @type {{ cancel: () => void, finished?: Promise<unknown> }} */
       const motion = { cancel() {} };
       motion.finished = Promise.resolve(motion);
       return motion;
     },
-    close() {
-      dialog.open = false;
-      dialog.dispatchEvent(new Event("close"));
-    },
   });
   wireSheet(/** @type {any} */ (dialog), { doneButton: /** @type {any} */ (new EventTarget()) });
-  openSheet(/** @type {any} */ (dialog));
-  /** @param {string} type @param {number} [clientY] */
+  open(dialog);
+  /**
+   * @param {string} type
+   * @param {number} [clientY]
+   */
   const touch = (type, clientY) => {
     const touches = clientY === undefined ? [] : [{ clientX: 0, clientY }];
     dialog.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { touches }));
@@ -138,90 +414,82 @@ test("on a phone, a swipe at the sheet's top that goes up first moves the sheet 
   dialog.close();
 });
 
-test("the sheets showing are listed in the order they opened, with where each is scrolled and what each shows, and Done closes them all", () => {
-  const { dialog: game, doneButton: gameDone } = createDialog({
-    id: "gameSheet",
-    keeper: keepShown({ id: "game-1" }),
+test("the sheets showing are listed up to the shown one, with where each is scrolled, what each shows, and what its back button calls the one before", () => {
+  const { dialog, sheets } = createRowDialog(["gameSheet", "teamSheet", "rosterSheet"], {
+    gameSheet: { keeper: keepShown({ id: "game-1" }), name: "Game" },
+    teamSheet: { keeper: keepShown({ team: "NY" }), name: "Team" },
   });
-  const { dialog: team } = createDialog({ id: "teamSheet", keeper: keepShown({ team: "NY" }) });
-  const { dialog: settings } = createDialog({ id: "settingsDialog" });
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+  open(sheets.rosterSheet.sheet);
+  click(sheets.rosterSheet.backButton);
+  sheets.gameSheet.sheet.scrollTop = 240;
 
-  openSheet(/** @type {any} */ (team));
-  openSheet(/** @type {any} */ (game));
-  openSheet(/** @type {any} */ (settings));
-  game.scrollTop = 240;
   assert.deepEqual(listOpenSheets(), [
-    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" }, backLabel: null },
     { id: "gameSheet", scrollTop: 240, subject: { id: "game-1" }, backLabel: null },
-    { id: "settingsDialog", scrollTop: 0, subject: null, backLabel: null },
+    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" }, backLabel: "Game" },
   ]);
 
-  gameDone.dispatchEvent(new Event("click"));
-  assert.deepEqual(
-    [team, game, settings].map((dialog) => dialog.open),
-    [false, false, false],
-  );
+  dialog.close();
   assert.deepEqual(listOpenSheets(), []);
 });
 
-test("a page that loads again has each sheet it put back open show what it showed, and closes those that can't", () => {
+test("a page that loads again puts back each sheet it showed, up to the first that can't show what it did, and closes a dialog none of whose sheets can", () => {
   /** @type {unknown[]} */
   const reopened = [];
-  const { dialog: game } = createDialog({
-    id: "gameSheet",
-    open: true,
-    keeper: keepShown(null, (subject) => reopened.push(subject) > 0),
+  const { dialog, row } = createRowDialog(["gameSheet", "teamSheet", "rosterSheet"], {
+    gameSheet: { keeper: keepShown(null, (subject) => reopened.push(subject) > 0) },
+    teamSheet: { keeper: keepShown(null, () => false) },
+    rosterSheet: { keeper: keepShown(null) },
   });
-  const { dialog: team } = createDialog({
-    id: "teamSheet",
-    open: true,
-    keeper: keepShown(null, () => false),
-  });
-  const { dialog: matchup } = createDialog({
-    id: "matchupSheet",
-    open: true,
-    keeper: keepShown(null, () => {
-      throw new TypeError("an earlier release's subject");
-    }),
-  });
-  const { dialog: settings } = createDialog({ id: "settingsDialog", open: true });
-  placeDialogs([game, team, matchup, settings]);
+  dialog.open = true;
+  dialog.setAttribute("data-reopened", "");
 
   reopenSheets([
-    { id: "settingsDialog", scrollTop: 0, subject: null },
     { id: "gameSheet", scrollTop: 120, subject: { id: "game-1" } },
     { id: "teamSheet", scrollTop: 0, subject: { team: "NY" } },
-    { id: "matchupSheet", scrollTop: 0, subject: { game: {} } },
-    { id: "goneDialog", scrollTop: 0, subject: null },
+    { id: "rosterSheet", scrollTop: 0, subject: { team: "NY" } },
+    { id: "goneSheet", scrollTop: 0, subject: null },
     null,
   ]);
 
   assert.deepEqual(reopened, [{ id: "game-1" }]);
-  assert.deepEqual(
-    [game, team, matchup, settings].map((dialog) => dialog.open),
-    [true, false, false, true],
-  );
+  assert.equal(dialog.open, true);
+  assert.deepEqual(listInRow(row), ["gameSheet"]);
+  assert.equal(findReachable(row), "gameSheet");
   assert.deepEqual(
     listOpenSheets().map(({ id }) => id),
-    ["settingsDialog", "gameSheet"],
+    ["gameSheet"],
   );
-  game.close();
-  settings.close();
-});
-
-test("a sheet put back open rises again only once it has closed", () => {
-  const { dialog } = createDialog({ id: "gameSheet", open: true, keeper: keepShown(null) });
-  placeDialogs([dialog]);
-
-  reopenSheets([{ id: "gameSheet", scrollTop: 0, subject: null }]);
-  assert.ok(dialog.attributes.has("data-reopened"));
   dialog.close();
-  assert.ok(!dialog.attributes.has("data-reopened"));
+  assert.ok(!dialog.hasAttribute("data-reopened"));
+
+  dialog.open = true;
+  reopenSheets([{ id: "teamSheet", scrollTop: 0, subject: { team: "NY" } }]);
+  assert.equal(dialog.open, false);
 });
 
-test("saved sheets that can't be read leave every sheet as it is", () => {
-  const { dialog } = createDialog({ id: "gameSheet", open: true, keeper: keepShown(null) });
-  placeDialogs([dialog]);
+test("a page that loads again puts back a sheet after the one it was opened from, with the row on it", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
+    gameSheet: { keeper: keepShown(null), name: "Game" },
+    teamSheet: { keeper: keepShown(null) },
+  });
+  dialog.open = true;
+
+  reopenSheets([
+    { id: "gameSheet", scrollTop: 0, subject: null },
+    { id: "teamSheet", scrollTop: 0, subject: null },
+  ]);
+
+  assert.equal(row.scrollLeft, ROW_WIDTH);
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(readStepLabel(sheets.teamSheet.backButton)?.text, "Game");
+  dialog.close();
+});
+
+test("saved sheets that can't be read leave every dialog as it is", () => {
+  const { dialog } = createRowDialog(["gameSheet"]);
+  dialog.open = true;
 
   reopenSheets("{not json");
   reopenSheets({ id: "gameSheet" });

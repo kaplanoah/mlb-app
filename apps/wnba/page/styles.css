@@ -1041,6 +1041,7 @@ table.players td.quiet-stat {
    the sheet's width, and each player's number and name stay at its left. The column names stop at
    the sheet's top. */
 #rosterSheet {
+  overflow-x: auto;
   container-type: inline-size;
   --roster-number-width: 22px;
   --roster-number-gap: 11px;

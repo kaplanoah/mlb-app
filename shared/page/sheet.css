@@ -15,8 +15,7 @@
  * and bar reaching left of the measure's name and the home side's right, the leader's bar in
  * --accent.
  *
- * While a sheet's details load, placeholders hold their place in the shape they'll have, and
- * sheet-resize.js eases the sheet to its new height once they arrive.
+ * While a sheet's details load, placeholders hold their place in the shape they'll have.
  *
  * A sheet opened from another slides in from the right over it, as the row scrolls, and the one
  * it came from slides a little way left under it and dims, where the browser can tie a motion to
@@ -71,17 +70,17 @@
   display: none;
 }
 /* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole
-   sheet. A sideways scroll in it, like a wide table's, goes on to the row once at its edge. */
+   sheet. One that scrolls sideways too, like a wide table, hands a swipe on to the row once at
+   its edge. */
 .sheet-page {
   position: relative;
   flex: 0 0 100%;
   min-width: 0;
-  overflow-y: auto;
+  overflow: hidden auto;
   overscroll-behavior-y: none;
   scroll-snap-align: start;
   scroll-snap-stop: always;
   background: var(--card);
-  outline: none;
 }
 .sheet-page[hidden] {
   display: none;
@@ -164,21 +163,32 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
   outline-offset: 2px;
 }
 
-/* A sheet leaving to the left, as the one after it slides in, moves at a fraction of the row's
-   pace and lets the row's black through. */
+/* A sheet leaving to the left, as the one after it slides in, shows what it holds moving at a
+   fraction of the row's pace, and lets the row's black through. The sheet itself stays where the
+   row puts it, since the row stops where a sheet's box is. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .sheet-page {
-      animation: sheet-page-under linear both;
-      animation-timeline: view(inline);
+      view-timeline: --sheet-page inline;
+      animation: sheet-page-dim linear both;
+      animation-timeline: --sheet-page;
       animation-range: exit;
     }
+    .sheet-page > * {
+      animation: sheet-page-under linear both;
+      animation-timeline: --sheet-page;
+      animation-range: exit;
+    }
+  }
+}
+@keyframes sheet-page-dim {
+  to {
+    opacity: 0.75;
   }
 }
 @keyframes sheet-page-under {
   to {
     transform: translateX(72%);
-    opacity: 0.75;
   }
 }
 .sheet-note {

@@ -1,5 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
+import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -81,8 +82,8 @@ test("a team's Roster opens its roster over its sheet: each player by last name,
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await sheet.getByRole("button", { name: "Back to Team" }).click();
-  await expect(sheet).toBeHidden();
-  await expect(page.locator("#teamSheet table.players")).toBeVisible();
+  await expectSteppedAway(sheet);
+  await expectShown(page.locator("#teamSheet"));
 });
 
 test("a tap on a column's name sorts by it, the most first for an average, and a second tap reverses it, with players who haven't played last", async ({
@@ -156,17 +157,17 @@ test("on a phone, a swipe left on a team's sheet opens its roster, and a swipe r
   const rosterSheet = page.locator("#rosterSheet");
 
   await (
-    await drag(page, { x: 300, y: 400 }, { x: -200 })
+    await drag(page, { x: 330, y: 400 }, { x: -250 })
   )();
   await expect(rosterSheet.locator(".roster-coach")).toBeVisible();
-  await expect(rosterSheet).toHaveAttribute("data-stacked");
-  await expect(teamSheet).toHaveAttribute("data-covered");
+  await expectShown(rosterSheet);
+  await expectSteppedAway(teamSheet);
 
   await (
     await drag(page, { x: 60, y: 300 }, { x: 250 })
   )();
-  await expect(rosterSheet).toBeHidden();
-  await expect(teamSheet).not.toHaveAttribute("data-covered");
+  await expectShown(teamSheet);
+  await expectSteppedAway(rosterSheet);
 });
 
 test("the roster and the team's sheet under it open again on a reload", async ({ page }) => {

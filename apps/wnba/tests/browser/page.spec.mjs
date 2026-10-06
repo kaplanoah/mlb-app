@@ -538,35 +538,35 @@ const readSettingsBoxes = (page) =>
 test.describe("on a phone, settings", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("rise only as tall as what they hold, from the bottom of the screen", async ({ page }) => {
+  test("rise from the bottom of the screen to near its top, like every sheet", async ({ page }) => {
     await openSettingsWithRelease(page);
-    const { sheet, body } = await readSettingsBoxes(page);
+    const { sheet } = await readSettingsBoxes(page);
     expect(Math.round(sheet.bottom)).toBe(844);
-    expect(Math.abs(sheet.bottom - body.bottom)).toBeLessThan(1);
-    expect(sheet.height).toBeLessThan(844 * 0.8);
+    expect(Math.round(sheet.height)).toBe(844 - 44);
   });
 
-  test("set their title 12px under the grabber and 21px over the first setting, and end 17px over the bottom", async ({
+  test("set their title 12px under the grabber and 21px over the first setting, and end 17px over their bottom", async ({
     page,
   }) => {
     await openSettingsWithRelease(page);
-    const { sheet, top, head, grabber, title, controls, footer } = await readSettingsBoxes(page);
+    const { body, top, head, grabber, title, controls, footer } = await readSettingsBoxes(page);
     expect(grabber.height).toBe(5);
     expect(title.top - grabber.bottom).toBe(12);
     expect(head.bottom).toBeLessThanOrEqual(top.bottom);
     expect(Math.round(controls.top - title.bottom)).toBe(21);
-    expect(Math.round(sheet.bottom - footer.bottom)).toBe(17);
+    expect(Math.round(body.bottom - footer.bottom)).toBe(17);
   });
 });
 
 test.describe("on a wide screen, settings", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("open only as tall as what they hold, in the middle of the screen", async ({ page }) => {
+  test("open nearly the screen's height, like every sheet, in the middle of the screen", async ({
+    page,
+  }) => {
     await openSettingsWithRelease(page);
-    const { sheet, body } = await readSettingsBoxes(page);
-    expect(sheet.bottom - body.bottom).toBeLessThanOrEqual(1);
-    expect(sheet.height).toBeLessThan(900 * 0.6);
+    const { sheet } = await readSettingsBoxes(page);
+    expect(Math.round(sheet.height)).toBe(900 - 48);
     expect(Math.abs(sheet.top + sheet.height / 2 - 450)).toBeLessThan(1);
   });
 
