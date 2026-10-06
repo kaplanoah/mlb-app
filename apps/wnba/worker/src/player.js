@@ -2,16 +2,19 @@ import { REQUESTS } from "../../page/js/snapshot.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 import { createReusedLoader } from "../../../../shared/worker/upstream.js";
+import { nameRosterKey } from "./roster.js";
 import { SEASON_PARAM, fetchWnbaJson, hasTable, isCurrentSeason, readTable } from "./wnba.js";
 
-// Reads what a player's sheet shows for a season: her facts from her team's roster that season,
-// her last game and her points in each playoff game from her game logs, with the score from the
-// league's log of every team's games, and, from every player's totals in the regular season, her
-// averages and where each ranks among the players who meet the WNBA's rule for its leaders.
+// What a player's sheet shows for a season: her facts from her team's roster that season, her last
+// game and her points in each playoff game from her game logs, with the score from the league's log
+// of every team's games, and, from every player's totals in the regular season, her averages and
+// where each ranks among the players who meet the WNBA's rule for its leaders. The store keeps each
+// season's numbers (player-updater.js), so a sheet reads the league itself only for a season the
+// store doesn't keep.
 
 const WNBA_STATS = "https://stats.wnba.com/stats";
-const REGULAR_SEASON = "Regular Season";
-const PLAYOFFS = "Playoffs";
+export const REGULAR_SEASON = "Regular Season";
+export const PLAYOFFS = "Playoffs";
 // The season's logs and totals change after each game, and a past season's never.
 const CACHE_SECONDS = 10 * 60;
 const PAST_CACHE_SECONDS = 24 * 60 * 60;
@@ -80,15 +83,43 @@ const RANKED_STATS = [
 // Two numbers this close are the same, however the division rounds.
 const SAME_NUMBER = 1e-9;
 
+// The columns each feed's rows are kept with: only what the sheet reads.
+export const TOTALS_COLUMNS = [
+  "PLAYER_ID",
+  "PLAYER_NAME",
+  "GP",
+  "MIN",
+  "PTS",
+  "REB",
+  "AST",
+  "STL",
+  "BLK",
+  "FGM",
+  "FGA",
+  "FG3M",
+  "FG3A",
+  "FTM",
+  "FTA",
+];
+export const GAME_LOG_COLUMNS = [
+  ...TOTALS_COLUMNS.filter((column) => column !== "GP"),
+  "TEAM_ID",
+  "GAME_ID",
+  "GAME_DATE",
+  "WL",
+];
+export const TEAM_GAME_COLUMNS = ["TEAM_ID", "GAME_ID", "PTS", "PLUS_MINUS"];
+
 /**
- * @param {string} id
+ * A season's game logs: one player's, or every player's when no player is named.
  * @param {number} season
  * @param {string} seasonType
+ * @param {string} [playerId]
  */
-export const nameGameLogRequest = (id, season, seasonType) =>
+export const nameGameLogRequest = (season, seasonType, playerId) =>
   `${WNBA_STATS}/playergamelogs?${new URLSearchParams({
     LeagueID: "10",
-    PlayerID: id,
+    ...(playerId && { PlayerID: playerId }),
     Season: String(season),
     SeasonType: seasonType,
   })}`;
@@ -118,6 +149,20 @@ export function nameTotalsRequest(season) {
   url.searchParams.set("PerMode", "Totals");
   return String(url);
 }
+
+/**
+ * Where the store keeps a player's numbers for a season.
+ * @param {number} season
+ * @param {string} id
+ */
+export const nameNumbersKey = (season, id) => `players/${season}-${id}`;
+
+/**
+ * Where the store keeps a season's ranked numbers, which it writes once the season's players and
+ * rosters are saved.
+ * @param {number} season
+ */
+export const nameRanksKey = (season) => `ranks/${season}`;
 
 // The feeds write a player's name whole; everything after the first space is her last name.
 /** @param {string} name */
@@ -157,23 +202,30 @@ function meetsRule(row, stat, seasonGames) {
 }
 
 /**
- * Her number in a stat, and, among the players who meet the rule, her place and every number, from
- * the lowest, for the page to draw how they spread.
- * @param {Record<string, number>} her
- * @param {Record<string, number>[]} everyone
- * @param {RankedStat} stat
- * @param {number} seasonGames
+ * How far into the season it is, and each ranked stat's numbers among the players who meet the
+ * rule for it, from the lowest.
+ * @typedef {{ seasonGames: number, values: Record<string, number[]> }} Ranks
  */
-function rankStat(her, everyone, stat, seasonGames) {
-  const value = stat.read(her);
-  const values = everyone
-    .filter((row) => meetsRule(row, stat, seasonGames))
-    .map(stat.read)
-    .filter((each) => each != null)
-    .sort((first, second) => first - second);
-  const isRanked = value != null && meetsRule(her, stat, seasonGames);
-  const rank = isRanked ? 1 + values.filter((each) => each > value + SAME_NUMBER).length : null;
-  return { key: stat.key, value, rank, count: values.length, values: values.map(roundForCurve) };
+
+/**
+ * @param {any} totals every player's totals in the regular season
+ * @param {any} teamGames every team's games in it
+ * @returns {Ranks}
+ */
+export function describeRanks(totals, teamGames) {
+  const everyone = readTable(totals, "LeagueDashPlayerStats");
+  const seasonGames = countSeasonGames(readTable(teamGames, "LeagueGameLog"));
+  /** @param {RankedStat} stat */
+  const listValues = (stat) =>
+    everyone
+      .filter((row) => meetsRule(row, stat, seasonGames))
+      .map(stat.read)
+      .filter((value) => value != null)
+      .sort((first, second) => first - second);
+  return {
+    seasonGames,
+    values: Object.fromEntries(RANKED_STATS.map((stat) => [stat.key, listValues(stat)])),
+  };
 }
 
 // The page draws the spread a few dozen points wide, so four places are plenty.
@@ -181,27 +233,38 @@ function rankStat(her, everyone, stat, seasonGames) {
 const roundForCurve = (value) => Math.round(value * 10000) / 10000;
 
 /**
+ * Her number in a stat, and, among the players who meet the rule, her place and every number, from
+ * the lowest, for the page to draw how they spread.
+ * @param {Record<string, number>} her
+ * @param {Ranks} ranks
+ * @param {RankedStat} stat
+ */
+function rankStat(her, ranks, stat) {
+  const value = stat.read(her);
+  const values = ranks.values[stat.key] ?? [];
+  const isRanked = value != null && meetsRule(her, stat, ranks.seasonGames);
+  const rank = isRanked ? 1 + values.filter((each) => each > value + SAME_NUMBER).length : null;
+  return { key: stat.key, value, rank, count: values.length, values: values.map(roundForCurve) };
+}
+
+/**
  * Her regular season: her games, her averages, and her place in each ranked stat, or null before
  * she has played.
- * @param {string} id
- * @param {any} totals every player's totals in the regular season
- * @param {any} teamGames every team's games in it
+ * @param {Record<string, number> | null} her her totals in the regular season
+ * @param {Ranks} ranks
  */
-export function describeRegularSeason(id, totals, teamGames) {
-  const everyone = readTable(totals, "LeagueDashPlayerStats");
-  const her = everyone.find((row) => String(row.PLAYER_ID) === id);
+export function describeRegularSeason(her, ranks) {
   if (!her || !(her.GP > 0)) return null;
-  const seasonGames = countSeasonGames(readTable(teamGames, "LeagueGameLog"));
   return {
     games: her.GP,
-    gamesNeeded: prorate(seasonGames, LEADER_GAMES),
+    gamesNeeded: prorate(ranks.seasonGames, LEADER_GAMES),
     averages: {
       points: her.PTS / her.GP,
       rebounds: her.REB / her.GP,
       assists: her.AST / her.GP,
       minutes: her.MIN / her.GP,
     },
-    stats: RANKED_STATS.map((stat) => rankStat(her, everyone, stat, seasonGames)),
+    stats: RANKED_STATS.map((stat) => rankStat(her, ranks, stat)),
   };
 }
 
@@ -209,10 +272,10 @@ export function describeRegularSeason(id, totals, teamGames) {
  * Her team's score and the other team's in a game, from every team's log, or nulls when the log
  * doesn't have it yet.
  * @param {Record<string, any>} game her row in her game log
- * @param {any} teamGames
+ * @param {Record<string, any>[]} teamGames
  */
 function readScore(game, teamGames) {
-  const row = readTable(teamGames, "LeagueGameLog").find(
+  const row = teamGames.find(
     (each) => each.GAME_ID === game.GAME_ID && each.TEAM_ID === game.TEAM_ID,
   );
   if (!row) return { teamScore: null, opponentScore: null };
@@ -223,7 +286,7 @@ function readScore(game, teamGames) {
  * Her line in a game and how it ended.
  * @param {Record<string, any>} game her row in her game log
  * @param {boolean} isPlayoffs
- * @param {any} teamGames every team's games of that kind
+ * @param {Record<string, any>[]} teamGames every team's games of that kind
  */
 const describeGame = (game, isPlayoffs, teamGames) => ({
   gameId: game.GAME_ID,
@@ -253,15 +316,113 @@ const findLatest = (games) =>
   );
 
 /**
- * Her first and last names: her roster's, or her game log's or totals' when her team's roster that
- * season doesn't have her.
- * @param {any} facts
- * @param {Record<string, any>[]} rows
+ * A player's numbers in a season, as the store keeps them: her name as the feeds write it, her
+ * regular season's totals, her last game, and her points in each playoff game.
+ * @typedef {object} PlayerNumbers
+ * @property {{ firstName: string, lastName: string } | null} name
+ * @property {Record<string, number> | null} totals
+ * @property {ReturnType<typeof describeGame> | null} lastGame
+ * @property {Record<string, number>} playoffPoints
  */
-function readNames(facts, rows) {
-  if (facts) return { firstName: facts.firstName, lastName: facts.lastName };
-  const named = rows.find((row) => row?.PLAYER_NAME);
-  return named ? splitName(named.PLAYER_NAME) : null;
+
+/**
+ * @param {object} rows
+ * @param {Record<string, any> | null} rows.totals her row in every player's totals
+ * @param {Record<string, any>[]} rows.regularGames her regular season's games
+ * @param {Record<string, any>[]} rows.playoffGames her playoff games
+ * @param {(isPlayoffs: boolean) => Record<string, any>[]} teamGames every team's games of a kind
+ * @returns {PlayerNumbers}
+ */
+function describePlayerNumbers({ totals, regularGames, playoffGames }, teamGames) {
+  const isPlayoffs = playoffGames.length > 0;
+  const latest = findLatest(isPlayoffs ? playoffGames : regularGames);
+  const named = [...playoffGames, ...regularGames, totals].find((row) => row?.PLAYER_NAME);
+  return {
+    name: named ? splitName(named.PLAYER_NAME) : null,
+    totals: totals && Object.fromEntries(TOTALS_COLUMNS.map((column) => [column, totals[column]])),
+    lastGame: latest && describeGame(latest, isPlayoffs, teamGames(isPlayoffs)),
+    playoffPoints: Object.fromEntries(playoffGames.map((game) => [game.GAME_ID, game.PTS])),
+  };
+}
+
+/**
+ * @param {Record<string, any>[]} rows
+ * @returns {Map<string, Record<string, any>[]>}
+ */
+function groupByPlayer(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const id = String(row.PLAYER_ID);
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(row);
+  }
+  return groups;
+}
+
+/**
+ * Every player's numbers in a season and its ranked numbers, from every player's totals and game
+ * logs and every team's games.
+ * @param {{ totals: any, regularGames: any, playoffGames: any, teamRegularGames: any, teamPlayoffGames: any }} answers
+ */
+export function describeSeasonPlayers({
+  totals,
+  regularGames,
+  playoffGames,
+  teamRegularGames,
+  teamPlayoffGames,
+}) {
+  const totalsById = new Map(
+    readTable(totals, "LeagueDashPlayerStats").map((row) => [String(row.PLAYER_ID), row]),
+  );
+  const regularById = groupByPlayer(readTable(regularGames, "PlayerGameLogs"));
+  const playoffsById = groupByPlayer(readTable(playoffGames, "PlayerGameLogs"));
+  const teamGames = {
+    regular: readTable(teamRegularGames, "LeagueGameLog"),
+    playoffs: readTable(teamPlayoffGames, "LeagueGameLog"),
+  };
+  const ids = new Set([...totalsById.keys(), ...regularById.keys(), ...playoffsById.keys()]);
+  /** @type {Map<string, PlayerNumbers>} */
+  const players = new Map();
+  for (const id of ids)
+    players.set(
+      id,
+      describePlayerNumbers(
+        {
+          totals: totalsById.get(id) ?? null,
+          regularGames: regularById.get(id) ?? [],
+          playoffGames: playoffsById.get(id) ?? [],
+        },
+        (isPlayoffs) => (isPlayoffs ? teamGames.playoffs : teamGames.regular),
+      ),
+    );
+  return { ranks: describeRanks(totals, teamRegularGames), players };
+}
+
+/**
+ * What her sheet shows, from her numbers, her team's roster, and the season's ranked numbers, or
+ * null when neither her roster nor the feeds have her.
+ * @param {object} saved
+ * @param {string} saved.id
+ * @param {string} saved.team
+ * @param {number} saved.season
+ * @param {PlayerNumbers | null} saved.numbers
+ * @param {{ players: any[] } | null} saved.roster
+ * @param {Ranks} saved.ranks
+ */
+function composePlayer({ id, team, season, numbers, roster, ranks }) {
+  const facts = roster?.players.find((player) => player.id === id) ?? null;
+  const names = facts ? { firstName: facts.firstName, lastName: facts.lastName } : numbers?.name;
+  if (!names) return null;
+  return {
+    id,
+    team,
+    season,
+    ...names,
+    facts,
+    lastGame: numbers?.lastGame ?? null,
+    playoffPoints: numbers?.playoffPoints ?? {},
+    regularSeason: describeRegularSeason(numbers?.totals ?? null, ranks),
+  };
 }
 
 /** @param {URLSearchParams} searchParams */
@@ -275,6 +436,11 @@ function readTeam(searchParams) {
   const team = searchParams.get("team") ?? "";
   return Object.hasOwn(TEAMS, team) ? team : null;
 }
+
+/**
+ * Reads a document from the store, as null when it has none.
+ * @typedef {(key: string) => Promise<any>} ReadDoc
+ */
 
 /**
  * @param {object} options
@@ -328,56 +494,59 @@ export function createPlayerServer({
    */
   const readGameLog = async (id, season, seasonType) =>
     readTable(
-      await readFeed(nameGameLogRequest(id, season, seasonType), season, "PlayerGameLogs"),
+      await readFeed(nameGameLogRequest(season, seasonType, id), season, "PlayerGameLogs"),
       "PlayerGameLogs",
     );
 
   /**
-   * @param {Record<string, any>[]} regularGames
-   * @param {Record<string, any>[]} playoffGames
-   * @param {number} season
-   */
-  async function readLastGame(regularGames, playoffGames, season) {
-    const isPlayoffs = playoffGames.length > 0;
-    const latest = findLatest(isPlayoffs ? playoffGames : regularGames);
-    if (!latest) return null;
-    const teamGames = await loadTeamGames(`${season}:${isPlayoffs ? PLAYOFFS : REGULAR_SEASON}`);
-    return describeGame(latest, isPlayoffs, teamGames);
-  }
-
-  /**
+   * Her sheet read from the league, for a season the store doesn't keep.
    * @param {{ id: string, team: string, season: number }} asked
    */
-  async function readPlayer({ id, team, season }) {
-    const [roster, regularGames, playoffGames, totals, teamGames] = await Promise.all([
+  async function readPlayerFromLeague({ id, team, season }) {
+    const [roster, regularGames, playoffGames, totals, teamRegularGames] = await Promise.all([
       loadRoster(`${team}:${season}`),
       readGameLog(id, season, REGULAR_SEASON),
       readGameLog(id, season, PLAYOFFS),
       loadTotals(season),
       loadTeamGames(`${season}:${REGULAR_SEASON}`),
     ]);
-    const facts = roster.players.find((player) => player.id === id) ?? null;
-    const regularSeason = describeRegularSeason(id, totals, teamGames);
-    const names = readNames(facts, [
-      ...playoffGames,
-      ...regularGames,
-      ...readTable(totals, "LeagueDashPlayerStats").filter((row) => String(row.PLAYER_ID) === id),
-    ]);
-    if (!names) return null;
-    return {
-      id,
-      team,
-      season,
-      ...names,
-      facts,
-      lastGame: await readLastGame(regularGames, playoffGames, season),
-      playoffPoints: Object.fromEntries(playoffGames.map((game) => [game.GAME_ID, game.PTS])),
-      regularSeason,
-    };
+    const isPlayoffs = playoffGames.length > 0;
+    const teamGames = isPlayoffs ? await loadTeamGames(`${season}:${PLAYOFFS}`) : teamRegularGames;
+    const her = readTable(totals, "LeagueDashPlayerStats").find(
+      (row) => String(row.PLAYER_ID) === id,
+    );
+    const numbers = describePlayerNumbers({ totals: her ?? null, regularGames, playoffGames }, () =>
+      readTable(teamGames, "LeagueGameLog"),
+    );
+    const ranks = describeRanks(totals, teamRegularGames);
+    return composePlayer({ id, team, season, numbers, roster, ranks });
   }
 
-  /** @param {URL} url */
-  async function servePlayer(url) {
+  /**
+   * Her sheet from what the store keeps, or undefined when it doesn't keep the season, or can't be
+   * read.
+   * @param {{ id: string, team: string, season: number }} asked
+   * @param {ReadDoc} readDoc
+   */
+  async function readPlayerFromStore({ id, team, season }, readDoc) {
+    try {
+      const [ranks, numbers, roster] = await Promise.all([
+        readDoc(nameRanksKey(season)),
+        readDoc(nameNumbersKey(season, id)),
+        readDoc(nameRosterKey(season, team)),
+      ]);
+      return ranks ? composePlayer({ id, team, season, numbers, roster, ranks }) : undefined;
+    } catch (error) {
+      console.error(`Reading player ${id} from the store failed: ${describeError(error)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * @param {URL} url
+   * @param {ReadDoc} [readDoc] the store's documents, when the Worker has a store
+   */
+  async function servePlayer(url, readDoc) {
     const id = readId(url.searchParams);
     if (!id) return respondJson({ error: "id must be a player's number in the WNBA's stats" }, 400);
     const team = readTeam(url.searchParams);
@@ -385,7 +554,9 @@ export function createPlayerServer({
     const season = SEASON_PARAM.readSeason(url.searchParams, now());
     if (season == null) return respondJson({ error: SEASON_PARAM.rule }, 400);
     try {
-      const player = await readPlayer({ id, team, season });
+      const asked = { id, team, season };
+      const saved = readDoc ? await readPlayerFromStore(asked, readDoc) : undefined;
+      const player = saved === undefined ? await readPlayerFromLeague(asked) : saved;
       if (!player) return respondJson({ error: `The WNBA has no player ${id} in ${season}` }, 404);
       return respondJson(player);
     } catch (error) {

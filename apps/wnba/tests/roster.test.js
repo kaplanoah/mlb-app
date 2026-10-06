@@ -147,7 +147,7 @@ test("a player the list doesn't have yet keeps her roster name, with no college,
     season: 2026,
     leagueRoster: ROSTERS.rosters["NYL:2026"],
     playerList: { resultSets: [{ name: "PlayerIndex", headers: ["PERSON_ID"], rowSet: [] }] },
-    espnRoster: null,
+    outNames: [],
     now: NOW,
   });
   const stewart = findPlayer(described, "Stewart");

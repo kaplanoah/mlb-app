@@ -1,39 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  GAME_LOG_COLUMNS,
+  TEAM_GAME_COLUMNS,
+  TOTALS_COLUMNS,
   nameGameLogRequest,
   nameTeamGameLogRequest,
   nameTotalsRequest,
 } from "../../worker/src/player.js";
-import { FEED_HEADERS } from "../../worker/src/wnba.js";
+import { FEED_HEADERS, trimColumns } from "../../worker/src/wnba.js";
 
 // Records what a player's sheet reads for the players and seasons named: every player's totals in
 // each season's regular season, every team's games in it and its playoffs, and each player's game
 // logs, each trimmed to the columns the sheet reads. Run with NODE_USE_ENV_PROXY=1 behind a proxy.
 
 const SEASON_TYPES = ["Regular Season", "Playoffs"];
-const COLUMNS = [
-  "PLAYER_ID",
-  "PLAYER_NAME",
-  "TEAM_ID",
-  "GAME_ID",
-  "GAME_DATE",
-  "WL",
-  "GP",
-  "MIN",
-  "PTS",
-  "REB",
-  "AST",
-  "STL",
-  "BLK",
-  "FGM",
-  "FGA",
-  "FG3M",
-  "FG3A",
-  "FTM",
-  "FTA",
-  "PLUS_MINUS",
-];
+const COLUMNS = [...new Set([...TOTALS_COLUMNS, ...GAME_LOG_COLUMNS, ...TEAM_GAME_COLUMNS])];
 
 async function fetchJson(url) {
   const response = await fetch(url, { headers: FEED_HEADERS });
@@ -41,23 +23,7 @@ async function fetchJson(url) {
   return response.json();
 }
 
-/** The answer, with only the columns the sheet reads. */
-function trimColumns(answer) {
-  return {
-    resultSets: answer.resultSets.map((table) => {
-      const kept = table.headers.flatMap((header, index) =>
-        COLUMNS.includes(header) ? [index] : [],
-      );
-      return {
-        name: table.name,
-        headers: kept.map((index) => table.headers[index]),
-        rowSet: table.rowSet.map((row) => kept.map((index) => row[index])),
-      };
-    }),
-  };
-}
-
-const readJson = async (url) => trimColumns(await fetchJson(url));
+const readJson = async (url) => trimColumns(await fetchJson(url), COLUMNS);
 
 async function recordFixture(name, playerSeasons) {
   const totals = {};
@@ -73,7 +39,7 @@ async function recordFixture(name, playerSeasons) {
   for (const [id, season] of playerSeasons)
     for (const seasonType of SEASON_TYPES)
       gameLogs[`${id}:${season}:${seasonType}`] = await readJson(
-        nameGameLogRequest(id, season, seasonType),
+        nameGameLogRequest(season, seasonType, id),
       );
   const file = path.join(import.meta.dirname, `${name}.json`);
   fs.writeFileSync(

@@ -6,7 +6,7 @@ import { createPlayerServer } from "./player.js";
 import { createPreviewServer } from "./preview.js";
 import { createRosterServer } from "./roster.js";
 import { createSnapshotServer } from "./snapshot.js";
-import { SeasonStore, forwardToStore } from "./store.js";
+import { SeasonStore, forwardToStore, readStoreDoc } from "./store.js";
 
 const snapshots = createSnapshotServer();
 const boxScores = createBoxScoreServer();
@@ -22,9 +22,9 @@ export default createAppWorker({
   reads: {
     "/box-score": (url) => boxScores.serveBoxScore(url),
     "/lead": (url) => leads.serveLead(url),
-    "/player": (url) => players.servePlayer(url),
+    "/player": (url, env) => players.servePlayer(url, (key) => readStoreDoc(env, key)),
     "/preview": (url) => previews.servePreview(url),
-    "/roster": (url) => rosters.serveRoster(url),
+    "/roster": (url, env) => rosters.serveRoster(url, (key) => readStoreDoc(env, key)),
   },
 });
 

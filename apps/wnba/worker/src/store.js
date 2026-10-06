@@ -4,10 +4,11 @@ import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
 import * as SeasonUpdater from "./season-updater.js";
 import { createNewsJob } from "./news-updater.js";
+import { createPlayerJob } from "./player-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
 import { createWatchedGameLoader } from "./watched-games.js";
 
-export { forwardToStore } from "../../../../shared/worker/season-store.js";
+export { forwardToStore, readStoreDoc } from "../../../../shared/worker/season-store.js";
 
 export const SeasonStore = createSeasonStore({
   release: readReleaseCommit(PAGE_FILES),
@@ -21,5 +22,5 @@ export const SeasonStore = createSeasonStore({
   listNotifications: SeasonUpdater.listNotifications,
   detailsCollection: "games",
   createLoadDetails: () => createWatchedGameLoader(),
-  backgroundJobs: { news: createNewsJob() },
+  backgroundJobs: { news: createNewsJob(), players: createPlayerJob() },
 });

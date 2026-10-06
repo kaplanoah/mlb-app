@@ -15,7 +15,9 @@ import {
 // height, and age from the league's roster of that season, and where she came from and her first
 // season from the league's list of every player it has had, which has a college or country for
 // each. ESPN says who is out, and only for today's roster, so a past season's has no one out. The
-// page takes each player's averages from the store, which the season updater keeps.
+// store keeps each season's rosters (player-updater.js), so a sheet reads the league itself only
+// for a season the store doesn't keep. The page takes each player's averages from the store, which
+// the season updater keeps.
 
 const WNBA_STATS = "https://stats.wnba.com/stats";
 const ESPN_SITE = "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba";
@@ -54,6 +56,13 @@ export const namePlayerListRequest = (season) =>
     TeamID: "0",
     Weight: "",
   })}`;
+
+/**
+ * Where the store keeps a team's roster for a season.
+ * @param {number} season
+ * @param {string} team
+ */
+export const nameRosterKey = (season, team) => `rosters/${season}-${team}`;
 
 /** @param {number} espnId */
 export const nameEspnRosterRequest = (espnId) => `${ESPN_SITE}/teams/${espnId}/roster`;
@@ -114,9 +123,10 @@ const isOut = (athlete) => (athlete.injuries ?? []).some((injury) => injury.stat
 /**
  * The players ESPN lists as out, by their names' letters.
  * @param {any} espnRoster
+ * @returns {string[]}
  */
-const listOutNames = (espnRoster) =>
-  new Set((espnRoster?.athletes ?? []).filter(isOut).map((athlete) => normalizeName(athlete)));
+export const listOutNames = (espnRoster) =>
+  (espnRoster?.athletes ?? []).filter(isOut).map((athlete) => normalizeName(athlete));
 
 /**
  * The player's first and last names: the list's, or her roster name split at its first space.
@@ -159,11 +169,11 @@ function nameHeadCoach(leagueRoster) {
 }
 
 /**
- * @param {{ team: string, season: number, leagueRoster: any, playerList: any, espnRoster: any, now: number }} reads
+ * @param {{ team: string, season: number, leagueRoster: any, playerList: any, outNames: string[], now: number }} reads
  */
-export function describeRoster({ team, season, leagueRoster, playerList, espnRoster, now }) {
+export function describeRoster({ team, season, leagueRoster, playerList, outNames, now }) {
   const listed = new Map(readTable(playerList, "PlayerIndex").map((row) => [row.PERSON_ID, row]));
-  const context = { outNames: listOutNames(espnRoster), ageDay: chooseAgeDay(season, now) };
+  const context = { outNames: new Set(outNames), ageDay: chooseAgeDay(season, now) };
   return {
     team,
     season,
@@ -180,22 +190,28 @@ function readTeam(searchParams) {
   return Object.hasOwn(TEAMS, team) ? team : null;
 }
 
+/**
+ * ESPN's roster of a team today, which says who is out.
+ * @param {(input: string, init: object) => Promise<Response>} fetchImpl
+ * @param {string} team
+ * @param {number | null} cacheSeconds
+ */
+export async function fetchEspnRoster(fetchImpl, team, cacheSeconds) {
+  const response = await fetchUpstream(fetchImpl, nameEspnRosterRequest(TEAMS[team].espnId), {
+    headers: ESPN_HEADERS,
+    cacheSeconds,
+  });
+  if (!response.ok) throw new Error(`ESPN answered ${response.status} for ${team}'s roster`);
+  return response.json();
+}
+
 export function createRosterServer({
   fetchImpl = (input, init) => fetch(input, init),
   now = () => Date.now(),
 } = {}) {
-  /** @param {number} espnId */
-  async function readEspnRoster(espnId) {
-    try {
-      const response = await fetchUpstream(fetchImpl, nameEspnRosterRequest(espnId), {
-        headers: ESPN_HEADERS,
-        cacheSeconds: ROSTER_CACHE_SECONDS,
-      });
-      return response.ok ? await response.json() : null;
-    } catch {
-      return null;
-    }
-  }
+  /** @param {string} team */
+  const readOutNames = (team) =>
+    fetchEspnRoster(fetchImpl, team, ROSTER_CACHE_SECONDS).then(listOutNames, () => []);
 
   // Who is out is today's news, so only today's roster reads it, and one ESPN doesn't answer
   // shows no one out rather than holding up the roster.
@@ -204,7 +220,7 @@ export function createRosterServer({
     const [team, seasonText] = key.split(":");
     const season = Number(seasonText);
     const isCurrent = isCurrentSeason(season, now());
-    const [leagueRoster, playerList, espnRoster] = await Promise.all([
+    const [leagueRoster, playerList, outNames] = await Promise.all([
       fetchWnbaJson(
         fetchImpl,
         nameLeagueRosterRequest(team, season),
@@ -217,21 +233,41 @@ export function createRosterServer({
         PLAYER_LIST_CACHE_SECONDS,
         hasTable("PlayerIndex"),
       ),
-      isCurrent ? readEspnRoster(TEAMS[team].espnId) : null,
+      isCurrent ? readOutNames(team) : [],
     ]);
-    return describeRoster({ team, season, leagueRoster, playerList, espnRoster, now: now() });
+    return describeRoster({ team, season, leagueRoster, playerList, outNames, now: now() });
   }
 
   const loadRoster = createReusedLoader(readRoster, ROSTER_REUSE_MS, now);
 
-  /** @param {URL} url */
-  async function serveRoster(url) {
+  /**
+   * The roster the store keeps, or null when it doesn't keep it, or can't be read.
+   * @param {string} team
+   * @param {number} season
+   * @param {(key: string) => Promise<any>} readDoc
+   */
+  async function readRosterFromStore(team, season, readDoc) {
+    try {
+      return await readDoc(nameRosterKey(season, team));
+    } catch (error) {
+      console.error(`Reading ${team}'s roster from the store failed: ${describeError(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * @param {URL} url
+   * @param {(key: string) => Promise<any>} [readDoc] the store's documents, when the Worker has a
+   *   store
+   */
+  async function serveRoster(url, readDoc) {
     const team = readTeam(url.searchParams);
     if (!team) return respondJson({ error: "team must name a WNBA team" }, 400);
     const season = SEASON_PARAM.readSeason(url.searchParams, now());
     if (season == null) return respondJson({ error: SEASON_PARAM.rule }, 400);
     try {
-      return respondJson(await loadRoster(`${team}:${season}`));
+      const saved = readDoc ? await readRosterFromStore(team, season, readDoc) : null;
+      return respondJson(saved ?? (await loadRoster(`${team}:${season}`)));
     } catch (error) {
       return respondJson({ error: `Couldn't read the WNBA: ${describeError(error)}` }, 502);
     }

@@ -1,6 +1,6 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { createSeasonStore } from "../shared/worker/season-store.js";
+import { createSeasonStore, readStoreDoc } from "../shared/worker/season-store.js";
 import { createDurableObjectContext, fireNextAlarm } from "./durable-object-context.js";
 
 const ORIGIN = "https://app.example";
@@ -35,6 +35,23 @@ test("a store waits as long as its league says before the next update", async ()
   await store.alarm();
 
   assert.equal(await context.ctx.storage.getAlarm(), NOW + 60_000);
+});
+
+test("the Worker reads a document the store keeps, and null for one it doesn't", async () => {
+  const context = createDurableObjectContext();
+  const SeasonStore = createSeasonStore(QUIET_LEAGUE);
+  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+  await store.docs.write("rosters/2026-NYL", { team: "NYL", players: [] });
+  const env = {
+    STORE: {
+      idFromName: (/** @type {string} */ name) => name,
+      get: () => ({ fetch: (/** @type {string} */ url) => store.fetch(new Request(url)) }),
+    },
+  };
+
+  assert.deepEqual(await readStoreDoc(env, "rosters/2026-NYL"), { players: [], team: "NYL" });
+  assert.equal(await readStoreDoc(env, "rosters/2026-ATL"), null);
+  await assert.rejects(readStoreDoc(env, "rosters/2026/NYL"), /The store answered 404/);
 });
 
 test("a store takes no changes from the page", async () => {
