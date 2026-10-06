@@ -127,7 +127,6 @@
   --pager-thumb: var(--card);
   --pager-thumb-edge: rgba(255, 255, 255, 0.6);
   --pager-label: var(--ink-mid);
-  --team-pages-thumb: color-mix(in srgb, var(--card), #ffffff 60%);
   --updates-head: var(--teal);
   --sheet-part-head: var(--teal);
   --game-row-height: 90px;
@@ -174,7 +173,6 @@
   --pager-track-edge: rgba(255, 214, 170, 0.06);
   --pager-thumb: rgba(255, 214, 170, 0.12);
   --pager-thumb-edge: rgba(255, 226, 196, 0.16);
-  --team-pages-thumb: var(--pager-thumb);
   --logos-for-light: none;
   --logos-for-dark: inline;
   color-scheme: dark;
@@ -657,20 +655,20 @@ header.top h1 {
   --band-space-top: 12px;
   --band-space-bottom: 15px;
 }
-:is(#gameDialog, #teamDialog) {
+:is(#gameDialog, #teamDialog, #rosterDialog) {
   --band-edge: color-mix(in srgb, var(--line), var(--tile));
 }
-:is(#gameDialog, #teamDialog) .sheet-top {
+:is(#gameDialog, #teamDialog, #rosterDialog) .sheet-top {
   padding-top: var(--band-space-top);
 }
 #gameDialog .sheet-top {
   background: var(--tile);
 }
 @media (max-width: 779px) {
-  :is(#gameDialog, #teamDialog) .sheet-top {
+  :is(#gameDialog, #teamDialog, #rosterDialog) .sheet-top {
     padding-top: 0;
   }
-  :is(#gameDialog, #teamDialog) .sheet-grabber {
+  :is(#gameDialog, #teamDialog, #rosterDialog) .sheet-grabber {
     margin-bottom: var(--band-space-top);
   }
 }
@@ -1039,28 +1037,33 @@ table.players td.quiet-stat {
   top: -0.5px;
 }
 
-/* A team's Roster page: the sheet scrolls as one, both ways, while its title, pill, and the
-   part's heading and coach stay across the sheet's width, and each player's number and name stay
-   at its left. The column names stop at the sheet's top. */
-#teamDialog[data-page="roster"] {
+/* A team's roster: its sheet scrolls as one, both ways, while its title and the coach stay across
+   the sheet's width, and each player's number and name stay at its left. The column names stop at
+   the sheet's top. */
+#rosterDialog {
   container-type: inline-size;
   --roster-number-width: 22px;
   --roster-number-gap: 11px;
   --roster-name-left: calc(18px + var(--roster-number-width) + var(--roster-number-gap));
 }
-#teamDialog[data-page="roster"] .sheet-content {
+#rosterDialog .sheet-content {
   box-sizing: border-box;
   width: max-content;
   min-width: 100%;
 }
-#teamDialog[data-page="roster"] .sheet-top {
+#rosterDialog .sheet-top {
   position: sticky;
   left: 0;
   z-index: 4;
   box-sizing: border-box;
   width: 100cqw;
 }
-#teamDialog[data-page="roster"] :is(.sheet-part-head, .roster-coach, .sheet-message) {
+#rosterBody {
+  display: grid;
+  gap: 8px;
+  padding-top: 15px;
+}
+#rosterDialog :is(.roster-coach, .sheet-message) {
   position: sticky;
   left: 18px;
   box-sizing: border-box;
@@ -1715,7 +1718,7 @@ table.standings tr.playoff-line + tr td {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
 }
-#teamTitle {
+.sheet-head h2.team-title {
   font-family: var(--team-name);
   letter-spacing: 0.02em;
 }
@@ -1724,11 +1727,11 @@ table.standings tr.playoff-line + tr td {
    --part-space-below each title. Last 10 and Streak sit --form-space-above under the numbers
    before them, --form-space-between apart, and the two sides over its numbers are named at
    --side-name-size. */
-#teamDialog {
+:is(#teamDialog, #rosterDialog) {
   --band-space-top: 12px;
   --band-space-bottom: 23px;
 }
-#teamDialog .sheet-top {
+:is(#teamDialog, #rosterDialog) .sheet-top {
   padding-bottom: var(--band-space-bottom);
   border-bottom: 1px solid var(--band-edge);
   background: var(--tile);

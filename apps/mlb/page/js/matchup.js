@@ -7,7 +7,7 @@
 
 import { nameTeam, renderClub, renderClubName } from "./clubs.js";
 import { describeStart, formatGameDay, renderArm } from "./games-view.js";
-import { formatShortDate, readCalendarDate, readEasternDay } from "#shared/days.js";
+import { formatShortDate, nameShortDay, readCalendarDate, readEasternDay } from "#shared/days.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
@@ -351,6 +351,13 @@ function prepareFromRow(button) {
   for (const side of listSides(game)) loadSide(side, game, session.activeYear);
 }
 
+// A doubleheader's game goes by its number, and any other by its day.
+function nameForBack() {
+  if (!shown) return "Game";
+  if (shown.game.doubleheader) return `Game ${shown.game.doubleheader}`;
+  return nameShortDay(readCalendarDate(shown.game.date), new Date());
+}
+
 export function startMatchups() {
   for (const holder of ["games-pages", "updates"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
@@ -358,6 +365,7 @@ export function startMatchups() {
   wireSheet(dialog, {
     doneButton: findElement("matchupDoneBtn"),
     keeper: { read: () => shown, reopen: reopenMatchup },
+    nameForBack,
   });
   dialog.addEventListener("close", () => {
     shown = null;

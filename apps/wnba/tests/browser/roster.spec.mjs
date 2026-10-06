@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { drag } from "../../../../tests/browser/touch.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -7,11 +8,19 @@ test.use({ contextOptions: { reducedMotion: "reduce" } });
 const PHONE = { width: 390, height: 844 };
 
 /** @param {import("@playwright/test").Page} page */
-async function openLibertyRoster(page) {
+async function openLibertySheet(page) {
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
   const sheet = page.locator("#teamDialog");
-  await sheet.locator("#teamPages").getByRole("tab", { name: "Roster" }).click();
+  await expect(sheet.locator("#teamTitle")).toHaveText("New York Liberty");
+  return sheet;
+}
+
+/** @param {import("@playwright/test").Page} page */
+async function openLibertyRoster(page) {
+  const teamSheet = await openLibertySheet(page);
+  await teamSheet.getByRole("button", { name: "Roster" }).click();
+  const sheet = page.locator("#rosterDialog");
   await expect(sheet.locator(".roster-coach")).toBeVisible();
   return sheet;
 }
@@ -41,15 +50,15 @@ async function scrollSheet(sheet, scroll) {
   );
 }
 
-test("a team's sheet switches to its roster: each player by last name, with her facts and averages, and the coach", async ({
+test("a team's Roster opens its roster over its sheet: each player by last name, with her facts and averages, and the coach", async ({
   page,
 }) => {
   await openApp(page);
   const sheet = await openLibertyRoster(page);
 
-  const pill = sheet.locator("#teamPages");
-  await expect(pill.getByRole("tab", { name: "Roster" })).toHaveAttribute("aria-selected", "true");
-  await expect(sheet.locator(".sheet-part-head")).toHaveText(/Roster\s*15 players/);
+  await expect(sheet.locator("#rosterTitle")).toHaveText("New York Liberty");
+  await expect(sheet.locator("#rosterNote")).toHaveText("Roster•15 players");
+  await expect(sheet.getByRole("button", { name: "Back to Team" })).toBeVisible();
   expect((await readLastNames(sheet)).slice(0, 3)).toEqual(["Allen", "Astier", "BalogunOut"]);
   const stewart = sheet.locator("table.roster tbody tr", { hasText: "Stewart" });
   await expect(stewart.locator("td")).toHaveText([
@@ -64,16 +73,14 @@ test("a team's sheet switches to its roster: each player by last name, with her 
     "20.8",
     "8.3",
     "3.3",
-    "1.4",
-    "1.3",
   ]);
   await expect(sheet.locator(".roster-coach")).toHaveText(/Head coach\s*Chris DeMarco/);
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
-  await pill.getByRole("tab", { name: "Stats" }).click();
-  await expect(sheet.locator("table.players")).toBeVisible();
-  await expect(sheet.locator("table.roster")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Back to Team" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.locator("#teamDialog table.players")).toBeVisible();
 });
 
 test("a tap on a column's name sorts by it, the most first for an average, and a second tap reverses it, with players who haven't played last", async ({
@@ -105,31 +112,27 @@ test("on a phone, swiping the roster across keeps each player's number and name 
   const sheet = await openLibertyRoster(page);
   const row = sheet.locator("table.roster tbody tr", { hasText: "Stewart" });
   const name = row.locator(".roster-player");
-  const pinned = [row.locator(".roster-number"), name, sheet.locator("#teamTitle")];
-  const heading = sheet.locator(".sheet-part-head");
+  const pinned = [row.locator(".roster-number"), name, sheet.locator("#rosterTitle")];
   const position = row.locator("td").nth(1);
   const readEdge = () => name.evaluate((cell) => getComputedStyle(cell, "::after").visibility);
-  const before = await Promise.all([...pinned, heading, position].map(readBox));
+  const before = await Promise.all([...pinned, position].map(readBox));
   expect(await readEdge()).toBe("hidden");
 
   await scrollSheet(sheet, { left: 200 });
 
-  const after = await Promise.all([...pinned, heading, position].map(readBox));
+  const after = await Promise.all([...pinned, position].map(readBox));
   for (const index of pinned.keys()) expect(after[index].x).toBe(before[index].x);
-  expect(after[3].x).toBe(before[3].x);
-  expect(after[4].x).toBeLessThan(before[4].x - 150);
+  expect(after[3].x).toBeLessThan(before[3].x - 150);
   await expect.poll(readEdge).toBe("visible");
-  const numberBox = after[0];
-  expect(after[1].x).toBe(numberBox.x + numberBox.width);
+  expect(after[1].x).toBe(after[0].x + after[0].width);
 });
 
-test("on a phone, scrolling down the roster takes the title and pill away and stops the column names at the sheet's top", async ({
+test("on a phone, scrolling down the roster takes its title away and stops the column names at the sheet's top", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
   const sheet = await openLibertyRoster(page);
-  const head = sheet.locator("table.roster thead");
 
   await scrollSheet(sheet, { top: 400 });
 
@@ -137,56 +140,53 @@ test("on a phone, scrolling down the roster takes the title and pill away and st
   const top = await sheet.evaluate(
     (dialog) => dialog.getBoundingClientRect().top + dialog.clientTop,
   );
-  expect((await readBox(head)).y).toBe(top);
-  const pill = await readBox(sheet.locator("#teamPages"));
-  expect(pill.y + pill.height).toBeLessThan(top);
+  expect((await readBox(sheet.locator("table.roster thead"))).y).toBe(top);
+  const title = await readBox(sheet.locator("#rosterTitle"));
+  expect(title.y + title.height).toBeLessThan(top);
 });
 
-test("the sheet opens on the page it showed before a reload", async ({ page }) => {
+test("on a phone, a swipe left on a team's sheet opens its roster, and a swipe right goes back to the team", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
   await openApp(page);
-  const sheet = await openLibertyRoster(page);
+  const teamSheet = await openLibertySheet(page);
+  const rosterSheet = page.locator("#rosterDialog");
+
+  await (
+    await drag(page, { x: 300, y: 400 }, { x: -200 })
+  )();
+  await expect(rosterSheet.locator(".roster-coach")).toBeVisible();
+  await expect(rosterSheet).toHaveAttribute("data-stacked");
+  await expect(teamSheet).toHaveAttribute("data-covered");
+
+  await (
+    await drag(page, { x: 60, y: 300 }, { x: 250 })
+  )();
+  await expect(rosterSheet).toBeHidden();
+  await expect(teamSheet).not.toHaveAttribute("data-covered");
+});
+
+test("the roster and the team's sheet under it open again on a reload", async ({ page }) => {
+  await openApp(page);
+  await openLibertyRoster(page);
 
   await page.reload();
 
+  const sheet = page.locator("#rosterDialog");
   await expect(sheet.locator(".roster-coach")).toBeVisible();
-  await expect(sheet.locator("#teamPages").getByRole("tab", { name: "Roster" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(sheet.getByRole("button", { name: "Back to Team" })).toBeVisible();
+  await sheet.getByRole("button", { name: "Back to Team" }).click();
+  await expect(page.locator("#teamDialog #teamTitle")).toHaveText("New York Liberty");
 });
 
-test("a past season's team sheet has only its stats, since the roster is today's", async ({
-  page,
-}) => {
+test("a past season's team sheet has no roster, since the roster is today's", async ({ page }) => {
   await openApp(page, { pastSeasons: { 2025: (season) => ({ ...season, season: 2025 }) } });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("combobox", { name: "Season" }).selectOption("2025");
   await page.keyboard.press("Escape");
-  await page.getByRole("tab", { name: "Standings" }).click();
-  await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
+  const sheet = await openLibertySheet(page);
 
-  const sheet = page.locator("#teamDialog");
   await expect(sheet.locator("table.players")).toBeVisible();
-  await expect(sheet.locator("#teamPages [role=tab]")).toHaveCount(0);
-});
-
-test.describe("in full motion", () => {
-  test.use({ contextOptions: { reducedMotion: "no-preference" } });
-
-  test("the pill's thumb slides to the page a tap shows", async ({ page }) => {
-    await openApp(page);
-    await page.getByRole("tab", { name: "Standings" }).click();
-    await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-    const pill = page.locator("#teamPages");
-    await expect(pill.getByRole("tab", { name: "Stats" })).toBeVisible();
-
-    await pill.getByRole("tab", { name: "Roster" }).click();
-
-    const thumb = pill.locator(".pager-thumb");
-    expect(
-      await thumb.evaluate((element) =>
-        element.getAnimations().map((motion) => /** @type {any} */ (motion).transitionProperty),
-      ),
-    ).toEqual(["transform"]);
-  });
+  await expect(sheet.getByRole("button", { name: "Roster" })).toHaveCount(0);
 });

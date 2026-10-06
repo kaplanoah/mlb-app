@@ -14,6 +14,12 @@ function createDialog({ id = "sheetDialog", open = false, keeper } = {}) {
     scrollTop: 0,
     timesShown: 0,
     attributes: new Set(open ? ["data-reopened"] : []),
+    style: { minHeight: "" },
+    getBoundingClientRect: () => ({ height: 400 }),
+    /** @param {string} name */
+    setAttribute(name) {
+      dialog.attributes.add(name);
+    },
     showModal() {
       dialog.open = true;
       dialog.timesShown += 1;
@@ -73,9 +79,15 @@ test("Done and a click on the backdrop close the sheet", () => {
 function createPhoneSheet() {
   globalThis.matchMedia = /** @type {any} */ ((query) => ({ matches: query.includes("width") }));
   const dialog = Object.assign(new EventTarget(), {
-    open: true,
+    open: false,
     scrollTop: 0,
-    style: { transform: "" },
+    style: { transform: "", minHeight: "" },
+    getBoundingClientRect: () => ({ height: 400, width: 390 }),
+    setAttribute() {},
+    removeAttribute() {},
+    showModal() {
+      dialog.open = true;
+    },
     animate() {
       /** @type {{ cancel: () => void, finished?: Promise<unknown> }} */
       const motion = { cancel() {} };
@@ -84,12 +96,14 @@ function createPhoneSheet() {
     },
     close() {
       dialog.open = false;
+      dialog.dispatchEvent(new Event("close"));
     },
   });
   wireSheet(/** @type {any} */ (dialog), { doneButton: /** @type {any} */ (new EventTarget()) });
+  openSheet(/** @type {any} */ (dialog));
   /** @param {string} type @param {number} [clientY] */
   const touch = (type, clientY) => {
-    const touches = clientY === undefined ? [] : [{ clientY }];
+    const touches = clientY === undefined ? [] : [{ clientX: 0, clientY }];
     dialog.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { touches }));
   };
   return { dialog, touch };
@@ -119,9 +133,10 @@ test("on a phone, a swipe at the sheet's top that goes up first moves the sheet 
   assert.equal(dialog.style.transform, "");
   touch("touchmove", 310);
   assert.equal(dialog.style.transform, "translateY(50px)");
+  dialog.close();
 });
 
-test("the sheets showing are listed in the order they opened, with where each is scrolled and what each shows", () => {
+test("the sheets showing are listed in the order they opened, with where each is scrolled and what each shows, and Done closes them all", () => {
   const { dialog: game, doneButton: gameDone } = createDialog({
     id: "gameDialog",
     keeper: keepShown({ id: "game-1" }),
@@ -134,15 +149,17 @@ test("the sheets showing are listed in the order they opened, with where each is
   openSheet(/** @type {any} */ (settings));
   game.scrollTop = 240;
   assert.deepEqual(listOpenSheets(), [
-    { id: "teamDialog", scrollTop: 0, subject: { team: "NY" } },
-    { id: "gameDialog", scrollTop: 240, subject: { id: "game-1" } },
-    { id: "settingsDialog", scrollTop: 0, subject: null },
+    { id: "teamDialog", scrollTop: 0, subject: { team: "NY" }, backLabel: null },
+    { id: "gameDialog", scrollTop: 240, subject: { id: "game-1" }, backLabel: null },
+    { id: "settingsDialog", scrollTop: 0, subject: null, backLabel: null },
   ]);
 
   gameDone.dispatchEvent(new Event("click"));
-  settings.close();
-  assert.deepEqual(listOpenSheets(), [{ id: "teamDialog", scrollTop: 0, subject: { team: "NY" } }]);
-  team.close();
+  assert.deepEqual(
+    [team, game, settings].map((dialog) => dialog.open),
+    [false, false, false],
+  );
+  assert.deepEqual(listOpenSheets(), []);
 });
 
 test("a page that loads again has each sheet it put back open show what it showed, and closes those that can't", () => {

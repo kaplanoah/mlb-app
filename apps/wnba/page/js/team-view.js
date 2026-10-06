@@ -465,6 +465,13 @@ const listFacts = (row, run) =>
   );
 
 /**
+ * A team's dot and full name, as its sheets title it.
+ * @param {string} code
+ */
+export const renderTeamHeading = (code) =>
+  html`${renderDot(code)}<span>${TEAMS[code].city} ${TEAMS[code].name}</span>`;
+
+/**
  * The sheet a team opens: its name, its conference, seed, and record, then its regular season with
  * its leading scorers and its playoffs, the playoffs first for a team that made them, then its
  * titles.
@@ -473,7 +480,6 @@ const listFacts = (row, run) =>
  * @param {{ year: number, now: number }} options
  */
 export function renderTeamSheet(season, code, { year, now }) {
-  const team = TEAMS[code];
   const row = season?.standings?.find((each) => each.team === code);
   const runs = readPlayoffRuns(season?.series ?? []);
   const run = runs.get(code);
@@ -489,7 +495,7 @@ export function renderTeamSheet(season, code, { year, now }) {
     now,
   });
   return {
-    heading: html`${renderDot(code)}<span>${team.city} ${team.name}</span>`,
+    heading: renderTeamHeading(code),
     note: joinWithSeparator(listFacts(row, run)),
     body: html`${run ? html`${playoffs}${regularSeason}` : html`${regularSeason}${playoffs}`}
     ${renderTitles(listTitleYears(code, titles))}`,

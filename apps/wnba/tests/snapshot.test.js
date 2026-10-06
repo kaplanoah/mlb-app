@@ -273,8 +273,6 @@ test("every player on a team has her averages a game, for her team's roster", ()
       points: 20.8,
       rebounds: 8.3,
       assists: 3.3,
-      steals: 1.4,
-      blocks: 1.3,
     },
   );
 });

@@ -265,8 +265,6 @@ const listAverages = (players) =>
       points: row.PTS,
       rebounds: row.REB,
       assists: row.AST,
-      steals: row.STL,
-      blocks: row.BLK,
     }))
     .filter((player) => player.team);
 

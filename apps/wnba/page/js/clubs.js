@@ -41,11 +41,12 @@ export function renderClub(code, { seed } = {}) {
 }
 
 /**
- * A team's dot and name, for inside a button of its own.
+ * A team's dot, seed, and name, for inside a button of its own, like a game's row.
  * @param {string} code
+ * @param {{ seed?: number | null }} [options]
  */
-export const renderPlainClub = (code) =>
-  html`<span class="club">${renderClubParts(code, null)}</span>`;
+export const renderPlainClub = (code, { seed } = {}) =>
+  html`<span class="club">${renderClubParts(code, seed)}</span>`;
 
 /**
  * A button around a team's name that opens its sheet.

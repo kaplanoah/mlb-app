@@ -29,7 +29,8 @@ import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
-import { renderRosterPage, startRosterPage } from "./roster-page.js";
+import { prepareRoster, startRosterSheet } from "./roster-sheet.js";
+import { renderRosterButton } from "./roster-view.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
 import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
@@ -119,22 +120,15 @@ function drawLastSeen() {
   }
 }
 
-const TEAM_PAGES = [
-  { id: "stats", label: "Stats" },
-  { id: "roster", label: "Roster" },
-];
-
-// ESPN's roster is today's, so a past season's sheet has only its stats.
-/**
- * @param {string} team
- * @param {string | null} page
- */
-function renderShownTeam(team, page) {
-  const stats = renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
-  if (isPastSeason()) return stats;
-  const body = page === "roster" ? renderRosterPage(team, session.year) : stats.body;
-  return { ...stats, body, pages: TEAM_PAGES };
+// ESPN's roster is today's, so a past season's team has none.
+/** @param {string} team */
+function renderShownTeam(team) {
+  const sheet = renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
+  return isPastSeason() ? sheet : { ...sheet, action: renderRosterButton(team) };
 }
+
+/** @param {string} team */
+const prepareNextFromTeam = (team) => (isPastSeason() ? null : prepareRoster(team));
 
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };
@@ -189,8 +183,12 @@ async function boot() {
   startPageTabs();
   startGamePager();
   startGameSheet();
-  startTeamSheet({ isTeam: (team) => team in TEAMS, renderSheet: renderShownTeam });
-  startRosterPage();
+  startTeamSheet({
+    isTeam: (team) => team in TEAMS,
+    renderSheet: renderShownTeam,
+    prepareNext: prepareNextFromTeam,
+  });
+  startRosterSheet();
   startSettingsSheet();
   startNewsChoices(drawNews);
   startOpenedStories(findElement("newsList"), drawNews);

@@ -10,7 +10,7 @@ import {
   nameSeasonsRequest,
 } from "../worker/src/roster.js";
 
-// The Liberty's and the Dream's rosters as ESPN had them, with each player's seasons.
+// The Liberty's, the Dream's, the Aces', and the Fever's rosters as ESPN had them, with each player's seasons.
 const ROSTERS = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-10-06-espn-rosters.json`, "utf8"),
 );

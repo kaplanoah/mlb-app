@@ -1,15 +1,15 @@
-// A team's Roster page: each player's number and name, then her position, height, where she came
-// from, age, and first WNBA season, then her averages a game this season, which the table scrolls
-// across to while her number and name stay put. A tap on a column's name sorts by it.
+// A team's roster, in a sheet of its own that its team's sheet opens: each player's number and
+// name, then her position, height, where she came from, age, and first WNBA season, then her
+// averages a game this season, which the table scrolls across to while her number and name stay
+// put. A tap on a column's name sorts by it.
 
-import { html } from "#shared/html.js";
+import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
-import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderSheetMessage } from "./sheet-parts.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
 /** @typedef {{ id: string, number: string | null, firstName: string, lastName: string, position: string | null, height: string | null, age: number | null, college: string | null, country: string | null, isOut: boolean, debut: number | null }} RosterPlayer */
-/** @typedef {{ team: string, firstName: string, lastName: string, games: number, minutes: number, points: number, rebounds: number, assists: number, steals: number, blocks: number }} Averages */
+/** @typedef {{ team: string, firstName: string, lastName: string, games: number, minutes: number, points: number, rebounds: number, assists: number }} Averages */
 /** @typedef {RosterPlayer & { averages: Averages | null }} RosterRow */
 /** @typedef {{ team: string, coach: string | null, players: RosterPlayer[] }} Roster */
 /** @typedef {{ key: string, isDescending: boolean }} RosterSort */
@@ -130,8 +130,6 @@ const STAT_COLUMNS = [
   describeStat("points", "Pts", "Points per game"),
   describeStat("rebounds", "Reb", "Rebounds per game"),
   describeStat("assists", "Ast", "Assists per game"),
-  describeStat("steals", "Stl", "Steals per game"),
-  describeStat("blocks", "Blk", "Blocks per game"),
 ];
 
 /** @type {RosterColumn} */
@@ -295,20 +293,37 @@ const renderCoach = (coach) =>
   </dl>`;
 
 /**
- * The Roster page: the team's players, or stand-ins for them while they load, or why they didn't.
+ * The roster's table and its head coach, or stand-ins for them while they load, or why they
+ * didn't.
  * @param {{ roster: Roster | null, averages: Averages[], sort: RosterSort, isLoading: boolean }} shown
  */
 export function renderRoster({ roster, averages, sort, isLoading }) {
-  if (!roster && isLoading) {
-    const pending = Array.from({ length: PENDING_ROWS }, renderPendingRow);
-    return renderSheetPart("Roster", renderTable(pending, sort));
-  }
+  if (!roster && isLoading)
+    return renderTable(Array.from({ length: PENDING_ROWS }, renderPendingRow), sort);
   if (!roster)
     return renderSheetMessage("Couldn't load the roster. Close and try again in a minute.");
   const rows = sortRows(matchAverages(roster.players, averages, roster.team), sort);
-  return renderSheetPart(
-    "Roster",
-    html`${renderTable(rows.map(renderRow), sort)}${renderCoach(roster.coach)}`,
-    `${rows.length} players`,
-  );
+  return html`${renderTable(rows.map(renderRow), sort)}${renderCoach(roster.coach)}`;
 }
+
+/**
+ * What the roster's sheet says under the team's name: that it's the roster, and how many players
+ * it has once it's loaded.
+ * @param {Roster | null} roster
+ */
+export const describeRosterNote = (roster) =>
+  joinWithSeparator(roster ? ["Roster", `${roster.players.length} players`] : ["Roster"]);
+
+// Phosphor's caret-right, at its Light weight.
+const NEXT_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+  <path
+    d="M180.24,132.24l-80,80a6,6,0,0,1-8.48-8.48L167.51,128,91.76,52.24a6,6,0,0,1,8.48-8.48l80,80A6,6,0,0,1,180.24,132.24Z"
+  />
+</svg>`;
+
+/**
+ * The button across from a team's name, on its sheet, that opens its roster.
+ * @param {string} team
+ */
+export const renderRosterButton = (team) =>
+  html`<button type="button" class="sheet-action" data-roster="${team}">Roster${NEXT_ICON}</button>`;

@@ -231,9 +231,18 @@
       <div class="sheet-top">
         <span class="sheet-grabber" aria-hidden="true"></span>
         <div class="sheet-head">
+          <button type="button" class="sheet-back" id="teamBackBtn" hidden>
+            <!-- Phosphor's caret-left, at its Light weight. -->
+            <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+              <path
+                d="M164.24,203.76a6,6,0,1,1-8.48,8.48l-80-80a6,6,0,0,1,0-8.48l80-80a6,6,0,0,1,8.48,8.48L88.49,128Z"
+              />
+            </svg>
+            <span class="sheet-back-label">Back</span>
+          </button>
           <div class="sheet-title">
-            <h2 id="teamTitle" data-last-drawn>Team</h2>
-            <p class="sheet-note" id="teamNote" data-last-drawn></p>
+            <h2 id="teamTitle" class="team-title" data-last-drawn>Team</h2>
+            <p class="sheet-note team-note" id="teamNote" data-last-drawn></p>
           </div>
           <button type="button" class="sheet-done" id="teamDoneBtn">
             <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">

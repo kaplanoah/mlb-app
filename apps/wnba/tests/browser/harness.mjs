@@ -40,7 +40,7 @@ const GAMES = JSON.parse(
 const LEAD = JSON.parse(
   readFileSync(new URL("../fixtures/2026-10-01-espn-lead.json", import.meta.url), "utf8"),
 );
-// The Liberty's and the Dream's rosters as ESPN had them, with each player's seasons.
+// The Liberty's, the Dream's, the Aces', and the Fever's rosters as ESPN had them, with each player's seasons.
 const ROSTERS = JSON.parse(
   readFileSync(new URL("../fixtures/2026-10-06-espn-rosters.json", import.meta.url), "utf8"),
 );

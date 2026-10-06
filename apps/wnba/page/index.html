@@ -323,10 +323,20 @@
       <div class="sheet-top">
         <span class="sheet-grabber" aria-hidden="true"></span>
         <div class="sheet-head">
+          <button type="button" class="sheet-back" id="teamBackBtn" hidden>
+            <!-- Phosphor's caret-left, at its Light weight. -->
+            <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+              <path
+                d="M164.24,203.76a6,6,0,1,1-8.48,8.48l-80-80a6,6,0,0,1,0-8.48l80-80a6,6,0,0,1,8.48,8.48L88.49,128Z"
+              />
+            </svg>
+            <span class="sheet-back-label">Back</span>
+          </button>
           <div class="sheet-title">
-            <h2 id="teamTitle" data-last-drawn>Team</h2>
-            <p class="sheet-note" id="teamNote" data-last-drawn></p>
+            <h2 id="teamTitle" class="team-title" data-last-drawn>Team</h2>
+            <p class="sheet-note team-note" id="teamNote" data-last-drawn></p>
           </div>
+          <div class="sheet-head-slot" id="teamAction" data-last-drawn></div>
           <button type="button" class="sheet-done" id="teamDoneBtn">
             <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
               <path
@@ -336,9 +346,40 @@
             <span class="sheet-done-label">Done</span>
           </button>
         </div>
-        <div id="teamPages" data-last-drawn></div>
       </div>
       <div class="team-sheet-body" id="teamBody" data-last-drawn></div>
+    </div>
+  </dialog>
+
+  <dialog id="rosterDialog" class="sheet-panel" aria-labelledby="rosterTitle">
+    <div class="sheet-content">
+      <div class="sheet-top">
+        <span class="sheet-grabber" aria-hidden="true"></span>
+        <div class="sheet-head">
+          <button type="button" class="sheet-back" id="rosterBackBtn" hidden>
+            <!-- Phosphor's caret-left, at its Light weight. -->
+            <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+              <path
+                d="M164.24,203.76a6,6,0,1,1-8.48,8.48l-80-80a6,6,0,0,1,0-8.48l80-80a6,6,0,0,1,8.48,8.48L88.49,128Z"
+              />
+            </svg>
+            <span class="sheet-back-label">Back</span>
+          </button>
+          <div class="sheet-title">
+            <h2 id="rosterTitle" class="team-title" data-last-drawn>Roster</h2>
+            <p class="sheet-note team-note" id="rosterNote" data-last-drawn></p>
+          </div>
+          <button type="button" class="sheet-done" id="rosterDoneBtn">
+            <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+              <path
+                d="M204.24,195.76a6,6,0,1,1-8.48,8.48L128,136.49,60.24,204.24a6,6,0,0,1-8.48-8.48L119.51,128,51.76,60.24a6,6,0,0,1,8.48-8.48L128,119.51l67.76-67.75a6,6,0,0,1,8.48,8.48L136.49,128Z"
+              />
+            </svg>
+            <span class="sheet-done-label">Done</span>
+          </button>
+        </div>
+      </div>
+      <div class="roster-body" id="rosterBody" data-last-drawn></div>
     </div>
   </dialog>
 
