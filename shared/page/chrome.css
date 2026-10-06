@@ -313,10 +313,13 @@ section.view.active {
 .settings-panel::backdrop {
   background: rgba(0, 0, 0, 0.6);
 }
+/* What they hold fills them, the copyright at their foot, so Diagnostics stay just out of sight. */
 .settings-body {
   display: flex;
   flex-direction: column;
   gap: var(--section-gap);
+  box-sizing: border-box;
+  min-height: 100%;
   padding: 0 22px var(--bottom-padding);
 }
 .sheet-top {
@@ -365,7 +368,8 @@ section.view.active {
 .settings-footer {
   display: grid;
   gap: 2px;
-  margin-top: calc(18px - var(--section-gap));
+  margin-top: auto;
+  padding-top: calc(18px - var(--section-gap));
   text-align: center;
 }
 .settings-footer .settings-version {

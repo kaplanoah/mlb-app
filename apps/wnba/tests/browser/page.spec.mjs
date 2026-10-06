@@ -545,16 +545,16 @@ test.describe("on a phone, settings", () => {
     expect(Math.round(sheet.height)).toBe(844 - 44);
   });
 
-  test("set their title 12px under the grabber and 21px over the first setting, and end 17px over their bottom", async ({
+  test("set their title 12px under the grabber and 21px over the first setting, and end 17px over the bottom", async ({
     page,
   }) => {
     await openSettingsWithRelease(page);
-    const { body, top, head, grabber, title, controls, footer } = await readSettingsBoxes(page);
+    const { sheet, top, head, grabber, title, controls, footer } = await readSettingsBoxes(page);
     expect(grabber.height).toBe(5);
     expect(title.top - grabber.bottom).toBe(12);
     expect(head.bottom).toBeLessThanOrEqual(top.bottom);
     expect(Math.round(controls.top - title.bottom)).toBe(21);
-    expect(Math.round(body.bottom - footer.bottom)).toBe(17);
+    expect(Math.round(sheet.bottom - footer.bottom)).toBe(17);
   });
 });
 
