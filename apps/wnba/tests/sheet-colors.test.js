@@ -56,7 +56,6 @@ function measureContrast(first, second) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-// The lead chart's tile is a mix of the sheet and the floor, so reading on both reads on it too.
 test("every dot with a black half gives its light half the same smaller share", () => {
   const shares = CODES.flatMap((code) => {
     const { color, color2, dotSplit } = TEAMS[code];
@@ -74,6 +73,7 @@ test("every dot with a black half gives its light half the same smaller share", 
   );
 });
 
+// The lead chart's tile is a mix of the sheet and the floor, so reading on both reads on it too.
 test("every team's chart colors read as text on the sheet and the floor, on each theme", () => {
   const surfaces = {
     light: [readToken(":root", "--card"), readToken(":root", "--bg")],
