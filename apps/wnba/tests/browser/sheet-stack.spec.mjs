@@ -159,7 +159,7 @@ test("on a phone, a swipe back and forth moves the sheets with the finger, never
   await page.setViewportSize(PHONE);
   const readMotions = await recordSheetMotions(page);
   await openApp(page);
-  const { gameSheet, teamSheet } = await openFeverOverGame(page);
+  const { teamSheet } = await openFeverOverGame(page);
   await readMotions();
 
   await (
