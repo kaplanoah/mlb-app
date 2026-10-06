@@ -146,7 +146,7 @@ test("a player short of the WNBA's rule shows her numbers without a rank, and sa
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 
-test("on a phone, a player who played enough games but made too few shots for a percentage says so, its lines even, so no word sits alone", async ({
+test("on a phone, a player who played enough games but made too few shots for a percentage says which, its lines even, so no word sits alone", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -155,7 +155,7 @@ test("on a phone, a player who played enough games but made too few shots for a 
   const note = sheet.locator(".player-rank-note");
 
   await expect(note).toHaveText(
-    "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.",
+    "She hasn't made enough 3-pointers to be ranked in 3P%. The WNBA only ranks shooting percentages for players who've made a certain number of shots.",
   );
   const lastLineWords = await note.evaluate((element) => {
     const words = document.createRange();
