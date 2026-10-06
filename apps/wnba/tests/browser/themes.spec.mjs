@@ -3,26 +3,21 @@ import { listLayoutChanges, readLayout } from "../../../../tests/browser/theme-l
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-// A week of news with a card of each shape: a lead with a photo and a second story beside its own.
+// A week of news with a card of each shape: one with a photo and one without.
 /** @param {string} photoUrl */
-const createTopics = (photoUrl) => [
-  {
-    id: "film",
-    stories: ["report", "analysis"].map((kind, index) => ({
-      id: kind,
-      url: `https://example.com/${kind}`,
-      title: `A ${kind} on the Dream's approach against the Liberty`,
-      summary: "What happened, in a sentence or two.",
-      author: "A Writer",
-      outlet: index ? "ESPN" : "The IX",
-      source: index ? "espn" : "ix",
-      publishedAt: "2026-09-30T14:00:00.000Z",
-      photo: { url: photoUrl, credit: "Getty Images" },
-      kind,
-      teams: ["NYL", "ATL"],
-    })),
-  },
-];
+const createStories = (photoUrl) =>
+  [photoUrl, null].map((url, index) => ({
+    id: `story-${index}`,
+    url: `https://example.com/story-${index}`,
+    title: "A report on the Dream's approach against the Liberty",
+    summary: "What happened, in a sentence or two.",
+    author: "A Writer",
+    outlet: index ? "ESPN" : "The IX",
+    source: index ? "espn" : "ix",
+    publishedAt: `2026-09-30T1${4 - index}:00:00.000Z`,
+    photo: url && { url, credit: "Getty Images" },
+    teams: ["NYL", "ATL"],
+  }));
 
 /**
  * @param {import("@playwright/test").Page} page
@@ -89,7 +84,7 @@ const VIEWS = [
   {
     name: "News",
     open: (page) => page.getByRole("tab", { name: "News" }).click(),
-    shown: (page) => page.locator(".news-more").first(),
+    shown: (page) => page.locator(".news-card").nth(1),
   },
   {
     name: "settings",
@@ -109,8 +104,8 @@ for (const [screen, viewport] of Object.entries({
     await page.setViewportSize(viewport);
     await page.emulateMedia({ colorScheme: "light" });
     const app = await openApp(page);
-    await app.writeDocument("news/topics", {
-      topics: createTopics(new URL("icon-180.png", page.url()).href),
+    await app.writeDocument("news/stories", {
+      stories: createStories(new URL("icon-180.png", page.url()).href),
     });
     for (const view of VIEWS) {
       await view.open(page);

@@ -61,12 +61,12 @@ function renderStamp() {
 // Until the store or the page's last showing says what the news is, the view keeps what it was.
 function drawNews() {
   if (session.news === undefined) return;
-  const topics = session.news?.topics ?? [];
+  const stories = session.news?.stories ?? [];
   const columnCount = wideScreen.matches ? 2 : 1;
   const opened = readOpenedStories();
   setHtml(
     findElement("newsList"),
-    renderNews(topics, readNewsChoices(), Date.now(), { columnCount, opened }),
+    renderNews(stories, readNewsChoices(), Date.now(), { columnCount, opened }),
   );
 }
 
@@ -107,6 +107,10 @@ function refreshClockEveryMinute() {
   setInterval(renderAll, CLOCK_REFRESH_MS);
 }
 
+// News the page can't read from its last showing leaves the view as it was until the store answers.
+const readLastSeenNews = (news) =>
+  news === null || Array.isArray(news?.stories) ? news : undefined;
+
 // The season the page last showed is only a stand-in until the store answers, so one that can't
 // be drawn is skipped.
 function drawLastSeen() {
@@ -114,7 +118,11 @@ function drawLastSeen() {
   if (!lastSeen?.season || !isReadableSeason(lastSeen.season, SNAPSHOT_VERSION)) return;
   const { year, season, news } = session;
   try {
-    Object.assign(session, { year: lastSeen.year, season: lastSeen.season, news: lastSeen.news });
+    Object.assign(session, {
+      year: lastSeen.year,
+      season: lastSeen.season,
+      news: readLastSeenNews(lastSeen.news),
+    });
     renderAll();
     endLoadNote();
   } catch {

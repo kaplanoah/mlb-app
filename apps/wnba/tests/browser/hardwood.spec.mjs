@@ -64,24 +64,18 @@ test("a Read button is raised like a card, a button's height, its words centered
   page,
 }) => {
   const app = await openApp(page);
-  await app.writeDocument("news/topics", {
-    topics: [
+  await app.writeDocument("news/stories", {
+    stories: [
       {
-        id: "film",
-        stories: [
-          {
-            id: "report",
-            url: "https://example.com/report",
-            title: "A report on the Dream's approach against the Liberty",
-            summary: "What happened, in a sentence or two.",
-            author: "A Writer",
-            outlet: "The IX",
-            source: "ix",
-            publishedAt: "2026-09-30T14:00:00.000Z",
-            kind: "report",
-            teams: ["NYL", "ATL"],
-          },
-        ],
+        id: "report",
+        url: "https://example.com/report",
+        title: "A report on the Dream's approach against the Liberty",
+        summary: "What happened, in a sentence or two.",
+        author: "A Writer",
+        outlet: "The IX",
+        source: "ix",
+        publishedAt: "2026-09-30T14:00:00.000Z",
+        teams: ["NYL", "ATL"],
       },
     ],
   });

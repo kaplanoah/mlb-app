@@ -1,8 +1,8 @@
 import { session } from "./session.js";
 
-// The Worker keeps the week's news topics in the store, and pushes every change to the page.
+// The Worker keeps the week's news stories in the store, and pushes every change to the page.
 
-const NEWS_PATH = "news/topics";
+const NEWS_PATH = "news/stories";
 
 /** @param {() => void} onChange */
 export function watchNews(onChange) {

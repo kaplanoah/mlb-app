@@ -4,15 +4,15 @@ import { describeError } from "../../../../shared/worker/responses.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { askClaude } from "./news-claude.js";
 import { readNewsFeeds } from "./news-feeds.js";
-import { GROUP_PROMPT, LABEL_PROMPT, STORY_KINDS } from "./news-prompts.js";
+import { LABEL_PROMPT } from "./news-prompts.js";
 import { readRuleDrop } from "./news-rules.js";
 
 // Keeps the news the page shows: each run reads the outlets' feeds, drops what the rules can tell
-// isn't news, has Claude label the rest and group what it keeps into topics, and saves each
-// topic's stories. A story Claude hasn't answered for stays waiting and is asked about again on the
-// next run, so a run that fails loses nothing. The topics go in `news/topics`, where each page picks
-// the stories it shows from the outlets its device reads, and how the runs are going, with
-// Claude's daily token counts, in `news/status`.
+// isn't news, and has Claude judge the rest, each story on its own, against what the feed already
+// tells. A story Claude hasn't answered for stays waiting and is asked about again on the next run,
+// so a run that fails loses nothing. The kept stories go in `news/stories`, newest first, where each
+// page picks the ones from the outlets its device reads, and how the runs are going, with Claude's
+// daily token counts, in `news/status`.
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -26,9 +26,10 @@ const DAY_DELAY_MS = 15 * MINUTE_MS;
 const NIGHT_DELAY_MS = 60 * MINUTE_MS;
 const LABEL_BATCH = 12;
 const LABELS_PER_RUN = 24;
-const GROUPS_PER_RUN = 20;
-const MAX_TOPICS = 40;
-const TOPICS_KEY = "news/topics";
+const MAX_SHOWN = 80;
+const STORIES_KEY = "news/stories";
+// A document no page reads, removed from any store that still keeps it.
+const OLD_TOPICS_KEY = "news/topics";
 const STATUS_KEY = "news/status";
 
 /**
@@ -48,10 +49,8 @@ const STATUS_KEY = "news/status";
  * @property {string} [espnType]
  * @property {"pending" | "kept" | "dropped"} state
  * @property {string} [why]
- * @property {string} [kind]
  * @property {string[]} [teams]
  * @property {string} [reason]
- * @property {string} [topic]
  */
 
 /**
@@ -141,6 +140,8 @@ const isShownAge = (story, now) => now - Date.parse(story.publishedAt) <= SHOWN_
 
 const byNewest = (first, second) => Date.parse(second.publishedAt) - Date.parse(first.publishedAt);
 
+const byOldest = (first, second) => byNewest(second, first);
+
 const describeForClaude = (story, index) => ({
   id: index + 1,
   title: story.title,
@@ -163,7 +164,6 @@ function applyLabel(story, answer) {
     ...story,
     state: answer.keep ? "kept" : "dropped",
     ...(!answer.keep && { why: String(answer.why || "other") }),
-    kind: STORY_KINDS.includes(answer.kind) ? answer.kind : "report",
     teams: Array.isArray(answer.teams) ? answer.teams.filter(isTeamCode) : [],
     reason: String(answer.reason ?? ""),
   };
@@ -182,13 +182,25 @@ function splitIntoBatches(stories, size) {
   return batches;
 }
 
+const listShownStories = (stories, now) =>
+  [...stories.values()].filter((story) => story.state === "kept" && isShownAge(story, now));
+
+const describeToldStory = (story) => ({ title: story.title, outlet: story.outlet });
+
+/** What Claude reads for a batch: the stories the feed has so far, then the new ones. */
+const describeBatch = (stories, batch, now) =>
+  `Stories so far:\n${JSON.stringify(listShownStories(stories, now).sort(byOldest).map(describeToldStory))}\n\nNew stories:\n${JSON.stringify(batch.map(describeForClaude))}`;
+
+// The newest stories are asked about first, and in the order they came out, so the first to tell
+// the news is the one that doesn't have to clear the bar for retelling it.
 async function labelWaitingStories({ storage, stories, ask, now }) {
   const waiting = [...stories.values()]
     .filter((story) => story.state === "pending" && isShownAge(story, now))
     .sort(byNewest)
-    .slice(0, LABELS_PER_RUN);
+    .slice(0, LABELS_PER_RUN)
+    .sort(byOldest);
   for (const batch of splitIntoBatches(waiting, LABEL_BATCH)) {
-    const content = `Stories:\n${JSON.stringify(batch.map(describeForClaude))}`;
+    const content = describeBatch(stories, batch, now);
     const answers = await ask(LABEL_PROMPT, content);
     for (const [story, answer] of matchAnswers(batch, answers)) {
       const labeled = applyLabel(story, answer);
@@ -196,41 +208,6 @@ async function labelWaitingStories({ storage, stories, ask, now }) {
       stories.set(story.id, labeled);
       await saveStory(storage, labeled);
     }
-  }
-}
-
-/** @param {unknown} topic */
-const cleanTopic = (topic) =>
-  String(topic ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-
-function listTopicsSoFar(stories, now) {
-  const titles = new Map();
-  for (const story of stories.values()) {
-    if (story.state !== "kept" || !story.topic || !isShownAge(story, now)) continue;
-    titles.set(story.topic, [...(titles.get(story.topic) ?? []), story.title]);
-  }
-  return [...titles].map(([topic, topicTitles]) => ({ topic, titles: topicTitles }));
-}
-
-// Stories go to topics oldest first, so a topic starts where its news did.
-async function groupKeptStories({ storage, stories, ask, now }) {
-  const ungrouped = [...stories.values()]
-    .filter((story) => story.state === "kept" && !story.topic && isShownAge(story, now))
-    .sort((first, second) => byNewest(second, first))
-    .slice(0, GROUPS_PER_RUN);
-  if (!ungrouped.length) return;
-  const content = `Topics so far:\n${JSON.stringify(listTopicsSoFar(stories, now))}\n\nNew stories:\n${JSON.stringify(ungrouped.map(describeForClaude))}`;
-  const answers = await ask(GROUP_PROMPT, content);
-  for (const [story, answer] of matchAnswers(ungrouped, answers)) {
-    const topic = cleanTopic(answer?.topic);
-    if (!topic) continue;
-    const grouped = { ...story, topic };
-    stories.set(story.id, grouped);
-    await saveStory(storage, grouped);
   }
 }
 
@@ -264,7 +241,6 @@ async function curateStories(context) {
   const ask = createClaudeAsker(context);
   try {
     await labelWaitingStories({ ...context, ask });
-    await groupKeptStories({ ...context, ask });
     return "";
   } catch (error) {
     return describeError(error);
@@ -282,37 +258,17 @@ const describeShownStory = (story) => ({
   ...(story.teamFeed && { teamFeed: story.teamFeed }),
   publishedAt: story.publishedAt,
   photo: story.photo,
-  kind: story.kind,
   teams: story.teams ?? [],
 });
 
-const compareNewestFirst = (first, second) =>
-  Date.parse(second.publishedAt) - Date.parse(first.publishedAt);
-
-/**
- * Each topic with its stories, newest first, and the newest topics first.
- * @param {NewsStory[]} stories
- */
-function groupTopics(stories) {
-  /** @type {Map<string, NewsStory[]>} */
-  const byTopic = new Map();
-  for (const story of stories)
-    byTopic.set(story.topic, [...(byTopic.get(story.topic) ?? []), story]);
-  return [...byTopic]
-    .map(([id, topicStories]) => {
-      const sorted = topicStories.toSorted(compareNewestFirst);
-      return { id, latestAt: sorted[0].publishedAt, stories: sorted.map(describeShownStory) };
-    })
-    .sort((first, second) => Date.parse(second.latestAt) - Date.parse(first.latestAt));
-}
-
-async function saveTopics(docs, stories, now) {
-  const shown = [...stories.values()].filter(
-    (story) => story.state === "kept" && story.topic && isShownAge(story, now),
-  );
-  const topics = groupTopics(shown).slice(0, MAX_TOPICS);
-  const stored = await docs.read(TOPICS_KEY);
-  if (!isSameJson(stored?.topics, topics)) await docs.write(TOPICS_KEY, { topics });
+async function saveShownStories(docs, stories, now) {
+  const shown = listShownStories(stories, now)
+    .sort(byNewest)
+    .slice(0, MAX_SHOWN)
+    .map(describeShownStory);
+  const stored = await docs.read(STORIES_KEY);
+  if (!isSameJson(stored?.stories, shown)) await docs.write(STORIES_KEY, { stories: shown });
+  if (await docs.read(OLD_TOPICS_KEY)) await docs.remove(OLD_TOPICS_KEY);
 }
 
 async function readRecentUsage(storage, now) {
@@ -345,7 +301,7 @@ async function updateNews({ docs, storage, env, fetchImpl, now: readNow }, readF
   await addNewStories(storage, stories, entries, now);
   await forgetOldStories(storage, stories, now);
   const problem = await curateStories({ storage, stories, env, fetchImpl, now });
-  await saveTopics(docs, stories, now);
+  await saveShownStories(docs, stories, now);
   await saveStatus({ docs, storage, now, missing, problem });
 }
 

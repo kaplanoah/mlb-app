@@ -29,30 +29,23 @@ function createDocs() {
     write: async (key, doc) => {
       stored.set(key, structuredClone(doc));
     },
+    remove: async (key) => {
+      stored.delete(key);
+    },
   };
 }
 
 const readStories = (content) => JSON.parse(content.slice(content.lastIndexOf("[")));
 
-// Keeps every story but the ones `skip` names, calls a film review analysis, and puts every story
-// about the Liberty or the Dream in one topic.
+/** @param {string} content */
+const readStoriesSoFar = (content) =>
+  JSON.parse(content.slice(content.indexOf("["), content.indexOf("\n\nNew stories:")));
+
+// Keeps every story but the ones `skip` names.
 const answerLabels = (stories, skip) =>
   stories
     .filter((story) => !skip(story))
-    .map((story) => ({
-      id: story.id,
-      keep: true,
-      kind: story.title.startsWith("Film review") ? "analysis" : "report",
-      teams: ["NYL", "XYZ"],
-      reason: "News.",
-    }));
-
-const answerGroups = (stories) =>
-  stories.map((story) => ({
-    id: story.id,
-    topic: /Liberty|Dream/.test(story.title) ? "Liberty vs. Dream!" : `story ${story.title}`,
-    reason: "Same news.",
-  }));
+    .map((story) => ({ id: story.id, keep: true, teams: ["NYL", "XYZ"], reason: "News." }));
 
 /**
  * The feeds as recorded, and a Claude that answers as `answer` says, or with `status` when it's
@@ -65,11 +58,7 @@ function createFetch({ skip = () => false, status = 200, requests = [] } = {}) {
     const body = JSON.parse(init.body);
     requests.push({ headers: init.headers, body });
     if (status !== 200) return Response.json({ error: { message: "Overloaded" } }, { status });
-    const content = body.messages[0].content;
-    const stories = readStories(content);
-    const answers = body.system[0].text.startsWith("You pick")
-      ? answerLabels(stories, skip)
-      : answerGroups(stories);
+    const answers = answerLabels(readStories(body.messages[0].content), skip);
     return Response.json({
       content: [{ type: "text", text: `Here you go:\n${JSON.stringify(answers)}` }],
       usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 900 },
@@ -91,43 +80,31 @@ function createRun({ env = ENV, now = NOW } = {}) {
 const listStoryStates = (storage) =>
   [...storage.stored].filter(([key]) => key.startsWith("story:")).map(([, story]) => story.state);
 
-test("a run has Claude label the new stories in batches, groups the ones it keeps, and saves each topic's stories", async () => {
+test("a run has Claude judge the new stories in batches, and saves the ones it keeps, newest first", async () => {
   const requests = [];
   const { docs, runJob } = createRun();
 
   await runJob(createFetch({ requests }));
 
-  const labelRequests = requests.filter((request) =>
-    request.body.system[0].text.startsWith("You pick"),
-  );
-  assert.equal(labelRequests.length, 2);
   assert.deepEqual(
-    labelRequests.map((request) => readStories(request.body.messages[0].content).length),
+    requests.map((request) => readStories(request.body.messages[0].content).length),
     [12, 12],
   );
   assert.equal(requests[0].headers["x-api-key"], "test-key");
   assert.equal(requests[0].body.model, NEWS_MODEL);
   assert.deepEqual(requests[0].body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
 
-  const { topics } = docs.stored.get("news/topics");
-  const libertyDream = topics.find((topic) => topic.id === "liberty-vs-dream");
-  const published = libertyDream.stories.map((story) => Date.parse(story.publishedAt));
-  assert.ok(libertyDream.stories.length > 2);
+  const { stories } = docs.stored.get("news/stories");
+  assert.equal(stories.length, 24);
+  const published = stories.map((story) => Date.parse(story.publishedAt));
   assert.deepEqual(
     published,
     published.toSorted((first, second) => second - first),
   );
-  assert.equal(libertyDream.latestAt, libertyDream.stories[0].publishedAt);
-  const latest = topics.map((topic) => Date.parse(topic.latestAt));
-  assert.deepEqual(
-    latest,
-    latest.toSorted((first, second) => second - first),
-  );
-  const fields = Object.keys(libertyDream.stories[0]).filter((field) => field !== "teamFeed");
+  const fields = Object.keys(stories[0]).filter((field) => field !== "teamFeed");
   assert.deepEqual(fields.sort(), [
     "author",
     "id",
-    "kind",
     "outlet",
     "photo",
     "publishedAt",
@@ -137,7 +114,60 @@ test("a run has Claude label the new stories in batches, groups the ones it keep
     "title",
     "url",
   ]);
-  assert.deepEqual(libertyDream.stories[0].teams, ["NYL"]);
+  assert.deepEqual(stories[0].teams, ["NYL"]);
+});
+
+test("Claude reads the stories the feed has so far, then the new ones in the order they came out", async () => {
+  const requests = [];
+  const { storage, runJob } = createRun();
+
+  await runJob(createFetch({ requests }));
+
+  const [first, second] = requests.map((request) => request.body.messages[0].content);
+  assert.deepEqual(readStoriesSoFar(first), []);
+  assert.deepEqual(
+    readStoriesSoFar(second).map((story) => story.title),
+    readStories(first).map((story) => story.title),
+  );
+  const publishedAt = new Map(
+    [...storage.stored.values()].map((story) => [story.title, Date.parse(story.publishedAt)]),
+  );
+  const asked = [first, second].flatMap((content) =>
+    readStories(content).map((story) => publishedAt.get(story.title)),
+  );
+  assert.deepEqual(
+    asked,
+    asked.toSorted((earlier, later) => earlier - later),
+  );
+});
+
+test("a story Claude drops as told already is left out of what the page reads", async () => {
+  const { docs, runJob } = createRun();
+  const skip = (story) => story.title.startsWith("Film review");
+
+  await runJob(async (url, init) => {
+    if (String(url) !== CLAUDE_URL) return createFeedFetch()(url);
+    const stories = readStories(JSON.parse(init.body).messages[0].content);
+    const answers = stories.map((story) =>
+      skip(story)
+        ? { id: story.id, keep: false, why: "retold", teams: [], reason: "Told already." }
+        : { id: story.id, keep: true, teams: ["NYL"], reason: "News." },
+    );
+    return Response.json({ content: [{ type: "text", text: JSON.stringify(answers) }] });
+  });
+
+  const titles = docs.stored.get("news/stories").stories.map((story) => story.title);
+  assert.ok(titles.length > 0);
+  assert.ok(!titles.some((title) => title.startsWith("Film review")));
+});
+
+test("the topics a store kept before are removed", async () => {
+  const { docs, runJob } = createRun();
+  await docs.write("news/topics", { topics: [] });
+
+  await runJob(createFetch());
+
+  assert.equal(docs.stored.has("news/topics"), false);
 });
 
 test("the status counts each day's calls and tokens, and names the feeds that didn't answer", async () => {
@@ -152,10 +182,10 @@ test("the status counts each day's calls and tokens, and names the feeds that di
   assert.deepEqual(status.missing, ["winsidr"]);
   assert.equal(status.problem, "");
   assert.deepEqual(status.usage["2026-10-05"], {
-    calls: 3,
-    input: 300,
-    output: 150,
-    cacheRead: 2700,
+    calls: 2,
+    input: 200,
+    output: 100,
+    cacheRead: 1800,
     cacheWrite: 0,
   });
 });
@@ -169,11 +199,9 @@ test("a story Claude didn't answer for waits for the next run, and one it labele
   const requests = [];
   await runJob(createFetch({ requests }));
 
-  const asked = requests
-    .filter((request) => request.body.system[0].text.startsWith("You pick"))
-    .flatMap((request) =>
-      readStories(request.body.messages[0].content).map((story) => story.title),
-    );
+  const asked = requests.flatMap((request) =>
+    readStories(request.body.messages[0].content).map((story) => story.title),
+  );
   assert.ok(waiting > 1);
   assert.ok(asked.some((title) => title.startsWith("Film review")));
   assert.equal(asked.length, waiting);
@@ -187,7 +215,7 @@ test("without an API key nothing is asked, and the status says why", async () =>
 
   assert.equal(requests.length, 0);
   assert.match(docs.stored.get("news/status").problem, /ANTHROPIC_API_KEY/);
-  assert.deepEqual(docs.stored.get("news/topics"), { topics: [] });
+  assert.deepEqual(docs.stored.get("news/stories"), { stories: [] });
   assert.ok(listStoryStates(storage).includes("pending"));
 });
 
