@@ -2400,15 +2400,15 @@ table.player-game td {
 }
 
 /* Each average's rank among the players the WNBA ranks, on a curve of how all their numbers
-   spread, with her place on it in her team's color for the theme, which js/sheet-colors.js hands
-   it. */
+   spread, with her place on it in her team's mark color for the theme, which js/sheet-colors.js
+   hands it. */
 .player-ranks {
-  --team: var(--team-light, var(--ink-dim));
+  --team: var(--mark-light, var(--ink-dim));
   display: grid;
   gap: 12px;
 }
 :root[data-theme="dark"] .player-ranks {
-  --team: var(--team-dark, var(--ink-dim));
+  --team: var(--mark-dark, var(--ink-dim));
 }
 .player-rank-row {
   display: grid;

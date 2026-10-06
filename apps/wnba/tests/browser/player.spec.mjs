@@ -74,6 +74,16 @@ test("her last game's AVG hangs left of the four columns, which center on the sh
   expect(label.x + label.width).toBeLessThanOrEqual(table.x);
 });
 
+test("her mark on each curve is her team's mark color for the theme", async ({ page }) => {
+  await openApp(page);
+  const sheet = await openFromRoster(page, "Breanna Stewart");
+  const mark = sheet.locator(".player-curve b").first();
+
+  await expect(mark).toHaveCSS("background-color", "rgb(68, 146, 116)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(mark).toHaveCSS("background-color", "rgb(135, 213, 181)");
+});
+
 test("each of her facts is centered under its label", async ({ page }) => {
   await openApp(page);
   const sheet = await openFromRoster(page, "Breanna Stewart");
