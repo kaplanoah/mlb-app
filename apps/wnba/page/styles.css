@@ -92,7 +92,7 @@
  * a sheet's corner is orange text. A switch stays round, like the phone's own.
  * Each is --control-height tall at --control-weight, its words centered on their capitals.
  *
- * Text stops at 600, but for the Games list's day numbers.
+ * Text stops at 600.
  */
 :root {
   --bg: #ead5b2;
@@ -389,6 +389,20 @@ header.top h1 {
   font-weight: 400;
   color: var(--ink-dim);
 }
+/* In a game's row, the names, seeds, and time center on their capitals, so they sit level with each
+   other and the dots, whatever room each font leaves above and below its letters. A name clips
+   only sideways, so its letters' tails still show. */
+.game-side .team-name,
+.game-side .seed,
+.game-headline .time {
+  text-box: trim-both cap alphabetic;
+}
+.game-side .team-name {
+  overflow: clip visible;
+}
+.game-side .seed {
+  translate: 0 -0.25px;
+}
 
 /* A bracket's series and a day's games are one kind of card. */
 .series,
@@ -424,28 +438,28 @@ header.top h1 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   height: var(--game-row-height);
   margin: 0;
   font-weight: 400;
 }
 .day-month {
-  font-family: var(--heading);
+  font-family: var(--text);
   font-size: var(--size-small);
   font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.07em;
   color: var(--structure);
 }
 .day-number {
+  margin-top: 3px;
   font-family: var(--display);
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 600;
   line-height: 0.8;
 }
 .day-name {
-  margin-top: 3px;
+  margin-top: 4px;
   font-family: var(--text);
   font-size: var(--size-small);
   font-weight: 600;
@@ -607,6 +621,7 @@ header.top h1 {
 /* A game that may never happen reads quieter than one that's over. */
 .if-needed {
   font-weight: 500;
+  color: color-mix(in srgb, var(--ink-dim) 70%, var(--raised));
 }
 /* Labels in the text face stand apart from the condensed team names around them. */
 .series-label {
@@ -1659,13 +1674,25 @@ th[aria-sort="ascending"] .roster-caret {
   font-weight: 500;
 }
 
-/* A pill's names are buttons, so they're in sentence case at a button's weight. */
+/* A pill's names are buttons, so they're in sentence case at a button's weight and height, their
+   words centered on their capitals. The pill sits a little closer under the header than a view's
+   first card, as the control it is, with the bar's reach up under the status bar kept inside it. */
+.pager {
+  display: flow-root;
+  margin-top: calc(10px - var(--header-gap));
+}
+.pager-bar {
+  padding-bottom: 9px;
+}
 .pager-tabs button {
-  padding-block: 5px;
+  height: var(--control-height);
+  padding-block: 0;
+  align-content: center;
   font-size: var(--size-glance);
   font-weight: var(--control-weight);
   letter-spacing: 0.01em;
   text-transform: none;
+  text-box: trim-both cap alphabetic;
 }
 
 /* Standings: one table at a phone's width for the league and each conference, side by side under

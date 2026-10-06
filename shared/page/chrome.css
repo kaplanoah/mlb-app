@@ -318,9 +318,9 @@ section.view.active {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.01);
   overscroll-behavior: none;
 }
-/* Settings barely dim the page behind them, as a phone's own sheets do. */
+/* Settings lightly dim the page behind them, as a phone's own sheets do. */
 .settings-panel::backdrop {
-  background: rgba(0, 0, 0, 0.01);
+  background: rgba(0, 0, 0, 0.08);
 }
 /* What they hold fills them, the copyright at their foot, so Diagnostics stay just out of sight. */
 .settings-body {

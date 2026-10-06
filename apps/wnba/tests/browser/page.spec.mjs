@@ -660,10 +660,91 @@ test("the Games lists' days, series labels, and statuses are in Barlow, apart fr
       .evaluate((element) =>
         getComputedStyle(element).fontFamily.split(",")[0].replaceAll('"', ""),
       );
+  expect(await readFirstFont(page.locator("#gamePager .day-month"))).toBe("Barlow");
   expect(await readFirstFont(page.locator("#gamePager .day-name"))).toBe("Barlow");
   expect(await readFirstFont(page.locator("#gamePager .series-label"))).toBe("Barlow");
   expect(await readFirstFont(page.locator("#gamePager .game-status"))).toBe("Barlow");
   expect(await readFirstFont(page.locator("#gamePager .game-side .club"))).toBe("Barlow Condensed");
+});
+
+test("a Games list's day reads its month, date, and weekday at their sizes, weights, and spacing, 3px and then 4px apart", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const day = page.locator("#games-next .day-label").first();
+  await expect(day).toBeVisible();
+  const parts = await day.evaluate((label) =>
+    [".day-month", ".day-number", ".day-name"].map((selector) => {
+      const part = /** @type {Element} */ (label.querySelector(selector));
+      const { top, bottom } = part.getBoundingClientRect();
+      const { fontSize, fontWeight, letterSpacing } = getComputedStyle(part);
+      return { top, bottom, fontSize, fontWeight, letterSpacing };
+    }),
+  );
+  const [month, date, weekday] = parts;
+  expect(
+    parts.map(({ fontSize, fontWeight, letterSpacing }) => [fontSize, fontWeight, letterSpacing]),
+  ).toEqual([
+    ["13px", "600", "0.91px"],
+    ["24px", "600", "normal"],
+    ["13px", "600", "0.78px"],
+  ]);
+  expect(date.top - month.bottom).toBeCloseTo(3, 1);
+  expect(weekday.top - date.bottom).toBeCloseTo(4, 1);
+});
+
+test("a game's dots, names, and time center on their capitals, level with each other, and each seed a quarter pixel above", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const row = page
+    .locator("#games-next .game-row")
+    .filter({ has: page.locator(".time") })
+    .first();
+  await expect(row).toBeVisible();
+  const pieces = await row.evaluate((element) =>
+    Object.fromEntries(
+      [
+        ".game-side.away .dot",
+        ".game-side.away .seed",
+        ".game-side.away .team-name",
+        ".game-side.home .seed",
+        ".game-side.home .team-name",
+        ".time",
+      ].map((selector) => {
+        const piece = /** @type {Element} */ (element.querySelector(selector));
+        const { top, height } = piece.getBoundingClientRect();
+        const fontSize = parseFloat(getComputedStyle(piece).fontSize);
+        return [selector, { middle: top + height / 2, height, fontSize }];
+      }),
+    ),
+  );
+  const { ".game-side.away .dot": dot, ...letters } = pieces;
+  for (const [selector, { middle, height, fontSize }] of Object.entries(letters)) {
+    const nudge = selector.endsWith(".seed") ? -0.25 : 0;
+    expect(height, selector).toBeLessThan(fontSize * 0.8);
+    expect(middle - dot.middle, selector).toBeCloseTo(nudge, 1);
+  }
+});
+
+test("a game that may never happen says If needed a step dimmer than a status like Final", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const ifNeeded = page.locator("#games-next .if-needed").first();
+  await expect(ifNeeded).toHaveText("If needed");
+  const [color, expected] = await ifNeeded.evaluate((element) => {
+    const probe = document.createElement("i");
+    probe.style.color = "color-mix(in srgb, var(--ink-dim) 70%, var(--raised))";
+    element.closest(".game-list")?.append(probe);
+    const colors = [getComputedStyle(element).color, getComputedStyle(probe).color];
+    probe.remove();
+    return colors;
+  });
+  expect(color).toBe(expected);
 });
 
 test("a Games list with nothing in it starts its note where a list's first day starts", async ({
@@ -749,7 +830,9 @@ test("every score panel is one size, a game past 100 like any other", async ({ p
   expect(texts.some((text) => Number(text) >= 100)).toBe(true);
 });
 
-test("a seed sits a little lighter than its team's name, and a pixel lower", async ({ page }) => {
+test("a seed sits a little lighter than its team's name, a quarter pixel above the name's middle", async ({
+  page,
+}) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const club = page.locator("#gamePager .game-side .club").first();
@@ -764,7 +847,7 @@ test("a seed sits a little lighter than its team's name, and a pixel lower", asy
     };
   });
   expect([seedWeight, nameWeight]).toEqual(["400", "600"]);
-  expect(offset).toBeCloseTo(1, 0);
+  expect(offset).toBeCloseTo(-0.25, 1);
   const isLoaded = await page.evaluate(() => document.fonts.check('400 12px "Barlow Condensed"'));
   expect(isLoaded).toBe(true);
 });
@@ -800,8 +883,6 @@ test("the title and the round names are in Barlow Condensed, and each card's not
   expect(await readFirstFont(".card-note")).toBe("Barlow");
   await expect(page.locator(".card-note").first()).toHaveCSS("font-style", "italic");
   await expect(page.locator(".card-note").first()).toHaveCSS("font-size", "14px");
-  await page.getByRole("tab", { name: "Games" }).click();
-  expect(await readFirstFont("#gamePager .day-month")).toBe("Barlow Condensed");
 });
 
 test("the sliders icon keeps the same room from the stamp as MLB's", async ({ page }) => {
