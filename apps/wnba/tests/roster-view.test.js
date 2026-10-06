@@ -8,6 +8,7 @@ import {
   matchAverages,
   renderRoster,
   renderRosterButton,
+  renderRosterHeading,
   sortRows,
 } from "../page/js/roster-view.js";
 import { isStillPlaying } from "../page/js/series.js";
@@ -131,9 +132,15 @@ test("the roster lists its players by last name with their facts, their points, 
   assert.doesNotMatch(markup, /Steals|Blocks/);
 });
 
-test("the roster's sheet says it's the roster, and how many players it has once it's loaded", () => {
-  assert.equal(readFacts(describeRosterNote(LIBERTY)), "Roster | 15 players");
-  assert.equal(readFacts(describeRosterNote(null)), "Roster");
+test("the roster's sheet is titled by the team's name without its city, then Roster", () => {
+  const heading = convertToText(renderRosterHeading("NYL"));
+  assert.equal(heading.trim(), "Liberty Roster");
+  assert.match(String(renderRosterHeading("NYL")), /class="dot"/);
+});
+
+test("the roster's sheet says its season, and how many players it has once it's loaded", () => {
+  assert.equal(readFacts(describeRosterNote(LIBERTY, 2026)), "2026 | 15 players");
+  assert.equal(readFacts(describeRosterNote(null, 2025)), "2025");
 });
 
 test("a team's Roster button names the team it opens the roster of", () => {

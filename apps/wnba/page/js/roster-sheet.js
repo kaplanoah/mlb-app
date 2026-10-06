@@ -7,10 +7,15 @@
 import { setHtml } from "#shared/html.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
-import { chooseSort, DEFAULT_SORT, describeRosterNote, renderRoster } from "./roster-view.js";
+import {
+  chooseSort,
+  DEFAULT_SORT,
+  describeRosterNote,
+  renderRoster,
+  renderRosterHeading,
+} from "./roster-view.js";
 import { isStillPlaying } from "./series.js";
 import { isPastSeason, session } from "./session.js";
-import { renderTeamHeading } from "./team-view.js";
 import { TEAMS } from "./teams.js";
 
 /** @typedef {import("./roster-view.js").Roster} Roster */
@@ -106,8 +111,8 @@ function renderSheet() {
   const { roster, averages, isLoading } = readRoster(shownTeam, session.year);
   const team = shownTeam;
   const showsOut = !isPastSeason() && isStillPlaying(session.season?.series ?? [], team);
-  setHtml(findElement("rosterTitle"), renderTeamHeading(team));
-  setHtml(findElement("rosterNote"), describeRosterNote(roster));
+  setHtml(findElement("rosterTitle"), renderRosterHeading(team));
+  setHtml(findElement("rosterNote"), describeRosterNote(roster, session.year));
   setHtml(findElement("rosterBody"), renderRoster({ roster, averages, sort, isLoading, showsOut }));
 }
 

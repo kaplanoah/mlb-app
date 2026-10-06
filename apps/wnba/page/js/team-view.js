@@ -495,7 +495,7 @@ const listFacts = (row, run) =>
  * A team's dot and full name, as its sheets title it.
  * @param {string} code
  */
-export const renderTeamHeading = (code) =>
+const renderTeamHeading = (code) =>
   html`${renderDot(code)}<span>${TEAMS[code].city} ${TEAMS[code].name}</span>`;
 
 /**
