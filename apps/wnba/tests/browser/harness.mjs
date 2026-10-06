@@ -7,6 +7,12 @@ import {
   nameSummaryRequest,
 } from "../../worker/src/lead.js";
 import { createPreviewServer } from "../../worker/src/preview.js";
+import {
+  createRosterServer,
+  nameRosterRequest,
+  nameSeasonsRequest,
+} from "../../worker/src/roster.js";
+import { TEAMS } from "../../page/js/teams.js";
 import { SeasonStore } from "../../worker/src/store.js";
 import worker from "../../worker/src/index.js";
 import {
@@ -34,6 +40,18 @@ const GAMES = JSON.parse(
 const LEAD = JSON.parse(
   readFileSync(new URL("../fixtures/2026-10-01-espn-lead.json", import.meta.url), "utf8"),
 );
+// The Liberty's and the Dream's rosters as ESPN had them, with each player's seasons.
+const ROSTERS = JSON.parse(
+  readFileSync(new URL("../fixtures/2026-10-06-espn-rosters.json", import.meta.url), "utf8"),
+);
+
+const listRosterAnswers = () =>
+  Object.entries(ROSTERS.teams).flatMap(([team, { roster, seasons }]) => [
+    /** @type {[string, any]} */ ([nameRosterRequest(TEAMS[team].espnId), roster]),
+    ...Object.entries(seasons).map(
+      ([id, answer]) => /** @type {[string, any]} */ ([nameSeasonsRequest(id), answer]),
+    ),
+  ]);
 
 export { test, expect, matchPath, GAMES, NOW };
 
@@ -55,6 +73,7 @@ function createLeagueFetch({
     ),
     [nameScoreboardRequest(LEAD.game.start), LEAD.scoreboard],
     [nameSummaryRequest(LEAD.eventId), leadSummary],
+    ...listRosterAnswers(),
   ]);
   if (!isScheduleRefused) answers.set(REQUESTS.schedule, GAMES.preview.schedule);
   return async (url) =>
@@ -105,7 +124,7 @@ async function createAfternoonStore() {
 
 /**
  * The page as the Worker serves it, with the Worker's store behind it, already updated once from
- * the afternoon's feeds, and the game sheet's routes reading the league's recorded answers. On a
+ * the afternoon's feeds, and the game and team sheets' routes reading the recorded answers. On a
  * phone, the afternoon's finals would fill the Updates box above every view, so it starts
  * dismissed unless a test is about it.
  * @param {import("@playwright/test").Page} page
@@ -128,6 +147,7 @@ export async function openApp(
   const boxScores = createBoxScoreServer({ fetchImpl });
   const previews = createPreviewServer({ fetchImpl, now: () => Date.parse(NOW) });
   const leads = createLeadServer({ fetchImpl });
+  const rosters = createRosterServer({ fetchImpl });
   await page.route(matchPath("/lead"), (route) => answerFromWorker(route, leads.serveLead));
   await page.route(matchPath("/box-score"), (route) =>
     answerFromWorker(route, boxScores.serveBoxScore),
@@ -135,6 +155,7 @@ export async function openApp(
   await page.route(matchPath("/preview"), (route) =>
     answerFromWorker(route, previews.servePreview),
   );
+  await page.route(matchPath("/roster"), (route) => answerFromWorker(route, rosters.serveRoster));
   await loadPageAt(page, NOW);
 
   return {

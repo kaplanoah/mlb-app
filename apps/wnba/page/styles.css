@@ -127,6 +127,7 @@
   --pager-thumb: var(--card);
   --pager-thumb-edge: rgba(255, 255, 255, 0.6);
   --pager-label: var(--ink-mid);
+  --team-pages-thumb: color-mix(in srgb, var(--card), #ffffff 60%);
   --updates-head: var(--teal);
   --sheet-part-head: var(--teal);
   --game-row-height: 90px;
@@ -173,6 +174,7 @@
   --pager-track-edge: rgba(255, 214, 170, 0.06);
   --pager-thumb: rgba(255, 214, 170, 0.12);
   --pager-thumb-edge: rgba(255, 226, 196, 0.16);
+  --team-pages-thumb: var(--pager-thumb);
   --logos-for-light: none;
   --logos-for-dark: inline;
   color-scheme: dark;
@@ -1035,6 +1037,215 @@ table.players td.quiet-stat {
 .foul-chip-words {
   position: relative;
   top: -0.5px;
+}
+
+/* A team's Roster page: the sheet scrolls as one, both ways, while its title, pill, and the
+   part's heading and coach stay across the sheet's width, and each player's number and name stay
+   at its left. The column names stop at the sheet's top. */
+#teamDialog[data-page="roster"] {
+  container-type: inline-size;
+  --roster-number-width: 22px;
+  --roster-number-gap: 11px;
+  --roster-name-left: calc(18px + var(--roster-number-width) + var(--roster-number-gap));
+}
+#teamDialog[data-page="roster"] .sheet-content {
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 100%;
+}
+#teamDialog[data-page="roster"] .sheet-top {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  box-sizing: border-box;
+  width: 100cqw;
+}
+#teamDialog[data-page="roster"] :is(.sheet-part-head, .roster-coach, .sheet-message) {
+  position: sticky;
+  left: 18px;
+  box-sizing: border-box;
+  width: calc(100cqw - 36px);
+}
+table.roster {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table.roster thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--card);
+}
+table.roster thead th {
+  padding: 0 0 5px 14px;
+  font-family: var(--display);
+  font-size: var(--size-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--ink-dim);
+}
+table.roster .roster-head th {
+  box-shadow: inset 0 -1px 0 var(--divider);
+}
+table.roster .roster-bands th {
+  padding-bottom: 2px;
+  text-align: left;
+}
+table.roster tbody td,
+table.roster tbody th {
+  padding: 6px 0 6px 14px;
+  border-top: 1px solid var(--divider);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+table.roster tbody tr:first-child > * {
+  border-top: 0;
+}
+table.roster tbody td {
+  font-family: var(--text);
+  font-size: var(--size-glance);
+  font-weight: 500;
+  text-align: right;
+  color: var(--ink);
+}
+table.roster .roster-text {
+  text-align: left;
+}
+table.roster td.roster-text {
+  font-weight: 400;
+}
+.roster-country {
+  color: var(--ink-mid);
+}
+.roster-none {
+  color: var(--ink-dim);
+}
+/* The last facts keep the same room before the line as the first average has after it. */
+table.roster :is(td, th):has(+ .roster-season-start) {
+  padding-right: 16px;
+}
+table.roster .roster-season-start {
+  padding-left: 16px;
+  border-left: 1px solid var(--divider);
+}
+/* Each player's number and name stay at the left while the rest scrolls under them. */
+table.roster .roster-number,
+table.roster .roster-player {
+  position: sticky;
+  z-index: 1;
+  background: var(--card);
+}
+/* A cell's width takes in its padding, so the number column is exactly as wide as the room the
+   pinned names leave for it. */
+table.roster .roster-number {
+  left: 18px;
+  width: calc(var(--roster-number-width) + var(--roster-number-gap));
+  padding-left: 0;
+  padding-right: var(--roster-number-gap);
+  text-align: center;
+}
+table.roster td.roster-number {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--ink-dim) 65%, var(--card));
+}
+/* The sheet's own side beside the number covers what scrolls under it. */
+table.roster .roster-number::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  bottom: 0;
+  left: -18px;
+  width: 18px;
+  background: var(--card);
+}
+table.roster .roster-player {
+  left: var(--roster-name-left);
+  padding-left: 0;
+  text-align: left;
+}
+table.roster .roster-player::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--divider);
+  visibility: hidden;
+}
+.is-scrolled-across table.roster .roster-player::after {
+  visibility: visible;
+}
+table.roster tbody th.roster-player {
+  line-height: 1.2;
+}
+.roster-first,
+.roster-last {
+  display: block;
+}
+.roster-first {
+  margin-bottom: 1px;
+  font-size: var(--size-glance);
+  font-weight: 400;
+  color: var(--ink-mid);
+}
+.roster-last {
+  font-size: var(--size-read);
+  font-weight: 600;
+  color: var(--ink);
+}
+.roster-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.roster-caret {
+  position: absolute;
+  left: calc(100% + 2px);
+  width: 10px;
+  height: 10px;
+  visibility: hidden;
+}
+th[aria-sort] .roster-sort {
+  color: var(--ink);
+}
+th[aria-sort] .roster-caret {
+  visibility: visible;
+}
+th[aria-sort="ascending"] .roster-caret {
+  rotate: 180deg;
+}
+.roster-coach {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+}
+.roster-coach dt {
+  font-size: var(--size-small);
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.roster-coach dd {
+  margin: 0;
+  font-size: var(--size-glance);
+  font-weight: 400;
+  color: var(--ink);
 }
 
 .meetings {

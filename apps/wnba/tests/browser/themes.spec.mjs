@@ -68,6 +68,15 @@ const VIEWS = [
     close: (page) => page.keyboard.press("Escape"),
   },
   {
+    name: "a team's roster",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
+      await page.locator("#teamPages").getByRole("tab", { name: "Roster" }).click();
+    },
+    shown: (page) => page.locator("#teamDialog .roster-coach"),
+    close: (page) => page.keyboard.press("Escape"),
+  },
+  {
     name: "News",
     open: (page) => page.getByRole("tab", { name: "News" }).click(),
     shown: (page) => page.locator(".news-more").first(),

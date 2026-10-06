@@ -16,6 +16,9 @@ const SAVED_FIELDS = ["version", "games", "series", "standings", "leaders"];
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
 const nameSeasonKey = (year) => `seasons/${year}`;
+// Every player's averages keep a document of their own, which a page reads only for a Roster page,
+// so the season it watches through every live game doesn't carry them.
+const nameAveragesKey = (year) => `averages/${year}`;
 
 // The new year's season starts once it has games, or standings with games played. Until then the
 // last one's stays current, so the new year doesn't start with an empty season.
@@ -53,10 +56,27 @@ function addEndTimes(savedGames, games, asOf) {
   });
 }
 
-// A feed that didn't answer leaves its saved field as it was. The games need both of theirs: the
-// schedule alone can be behind on today's, and the scoreboard alone has only today's, unless ESPN
-// stood in for the scoreboard. Series counted from games ESPN may lack wait for the bracket.
+// A feed that didn't answer leaves what it feeds as it was.
 export async function saveSnapshot(docs, snapshot) {
+  await saveSeason(docs, snapshot);
+  if (!snapshot.missing.includes("players")) await saveAverages(docs, snapshot);
+}
+
+async function saveAverages(docs, snapshot) {
+  const key = nameAveragesKey(snapshot.season);
+  const doc = await docs.read(key);
+  if (isSameJson(doc?.players, snapshot.averages)) return;
+  await docs.write(key, {
+    year: snapshot.season,
+    players: snapshot.averages,
+    updatedAt: snapshot.asOf,
+  });
+}
+
+// The games need both of their feeds: the schedule alone can be behind on today's, and the
+// scoreboard alone has only today's, unless ESPN stood in for the scoreboard. Series counted from
+// games ESPN may lack wait for the bracket.
+async function saveSeason(docs, snapshot) {
   const key = nameSeasonKey(snapshot.season);
   const doc = (await docs.read(key)) ?? { year: snapshot.season };
   const missing = new Set(snapshot.missing);
@@ -80,6 +100,8 @@ export async function saveSnapshot(docs, snapshot) {
 }
 
 export const readUpdates = (docs, year) => docs.read(nameSeasonKey(year));
+
+export const readAverages = (docs, year) => docs.read(nameAveragesKey(year));
 
 export function describeSnapshotStatus(snapshot) {
   const missing = snapshot.missing || [];
