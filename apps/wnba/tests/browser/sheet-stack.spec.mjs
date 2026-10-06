@@ -175,7 +175,7 @@ test.describe("with reduced motion", () => {
     expect(await readHeight(teamSheet)).toBe(await readHeight(gameSheet));
   });
 
-  test("on a phone, each sheet rounds its top corners inside the dialog's, which shows nothing of its own behind them, and the row never moves past its first or last sheet", async ({
+  test("on a phone, each sheet rounds its leading corner inside the dialog's, the band of the one it slides in over running on under it, and the row never moves past its first or last sheet", async ({
     page,
   }) => {
     await page.setViewportSize(PHONE);
@@ -185,11 +185,13 @@ test.describe("with reduced motion", () => {
 
     await expect(dialog).toHaveCSS("border-top-left-radius", "22px");
     await expect(dialog).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    await expect(dialog.locator(".sheet-row")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(dialog.locator(".sheet-row")).toHaveCSS("overscroll-behavior-x", "none");
     for (const sheet of [gameSheet, teamSheet]) {
       await expect(sheet).toHaveCSS("border-top-left-radius", "22px 21px");
-      await expect(sheet).toHaveCSS("border-top-right-radius", "22px 21px");
+      const band = await sheet
+        .locator(".sheet-top")
+        .evaluate((top) => getComputedStyle(top).backgroundColor);
+      await expect(sheet).toHaveCSS("box-shadow", `${band} 22px 0px 0px 0px`);
     }
   });
 
