@@ -15,8 +15,8 @@ import { openSheet, wireSheet } from "./sheet.js";
  * @typedef {object} League
  * @property {(team: string) => boolean} isTeam
  * @property {(team: string) => TeamSheet} renderSheet
- * @property {(team: string) => string} nameTeam a team's short name, for a forward button back to
- *   its sheet
+ * @property {(team: string) => string} nameTeam a team's short name, for the forward button that
+ *   steps back to its sheet
  * @property {(team: string) => HTMLDialogElement | null} [prepareNext] the sheet a swipe left from
  *   a team's opens over it, filled in and ready to open
  */
@@ -30,8 +30,6 @@ let areAllTitlesShown = false;
 const TITLES_SHOWN = 3;
 // A shorter list reads in about the room its button would take, so it shows whole.
 const MOST_TITLES_LISTED = 6;
-// What a sheet opened over a team's calls it on its back button.
-const NAME_FOR_BACK = "Team";
 
 const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("teamDialog"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -94,8 +92,8 @@ export function startTeamSheet(teams) {
     doneButton: findElement("teamDoneBtn"),
     backButton: document.getElementById("teamBackBtn") ?? undefined,
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
-    nameForBack: () => NAME_FOR_BACK,
-    nameForForward: () => (shownTeam && league?.nameTeam(shownTeam)) || NAME_FOR_BACK,
+    name: "Team",
+    nameForForward: () => (shownTeam && league?.nameTeam(shownTeam)) || "Team",
     prepareNext: () => (shownTeam && league?.prepareNext?.(shownTeam)) || null,
   });
   findElement("teamBody").addEventListener("click", showAllTitlesOnTap);
