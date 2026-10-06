@@ -63,16 +63,17 @@ import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from
 
 const POSITION_WORDS = { G: "Guard", F: "Forward", C: "Center" };
 
-/** @type {{ key: string, label: string, isShare?: boolean }[]} */
+// A shooting percentage is a share, of the shots `shots` names.
+/** @type {{ key: string, label: string, isShare?: boolean, shots?: string }[]} */
 const RANKED_STATS = [
   { key: "points", label: "Pts" },
   { key: "rebounds", label: "Reb" },
   { key: "assists", label: "Ast" },
   { key: "steals", label: "Stl" },
   { key: "blocks", label: "Blk" },
-  { key: "fieldGoalShare", label: "FG%", isShare: true },
-  { key: "threeShare", label: "3P%", isShare: true },
-  { key: "freeThrowShare", label: "FT%", isShare: true },
+  { key: "fieldGoalShare", label: "FG%", isShare: true, shots: "field goals" },
+  { key: "threeShare", label: "3P%", isShare: true, shots: "3-pointers" },
+  { key: "freeThrowShare", label: "FT%", isShare: true, shots: "free throws" },
 ];
 
 // The curve's drawing is 100 wide and 20 tall, its peak kept CURVE_HEADROOM below the top.
@@ -130,7 +131,7 @@ export function describePlayerNote(subject, player) {
 }
 
 /**
- * Her position, age, height, and first season, each under its label, leaving out any the league
+ * Her position, height, age, and first season, each under its label, leaving out any the league
  * doesn't have.
  * @param {Player | null} player
  * @param {boolean} isLoading
@@ -139,14 +140,14 @@ export function renderPlayerFacts(player, isLoading) {
   if (!player)
     return (
       isLoading &&
-      html`<div class="player-facts">${renderPlaceholder("Position 00 0'0\" 0000")}</div>`
+      html`<div class="player-facts">${renderPlaceholder("Position 0'0\" 00 0000")}</div>`
     );
   const facts = player.facts;
   /** @type {[string, string | number | null | undefined][]} */
   const cells = [
     ["Position", describePosition(facts?.position ?? null)],
-    ["Age", facts?.age],
     ["Height", facts?.height],
+    ["Age", facts?.age],
     ["Debut", facts?.debut],
   ];
   const shown = cells.filter(([, value]) => value != null);
@@ -347,6 +348,22 @@ const renderRank = (stat) =>
   html`<span class="player-rank">${stat.rank != null && html`<span class="player-rank-place">${formatOrdinal(stat.rank)}</span> of ${stat.count}`}</span>`;
 
 /**
+ * The shooting percentages she has no rank in, in the sheet's order.
+ * @param {RegularSeason} season
+ */
+const listUnrankedShares = (season) =>
+  RANKED_STATS.filter(
+    ({ key, isShare }) =>
+      isShare && season.stats.some((stat) => stat.key === key && stat.rank == null),
+  );
+
+/**
+ * Words joined as either one, as "3-pointers or free throws".
+ * @param {string[]} words
+ */
+const listEither = (words) => new Intl.ListFormat("en", { type: "disjunction" }).format(words);
+
+/**
  * Why a stat may have no rank, or why the number ranked varies by stat.
  * @param {RegularSeason} season
  * @param {boolean} isPastSeason
@@ -356,8 +373,13 @@ export function describeRankNote(season, isPastSeason) {
     return `The number of ranked players varies by stat because the WNBA only ranks players who've played ${season.gamesNeeded} games or, for shooting percentages, made a certain number of shots`;
   if (season.games < season.gamesNeeded)
     return `The WNBA only ranks players who've played ${season.gamesNeeded} games or, for shooting percentages, made a certain number of shots. She's played ${season.games} ${season.games === 1 ? "game" : "games"}.`;
-  const shortfall = isPastSeason ? "She didn't make enough." : "She hasn't made enough yet.";
-  return `For shooting percentages, the WNBA only ranks players who've made a certain number of shots. ${shortfall}`;
+  const unranked = listUnrankedShares(season);
+  const shots = listEither(unranked.map((stat) => stat.shots ?? ""));
+  const shares = listEither(unranked.map((stat) => stat.label));
+  const shortfall = isPastSeason
+    ? `She didn't make enough ${shots} to be ranked in ${shares}.`
+    : `She hasn't made enough ${shots} to be ranked in ${shares}.`;
+  return `${shortfall} The WNBA only ranks shooting percentages for players who've made a certain number of shots.`;
 }
 
 /**

@@ -121,7 +121,7 @@ test("under her name, her team, number, and college, or her country for a player
 test("her facts name her position in words, and leave out any the league doesn't have", () => {
   assert.equal(
     readText(renderPlayerFacts(createPlayer(), false)),
-    `Position Forward Age 32 Height 6'4" Debut 2016`,
+    `Position Forward Height 6'4" Age 32 Debut 2016`,
   );
   const player = createPlayer();
   player.facts.age = null;
@@ -189,14 +189,28 @@ test("a stat she isn't ranked in shows her number alone, and the note says why",
   );
   player.regularSeason.games = 1;
   assert.match(describeRankNote(player.regularSeason, false), /She's played 1 game\.$/);
-  player.regularSeason.games = 40;
+});
+
+test("a player who played enough games but made too few shots for a percentage is told which, by name", () => {
+  const { regularSeason } = createPlayer();
+  regularSeason.stats[1] = describeStat({ key: "threeShare", value: 0.125, rank: null });
   assert.equal(
-    describeRankNote(player.regularSeason, false),
-    "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.",
+    describeRankNote(regularSeason, false),
+    "She hasn't made enough 3-pointers to be ranked in 3P%. The WNBA only ranks shooting percentages for players who've made a certain number of shots.",
   );
   assert.equal(
-    describeRankNote(player.regularSeason, true),
-    "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She didn't make enough.",
+    describeRankNote(regularSeason, true),
+    "She didn't make enough 3-pointers to be ranked in 3P%. The WNBA only ranks shooting percentages for players who've made a certain number of shots.",
+  );
+  regularSeason.stats.push(describeStat({ key: "freeThrowShare", value: 0.575, rank: null }));
+  assert.match(
+    describeRankNote(regularSeason, false),
+    /^She hasn't made enough 3-pointers or free throws to be ranked in 3P% or FT%\./,
+  );
+  regularSeason.stats.push(describeStat({ key: "fieldGoalShare", value: 0.638, rank: null }));
+  assert.match(
+    describeRankNote(regularSeason, false),
+    /^She hasn't made enough field goals, 3-pointers, or free throws to be ranked in FG%, 3P%, or FT%\./,
   );
 });
 

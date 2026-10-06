@@ -72,9 +72,13 @@
 .sheet-row::-webkit-scrollbar {
   display: none;
 }
+/* While sheet-edge-swipe.js moves the row with a finger, it snaps only once it comes to rest. */
+.sheet-row.is-swiped {
+  scroll-snap-type: none;
+}
 /* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole
-   sheet. One that scrolls sideways too, like a wide table, hands a swipe on to the row at its
-   edge, unless it sets its own overscroll-behavior-x. */
+   sheet. One that scrolls sideways too, like a wide table, sets overscroll-behavior-x: none, and
+   sheet-edge-swipe.js moves the row with a swipe right on its top or at its left edge. */
 .sheet-page {
   position: relative;
   flex: 0 0 100%;
