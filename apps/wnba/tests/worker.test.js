@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { NETWORKS_REQUEST, REQUESTS } from "../page/js/snapshot.js";
 import { TEAMS } from "../page/js/teams.js";
 import { nameScoreboardRequest, nameSummaryRequest } from "../worker/src/lead.js";
+import { describePreview } from "../worker/src/preview.js";
 import { createSnapshotServer } from "../worker/src/snapshot.js";
 
 const AFTERNOON = JSON.parse(
@@ -99,6 +100,23 @@ test("the Worker reads every feed as the league's own site would", async () => {
   }
   assert.equal(snapshot.games.length, 28);
   assert.deepEqual(snapshot.missing, []);
+});
+
+test("the snapshot has each upcoming game's meetings from the schedule it read, and none without it", async () => {
+  const league = createLeague({ answers: { schedule: GAMES.preview.schedule } });
+  const server = createSnapshotServer({ fetchImpl: league.fetchImpl, now: () => NOW });
+
+  const { meetings } = await server.loadSnapshot(2026);
+
+  const pair = meetings.find((each) => each.teams.join() === "IND,LVA");
+  assert.deepEqual(
+    pair.meetings,
+    describePreview(GAMES.preview.schedule, { season: 2026, away: "IND", home: "LVA" }).meetings,
+  );
+  assert.equal(pair.meetings.length, 3);
+  const refused = createLeague({ refuse: { schedule: "error" } });
+  const withoutSchedule = createSnapshotServer({ fetchImpl: refused.fetchImpl, now: () => NOW });
+  assert.deepEqual((await withoutSchedule.loadSnapshot(2026)).meetings, []);
 });
 
 test("the scoreboard comes from Cloudflare's cache no more than 5 seconds old", async () => {

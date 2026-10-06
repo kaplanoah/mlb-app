@@ -1,0 +1,326 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createBoxScoreServer, nameBoxScoreRequest } from "../worker/src/box-score.js";
+import { createGameDetailsJob } from "../worker/src/game-details-updater.js";
+import { createLeadServer, nameScoreboardRequest, nameSummaryRequest } from "../worker/src/lead.js";
+
+const GAMES = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-01-games.json`, "utf8"),
+);
+// Valkyries at Wings, Game 2, which the Wings won 108-100 in overtime.
+const LEAD = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-01-espn-lead.json`, "utf8"),
+);
+const MINUTE_MS = 60 * 1000;
+const VALKYRIES_AT_WINGS = {
+  id: "1042600112",
+  state: "final",
+  start: LEAD.game.start,
+  away: { team: "GSV" },
+  home: { team: "DAL" },
+};
+const ACES_AT_FEVER = {
+  id: "1042600122",
+  state: "final",
+  start: "2026-09-29T22:30:00Z",
+  away: { team: "LVA" },
+  home: { team: "IND" },
+};
+// Valkyries at Wings ended three hours after it started, and the job first runs a minute later.
+const END = Date.parse(LEAD.game.start) + 3 * 60 * MINUTE_MS;
+const NOW = END + MINUTE_MS;
+
+/**
+ * The league's and ESPN's answers, by request: both games' box scores, and Valkyries at Wings on
+ * ESPN, which has no game on Aces at Fever's day.
+ * @returns {Record<string, any>}
+ */
+const listAnswers = () => ({
+  [nameBoxScoreRequest(VALKYRIES_AT_WINGS.id)]: GAMES.boxScores[VALKYRIES_AT_WINGS.id],
+  [nameBoxScoreRequest(ACES_AT_FEVER.id)]: GAMES.boxScores[ACES_AT_FEVER.id],
+  [nameScoreboardRequest(VALKYRIES_AT_WINGS.start)]: LEAD.scoreboard,
+  [nameSummaryRequest(LEAD.eventId)]: LEAD.summary,
+  [nameScoreboardRequest(ACES_AT_FEVER.start)]: { events: [] },
+});
+
+/**
+ * Answers each request from `answers`, recording it, or refuses it.
+ * @param {(url: string) => any} answer
+ */
+function createLeagueFetch(answer) {
+  /** @type {string[]} */
+  const requests = [];
+  /** @param {string} url */
+  const fetchImpl = async (url) => {
+    requests.push(url);
+    const body = answer(url);
+    return body === undefined
+      ? new Response("Not found", { status: 404 })
+      : new Response(JSON.stringify(body));
+  };
+  return { requests, fetchImpl };
+}
+
+function createJobStorage() {
+  const stored = new Map();
+  return {
+    get: async (/** @type {string} */ key) => structuredClone(stored.get(key)),
+    put: async (/** @type {string} */ key, /** @type {any} */ value) => {
+      stored.set(key, structuredClone(value));
+    },
+    delete: async (/** @type {string} */ key) => stored.delete(key),
+    list: async (/** @type {string} */ prefix) =>
+      new Map([...stored].filter(([key]) => key.startsWith(prefix))),
+  };
+}
+
+/** @param {Record<string, any>} initial */
+function createDocs(initial) {
+  const stored = new Map(Object.entries(initial));
+  /** @type {string[]} */
+  const writes = [];
+  return {
+    stored,
+    writes,
+    read: async (/** @type {string} */ key) => structuredClone(stored.get(key)) ?? null,
+    list: async (/** @type {string} */ collection) =>
+      [...stored]
+        .filter(([key]) => key.startsWith(`${collection}/`))
+        .map(([, doc]) => structuredClone(doc)),
+    write: async (/** @type {string} */ key, /** @type {any} */ doc) => {
+      writes.push(key);
+      stored.set(key, structuredClone(doc));
+    },
+    remove: async (/** @type {string} */ key) => stored.delete(key),
+  };
+}
+
+/**
+ * A store whose current season is 2026, keeping `seasons`, and the job that keeps its finals' details,
+ * run as the store runs it.
+ * @param {{ seasons?: Record<number, any[]>, answer?: (url: string) => any }} [options]
+ */
+function createRun({
+  seasons = { 2026: [{ ...VALKYRIES_AT_WINGS, end: new Date(END).toISOString() }, ACES_AT_FEVER] },
+  answer = (url) => listAnswers()[url],
+} = {}) {
+  const docs = createDocs({
+    "live/current": { season: 2026 },
+    ...Object.fromEntries(
+      Object.entries(seasons).map(([year, games]) => [
+        `seasons/${year}`,
+        { year: Number(year), games },
+      ]),
+    ),
+  });
+  const storage = createJobStorage();
+  const league = createLeagueFetch(answer);
+  const clock = { now: NOW };
+  const job = createGameDetailsJob();
+  const runJob = () =>
+    job.run({
+      docs,
+      storage,
+      loadSnapshot: async () => null,
+      env: {},
+      fetchImpl: league.fetchImpl,
+      now: () => clock.now,
+    });
+  /** @param {number} minutes */
+  const wait = (minutes) => {
+    clock.now += minutes * MINUTE_MS;
+  };
+  /** Takes the requests made since the last take. */
+  const takeRequests = () => league.requests.splice(0);
+  return { docs, runJob, wait, takeRequests };
+}
+
+/** @param {string} id */
+const listGameRequests = (id) => {
+  const game = [VALKYRIES_AT_WINGS, ACES_AT_FEVER].find((each) => each.id === id);
+  const requests = [nameBoxScoreRequest(id), nameScoreboardRequest(game?.start ?? "")];
+  return id === VALKYRIES_AT_WINGS.id ? [...requests, nameSummaryRequest(LEAD.eventId)] : requests;
+};
+
+/**
+ * What the Worker answers for a route, from the store when `docs` is given, or from the league,
+ * with the requests it made.
+ * @param {"box-score" | "lead"} route
+ * @param {Record<string, string>} params
+ * @param {any} [docs]
+ */
+async function askWorker(route, params, docs) {
+  const league = createLeagueFetch((url) => listAnswers()[url]);
+  const url = new URL(`https://wnba.test/${route}?${new URLSearchParams(params)}`);
+  const readDoc = docs && ((/** @type {string} */ key) => docs.read(key));
+  const response =
+    route === "box-score"
+      ? await createBoxScoreServer({ fetchImpl: league.fetchImpl }).serveBoxScore(url, readDoc)
+      : await createLeadServer({ fetchImpl: league.fetchImpl }).serveLead(url, readDoc);
+  return { status: response.status, body: await response.json(), requests: league.requests };
+}
+
+test("a final's box score and lead from the store are the ones the league and ESPN answer, and read nothing", async () => {
+  const { docs, runJob, wait } = createRun();
+  await runJob();
+  wait(10);
+  await runJob();
+
+  for (const game of [VALKYRIES_AT_WINGS, ACES_AT_FEVER]) {
+    const fromStore = await askWorker("box-score", { id: game.id }, docs);
+    const fromLeague = await askWorker("box-score", { id: game.id });
+    assert.equal(fromStore.status, 200);
+    assert.deepEqual(fromStore.body, fromLeague.body);
+    assert.deepEqual(fromStore.requests, []);
+  }
+  const lead = {
+    id: VALKYRIES_AT_WINGS.id,
+    away: "GSV",
+    home: "DAL",
+    start: VALKYRIES_AT_WINGS.start,
+  };
+  const fromStore = await askWorker("lead", lead, docs);
+  const fromEspn = await askWorker("lead", lead);
+  assert.equal(fromStore.status, 200);
+  assert.deepEqual(fromStore.body, fromEspn.body);
+  assert.deepEqual(fromStore.requests, []);
+});
+
+test("a game that just ended is read at once, again once the league and ESPN have caught up, and never after", async () => {
+  const { docs, runJob, wait, takeRequests } = createRun({
+    seasons: { 2026: [{ ...VALKYRIES_AT_WINGS, end: new Date(END).toISOString() }] },
+  });
+
+  await runJob();
+  assert.deepEqual(takeRequests(), listGameRequests(VALKYRIES_AT_WINGS.id));
+  wait(5);
+  await runJob();
+  assert.deepEqual(takeRequests(), []);
+  wait(5);
+  await runJob();
+  assert.deepEqual(takeRequests(), listGameRequests(VALKYRIES_AT_WINGS.id));
+  assert.deepEqual(docs.writes, [`games/${VALKYRIES_AT_WINGS.id}`], "nothing changed to save");
+  for (const minutes of [10, 60, 24 * 60]) {
+    wait(minutes);
+    await runJob();
+    assert.deepEqual(takeRequests(), []);
+  }
+});
+
+test("a game the store never saw live is kept from its first read", async () => {
+  const { runJob, wait, takeRequests } = createRun({ seasons: { 2026: [ACES_AT_FEVER] } });
+
+  await runJob();
+  assert.deepEqual(takeRequests(), listGameRequests(ACES_AT_FEVER.id));
+  wait(10);
+  await runJob();
+  assert.deepEqual(takeRequests(), []);
+});
+
+test("a run that finds nothing new reads nothing from the league and saves nothing", async () => {
+  const { docs, runJob, wait, takeRequests } = createRun();
+  await runJob();
+  wait(10);
+  await runJob();
+  takeRequests();
+  const writes = docs.writes.length;
+
+  wait(10);
+  await runJob();
+
+  assert.deepEqual(takeRequests(), []);
+  assert.equal(docs.writes.length, writes);
+});
+
+test("a game still to start or being played is left to the pages watching it", async () => {
+  const { docs, runJob, takeRequests } = createRun({
+    seasons: {
+      2026: [
+        { ...VALKYRIES_AT_WINGS, state: "live" },
+        { ...ACES_AT_FEVER, state: "pre" },
+      ],
+    },
+  });
+
+  await runJob();
+
+  assert.deepEqual(takeRequests(), []);
+  assert.deepEqual(docs.writes, []);
+});
+
+/**
+ * A season's finals, one a day from September 10, newest last.
+ * @param {number} year
+ * @param {number} count
+ */
+const listFinals = (year, count) =>
+  Array.from({ length: count }, (_, index) => ({
+    ...ACES_AT_FEVER,
+    id: `10${year % 100}${String(index).padStart(6, "0")}`,
+    start: `${year}-09-${String(index + 10).padStart(2, "0")}T23:00:00Z`,
+  }));
+
+test("finals fill a few a run, newest first, the current season's and then each season's the store keeps from before", async () => {
+  const { runJob, wait, takeRequests } = createRun({
+    seasons: { 2026: listFinals(2026, 6), 2025: listFinals(2025, 3) },
+    answer: (url) =>
+      url.includes("/boxscore/") ? GAMES.boxScores[ACES_AT_FEVER.id] : { events: [] },
+  });
+  const readBoxScores = () =>
+    takeRequests()
+      .filter((url) => url.includes("/boxscore/"))
+      .map((url) => url.match(/boxscore_(\d+)/)?.[1]);
+
+  const runs = [];
+  for (let run = 0; run < 4; run += 1) {
+    await runJob();
+    runs.push(readBoxScores());
+    wait(2);
+  }
+
+  assert.deepEqual(runs, [
+    ["1026000005", "1026000004", "1026000003", "1026000002"],
+    ["1026000001", "1026000000", "1025000002", "1025000001"],
+    ["1025000000"],
+    [],
+  ]);
+});
+
+test("a read that fails keeps what was saved, and is tried again every ten minutes for two hours", async () => {
+  let isLeagueDown = false;
+  const { docs, runJob, wait, takeRequests } = createRun({
+    seasons: { 2026: [{ ...VALKYRIES_AT_WINGS, end: new Date(END).toISOString() }] },
+    answer: (url) => (isLeagueDown ? undefined : listAnswers()[url]),
+  });
+  await runJob();
+  const saved = await docs.read(`games/${VALKYRIES_AT_WINGS.id}`);
+  assert.equal(saved.boxScore.state, "final");
+  assert.equal(saved.lead.isOver, true);
+  takeRequests();
+
+  isLeagueDown = true;
+  /** @type {number[]} */
+  const readAt = [];
+  for (let minutes = 0; minutes <= 3 * 60; minutes += 5) {
+    wait(5);
+    await runJob();
+    if (takeRequests().length) readAt.push(minutes + 5);
+  }
+
+  assert.deepEqual(readAt, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]);
+  assert.deepEqual(await docs.read(`games/${VALKYRIES_AT_WINGS.id}`), saved);
+});
+
+test("a box score the league answers is kept while ESPN doesn't answer", async () => {
+  const { docs, runJob } = createRun({
+    seasons: { 2026: [ACES_AT_FEVER] },
+    answer: (url) => (url.includes("espn") ? undefined : listAnswers()[url]),
+  });
+
+  await runJob();
+
+  const saved = await docs.read(`games/${ACES_AT_FEVER.id}`);
+  assert.equal(saved.boxScore.home.score, 99);
+  assert.equal(saved.lead, null);
+});

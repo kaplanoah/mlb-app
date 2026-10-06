@@ -3,9 +3,11 @@ import PAGE_FILES from "#page-files/wnba";
 import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
 import * as SeasonUpdater from "./season-updater.js";
+import { createGameDetailsJob } from "./game-details-updater.js";
 import { createNewsJob } from "./news-updater.js";
 import { createPlayerJob } from "./player-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
+import { GAME_DETAILS_COLLECTION } from "./store-docs.js";
 import { createWatchedGameLoader } from "./watched-games.js";
 
 export { forwardToStore, readStoreDoc } from "../../../../shared/worker/season-store.js";
@@ -20,7 +22,11 @@ export const SeasonStore = createSeasonStore({
   statusFields: SeasonUpdater.STATUS_FIELDS,
   choosePollDelay,
   listNotifications: SeasonUpdater.listNotifications,
-  detailsCollection: "games",
+  detailsCollection: GAME_DETAILS_COLLECTION,
   createLoadDetails: () => createWatchedGameLoader(),
-  backgroundJobs: { news: createNewsJob(), players: createPlayerJob() },
+  backgroundJobs: {
+    games: createGameDetailsJob(),
+    news: createNewsJob(),
+    players: createPlayerJob(),
+  },
 });

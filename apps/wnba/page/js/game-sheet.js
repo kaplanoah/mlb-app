@@ -136,6 +136,7 @@ const isLiveBoxScore = (opened) => opened.kind === "box" && findGame(opened.id)?
 /** @param {Game} game */
 const loadLead = (game) =>
   fetchLead({
+    id: game.id,
     away: /** @type {string} */ (game.away.team),
     home: /** @type {string} */ (game.home.team),
     start: /** @type {string} */ (game.start),

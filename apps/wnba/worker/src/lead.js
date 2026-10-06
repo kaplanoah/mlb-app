@@ -2,10 +2,16 @@ import { readEasternDay } from "#shared/days.js";
 import { findTeamCodeByEspnId, TEAMS } from "../../page/js/teams.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 import { fetchUpstream } from "../../../../shared/worker/upstream.js";
+import { GAME_ID } from "./box-score.js";
+import { nameGameDetailsKey, readKeptDoc } from "./store-docs.js";
 import { ESPN_HEADERS } from "./wnba.js";
 
 // Reads ESPN for the score through one game, for the game sheet's chart of the lead: the score
 // after each basket, and when in the game it came, from the scoring plays in ESPN's game summary.
+// The store keeps each finished game's (game-details-updater.js), so the route reads ESPN only for
+// a game still being played, or one the store hasn't kept yet.
+
+/** @typedef {import("./store-docs.js").ReadDoc} ReadDoc */
 
 const ESPN_SITE = "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba";
 // A day's games change only as they start and end, and a live game's plays with every basket.
@@ -94,15 +100,17 @@ export function describeLead(summary) {
 
 /** @param {URLSearchParams} searchParams */
 function readGame(searchParams) {
+  const id = searchParams.get("id") ?? "";
   const away = searchParams.get("away") ?? "";
   const home = searchParams.get("home") ?? "";
   const start = searchParams.get("start") ?? "";
   const isValid =
+    GAME_ID.test(id) &&
     Object.hasOwn(TEAMS, away) &&
     Object.hasOwn(TEAMS, home) &&
     away !== home &&
     Number.isFinite(Date.parse(start));
-  return isValid ? { away, home, start } : null;
+  return isValid ? { id, away, home, start } : null;
 }
 
 /** @param {{ away: string, home: string, start: string }} game */
@@ -158,29 +166,42 @@ export function createEspnGameReader({ fetchImpl = (input, init) => fetch(input,
   };
 }
 
-// A finished game's lead never changes, so it's read once and kept.
-export function createLeadServer({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
+/**
+ * Reads ESPN for a game's lead afresh, as null when ESPN has no such game that day.
+ * @param {{ fetchImpl?: (input: string, init: object) => Promise<Response> }} [options]
+ */
+export function createLeadReader({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
   const espnGames = createEspnGameReader({ fetchImpl });
-  /** @type {Map<string, object>} */
-  const finishedLeads = new Map();
-
   /** @param {{ away: string, home: string, start: string }} game */
-  async function loadLead(game) {
-    const key = nameGameKey(game);
-    if (finishedLeads.has(key)) return finishedLeads.get(key);
+  return async function readLead(game) {
     const summary = await espnGames.fetchSummary(game);
-    if (!summary) return null;
-    const lead = { ...game, ...describeLead(summary) };
-    if (lead.isOver) finishedLeads.set(key, lead);
-    return lead;
+    return summary ? { ...game, ...describeLead(summary) } : null;
+  };
+}
+
+// A finished game's lead never changes, so the one the store keeps is served as it is.
+export function createLeadServer({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
+  const readLead = createLeadReader({ fetchImpl });
+
+  /**
+   * @param {{ id: string, away: string, home: string, start: string }} game
+   * @param {ReadDoc | undefined} readDoc
+   */
+  async function loadLead({ id, ...game }, readDoc) {
+    const kept = (await readKeptDoc(readDoc, nameGameDetailsKey(id)))?.lead;
+    return kept?.isOver ? kept : readLead(game);
   }
 
-  /** @param {URL} url */
-  async function serveLead(url) {
+  /**
+   * @param {URL} url
+   * @param {ReadDoc} [readDoc] the store's documents, when the Worker has a store
+   */
+  async function serveLead(url, readDoc) {
     const game = readGame(url.searchParams);
-    if (!game) return respondJson({ error: "away, home, and start must name a WNBA game" }, 400);
+    if (!game)
+      return respondJson({ error: "id, away, home, and start must name a WNBA game" }, 400);
     try {
-      const lead = await loadLead(game);
+      const lead = await loadLead(game, readDoc);
       if (!lead) return respondJson({ error: "ESPN has no such game that day" }, 404);
       return respondJson(lead);
     } catch (error) {
@@ -188,5 +209,5 @@ export function createLeadServer({ fetchImpl = (input, init) => fetch(input, ini
     }
   }
 
-  return { loadLead, serveLead };
+  return { serveLead };
 }
