@@ -7,7 +7,7 @@ import { html } from "#shared/html.js";
 export const RELEASE_NOTES = [
   {
     at: "2026-10-06T14:55:00Z",
-    text: "More leading scorers shown on team and game pages, with more data for each scorer, and player names are now tappable",
+    text: "More leading scorers shown on team and game pages, with more stats for each scorer, and player names are now tappable",
   },
   {
     at: "2026-10-06T04:37:00Z",
