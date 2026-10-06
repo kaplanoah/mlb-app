@@ -55,6 +55,15 @@ export function describeSeriesAfterWin({ winner, wins, losses, winsNeeded }) {
   return `${name} won to lead ${score}`;
 }
 
+const FINALS_ROUND = 3;
+
+/**
+ * Whether the playoffs are over, with the Finals won.
+ * @param {Series[]} allSeries
+ */
+export const isPlayoffsOver = (allSeries) =>
+  allSeries.some((series) => series.round === FINALS_ROUND && !!series.winner);
+
 /**
  * How far each team got: its seed, the round it's playing or went out in, and whether it won it
  * all.
@@ -68,7 +77,7 @@ export function readPlayoffRuns(allSeries) {
     for (const side of [series.top, series.bottom]) {
       if (!side?.team) continue;
       const isOut = !!series.winner && series.winner !== side.team;
-      const isChampion = series.round === 3 && series.winner === side.team;
+      const isChampion = series.round === FINALS_ROUND && series.winner === side.team;
       runs.set(side.team, { seed: side.seed, round: series.round, isOut, isChampion });
     }
   }

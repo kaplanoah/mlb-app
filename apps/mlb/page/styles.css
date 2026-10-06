@@ -146,20 +146,10 @@ header.top h1 {
   align-items: center;
   gap: 10px;
 }
-.year-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 6px;
-  border: 1px solid var(--copper);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--copper) 16%, var(--bg));
-  color: var(--copper-ink);
-  font-size: var(--size-small);
-  line-height: 1;
-}
-.year-tag[hidden] {
-  display: none;
+/* Chivo Mono at 350 reads as Barlow at 400, the lightest the type scale allows at this size. */
+.season-year {
+  font-weight: 350;
+  color: var(--ink-dim);
 }
 .stamp {
   display: flex;

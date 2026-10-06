@@ -18,6 +18,7 @@ import { startServiceWorker } from "#shared/service-worker.js";
 import { startSettingsSheet } from "#shared/settings-sheet.js";
 import { refreshTeamSheet, startTeamSheet } from "#shared/team-sheet.js";
 import { fillStamp } from "#shared/stamp.js";
+import { chooseTitleYear, showTitleYear } from "#shared/title-year.js";
 import { createWorkerStore } from "#shared/worker-store.js";
 import { startAppearance } from "./appearance.js";
 import { placeBracket, readBracketScroll, startBracket } from "./bracket-tree.js";
@@ -31,6 +32,7 @@ import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
 import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
+import { isPlayoffsOver } from "./series.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
 import { renderTeamSheet } from "./team-view.js";
@@ -65,6 +67,12 @@ function drawNews() {
   );
 }
 
+function renderTitleYear() {
+  const { year: shownYear, currentYear } = session;
+  const isSeasonOver = isPlayoffsOver(session.season?.series ?? []);
+  showTitleYear(chooseTitleYear({ shownYear, currentYear, isSeasonOver }));
+}
+
 function renderAll() {
   const now = Date.now();
   const keptLeft = readBracketScroll();
@@ -75,6 +83,7 @@ function renderAll() {
   drawStandings(session.season);
   drawNews();
   drawUpdates();
+  renderTitleYear();
   renderStamp();
   refreshGameSheet();
   refreshTeamSheet();

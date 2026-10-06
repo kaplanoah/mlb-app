@@ -7,12 +7,15 @@ import {
   swipeSheetDown,
   matchPath,
   SEASON_2025,
+  buildFixtureSnapshot,
+  FINAL_2025_FIXTURE,
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 
 const PHONE = { width: 390, height: 844 };
 // Settings show the Season picker once the store keeps more than one season.
 const WITH_A_PAST_SEASON = { store: { "seasons/2025": SEASON_2025 } };
+
 const RELEASE = { version: "2.13.0", commit: "abc1234", builtAt: "2026-09-28T00:10:41Z" };
 
 /** @param {import("@playwright/test").Page} page */
@@ -100,7 +103,7 @@ test("on a narrow phone, the icon keeps its distance from the title's year", asy
 
   for (const width of [320, 310, 300, 295]) {
     await page.setViewportSize({ width, height: PHONE.height });
-    const tag = await page.locator("#yearTag").boundingBox();
+    const tag = await page.locator("#titleYear").boundingBox();
     const icon = await page.locator("#settingsBtn svg").boundingBox();
     const isBesideTag = icon.y < tag.y + tag.height;
     if (isBesideTag) expect(icon.x - (tag.x + tag.width)).toBeGreaterThanOrEqual(20);
@@ -117,20 +120,47 @@ test("a click inside settings leaves it open", async ({ page }) => {
   await expect(settings).toBeVisible();
 });
 
-test("an earlier season shows its year by the title until the current one is back", async ({
+test("an earlier season puts its year in the title until the current one is back", async ({
   page,
 }) => {
   await openApp(page, {
     store: { "seasons/2025": SEASON_2025 },
   });
-  const yearTag = page.locator("#yearTag");
-  await expect(yearTag).toBeHidden();
+  const title = page.getByRole("heading", { level: 1 });
+  await expect(title).toHaveText("MLB");
 
   await chooseSeason(page, "2025");
-  await expect(yearTag).toHaveText("2025");
+  await expect(title).toHaveText("MLB 2025");
 
   await chooseSeason(page, "2026");
-  await expect(yearTag).toBeHidden();
+  await expect(title).toHaveText("MLB");
+});
+
+test("the year is the title's font and size, lighter and dimmer", async ({ page }) => {
+  await openApp(page, WITH_A_PAST_SEASON);
+  await chooseSeason(page, "2025");
+  const readLook = (selector) =>
+    page.locator(selector).evaluate((element) => {
+      const style = getComputedStyle(element);
+      const { fontFamily, fontSize, letterSpacing, fontWeight, color } = style;
+      return { fontFamily, fontSize, letterSpacing, fontWeight, color };
+    });
+
+  const title = await readLook("header.top h1");
+  const year = await readLook("#titleYear");
+
+  expect({ ...year, fontWeight: title.fontWeight, color: title.color }).toEqual(title);
+  expect(Number(year.fontWeight)).toBeLessThan(Number(title.fontWeight));
+  expect(year.color).not.toBe(title.color);
+});
+
+test("once the World Series is won, the current season's year is in the title too", async ({
+  page,
+}) => {
+  const finished = { ...buildFixtureSnapshot(FINAL_2025_FIXTURE), season: 2026 };
+  await openApp(page, { snapshots: { 2026: finished } });
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("MLB 2026");
 });
 
 test("at their foot, settings name the release and when it came out, in the viewer's time, over the copyright", async ({
