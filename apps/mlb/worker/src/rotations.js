@@ -1,15 +1,18 @@
 import { addDays } from "#shared/days.js";
-import { readMlbTeamId } from "../../page/js/snapshot.js";
+import { readClubId, readMlbTeamId } from "../../page/js/snapshot.js";
 import { DATE_RULE, fetchMlbJson, readDateParam } from "./mlb.js";
+import { listGameLogRequest, listStarts } from "./pitchers.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 
-// Reads MLB for a club that hasn't named a game's starter: who started its last games, how each
-// of those starts went, and the rest each pitcher would have by the game's day.
+// A club that hasn't named a game's starter: who started its last games, how each of those starts
+// went, and the rest each pitcher would have by the game's day. The store keeps each club's
+// recent starts for the current season (pitcher-updater.js), so the sheet reads MLB itself only
+// for a day the store's starts don't reach back to.
 
 // A club's starts change at most once a game.
 const ROTATION_CACHE_SECONDS = 10 * 60;
 // Two weeks back reaches a full turn of the rotation, even across a bye before the postseason.
-const LOOKBACK_DAYS = 14;
+export const LOOKBACK_DAYS = 14;
 const ROTATION_SIZE = 5;
 const MS_PER_DAY = 86400000;
 
@@ -26,115 +29,229 @@ const SCHEDULE_FIELDS = [
   "id",
   "probablePitcher",
 ].join(",");
-const GAME_LOG_FIELDS = [
-  "people",
-  "id",
-  "useLastName",
-  "pitchHand",
-  "code",
-  "stats",
-  "splits",
-  "date",
-  "stat",
-  "gamesStarted",
-  "inningsPitched",
-  "numberOfPitches",
-].join(",");
 
-export const listScheduleRequest = (mlbTeamId, date) =>
-  `/api/v1/schedule?sportId=1&teamId=${mlbTeamId}&startDate=${addDays(date, -LOOKBACK_DAYS)}` +
-  `&endDate=${addDays(date, -1)}&gameType=R,F,D,L,W&hydrate=probablePitcher` +
+/**
+ * The finished games from `from` through `to` and who started them, for one club, or every club
+ * when `mlbTeamId` is null.
+ * @param {number | null} mlbTeamId
+ * @param {string} from
+ * @param {string} to
+ */
+export const listScheduleRequest = (mlbTeamId, from, to) =>
+  `/api/v1/schedule?sportId=1${mlbTeamId ? `&teamId=${mlbTeamId}` : ""}` +
+  `&startDate=${from}&endDate=${to}&gameType=R,F,D,L,W&hydrate=probablePitcher` +
   `&fields=${SCHEDULE_FIELDS}`;
 
-// Sorted, so the same starters make the same request and MLB's cache can answer it.
-export const listGameLogRequest = (ids, season) =>
-  `/api/v1/people?personIds=${[...ids].sort((first, second) => first - second).join(",")}` +
-  `&hydrate=stats(group=[pitching],type=[gameLog],season=${season},gameType=[R,F,D,L,W])` +
-  `&fields=${GAME_LOG_FIELDS}`;
+/**
+ * @param {number} season
+ * @param {string} club
+ */
+export const nameRotationKey = (season, club) => `rotations/${season}-${club}`;
 
+/**
+ * @param {any} game
+ * @param {number} mlbTeamId
+ */
 const findClubSide = (game, mlbTeamId) =>
   [game.teams?.away, game.teams?.home].find((side) => side?.team?.id === mlbTeamId);
 
 // A finished game names the pitcher who started it.
-function listStarterIds(scheduleResponse, mlbTeamId) {
-  const games = (scheduleResponse?.dates || [])
-    .flatMap((day) => day.games || [])
-    .filter((game) => game.status?.abstractGameState === "Final")
-    .sort((first, second) => second.officialDate.localeCompare(first.officialDate));
-  const ids = games
-    .map((game) => findClubSide(game, mlbTeamId)?.probablePitcher?.id)
-    .filter(Boolean);
-  return [...new Set(ids)].slice(0, ROTATION_SIZE);
+/**
+ * @param {any} scheduleResponse
+ * @param {number} mlbTeamId
+ * @returns {{ date: string, id: number }[]}
+ */
+function listClubStarts(scheduleResponse, mlbTeamId) {
+  return (scheduleResponse?.dates || [])
+    .flatMap((/** @type {any} */ day) => day.games || [])
+    .filter((/** @type {any} */ game) => game.status?.abstractGameState === "Final")
+    .map((/** @type {any} */ game) => ({
+      date: game.officialDate,
+      id: findClubSide(game, mlbTeamId)?.probablePitcher?.id,
+    }))
+    .filter((/** @type {{ id?: number }} */ start) => start.id);
 }
 
+/**
+ * Who started the club's finished games in the schedule.
+ * @param {any} scheduleResponse
+ * @param {string} club
+ */
+export const listClubStarterIds = (scheduleResponse, club) => [
+  ...new Set(
+    listClubStarts(scheduleResponse, /** @type {number} */ (readMlbTeamId(club))).map(
+      (start) => start.id,
+    ),
+  ),
+];
+
+/**
+ * Every club with a game in the schedule.
+ * @param {any} scheduleResponse
+ * @returns {string[]}
+ */
+export const listScheduleClubs = (scheduleResponse) => [
+  ...new Set(
+    (scheduleResponse?.dates || [])
+      .flatMap((/** @type {any} */ day) => day.games || [])
+      .flatMap((/** @type {any} */ game) => [game.teams?.away, game.teams?.home])
+      .map((/** @type {any} */ side) => readClubId(side?.team?.id))
+      .filter(Boolean),
+  ),
+];
+
+/**
+ * @typedef {object} RotationPitcher
+ * @property {number} id
+ * @property {string} name his last name
+ * @property {string | null} hand
+ * @property {{ date: string, ip: string, pitches: number | null }[]} starts his starts, the
+ *   newest first
+ */
+
+/**
+ * A club's finished games in a schedule from `from` on, with who started each, and those pitchers'
+ * starts: what its rotation on any day two weeks after `from` or later is made from.
+ * @param {object} parts
+ * @param {string} parts.club
+ * @param {string} parts.from
+ * @param {any} parts.schedule MLB's schedule from `from` on
+ * @param {Map<number, RotationPitcher>} parts.pitchers each starter, by id
+ */
+export function describeClubStarts({ club, from, schedule, pitchers }) {
+  const games = listClubStarts(schedule, /** @type {number} */ (readMlbTeamId(club)));
+  const ids = [...new Set(games.map((game) => game.id))];
+  return { club, from, games, pitchers: ids.map((id) => pitchers.get(id)).filter(Boolean) };
+}
+
+/**
+ * A pitcher as the rotation shows him, from his game log.
+ * @param {any} gameLogPerson
+ * @returns {RotationPitcher}
+ */
+export const describeRotationPitcher = (gameLogPerson) => ({
+  id: gameLogPerson.id,
+  name: gameLogPerson.useLastName,
+  hand: gameLogPerson.pitchHand?.code ?? null,
+  starts: listStarts(gameLogPerson).map(({ date, ip, pitches }) => ({ date, ip, pitches })),
+});
+
+/**
+ * A pitcher as the rotation shows him, from his side of the matchup sheet as the store keeps it.
+ * @param {{ id: number, lastName: string, hand: string | null, starts: any[] }} side
+ * @returns {RotationPitcher}
+ */
+export const describeKeptRotationPitcher = ({ id, lastName, hand, starts }) => ({
+  id,
+  name: lastName,
+  hand,
+  starts: starts.map(({ date, ip, pitches }) => ({ date, ip, pitches })),
+});
+
+/**
+ * @param {string} earlier
+ * @param {string} later
+ */
 const countDaysBetween = (earlier, later) =>
   Math.round((Date.parse(later) - Date.parse(earlier)) / MS_PER_DAY);
 
-function findLastStart(person, date) {
-  const games = person.stats?.[0]?.splits || [];
-  return games
-    .filter((game) => game.stat?.gamesStarted && game.date < date)
-    .sort((first, second) => first.date.localeCompare(second.date))
-    .at(-1);
-}
-
-function describeStarter(person, date) {
-  const start = findLastStart(person, date);
+/**
+ * @param {RotationPitcher} pitcher
+ * @param {string} date
+ */
+function describeStarter(pitcher, date) {
+  const start = pitcher.starts.find((candidate) => candidate.date < date);
   if (!start) return null;
   return {
-    id: person.id,
-    name: person.useLastName,
-    hand: person.pitchHand?.code ?? null,
-    start: {
-      date: start.date,
-      ip: start.stat.inningsPitched,
-      pitches: start.stat.numberOfPitches ?? null,
-    },
+    id: pitcher.id,
+    name: pitcher.name,
+    hand: pitcher.hand,
+    start: { date: start.date, ip: start.ip, pitches: start.pitches },
     rest: countDaysBetween(start.date, date) - 1,
   };
 }
 
 /**
- * The club's last starters, the most recent first, as of the morning of `date`.
- * @param {{ people?: object[] } | null} gameLogResponse
- * @param {string} club
+ * The club's last starters in the two weeks before `date`, the most recent first, as of that
+ * morning.
+ * @param {ReturnType<typeof describeClubStarts>} clubStarts
  * @param {string} date
  */
-export function describeRotation(gameLogResponse, club, date) {
-  const starters = (gameLogResponse?.people || [])
-    .map((person) => describeStarter(person, date))
-    .filter(Boolean)
+export function describeRotation({ club, games, pitchers }, date) {
+  const counted = games
+    .filter((game) => game.date >= addDays(date, -LOOKBACK_DAYS) && game.date < date)
+    .sort((first, second) => second.date.localeCompare(first.date));
+  const ids = [...new Set(counted.map((game) => game.id))].slice(0, ROTATION_SIZE);
+  const starters = ids
+    .map((id) => pitchers.find((pitcher) => pitcher.id === id))
+    .filter((pitcher) => pitcher !== undefined)
+    .map((pitcher) => describeStarter(pitcher, date))
+    .filter((starter) => starter !== null)
     .sort((first, second) => first.rest - second.rest);
   return { club, date, starters };
 }
 
+/**
+ * @param {object} [options]
+ * @param {(input: string, init: object) => Promise<Response>} [options.fetchImpl]
+ */
 export function createRotationServer({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
-  async function loadRotation(club, date) {
-    const mlbTeamId = readMlbTeamId(club);
-    const schedule = await fetchMlbJson(
-      fetchImpl,
-      listScheduleRequest(mlbTeamId, date),
-      ROTATION_CACHE_SECONDS,
+  /** @param {string} path */
+  const fetchJson = (path) => fetchMlbJson(fetchImpl, path, ROTATION_CACHE_SECONDS);
+
+  /**
+   * @param {string} club
+   * @param {string} date
+   */
+  async function fetchClubStarts(club, date) {
+    const from = addDays(date, -LOOKBACK_DAYS);
+    const schedule = await fetchJson(
+      listScheduleRequest(readMlbTeamId(club), from, addDays(date, -1)),
     );
-    const ids = listStarterIds(schedule, mlbTeamId);
-    if (!ids.length) return describeRotation(null, club, date);
-    const season = Number(date.slice(0, 4));
-    const gameLogs = await fetchMlbJson(
-      fetchImpl,
-      listGameLogRequest(ids, season),
-      ROTATION_CACHE_SECONDS,
+    const ids = listClubStarterIds(schedule, club);
+    const gameLogs = ids.length
+      ? await fetchJson(listGameLogRequest(Number(date.slice(0, 4)), ids))
+      : null;
+    const pitchers = new Map(
+      (gameLogs?.people || []).map((/** @type {any} */ person) => [
+        person.id,
+        describeRotationPitcher(person),
+      ]),
     );
-    return describeRotation(gameLogs, club, date);
+    return describeClubStarts({ club, from, schedule, pitchers });
   }
 
-  /** @param {URL} url */
-  async function serveRotation(url) {
+  /**
+   * The club's starts the store keeps, or null when they don't reach back two weeks before `date`,
+   * or can't be read.
+   * @param {string} club
+   * @param {string} date
+   * @param {(key: string) => Promise<any>} readDoc
+   */
+  async function readSavedStarts(club, date, readDoc) {
+    try {
+      const saved = await readDoc(nameRotationKey(Number(date.slice(0, 4)), club));
+      return saved && saved.from <= addDays(date, -LOOKBACK_DAYS) ? saved : null;
+    } catch (error) {
+      console.error(`Reading ${club}'s starts from the store failed: ${describeError(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * @param {URL} url
+   * @param {(key: string) => Promise<any>} [readDoc] the store's documents, when the Worker has a
+   *   store
+   */
+  async function serveRotation(url, readDoc) {
     const club = url.searchParams.get("club") ?? "";
     if (!readMlbTeamId(club)) return respondJson({ error: "club must be an MLB club" }, 400);
     const date = readDateParam(url.searchParams);
     if (date == null) return respondJson({ error: DATE_RULE }, 400);
     try {
-      return respondJson(await loadRotation(club, date));
+      const saved = readDoc ? await readSavedStarts(club, date, readDoc) : null;
+      const clubStarts = saved ?? (await fetchClubStarts(club, date));
+      return respondJson(describeRotation(clubStarts, date));
     } catch (error) {
       return respondJson({ error: `Couldn't read MLB: ${describeError(error)}` }, 502);
     }

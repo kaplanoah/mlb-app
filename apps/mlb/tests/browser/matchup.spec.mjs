@@ -23,7 +23,7 @@ const describePitcher = (id, [firstName, lastName], hand, line, ranks, pitches) 
   age: 27,
   line,
   ranks,
-  starters: { count: 141, minimum: 17 },
+  starters: { count: 46 },
   pitches,
   starts: [
     { date: "2026-09-19", opp: "SEA", home: true, ip: "5.2", runs: 2, k: 6 },
@@ -37,10 +37,10 @@ const PITCHERS = {
     "R",
     { starts: 28, era: "3.66", k9: 9.1, bb9: 3.4, speed: 95.4 },
     {
-      era: { rank: 50, of: 141 },
-      k9: { rank: 8, of: 141 },
-      bb9: { rank: 100, of: 141 },
-      speed: { rank: 29, of: 141 },
+      era: { rank: 17, of: 46 },
+      k9: { rank: 3, of: 46 },
+      bb9: { rank: 33, of: 46 },
+      speed: { rank: 10, of: 46 },
     },
     [
       { code: "FF", name: "Four-seam FB", share: 0.52, mph: 95.4 },
@@ -55,10 +55,10 @@ const PITCHERS = {
     "L",
     { starts: 24, era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
     {
-      era: { rank: 90, of: 141 },
-      k9: { rank: 80, of: 141 },
-      bb9: { rank: 60, of: 141 },
-      speed: { rank: 130, of: 141 },
+      era: { rank: 29, of: 46 },
+      k9: { rank: 26, of: 46 },
+      bb9: { rank: 20, of: 46 },
+      speed: { rank: 43, of: 46 },
     },
     [
       { code: "FF", name: "Four-seam FB", share: 0.4, mph: 90.8 },
@@ -286,9 +286,9 @@ test("each bar is the share of starters he beats, gold for whichever starter ran
   await expect(sheet.locator(".tape-label")).toHaveText(["ERA", "K/9", "BB/9", "Fastball mph"]);
   await expect(eraRow.locator(".away .tape-bar i")).toHaveClass("lead");
   await expect(eraRow.locator(".home .tape-bar i")).not.toHaveClass("lead");
-  await expect(eraRow.locator(".away .tape-bar i")).toHaveAttribute("style", "width: 65%");
-  await expect(sheet.locator(".tape-note")).toContainText(
-    "Bars are the share of this season's 141 starters, pitchers with 17 or more",
+  await expect(eraRow.locator(".away .tape-bar i")).toHaveAttribute("style", "width: 64%");
+  await expect(sheet.locator(".tape-note")).toHaveText(
+    "Bars are the share of this season's 46 qualified starters he beats",
   );
 });
 
@@ -447,7 +447,7 @@ test("a club with no starts to go by says so", async ({ page }) => {
   await expect(sheet.locator(".scout").first().locator(".rotation")).toHaveCount(0);
 });
 
-test("a starter with too few starts to rank has his numbers, and a line saying why he has no bars", async ({
+test("a starter outside the qualified starters has his numbers, and a line saying why he has no bars", async ({
   page,
 }) => {
   const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
@@ -458,26 +458,21 @@ test("a starter with too few starts to rank has his numbers, and a line saying w
   await expect(sheet.locator(".home .tape-bar")).toHaveCount(0);
   await expect(sheet.locator(".tape-bar i.lead")).toHaveCount(0);
   await expect(sheet.locator(".tape-note")).toHaveText([
-    "Bars are the share of this season's 141 starters, pitchers with 17 or more starts, he beats",
-    "Springs's 24 starts are too few to rank him among this season's starters",
+    "Bars are the share of this season's 46 qualified starters he beats",
+    "Springs hasn't pitched enough innings to rank among this season's qualified starters",
   ]);
 });
 
 test("with neither starter ranked, the sheet says why and drops the note about bars", async ({
   page,
 }) => {
-  const unranked = (pitcher, starts) => ({
-    ...pitcher,
-    ranks: null,
-    line: { ...pitcher.line, starts },
-  });
   const sheet = await openMatchup(page, {
-    1: unranked(PITCHERS[1], 1),
-    2: unranked(PITCHERS[2], 8),
+    1: { ...PITCHERS[1], ranks: null },
+    2: { ...PITCHERS[2], ranks: null },
   });
   await expect(sheet.locator(".tape-note")).toHaveText([
-    "Blubaugh's 1 start is too few to rank him among this season's starters",
-    "Springs's 8 starts are too few to rank him among this season's starters",
+    "Blubaugh hasn't pitched enough innings to rank among this season's qualified starters",
+    "Springs hasn't pitched enough innings to rank among this season's qualified starters",
   ]);
 });
 

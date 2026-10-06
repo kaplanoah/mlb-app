@@ -30,7 +30,9 @@ function createUpdatingStore({ stored = {}, snapshot = SNAPSHOT, now = NOW } = {
   const sent = [];
   context.ctx.acceptWebSocket({ send: (message) => sent.push(JSON.parse(message)) });
   const clock = { now };
-  const store = new SeasonStore(context.ctx, {}, { loadSnapshot, now: () => clock.now });
+  // MLB, whose pitchers the store also keeps, isn't what these tests follow.
+  const fetchImpl = async () => new Response(null, { status: 404 });
+  const store = new SeasonStore(context.ctx, {}, { loadSnapshot, now: () => clock.now, fetchImpl });
   return { store, context, clock, harness, sent, read: (key) => context.stored.get(key) ?? null };
 }
 
@@ -230,7 +232,7 @@ test("the status names the fields MLB stopped sending", async () => {
 test("with no games to follow, the next update is a day out", async () => {
   const { store, context } = createUpdatingStore({ snapshot: { ...SNAPSHOT, slate: null } });
   await store.alarm();
-  assert.equal(context.alarm.at, NOW + OFF_DAY_CHECK_MS);
+  assert.equal(context.stored.get("poll:schedule").dueAt, NOW + OFF_DAY_CHECK_MS);
 });
 
 test("before April, the new season is followed once spring training has started", async () => {

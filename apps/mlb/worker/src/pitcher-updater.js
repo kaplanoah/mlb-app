@@ -1,0 +1,368 @@
+import { isSameJson } from "#shared/compare.js";
+import { addDays, readEasternDay } from "#shared/days.js";
+import { fetchMlbJson } from "./mlb.js";
+import {
+  describePitcher,
+  describeStarters,
+  fetchPeople,
+  listAppearancesRequest,
+  listGameLogRequest,
+  listPeopleRequest,
+  listQualifiedIds,
+  listQualifiedRequest,
+  namePitcherKey,
+  nameStartersKey,
+  readLeagueRows,
+  readSpeeds,
+  splitIntoBatches,
+} from "./pitchers.js";
+import {
+  LOOKBACK_DAYS,
+  describeClubStarts,
+  describeKeptRotationPitcher,
+  listClubStarterIds,
+  listScheduleClubs,
+  listScheduleRequest,
+  nameRotationKey,
+} from "./rotations.js";
+import { SETTLE_MS, createFeedKeeper } from "../../../../shared/worker/feed-keeper.js";
+import { describeError } from "../../../../shared/worker/responses.js";
+
+// Keeps what the matchup sheet shows, so a tap reads only the store and never waits on MLB. Each
+// run reads MLB's league-wide feeds again only as a game ends, or once they're old: every
+// pitcher's games and starts in the regular season and the postseason, the qualified starters'
+// numbers, and the last two weeks of every club's games. From those it finds the pitchers who have
+// pitched since it last read them, and reads only those, a batch at a time, as a game ends and
+// once more as his numbers settle. It keeps every pitcher who has started a game this season, the
+// qualified starters he's ranked among, and each club's recent starts, and saves only the
+// documents that changed. Each run also fills the qualified starters of one season the store keeps
+// from before the current one, newest first, and a filled season is never read again, since a past
+// season doesn't change.
+
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const RUN_DELAY_MS = 5 * MINUTE_MS;
+const LEAGUE_NAME = "MLB";
+// Every starter's first read spreads over a few runs, while a game's end needs only one batch.
+const BATCHES_PER_RUN = 4;
+
+const FEEDS = {
+  appearances: { maxAgeMs: 6 * HOUR_MS, changesWithGames: true },
+  qualified: { maxAgeMs: 6 * HOUR_MS, changesWithGames: true },
+  schedule: { maxAgeMs: 6 * HOUR_MS, changesWithGames: true },
+};
+
+/** @typedef {import("../../../../shared/worker/season-store.js").JobContext} JobContext */
+
+/**
+ * When a pitcher was last read, and how many games he had then.
+ * @typedef {{ games: number, at: number, isSettled: boolean }} PitcherRead
+ */
+
+/** @param {number} season */
+const nameFilledKey = (season) => `filled:${season}`;
+
+/** @param {number} season */
+const nameReadsKey = (season) => `reads:${season}`;
+
+/**
+ * How many of the games on the page's last night and today have ended, which grows as each ends.
+ * @param {any} savedSeason
+ */
+function countSlateFinals(savedSeason) {
+  const slate = savedSeason?.slate;
+  if (!slate) return null;
+  return [slate.lastNight, slate.today]
+    .flatMap((day) => day?.games ?? [])
+    .filter((/** @type {any} */ game) => game.state === "final").length;
+}
+
+/**
+ * The seasons the store keeps from before the current one, newest first.
+ * @param {JobContext["docs"]} docs
+ * @param {number} current
+ */
+async function listPastSeasons(docs, current) {
+  const seasons = await docs.list("seasons");
+  return seasons
+    .map((/** @type {any} */ saved) => Number(saved?.year))
+    .filter((year) => Number.isInteger(year) && year < current)
+    .sort((first, second) => second - first);
+}
+
+/**
+ * Each pitcher's games, regular season and postseason together, and whether he has started one.
+ * @param {any[]} tables
+ */
+function countAppearances(tables) {
+  /** @type {Map<number, { games: number, hasStarted: boolean }>} */
+  const counts = new Map();
+  for (const row of tables.flatMap(readLeagueRows)) {
+    const counted = counts.get(row.player.id) ?? { games: 0, hasStarted: false };
+    counts.set(row.player.id, {
+      games: counted.games + (row.stat?.gamesPlayed ?? 0),
+      hasStarted: counted.hasStarted || (row.stat?.gamesStarted ?? 0) > 0,
+    });
+  }
+  return counts;
+}
+
+/**
+ * A pitcher's numbers reach MLB's stats a little after his game ends, so one read as he pitches is
+ * read once more as they settle.
+ * @param {PitcherRead | undefined} read
+ * @param {number} games
+ * @param {number} now
+ */
+const isPitcherDue = (read, games, now) =>
+  !read || read.games !== games || (!read.isSettled && now - read.at >= SETTLE_MS);
+
+/** What one store keeps between runs, while it stays in memory, and how it runs. */
+function createStoreKeeper() {
+  /** @type {ReturnType<typeof createFeedKeeper> | null} */
+  let keeper = null;
+  // Each document as the job last read or saved it, so a run compares without reading the store.
+  /** @type {Map<string, any>} */
+  const saved = new Map();
+
+  /**
+   * @param {JobContext} context
+   * @param {string} key
+   */
+  async function readDoc({ docs }, key) {
+    if (!saved.has(key)) saved.set(key, await docs.read(key));
+    return saved.get(key);
+  }
+
+  /**
+   * @param {JobContext} context
+   * @param {string} key
+   * @param {any} doc
+   */
+  async function saveDoc(context, key, doc) {
+    if (isSameJson(await readDoc(context, key), doc)) return;
+    await context.docs.write(key, doc);
+    saved.set(key, doc);
+  }
+
+  /**
+   * @param {JobContext} context
+   * @param {string} name which feed's limits apply
+   * @param {string} key what the answer is kept under
+   * @param {() => Promise<any>} load
+   */
+  const readFeed = (context, name, key, load) =>
+    /** @type {ReturnType<typeof createFeedKeeper>} */ (keeper).readFeed(name, key, load);
+
+  /**
+   * @param {JobContext} context
+   * @param {string} path
+   */
+  const fetchJson = (context, path) => fetchMlbJson(context.fetchImpl, path, null);
+
+  /**
+   * The last two weeks of every club's games, through today.
+   * @param {JobContext} context
+   * @param {number} season
+   */
+  function readSchedule(context, season) {
+    return readFeed(context, "schedule", String(season), async () => {
+      const today = readEasternDay(context.now()).date;
+      const from = addDays(today, -LOOKBACK_DAYS);
+      const schedule = await fetchJson(context, listScheduleRequest(null, from, today));
+      return { from, schedule };
+    });
+  }
+
+  /**
+   * @param {JobContext} context
+   * @param {number} season
+   */
+  const readSeasonFeeds = (context, season) =>
+    Promise.all([
+      ...[listAppearancesRequest(season, "R"), listAppearancesRequest(season, "P")].map((path) =>
+        readFeed(context, "appearances", path, () => fetchJson(context, path)),
+      ),
+      readFeed(context, "qualified", listQualifiedRequest(season), () =>
+        fetchJson(context, listQualifiedRequest(season)),
+      ),
+      readSchedule(context, season),
+    ]);
+
+  /**
+   * Reads one batch of pitchers and saves each one's side.
+   * @param {JobContext} context
+   * @param {number} season
+   * @param {number[]} ids
+   */
+  async function updateBatch(context, season, ids) {
+    const [people, gameLogs] = await Promise.all([
+      fetchJson(context, listPeopleRequest(season, ids)),
+      fetchJson(context, listGameLogRequest(season, ids)),
+    ]);
+    const gameLogsById = new Map(
+      (gameLogs?.people || []).map((/** @type {any} */ person) => [person.id, person]),
+    );
+    for (const person of people?.people || [])
+      await saveDoc(
+        context,
+        namePitcherKey(season, person.id),
+        describePitcher(person, gameLogsById.get(person.id)),
+      );
+  }
+
+  /**
+   * Reads and saves the pitchers who have pitched since they were last read, the qualified
+   * starters first, and a few batches a run, and notes when each was read. A batch MLB doesn't
+   * answer is read on a later run.
+   * @param {JobContext} context
+   * @param {number} season
+   * @param {Map<number, number>} games each kept pitcher's games, by id, the qualified first
+   */
+  async function updatePitchers(context, season, games) {
+    /** @type {Record<string, PitcherRead>} */
+    const reads = (await context.storage.get(nameReadsKey(season))) ?? {};
+    const due = [...games]
+      .filter(([id, count]) => isPitcherDue(reads[id], count, context.now()))
+      .map(([id]) => id);
+    const batches = splitIntoBatches(due).slice(0, BATCHES_PER_RUN);
+    if (!batches.length) return;
+    const results = await Promise.allSettled(
+      batches.map((batch) => updateBatch(context, season, batch)),
+    );
+    for (const [index, result] of results.entries()) {
+      if (result.status === "rejected") {
+        console.error(`Reading ${season}'s pitchers failed: ${describeError(result.reason)}`);
+        continue;
+      }
+      for (const id of batches[index]) {
+        const count = /** @type {number} */ (games.get(id));
+        const isSettled = reads[id] === undefined || reads[id].games === count;
+        reads[id] = { games: count, at: context.now(), isSettled };
+      }
+    }
+    await context.storage.put(nameReadsKey(season), reads);
+  }
+
+  /**
+   * The current season's qualified starters, each with the speed his saved side shows.
+   * @param {JobContext} context
+   * @param {number} season
+   * @param {any} qualified MLB's qualified starters
+   */
+  async function saveStarters(context, season, qualified) {
+    const ids = listQualifiedIds(qualified);
+    const pitchers = await Promise.all(
+      ids.map((id) => readDoc(context, namePitcherKey(season, id))),
+    );
+    if (pitchers.some((pitcher) => !pitcher)) return;
+    const speeds = new Map(pitchers.map((pitcher) => [pitcher.id, pitcher.line?.speed ?? null]));
+    await saveDoc(context, nameStartersKey(season), describeStarters(qualified, speeds));
+  }
+
+  /**
+   * Each club's recent starts, saved only once every pitcher who made them is saved.
+   * @param {JobContext} context
+   * @param {number} season
+   * @param {{ from: string, schedule: any }} recent
+   */
+  async function saveRotations(context, season, { from, schedule }) {
+    for (const club of listScheduleClubs(schedule)) {
+      const ids = listClubStarterIds(schedule, club);
+      const sides = await Promise.all(
+        ids.map((id) => readDoc(context, namePitcherKey(season, id))),
+      );
+      if (sides.some((side) => !side)) continue;
+      const pitchers = new Map(sides.map((side) => [side.id, describeKeptRotationPitcher(side)]));
+      const clubStarts = describeClubStarts({ club, from, schedule, pitchers });
+      await saveDoc(context, nameRotationKey(season, club), clubStarts);
+    }
+  }
+
+  /**
+   * @param {JobContext} context
+   * @param {number} season
+   */
+  async function updateCurrentSeason(context, season) {
+    const [regular, postseason, qualified, recent] = await readSeasonFeeds(context, season);
+    const counts = countAppearances([regular, postseason]);
+    const keptIds = new Set([
+      ...listQualifiedIds(qualified),
+      ...[...counts].filter(([, counted]) => counted.hasStarted).map(([id]) => id),
+    ]);
+    const games = new Map([...keptIds].map((id) => [id, counts.get(id)?.games ?? 0]));
+    await updatePitchers(context, season, games);
+    await saveStarters(context, season, qualified);
+    await saveRotations(context, season, recent);
+  }
+
+  /**
+   * Fills the qualified starters of the newest past season the store keeps that it hasn't filled.
+   * @param {JobContext} context
+   * @param {number} current
+   */
+  async function fillPastSeason(context, current) {
+    for (const season of await listPastSeasons(context.docs, current)) {
+      if (await context.storage.get(nameFilledKey(season))) continue;
+      const qualified = await fetchJson(context, listQualifiedRequest(season));
+      const people = await fetchPeople(
+        (path) => fetchJson(context, path),
+        (ids) => listPeopleRequest(season, ids),
+        listQualifiedIds(qualified),
+      );
+      await saveDoc(
+        context,
+        nameStartersKey(season),
+        describeStarters(qualified, readSpeeds(people)),
+      );
+      await context.storage.put(nameFilledKey(season), true);
+      return;
+    }
+  }
+
+  /**
+   * @param {string} what what failed, as an error names it
+   * @param {() => Promise<unknown>} work
+   */
+  async function logFailure(what, work) {
+    try {
+      await work();
+    } catch (error) {
+      console.error(`${what} failed: ${describeError(error)}`);
+    }
+  }
+
+  /** @param {JobContext} context */
+  async function run(context) {
+    keeper ??= createFeedKeeper({
+      feeds: FEEDS,
+      leagueName: LEAGUE_NAME,
+      now: context.now,
+      storage: context.storage,
+    });
+    const current = (await context.docs.read("live/current"))?.season;
+    if (!Number.isInteger(current)) return;
+    await keeper.noteFinalCount(countSlateFinals(await context.docs.read(`seasons/${current}`)));
+    await logFailure(`Keeping ${current}'s pitchers`, () => updateCurrentSeason(context, current));
+    await logFailure("Filling a past season's starters", () => fillPastSeason(context, current));
+  }
+
+  return { run };
+}
+
+export function createPitcherJob() {
+  // One job serves every store made from its module, as each test makes its own, so each store
+  // keeps its own reads.
+  /** @type {WeakMap<JobContext["docs"], ReturnType<typeof createStoreKeeper>>} */
+  const keepers = new WeakMap();
+  return {
+    chooseDelay: () => RUN_DELAY_MS,
+    /** @param {JobContext} context */
+    run(context) {
+      if (!keepers.has(context.docs)) keepers.set(context.docs, createStoreKeeper());
+      return /** @type {ReturnType<typeof createStoreKeeper>} */ (keepers.get(context.docs)).run(
+        context,
+      );
+    },
+  };
+}

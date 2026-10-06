@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { listGameLogRequest } from "../worker/src/pitchers.js";
 import {
   createRotationServer,
+  describeClubStarts,
   describeRotation,
-  listGameLogRequest,
+  describeRotationPitcher,
   listScheduleRequest,
 } from "../worker/src/rotations.js";
 
@@ -25,9 +27,10 @@ const describeGame = (
   },
 });
 
-// The Phillies' games in the two weeks before Wild Card Game 3, one a day.
+// The Phillies' games in the two weeks before Wild Card Game 3.
 const SCHEDULE = {
   dates: [
+    describeGame("2026-09-20", [PHILLIES, 4], [BRAVES, 95]),
     describeGame("2026-09-25", [RAYS, 90], [PHILLIES, 1]),
     describeGame("2026-09-26", [RAYS, 91], [PHILLIES, 2]),
     describeGame("2026-09-27", [RAYS, 92], [PHILLIES, 3]),
@@ -58,14 +61,26 @@ const GAME_LOGS = {
     describePerson(3, "Wheeler", "R", [describeAppearance("2026-09-27", 1, RAYS, "6.0", 94)]),
     describePerson(4, "Luzardo", "L", [
       describeAppearance("2026-09-07", 1, BRAVES, "9.0", 109),
+      describeAppearance("2026-09-20", 1, BRAVES, "6.0", 91),
       describeAppearance("2026-09-27", 0, RAYS, "1.0", 4),
       describeAppearance("2026-09-29", 1, BRAVES, "5.0", 77),
     ]),
   ],
 };
 
+/** @param {string} from */
+const describePhilliesStarts = (from) =>
+  describeClubStarts({
+    club: "PHI",
+    from,
+    schedule: SCHEDULE,
+    pitchers: new Map(
+      GAME_LOGS.people.map((person) => [person.id, describeRotationPitcher(person)]),
+    ),
+  });
+
 test("a club's last starters come most recent first, each with his last start and the rest he'd have", () => {
-  const rotation = describeRotation(GAME_LOGS, "PHI", "2026-10-01");
+  const rotation = describeRotation(describePhilliesStarts("2026-09-17"), "2026-10-01");
   assert.deepEqual(
     rotation.starters.map((starter) => [starter.name, starter.start.date, starter.rest]),
     [
@@ -85,9 +100,17 @@ test("a club's last starters come most recent first, each with his last start an
 });
 
 test("a relief outing isn't a start, and a start on the game's own day doesn't count yet", () => {
-  const rotation = describeRotation(GAME_LOGS, "PHI", "2026-09-29");
+  const rotation = describeRotation(describePhilliesStarts("2026-09-15"), "2026-09-29");
   const luzardo = rotation.starters.find((starter) => starter.name === "Luzardo");
-  assert.deepEqual([luzardo.start.date, luzardo.rest], ["2026-09-07", 21]);
+  assert.deepEqual([luzardo.start.date, luzardo.rest], ["2026-09-20", 8]);
+});
+
+test("only the last two weeks' games count", () => {
+  const rotation = describeRotation(describePhilliesStarts("2026-09-15"), "2026-10-12");
+  assert.deepEqual(
+    rotation.starters.map((starter) => starter.name),
+    ["Sánchez", "Luzardo"],
+  );
 });
 
 function createFakeMlb({ status = 200, schedule = SCHEDULE } = {}) {
@@ -121,9 +144,11 @@ test("the route reads the club's last two weeks, then the game logs of the pitch
   );
   assert.deepEqual(
     mlb.calls.map((call) => call.url.replace("https://statsapi.mlb.com", "")),
-    [listScheduleRequest(PHILLIES, "2026-10-01"), listGameLogRequest([1, 4, 3, 2], 2026)],
+    [
+      listScheduleRequest(PHILLIES, "2026-09-17", "2026-09-30"),
+      listGameLogRequest(2026, [1, 2, 3, 4]),
+    ],
   );
-  assert.match(mlb.calls[0].url, /startDate=2026-09-17&endDate=2026-09-30/);
   assert.match(mlb.calls[1].url, /personIds=1,2,3,4&/);
   assert.ok(mlb.calls.every((call) => call.init.cf.cacheTtl === 600));
 });

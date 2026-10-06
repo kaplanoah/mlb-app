@@ -25,7 +25,9 @@ function createPushStore({ pushStatus = 201 } = {}) {
   const context = createDurableObjectContext();
   const harness = { snapshot: SNAPSHOT, pushStatus, isPushServiceAnswering: true, pushes: [] };
   const clock = { now: NOW };
+  // MLB, whose pitchers the store also keeps, isn't what these tests follow.
   const fetchImpl = async (url, init) => {
+    if (url.startsWith(MLBSnapshot.MLB_API)) return new Response(null, { status: 404 });
     harness.pushes.push({ url, init });
     if (!harness.isPushServiceAnswering)
       throw new DOMException("The push service didn't answer", "TimeoutError");

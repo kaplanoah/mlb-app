@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildLeague,
+  composePitcher,
   createPitcherServer,
   describePitcher,
-  listLeagueRequest,
-  listPitcherRequests,
+  describeStarters,
+  listGameLogRequest,
+  listPeopleRequest,
+  listQualifiedRequest,
+  readSpeeds,
 } from "../worker/src/pitchers.js";
+
+const NOW = Date.parse("2026-09-30T16:00:00Z");
 
 const describeLine = (id, gamesStarted, era, k9, bb9) => ({
   player: { id },
@@ -17,20 +22,15 @@ const describeLine = (id, gamesStarted, era, k9, bb9) => ({
     walksPer9Inn: String(bb9),
   },
 });
-const describeArsenal = (id, pitches) => ({
-  id,
-  stats: [
-    {
-      type: { displayName: "pitchArsenal" },
-      splits: pitches.map(([code, percentage, averageSpeed]) => ({
-        stat: { percentage, averageSpeed, type: { code, description: code } },
-      })),
-    },
-  ],
+const describeArsenal = (pitches) => ({
+  type: { displayName: "pitchArsenal" },
+  splits: pitches.map(([code, percentage, averageSpeed]) => ({
+    stat: { percentage, averageSpeed, type: { code, description: code } },
+  })),
 });
 
-// Five pitchers: four starters and a reliever with two starts, who isn't one.
-const LEAGUE = {
+// Four qualified starters; pitcher 5, with two starts, isn't one.
+const QUALIFIED = {
   stats: [
     {
       splits: [
@@ -38,57 +38,51 @@ const LEAGUE = {
         describeLine(2, 26, "3.03", 10.4, 2.4),
         describeLine(3, 22, "3.03", 6.8, 2.8),
         describeLine(4, 15, "4.50", 8.0, 3.5),
-        describeLine(5, 2, "0.90", 12.0, 1.0),
       ],
     },
   ],
 };
-const SPEEDS = [
-  {
-    people: [
-      describeArsenal(1, [
-        ["FF", 0.44, 98.0],
-        ["SI", 0.19, 97.8],
-      ]),
-      describeArsenal(2, [
-        ["FF", 0.45, 96.1],
-        ["CU", 0.09, 82.9],
-      ]),
-    ],
-  },
-  {
-    people: [
-      describeArsenal(3, [
-        ["SI", 0.3, 93.2],
-        ["FF", 0.2, 94.3],
-      ]),
-      describeArsenal(4, [["FC", 0.6, 89.0]]),
-    ],
-  },
-];
+const SEASON_LINES = [...QUALIFIED.stats[0].splits, describeLine(5, 2, "0.90", 12.0, 1.0)];
+const ARSENALS = {
+  1: [
+    ["FF", 0.44, 98.0],
+    ["SI", 0.19, 97.8],
+  ],
+  2: [
+    ["FF", 0.45, 96.1],
+    ["CU", 0.09, 82.9],
+  ],
+  3: [
+    ["SI", 0.3, 93.2],
+    ["FF", 0.2, 94.3],
+  ],
+  4: [["FC", 0.6, 89.0]],
+  5: [["FF", 0.7, 95.0]],
+};
 
-const describePerson = (id, pitches, line = LEAGUE.stats[0].splits[id - 1].stat) => ({
-  people: [
-    {
-      id,
-      useName: "Pitcher",
-      useLastName: `Number ${id} Jr.`,
-      currentAge: 25,
-      pitchHand: { code: "R" },
-      stats: [
-        { type: { displayName: "season" }, splits: line ? [{ stat: line }] : [] },
-        describeArsenal(id, pitches).stats[0],
-      ],
-    },
+const describePerson = (
+  id,
+  pitches = ARSENALS[id],
+  line = SEASON_LINES.find((row) => row.player.id === id)?.stat,
+) => ({
+  id,
+  useName: "Pitcher",
+  useLastName: `Number ${id} Jr.`,
+  birthDate: "2001-10-01",
+  pitchHand: { code: "R" },
+  stats: [
+    { type: { displayName: "season" }, splits: line ? [{ stat: line }] : [] },
+    describeArsenal(pitches ?? []),
   ],
 });
 const describeStart = (date, gamesStarted, opponent, runs = 1) => ({
   date,
   isHome: false,
   opponent: { id: opponent },
-  stat: { gamesStarted, inningsPitched: "6.0", runs, strikeOuts: 5 },
+  stat: { gamesStarted, inningsPitched: "6.0", runs, strikeOuts: 5, numberOfPitches: 92 },
 });
-const STARTS = {
+const GAME_LOG = {
+  id: 1,
   stats: [
     {
       splits: [
@@ -101,24 +95,19 @@ const STARTS = {
     },
   ],
 };
+const PEOPLE = [1, 2, 3, 4].map((id) => describePerson(id));
+const STARTERS = describeStarters(QUALIFIED, readSpeeds(PEOPLE));
 
-test("a starter ranks among the pitchers with at least half the most starts, ties sharing a rank", () => {
-  const league = buildLeague(LEAGUE, SPEEDS);
-  assert.equal(league.minimum, 15);
+/** @param {any} person */
+const composeSide = (person, gameLog = GAME_LOG) =>
+  composePitcher(describePitcher(person, gameLog), STARTERS, NOW);
+
+test("a starter ranks among the season's qualified starters, ties sharing a rank", () => {
   assert.deepEqual(
-    league.starters.map((starter) => starter.id),
+    STARTERS.starters.map((starter) => starter.id),
     [1, 2, 3, 4],
   );
-  const pitcher = describePitcher(
-    {
-      person: describePerson(2, [
-        ["FF", 0.45, 96.1],
-        ["CU", 0.09, 82.9],
-      ]),
-      starts: STARTS,
-    },
-    league,
-  );
+  const pitcher = composeSide(describePerson(2));
   assert.deepEqual(pitcher.ranks, {
     era: { rank: 2, of: 4 },
     k9: { rank: 2, of: 4 },
@@ -126,57 +115,64 @@ test("a starter ranks among the pitchers with at least half the most starts, tie
     speed: { rank: 2, of: 3 },
   });
   assert.deepEqual(pitcher.line, { starts: 26, era: "3.03", k9: 10.4, bb9: 2.4, speed: 96.1 });
-  assert.deepEqual(pitcher.starters, { count: 4, minimum: 15 });
+  assert.deepEqual(pitcher.starters, { count: 4 });
 });
 
-test("a pitcher's speed is his most-thrown fastball, a four-seamer or a sinker", () => {
-  const league = buildLeague(LEAGUE, SPEEDS);
-  assert.equal(league.starters.find((starter) => starter.id === 3).speed, 93.2);
-  assert.equal(league.starters.find((starter) => starter.id === 4).speed, null);
-});
-
-test("a pitcher with too few starts has his numbers but no ranks", () => {
-  const pitcher = describePitcher(
-    { person: describePerson(5, [["FF", 0.7, 95.0]]), starts: STARTS },
-    buildLeague(LEAGUE, SPEEDS),
+test("a pitcher's speed is his most-thrown fastball, a four-seamer or a sinker, to the tenth", () => {
+  const speeds = readSpeeds([
+    describePerson(3),
+    describePerson(4),
+    describePerson(6, [["FF", 0.5, 95.04]]),
+  ]);
+  assert.deepEqual(
+    [...speeds],
+    [
+      [3, 93.2],
+      [4, null],
+      [6, 95],
+    ],
   );
+});
+
+test("a pitcher outside the qualified starters has his numbers but no ranks", () => {
+  const pitcher = composeSide(describePerson(5));
   assert.equal(pitcher.ranks, null);
   assert.deepEqual(pitcher.line, { starts: 2, era: "0.90", k9: 12, bb9: 1, speed: 95 });
 });
 
 test("a pitcher yet to pitch this season has no line, and no ranks", () => {
-  const pitcher = describePitcher(
-    { person: describePerson(6, [], null), starts: { stats: [{ splits: [] }] } },
-    buildLeague(LEAGUE, SPEEDS),
-  );
+  const pitcher = composeSide(describePerson(6, [], null), { id: 6, stats: [{ splits: [] }] });
   assert.equal(pitcher.line, null);
   assert.equal(pitcher.ranks, null);
   assert.deepEqual(pitcher.pitches, []);
   assert.deepEqual(pitcher.starts, []);
 });
 
-test("his last three starts come newest first, postseason included, relief outings left out", () => {
-  const pitcher = describePitcher(
-    { person: describePerson(1, [["FF", 0.44, 98.0]]), starts: STARTS },
-    buildLeague(LEAGUE, SPEEDS),
+test("his age is his years on the league's day", () => {
+  assert.equal(composeSide(describePerson(1)).age, 24);
+  const birthday = { ...describePerson(1), birthDate: "2001-09-30" };
+  assert.equal(composePitcher(describePitcher(birthday, GAME_LOG), STARTERS, NOW).age, 25);
+  const lateNight = Date.parse("2026-10-01T03:00:00Z");
+  assert.equal(
+    composePitcher(describePitcher(describePerson(1), GAME_LOG), STARTERS, lateNight).age,
+    24,
   );
-  assert.deepEqual(pitcher.starts, [
-    { date: "2026-09-29", opp: "BOS", home: false, ip: "6.0", runs: 0, k: 5 },
-    { date: "2026-09-24", opp: "TB", home: false, ip: "6.0", runs: 2, k: 5 },
-    { date: "2026-09-19", opp: "ARI", home: false, ip: "6.0", runs: 1, k: 5 },
+});
+
+test("his last three starts come newest first, postseason included, relief outings left out", () => {
+  assert.deepEqual(composeSide(describePerson(1)).starts, [
+    { date: "2026-09-29", opp: "BOS", home: false, ip: "6.0", runs: 0, k: 5, pitches: 92 },
+    { date: "2026-09-24", opp: "TB", home: false, ip: "6.0", runs: 2, k: 5, pitches: 92 },
+    { date: "2026-09-19", opp: "ARI", home: false, ip: "6.0", runs: 1, k: 5, pitches: 92 },
   ]);
 });
 
 test("each pitch keeps MLB's code and name, with its share and speed rounded", () => {
-  const pitcher = describePitcher(
-    {
-      person: describePerson(1, [
-        ["FF", 0.44491944, 98.01831171840368],
-        ["CU", 0.09766524, 86.2556325117845],
-      ]),
-      starts: STARTS,
-    },
-    buildLeague(LEAGUE, SPEEDS),
+  const pitcher = composeSide(
+    describePerson(1, [
+      ["FF", 0.44491944, 98.01831171840368],
+      ["CU", 0.09766524, 86.2556325117845],
+    ]),
   );
   assert.deepEqual(pitcher.pitches, [
     { code: "FF", name: "FF", share: 0.445, mph: 98 },
@@ -184,20 +180,19 @@ test("each pitch keeps MLB's code and name, with its share and speed rounded", (
   ]);
 });
 
-function createFakeMlb({ status = 200 } = {}) {
+function createFakeMlb({ status = 200, qualified = QUALIFIED, people = PEOPLE } = {}) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init });
-    const path = url.replace("https://statsapi.mlb.com", "");
+    const { searchParams } = new URL(url);
     let body;
-    if (path.startsWith("/api/v1/stats?")) body = LEAGUE;
-    else if (path.startsWith("/api/v1/people?")) {
-      const ids = new URL(url).searchParams.get("personIds").split(",").map(Number);
-      body = {
-        people: SPEEDS.flatMap((batch) => batch.people).filter((person) => ids.includes(person.id)),
-      };
-    } else if (path.includes("/stats?stats=gameLog")) body = STARTS;
-    else body = describePerson(Number(/people\/(\d+)/.exec(path)[1]), [["FF", 0.44, 98.0]]);
+    if (url.includes("/api/v1/stats?")) body = qualified;
+    else if (searchParams.get("hydrate").includes("gameLog")) body = { people: [GAME_LOG] };
+    else {
+      const ids = searchParams.get("personIds").split(",").map(Number);
+      const known = [...people, describePerson(5)];
+      body = { people: known.filter((person) => ids.includes(person.id)) };
+    }
     return new Response(JSON.stringify(body), { status });
   };
   return { fetchImpl, calls };
@@ -205,7 +200,7 @@ function createFakeMlb({ status = 200 } = {}) {
 
 function createTestServer(options) {
   const mlb = createFakeMlb(options);
-  let now = Date.parse("2026-09-30T16:00:00Z");
+  let now = NOW;
   const server = createPitcherServer({ fetchImpl: mlb.fetchImpl, now: () => now });
   return {
     mlb,
@@ -217,25 +212,24 @@ function createTestServer(options) {
   };
 }
 
-test("the route asks MLB for the pitcher, his starts, and the league, caching each at the edge", async () => {
+const readPath = (call) => call.url.replace("https://statsapi.mlb.com", "");
+
+test("without a store, the route reads MLB for the pitcher, his game log, and the qualified starters, caching each at the edge", async () => {
   const { mlb, requestPitcher } = createTestServer();
-  const response = await requestPitcher("?id=1&season=2026");
+  const response = await requestPitcher("?id=5&season=2026");
   assert.equal(response.status, 200);
   const pitcher = await response.json();
-  assert.deepEqual([pitcher.firstName, pitcher.lastName], ["Pitcher", "Number 1 Jr."]);
-  const requests = listPitcherRequests(1, 2026);
-  const cacheFor = (path) => mlb.calls.find((call) => call.url.endsWith(path))?.init.cf.cacheTtl;
-  assert.equal(cacheFor(requests.person), 600);
-  assert.equal(cacheFor(requests.starts), 600);
-  assert.equal(cacheFor(listLeagueRequest(2026)), 6 * 60 * 60);
-  const speedCalls = mlb.calls.filter((call) => call.url.includes("/api/v1/people?"));
-  assert.deepEqual(
-    speedCalls.map((call) => new URL(call.url).searchParams.get("personIds")),
-    ["1,2,3,4"],
-  );
+  assert.deepEqual([pitcher.firstName, pitcher.lastName], ["Pitcher", "Number 5 Jr."]);
+  const cacheFor = (path) => mlb.calls.find((call) => readPath(call) === path)?.init.cf.cacheTtl;
+  assert.equal(cacheFor(listPeopleRequest(2026, [5])), 600);
+  assert.equal(cacheFor(listGameLogRequest(2026, [5])), 600);
+  assert.equal(cacheFor(listQualifiedRequest(2026)), 6 * 60 * 60);
+  assert.match(listQualifiedRequest(2026), /playerPool=qualified/);
+  assert.equal(cacheFor(listPeopleRequest(2026, [1, 2, 3, 4])), 6 * 60 * 60);
+  assert.equal(mlb.calls.length, 4);
 });
 
-test("sheets opened the same day rank against one read of the league", async () => {
+test("sheets opened the same day rank against one read of the qualified starters", async () => {
   const { mlb, requestPitcher, advanceClock } = createTestServer();
   const countLeagueCalls = () =>
     mlb.calls.filter((call) => call.url.includes("/api/v1/stats?")).length;
@@ -255,6 +249,11 @@ test("an id or season that isn't one is refused before anything is fetched", asy
   assert.equal(mlb.calls.length, 0);
 });
 
+test("a pitcher MLB doesn't know is not found", async () => {
+  const { requestPitcher } = createTestServer();
+  assert.equal((await requestPitcher("?id=9&season=2026")).status, 404);
+});
+
 test("MLB failing is reported", async () => {
   const { requestPitcher } = createTestServer({ status: 503 });
   const response = await requestPitcher("?id=1&season=2026");
@@ -262,20 +261,19 @@ test("MLB failing is reported", async () => {
   assert.match((await response.json()).error, /MLB Stats API answered 503/);
 });
 
-test("the speeds of a full league of starters come in batches of 30", async () => {
-  const calls = [];
+test("the speeds of the qualified starters come in batches of 30", async () => {
   const lines = Array.from({ length: 65 }, (_, index) => describeLine(index + 1, 30, "3.00", 8, 3));
-  const fetchImpl = async (url) => {
-    calls.push(url);
-    if (url.includes("/api/v1/stats?")) return Response.json({ stats: [{ splits: lines }] });
-    if (url.includes("/api/v1/people?")) return Response.json({ people: [] });
-    if (url.includes("gameLog")) return Response.json(STARTS);
-    return Response.json(describePerson(1, [["FF", 0.5, 95.0]]));
-  };
-  const server = createPitcherServer({ fetchImpl, now: () => 0 });
-  await server.servePitcher(new URL("https://mlb-app.example/k3y/pitcher?id=1&season=2026"));
-  const batches = calls
-    .filter((url) => url.includes("/api/v1/people?"))
-    .map((url) => new URL(url).searchParams.get("personIds").split(",").length);
-  assert.deepEqual(batches, [30, 30, 5]);
+  const { mlb, requestPitcher } = createTestServer({
+    qualified: { stats: [{ splits: lines }] },
+    people: [],
+  });
+  await requestPitcher("?id=5&season=2026");
+  const batches = mlb.calls
+    .map((call) => new URL(call.url).searchParams)
+    .filter((params) => params.get("hydrate")?.includes("pitchArsenal"))
+    .map((params) => params.get("personIds").split(",").length);
+  assert.deepEqual(
+    batches.sort((first, second) => second - first),
+    [30, 30, 5, 1],
+  );
 });
