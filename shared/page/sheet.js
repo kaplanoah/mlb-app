@@ -24,9 +24,9 @@ import { closeOnSwipeDown, closeSheets, slideSheet } from "./sheet-swipe.js";
  * @property {(target: EventTarget) => boolean} [isOwnGesture] a touch on a target this claims,
  *   like a drag handle or a picker, never moves the sheet
  * @property {SheetKeeper} [keeper]
- * @property {() => string} [nameForBack] what a sheet opened over this one calls it
- * @property {() => string} [nameForForward] what the sheet under this one calls it, once a step
- *   back has left it to step forward to
+ * @property {string} [name] what the back button of a sheet opened over it calls it
+ * @property {() => string} [nameForForward] what the forward button of the sheet under it calls
+ *   it, once a step back has left it to step forward to, when that's more than its `name`
  * @property {() => HTMLDialogElement | null} [prepareNext] the sheet a swipe left opens over this
  *   one when there's no sheet to step forward to, filled in and ready to open
  */
@@ -67,7 +67,7 @@ function closeAllOnCancel(event) {
 function labelBackButton(dialog, under) {
   const button = sheetParts.get(dialog)?.backButton;
   if (!button) return;
-  const name = sheetParts.get(under)?.nameForBack?.() ?? "Back";
+  const name = sheetParts.get(under)?.name ?? "Back";
   const label = button.querySelector(".sheet-back-label");
   if (label) label.textContent = name;
   button.setAttribute("aria-label", `Back to ${name}`);
@@ -157,7 +157,7 @@ function stepBack() {
     dialog,
     subject: parts?.keeper?.read() ?? null,
     under,
-    name: parts?.nameForForward?.() ?? "Forward",
+    name: parts?.nameForForward?.() ?? parts?.name ?? "Forward",
   };
   under.removeAttribute("data-covered");
   slideSheet(dialog, "translateX(100%)").finished.then((slide) => {

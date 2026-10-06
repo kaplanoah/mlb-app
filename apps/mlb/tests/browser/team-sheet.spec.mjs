@@ -49,7 +49,7 @@ test("a club's sheet open over the matchup on a reload shows again over it, and 
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
   await expect(teamSheet.locator("#teamNote")).toContainText("AL West");
-  await expect(teamSheet.getByRole("button", { name: /^Back to / })).toBeVisible();
+  await expect(teamSheet.getByRole("button", { name: "Back to Game", exact: true })).toBeVisible();
   await teamSheet.getByRole("button", { name: "Done" }).click();
   await expect(teamSheet).toBeHidden();
   await expect(matchup).toBeHidden();
@@ -132,7 +132,7 @@ test("a club's name in the matchup opens its sheet over it, whose back button go
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Athletics");
   await expect(matchup).toHaveAttribute("data-covered");
-  await teamSheet.getByRole("button", { name: /^Back to / }).click();
+  await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
   await expect(teamSheet).toBeHidden();
   await expect(matchup).toBeVisible();
 });

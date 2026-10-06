@@ -2,7 +2,6 @@
 // it has started, or a preview before it does. Phones show it as a sheet from the bottom that a
 // swipe down closes, wider screens as a modal, like Settings.
 
-import { nameShortDay } from "#shared/days.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { renderNetworks } from "#shared/network-logos.js";
@@ -287,14 +286,6 @@ function prepareFromRow(button) {
   if (game) loadDetails(game).catch(() => {});
 }
 
-// A playoff game goes by its number, and any other by its day.
-function nameForBack() {
-  const game = shown && findGame(shown.id);
-  if (game?.round) return `Game ${game.number}`;
-  const day = game && readGameDay(game);
-  return day ? nameShortDay(day, new Date()) : "Game";
-}
-
 function forgetGame() {
   shown = null;
   stopWatchingDetails();
@@ -308,7 +299,7 @@ export function startGameSheet() {
     doneButton: findElement("gameDoneBtn"),
     forwardButton: findElement("gameForwardBtn"),
     keeper: { read: readShownGame, reopen: reopenGameSheet },
-    nameForBack,
+    name: "Game",
   });
   dialog.addEventListener("close", forgetGame);
 }

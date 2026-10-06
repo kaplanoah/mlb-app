@@ -21,8 +21,6 @@ const FETCH_TIMEOUT_MS = 15 * 1000;
 const READ_AGAIN_MS = 10 * 60 * 1000;
 // A roster that didn't load says to try again in a minute.
 const RETRY_MS = 60 * 1000;
-// What a sheet opened over the roster's calls it on its back button.
-const NAME_FOR_BACK = "Roster";
 
 /** @type {Map<string, RosterRead>} */
 const reads = new Map();
@@ -158,7 +156,7 @@ export function startRosterSheet() {
     doneButton: findElement("rosterDoneBtn"),
     backButton: findElement("rosterBackBtn"),
     keeper: { read: () => shownTeam && { team: shownTeam }, reopen: reopenRoster },
-    nameForBack: () => NAME_FOR_BACK,
+    name: "Roster",
   });
   findElement("teamDialog").addEventListener("click", openOnTap);
   findElement("rosterBody").addEventListener("click", sortOnTap);

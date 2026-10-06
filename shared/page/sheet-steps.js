@@ -11,9 +11,10 @@ const SWIPE_START_PX = 6;
 // A step happens past this share of the sheet's width, or this fast.
 const STEP_SHARE = 0.3;
 const STEP_SPEED_PX_PER_MS = 0.5;
-// On a phone, the sheet under the top one sits this share of its width to the left, as sheet.css
-// places it.
+// On a phone, the sheet under the top one sits this share of its width to the left, and this
+// far down, below the rounded corners of the one over it, as sheet.css places it.
 const UNDER_SHIFT = 0.28;
+const UNDER_DROP_PX = 24;
 
 /**
  * @typedef {object} SheetSteps
@@ -59,9 +60,10 @@ function canScroll(element, toward) {
 /**
  * @param {HTMLElement} sheet
  * @param {number} offset how far right of its place, in pixels
+ * @param {number} [drop] how far down of it
  */
-function placeSheet(sheet, offset) {
-  sheet.style.transform = `translateX(${offset}px)`;
+function placeSheet(sheet, offset, drop = 0) {
+  sheet.style.transform = `translate(${offset}px, ${drop}px)`;
 }
 
 /** @param {HTMLElement} sheet */
@@ -78,7 +80,8 @@ function releaseSheet(sheet) {
  * @param {number} width
  */
 function placeUnder(sheet, progress, width) {
-  placeSheet(sheet, isSheetLayout() ? -UNDER_SHIFT * width * (1 - progress) : 0);
+  if (!isSheetLayout()) return placeSheet(sheet, 0);
+  placeSheet(sheet, -UNDER_SHIFT * width * (1 - progress), UNDER_DROP_PX * (1 - progress));
 }
 
 /**
