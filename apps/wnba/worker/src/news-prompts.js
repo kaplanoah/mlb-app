@@ -61,21 +61,24 @@ Drop, with its reason:
 - back-and-forth: an owner's or executive's boast, or a reply in a public dispute, that adds no news.
 - off-the-court: culture or naming disputes away from basketball.
 - novelty: an odd or viral angle with no basketball news.
-- retold: news the feed already tells, without enough to clear the bar below.
+- retold: news a card already tells, without enough to go under it.
 
-Each story shows on its own, so one that tells news the feed already tells has to earn its place, and the bar rises with each telling. You get the stories the feed has so far, then the new ones in the order they came out, and a new story you keep counts as told for the ones after it.
-- A second telling needs something the first lacks: new facts, the why, or the people's own words.
-- A third must be clearly better than both.
-- A fourth or later must be exceptional, a piece a fan would hate to miss.
-A new development in the same story, like an injured player ruled out of the next game, is news of its own, not a retelling.
+The feed shows each piece of news as one card: the story that tells it best, with a few others under it as More on this. You get the cards so far, each with its number, its lead, and the stories under it, then the new stories, numbered after them, in the order they came out.
+
+When a new story tells news a card already tells, or an earlier new story does, give that number as same. Then:
+- If it tells the news better than the card's lead, set lead to true. It leads the card, and the old lead goes under it. Reward quality, not speed: a deeper, better-reported, or better-written story should lead, whenever it came out.
+- Otherwise keep it only if it earns a place under the card, and the bar rises with each story the card has. Under a lead alone, it needs something the lead lacks: new facts, the why, or the people's own words. Under a lead with one story under it, it must add something real that neither has. With two or more under the lead, it must be exceptional. Otherwise drop it as retold.
+A new development, like an injured player ruled out of the next game, is news of its own, with no same.
 
 For each new story, give:
 - keep: true or false.
 - why: when keep is false, one of the drop reasons above, or other.
+- same: the number of the card or new story whose news it tells, only when it tells news one already does.
+- lead: true when it should lead that card.
 - teams: the codes of the WNBA teams the story is about, most central first, from: ${TEAM_LIST}.
 - reason: one short sentence.
 
-Answer with only a JSON array, one object per new story, in their order: {"id": 1, "keep": true, "teams": ["NYL"], "reason": "..."}. No other text.
+Answer with only a JSON array, one object per new story, in their order: {"id": 14, "keep": true, "same": 3, "lead": false, "teams": ["NYL"], "reason": "..."}. No other text.
 
 Examples of how the app's editor decided:
 ${EDITOR_EXAMPLES.map(([verdict, story]) => `- ${verdict}: ${story}`).join("\n")}`;

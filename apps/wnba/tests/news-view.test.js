@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickReadStories } from "../page/js/news-picks.js";
+import { pickReadCards } from "../page/js/news-picks.js";
 import { renderNews } from "../page/js/news-view.js";
 import { checkInTimeZone, EASTERN } from "../../../tests/time-zone.js";
 
@@ -31,33 +31,43 @@ const readText = (markup) =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** @param {import("../page/js/news-picks.js").NewsStory[]} stories */
-const listIds = (stories) => stories.map((story) => story.id);
+/**
+ * A card for each story, with nothing under its lead.
+ * @param {import("../page/js/news-picks.js").NewsStory[]} stories
+ */
+const createCards = (stories) => stories.map((lead) => ({ lead, more: [] }));
 
-test("every story the Worker saved is read, newest first", () => {
-  const stories = [
-    createStory({ id: "older", publishedAt: "2026-10-03T12:00:00.000Z" }),
-    createStory({ id: "newest", publishedAt: "2026-10-05T12:00:00.000Z" }),
-    createStory({ id: "newer", publishedAt: "2026-10-04T12:00:00.000Z" }),
+/** @param {import("../page/js/news-picks.js").NewsCard[]} cards */
+const listShown = (cards) =>
+  cards.map(({ lead, more }) => [lead.id, ...more.map((story) => story.id)]);
+
+test("the cards read newest lead first, each with its lead and up to three stories under it", () => {
+  const cards = [
+    {
+      lead: createStory({ id: "older", publishedAt: "2026-10-03T12:00:00.000Z" }),
+      more: ["a", "b", "c", "d"].map((id) => createStory({ id })),
+    },
+    { lead: createStory({ id: "newer", publishedAt: "2026-10-05T12:00:00.000Z" }), more: [] },
   ];
 
-  assert.deepEqual(listIds(pickReadStories(stories, ALL_ON)), ["newest", "newer", "older"]);
+  assert.deepEqual(listShown(pickReadCards(cards, ALL_ON)), [["newer"], ["older", "a", "b", "c"]]);
 });
 
-test("without The Athletic or the team's own outlets, their stories are left out", () => {
-  const stories = [
-    createStory({ id: "espn" }),
-    createStory({ id: "athletic", source: "athletic" }),
-    createStory({ id: "post", source: "nypost", teamFeed: "NYL" }),
+test("without The Athletic or the team's own outlets, their stories are left out, the first story under a left-out lead leads, and a card with none left goes", () => {
+  const cards = [
+    {
+      lead: createStory({ id: "athletic", source: "athletic" }),
+      more: [createStory({ id: "espn" }), createStory({ id: "post", teamFeed: "NYL" })],
+    },
+    { lead: createStory({ id: "athletic-only", source: "athletic" }), more: [] },
   ];
 
-  assert.deepEqual(listIds(pickReadStories(stories, { teamOutlets: true, paywalled: false })), [
-    "espn",
-    "post",
+  assert.deepEqual(listShown(pickReadCards(cards, { teamOutlets: true, paywalled: false })), [
+    ["espn", "post"],
   ]);
-  assert.deepEqual(listIds(pickReadStories(stories, { teamOutlets: false, paywalled: true })), [
-    "espn",
-    "athletic",
+  assert.deepEqual(listShown(pickReadCards(cards, { teamOutlets: false, paywalled: true })), [
+    ["athletic", "espn"],
+    ["athletic-only"],
   ]);
 });
 
@@ -67,7 +77,7 @@ test("a story whose link isn't a web address is never shown, nor a photo whose a
     createStory({ id: "plain", photo: { url: "javascript:alert(2)", credit: "AP" } }),
   ];
 
-  const markup = renderNews(stories, ALL_ON, NOW).text;
+  const markup = renderNews(createCards(stories), ALL_ON, NOW).text;
 
   assert.doesNotMatch(markup, /javascript:/);
   assert.match(markup, /href="https:\/\/example\.com\/plain"/);
@@ -86,7 +96,9 @@ test("a card shows its first two teams, the photo's credit, the headline, writer
     photo: { url: "https://example.com/film.jpg", credit: "USA TODAY Sports" },
   });
 
-  const text = checkInTimeZone(EASTERN, () => readText(renderNews([story], ALL_ON, NOW)));
+  const text = checkInTimeZone(EASTERN, () =>
+    readText(renderNews(createCards([story]), ALL_ON, NOW)),
+  );
 
   assert.equal(
     text,
@@ -95,16 +107,44 @@ test("a card shows its first two teams, the photo's credit, the headline, writer
   );
 });
 
+test("under its lead, a card lists the stories that add to it, each by headline, outlet, and day", () => {
+  const card = {
+    lead: createStory({ id: "lead", title: "The lead", publishedAt: "2026-10-05T13:00:00.000Z" }),
+    more: [
+      createStory({
+        id: "more",
+        title: "There's one key element",
+        author: "Madeline Kenney",
+        outlet: "NY Post",
+        source: "nypost",
+        publishedAt: "2026-10-04T13:00:00.000Z",
+        photo: { url: "https://example.com/more.jpg", credit: "via NY Post" },
+      }),
+    ],
+  };
+
+  const text = checkInTimeZone(EASTERN, () => readText(renderNews([card], ALL_ON, NOW)));
+
+  assert.equal(
+    text,
+    "Liberty The lead ESPN | Today What happened. Read on ESPN " +
+      "More on this There's one key element NY Post | Yesterday",
+  );
+  assert.equal(renderNews([card], ALL_ON, NOW).text.match(/<img/g), null);
+});
+
 test("a photo's credit sits beside its teams, and a card without one shows only the teams", () => {
   const photo = { url: "https://example.com/photo.jpg", credit: "AP" };
   const readTop = (story) =>
-    renderNews([story], ALL_ON, NOW).text.match(/<div class="news-top">[\s\S]*?<\/div>/)?.[0];
+    renderNews(createCards([story]), ALL_ON, NOW).text.match(
+      /<div class="news-top">[\s\S]*?<\/div>/,
+    )?.[0];
   const withoutCredit = createStory({ photo: { ...photo, credit: "" } });
 
   const top = readTop(createStory({ photo }));
   assert.match(top, /class="news-teams"[\s\S]*Liberty[\s\S]*class="news-photo-credit">Photo: AP</);
   assert.equal(readTop(withoutCredit), undefined);
-  assert.match(renderNews([withoutCredit], ALL_ON, NOW).text, /class="news-teams"/);
+  assert.match(renderNews(createCards([withoutCredit]), ALL_ON, NOW).text, /class="news-teams"/);
 });
 
 test("a story this device has opened shows a check in place of its arrow, and the others keep theirs", () => {
@@ -115,7 +155,7 @@ test("a story this device has opened shows a check in place of its arrow, and th
   const opened = { "https://example.com/opened": NOW };
 
   const buttons =
-    renderNews(stories, ALL_ON, NOW, { opened }).text.match(
+    renderNews(createCards(stories), ALL_ON, NOW, { opened }).text.match(
       /<a\s+class="read-button[\s\S]*?<\/a\s*>/g,
     ) ?? [];
 
@@ -131,7 +171,7 @@ test("a story's day is today, yesterday, its weekday within the week, and its da
     checkInTimeZone(
       EASTERN,
       () =>
-        readText(renderNews([createStory({ publishedAt })], ALL_ON, NOW)).match(
+        readText(renderNews(createCards([createStory({ publishedAt })]), ALL_ON, NOW)).match(
           /ESPN \| (\S+( \d+)?)/,
         )?.[1],
     );
@@ -144,7 +184,7 @@ test("a story's day is today, yesterday, its weekday within the week, and its da
 
 test("a story's links open apart from the page, and neither they nor its photo tell the outlet the page's address", () => {
   const story = createStory({ photo: { url: "https://example.com/photo.jpg", credit: "AP" } });
-  const markup = renderNews([story], ALL_ON, NOW).text;
+  const markup = renderNews(createCards([story]), ALL_ON, NOW).text;
   const links = markup.match(/<a\s[^>]*>/g) ?? [];
   const photos = markup.match(/<img\s[^>]*>/g) ?? [];
 
@@ -159,7 +199,7 @@ test("with no news, or none from the outlets this device reads, the view says so
 
   assert.equal(readText(renderNews([], ALL_ON, NOW)), "No news yet");
   assert.equal(
-    readText(renderNews(athleticOnly, { teamOutlets: true, paywalled: false }, NOW)),
+    readText(renderNews(createCards(athleticOnly), { teamOutlets: true, paywalled: false }, NOW)),
     "No news yet",
   );
 });
@@ -173,7 +213,7 @@ test("in two columns, each card goes to the shorter one, so a short card sits un
   ];
   const readColumns = (columnCount) =>
     (
-      renderNews(stories, ALL_ON, NOW, { columnCount }).text.match(
+      renderNews(createCards(stories), ALL_ON, NOW, { columnCount }).text.match(
         /<ul class="news-column">[\s\S]*?<\/ul>/g,
       ) ?? []
     ).map((column) =>
@@ -184,12 +224,14 @@ test("in two columns, each card goes to the shorter one, so a short card sits un
   assert.deepEqual(readColumns(2), [["Tall"], ["Short", "Older"]]);
 });
 
-test("each card is named by its story, so a redraw keeps the card, and its photo, wherever it moves", () => {
+test("each card is named by its lead, so a redraw keeps the card, and its photo, wherever it moves", () => {
   const stories = [
     createStory({ id: "older", publishedAt: "2026-10-04T12:00:00.000Z" }),
     createStory({ id: "newer", publishedAt: "2026-10-05T12:00:00.000Z" }),
   ];
-  const keys = [...renderNews(stories, ALL_ON, NOW).text.matchAll(/<li data-key="([^"]*)"/g)];
+  const keys = [
+    ...renderNews(createCards(stories), ALL_ON, NOW).text.matchAll(/<li data-key="([^"]*)"/g),
+  ];
 
   assert.deepEqual(
     keys.map((match) => match[1]),

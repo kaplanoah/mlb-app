@@ -61,12 +61,12 @@ function renderStamp() {
 // Until the store or the page's last showing says what the news is, the view keeps what it was.
 function drawNews() {
   if (session.news === undefined) return;
-  const stories = session.news?.stories ?? [];
+  const cards = session.news?.cards ?? [];
   const columnCount = wideScreen.matches ? 2 : 1;
   const opened = readOpenedStories();
   setHtml(
     findElement("newsList"),
-    renderNews(stories, readNewsChoices(), Date.now(), { columnCount, opened }),
+    renderNews(cards, readNewsChoices(), Date.now(), { columnCount, opened }),
   );
 }
 
@@ -108,8 +108,7 @@ function refreshClockEveryMinute() {
 }
 
 // News the page can't read from its last showing leaves the view as it was until the store answers.
-const readLastSeenNews = (news) =>
-  news === null || Array.isArray(news?.stories) ? news : undefined;
+const readLastSeenNews = (news) => (news === null || Array.isArray(news?.cards) ? news : undefined);
 
 // The season the page last showed is only a stand-in until the store answers, so one that can't
 // be drawn is skipped.

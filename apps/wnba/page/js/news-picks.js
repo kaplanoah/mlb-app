@@ -1,10 +1,12 @@
-// Picking the stories this device reads: every story the Worker keeps, but the paywalled outlet's
-// and a team's own beat writers' when the device leaves them out.
+// Picking the stories this device reads from each card: every story the Worker keeps, but the
+// paywalled outlet's and a team's own beat writers' when the device leaves them out. When it leaves
+// out a card's lead, the first story under it that it reads leads in its place.
 
 const PAYWALLED_SOURCE = "athletic";
+const MAX_MORE = 3;
 
 /**
- * A story as `news/stories` keeps it.
+ * A story as `news/cards` keeps it.
  * @typedef {object} NewsStory
  * @property {string} id
  * @property {string} url
@@ -17,6 +19,11 @@ const PAYWALLED_SOURCE = "athletic";
  * @property {string} publishedAt
  * @property {{ url: string, credit: string } | null} photo
  * @property {string[]} teams
+ */
+
+/**
+ * The story that tells a piece of news best, and the others that add to it.
+ * @typedef {{ lead: NewsStory, more: NewsStory[] }} NewsCard
  */
 
 /**
@@ -38,11 +45,24 @@ const isReadStory = (story, choices) =>
   (choices.teamOutlets || !story.teamFeed);
 
 /**
- * The stories this device reads, newest first.
- * @param {NewsStory[]} stories
+ * @param {NewsCard} card
+ * @param {NewsChoices} choices
+ * @returns {NewsCard | null}
+ */
+function pickReadCard(card, choices) {
+  const [lead, ...more] = [card.lead, ...card.more].filter((story) => isReadStory(story, choices));
+  return lead ? { lead, more: more.slice(0, MAX_MORE) } : null;
+}
+
+/**
+ * The cards with a story this device reads, newest lead first.
+ * @param {NewsCard[]} cards
  * @param {NewsChoices} choices
  */
-export const pickReadStories = (stories, choices) =>
-  stories
-    .filter((story) => isReadStory(story, choices))
-    .toSorted((first, second) => Date.parse(second.publishedAt) - Date.parse(first.publishedAt));
+export const pickReadCards = (cards, choices) =>
+  cards
+    .map((card) => pickReadCard(card, choices))
+    .filter((card) => card !== null)
+    .sort(
+      (first, second) => Date.parse(second.lead.publishedAt) - Date.parse(first.lead.publishedAt),
+    );

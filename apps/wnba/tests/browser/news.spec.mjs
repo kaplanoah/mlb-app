@@ -21,6 +21,12 @@ const createStory = (photoUrl, fields) => ({
 });
 
 /**
+ * A card for each story, with nothing under its lead.
+ * @param {any[]} stories
+ */
+const createCards = (stories) => stories.map((lead) => ({ lead, more: [] }));
+
+/**
  * Three stories: The Athletic's, ESPN's, and one only the Liberty's own outlets carry, newest.
  * @param {string} photoUrl
  */
@@ -50,17 +56,24 @@ const createStories = (photoUrl) => [
 
 /**
  * @param {import("@playwright/test").Page} page
- * @param {(photoUrl: string) => any[]} [buildStories]
+ * @param {(photoUrl: string) => any[]} buildCards
  */
-async function openNewsWithStories(page, buildStories = createStories) {
+async function openNewsWithCards(page, buildCards) {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "News" }).click();
   await expect(page.locator("#newsList")).toHaveText("No news yet");
-  const stories = buildStories(new URL("icon-180.png", page.url()).href);
-  await app.writeDocument("news/stories", { stories });
-  await expect(page.locator(".news-card")).toHaveCount(stories.length);
+  const cards = buildCards(new URL("icon-180.png", page.url()).href);
+  await app.writeDocument("news/cards", { cards });
+  await expect(page.locator(".news-card")).toHaveCount(cards.length);
   return app;
 }
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {(photoUrl: string) => any[]} [buildStories]
+ */
+const openNewsWithStories = (page, buildStories = createStories) =>
+  openNewsWithCards(page, (photoUrl) => createCards(buildStories(photoUrl)));
 
 /**
  * A short card without a photo, a taller one, and an older one that goes under the short one.
@@ -169,6 +182,30 @@ test("a card's photo runs its full width", async ({ page }) => {
   expect(Math.abs(photoBox.width - (cardBox.width - 2))).toBeLessThan(1);
 });
 
+test("under its lead, a card lists the stories that add to it, quieter than the lead and with no photo", async ({
+  page,
+}) => {
+  await openNewsWithCards(page, (photoUrl) => {
+    const [athletic, espn, post] = createStories(photoUrl);
+    return [{ lead: athletic, more: [espn, post] }];
+  });
+  const more = page.locator(".news-more");
+
+  await expect(more.locator(".news-more-label")).toHaveText("More on this");
+  await expect(more.locator(".news-more-title")).toHaveText([
+    "Film review: how the Dream changed their approach",
+    "Stewart sat out practice with a sore knee",
+  ]);
+  await expect(more.locator("img")).toHaveCount(0);
+  const readSize = (locator) =>
+    locator.evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+  expect(await readSize(more.locator(".news-more-title").first())).toBeLessThan(
+    await readSize(page.locator("h3.news-title")),
+  );
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+});
+
 /**
  * The three stories, with each story's photo its own.
  * @param {string} photoUrl
@@ -218,8 +255,8 @@ test("a story that arrives above the others gets a card of its own, and each car
   const photoUrl = new URL("icon-180.png", page.url()).href;
   await markShownPhotos(page);
 
-  await app.writeDocument("news/stories", {
-    stories: [createTradeStory(photoUrl), ...createStoriesWithOwnPhotos(photoUrl)],
+  await app.writeDocument("news/cards", {
+    cards: createCards([createTradeStory(photoUrl), ...createStoriesWithOwnPhotos(photoUrl)]),
   });
 
   await expect(page.locator(".news-card")).toHaveCount(4);
@@ -237,8 +274,8 @@ test("a story that moves to the top keeps its card and photo", async ({ page }) 
   await markShownPhotos(page);
   const [athletic, ...others] = createStoriesWithOwnPhotos(photoUrl);
 
-  await app.writeDocument("news/stories", {
-    stories: [{ ...athletic, publishedAt: "2026-09-30T16:00:00.000Z" }, ...others],
+  await app.writeDocument("news/cards", {
+    cards: createCards([{ ...athletic, publishedAt: "2026-09-30T16:00:00.000Z" }, ...others]),
   });
 
   await expect(page.locator(".news-card h3").first()).toHaveText(
@@ -268,8 +305,8 @@ test("a page leaving the screen has its service worker keep the photos from othe
     route.fulfill({ body: photoBody, contentType: "image/png" }),
   );
   await page.getByRole("tab", { name: "News" }).click();
-  await app.writeDocument("news/stories", {
-    stories: createStoriesWithOwnPhotos("https://photos.example/photo.png"),
+  await app.writeDocument("news/cards", {
+    cards: createCards(createStoriesWithOwnPhotos("https://photos.example/photo.png")),
   });
   await expect(page.locator(".news-photo")).toHaveCount(3);
   await expect
@@ -493,8 +530,8 @@ test.describe("on a phone, the news", () => {
     const photoUrl = new URL("icon-180.png", page.url()).href;
     await markShownPhotos(page);
 
-    await app.writeDocument("news/stories", {
-      stories: [createTradeStory(photoUrl), ...createStoriesWithOwnPhotos(photoUrl)],
+    await app.writeDocument("news/cards", {
+      cards: createCards([createTradeStory(photoUrl), ...createStoriesWithOwnPhotos(photoUrl)]),
     });
 
     await expect(page.locator(".news-card")).toHaveCount(4);
@@ -536,8 +573,8 @@ test.describe("with motion", () => {
     const photoUrl = new URL("icon-180.png", page.url()).href;
     await page.evaluate(() => /** @type {any} */ (window).fadedHeadlines.splice(0));
 
-    await app.writeDocument("news/stories", {
-      stories: [createTradeStory(photoUrl), ...createStoriesWithOwnPhotos(photoUrl)],
+    await app.writeDocument("news/cards", {
+      cards: createCards([createTradeStory(photoUrl), ...createStoriesWithOwnPhotos(photoUrl)]),
     });
 
     await expect(page.locator(".news-card")).toHaveCount(4);

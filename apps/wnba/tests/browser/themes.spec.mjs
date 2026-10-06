@@ -3,7 +3,8 @@ import { listLayoutChanges, readLayout } from "../../../../tests/browser/theme-l
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-// A week of news with a card of each shape: one with a photo and one without.
+// A week of news with a card of each shape: one with a photo and stories under its lead, and one
+// with neither.
 /** @param {string} photoUrl */
 const createStories = (photoUrl) =>
   [photoUrl, null].map((url, index) => ({
@@ -84,7 +85,7 @@ const VIEWS = [
   {
     name: "News",
     open: (page) => page.getByRole("tab", { name: "News" }).click(),
-    shown: (page) => page.locator(".news-card").nth(1),
+    shown: (page) => page.locator(".news-more").first(),
   },
   {
     name: "settings",
@@ -104,8 +105,12 @@ for (const [screen, viewport] of Object.entries({
     await page.setViewportSize(viewport);
     await page.emulateMedia({ colorScheme: "light" });
     const app = await openApp(page);
-    await app.writeDocument("news/stories", {
-      stories: createStories(new URL("icon-180.png", page.url()).href),
+    const [withPhoto, withoutPhoto] = createStories(new URL("icon-180.png", page.url()).href);
+    await app.writeDocument("news/cards", {
+      cards: [
+        { lead: withPhoto, more: [withoutPhoto] },
+        { lead: { ...withoutPhoto, id: "alone" }, more: [] },
+      ],
     });
     for (const view of VIEWS) {
       await view.open(page);

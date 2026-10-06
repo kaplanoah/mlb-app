@@ -1,14 +1,16 @@
 import { formatShortDate, formatShortWeekday, nameDay } from "#shared/days.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderClub } from "./clubs.js";
-import { isWebAddress, pickReadStories } from "./news-picks.js";
+import { isWebAddress, pickReadCards } from "./news-picks.js";
 import { TEAMS } from "./teams.js";
 
-// The News view: a card for each story, newest first. A story shows only its headline, a short
+// The News view: a card for each piece of news, newest first, led by the story that tells it best,
+// with the others that add to it in a quiet list under it. A story shows only its headline, a short
 // summary, and who wrote it; the whole story is on its outlet's site, which opens apart from the
 // page and is never told the page's address.
 
 /** @typedef {import("./news-picks.js").NewsStory} NewsStory */
+/** @typedef {import("./news-picks.js").NewsCard} NewsCard */
 /** @typedef {import("./opened-stories.js").OpenedStories} OpenedStories */
 
 const WEEK_DAYS = 7;
@@ -123,17 +125,42 @@ function renderCardTop(teams, photo) {
 }
 
 /**
+ * A story under the lead, in a line or two: its headline, then its outlet and day.
  * @param {NewsStory} story
+ * @param {number} now
+ */
+const renderMoreStory = (story, now) =>
+  html`<li>
+    <p class="news-more-title" data-quoted>${renderStoryLink(story, story.title)}</p>
+    <p class="news-meta">${joinWithSeparator([story.outlet, nameStoryDay(story.publishedAt, now)])}</p>
+  </li>`;
+
+/**
+ * @param {NewsStory[]} more
+ * @param {number} now
+ */
+const renderMore = (more, now) =>
+  more.length > 0 &&
+  html`<div class="news-more">
+    <p class="news-more-label">More on this</p>
+    <ul class="news-more-list">
+      ${more.map((story) => renderMoreStory(story, now))}
+    </ul>
+  </div>`;
+
+/**
+ * @param {NewsCard} card
  * @param {number} now
  * @param {OpenedStories} opened
  */
-function renderCard(story, now, opened) {
+function renderCard({ lead, more }, now, opened) {
   return html`<article class="news-card">
-    ${renderPhoto(story.photo)}
+    ${renderPhoto(lead.photo)}
     <div class="news-body">
-      ${renderCardTop(story.teams.slice(0, MAX_CARD_TEAMS), story.photo)}
-      <h3 class="news-title" data-quoted>${renderStoryLink(story, story.title)}</h3>
-      ${renderMeta(story, now)} ${renderSummary(story)} ${renderReadButton(story, opened)}
+      ${renderCardTop(lead.teams.slice(0, MAX_CARD_TEAMS), lead.photo)}
+      <h3 class="news-title" data-quoted>${renderStoryLink(lead, lead.title)}</h3>
+      ${renderMeta(lead, now)} ${renderSummary(lead)} ${renderReadButton(lead, opened)}
+      ${renderMore(more, now)}
     </div>
   </article>`;
 }
@@ -142,47 +169,51 @@ function renderCard(story, now, opened) {
 // come out about as long as each other.
 const CARD_TEXT_HEIGHT = 3.4;
 const PHOTO_HEIGHT = 5.1;
+const MORE_LABEL_HEIGHT = 0.8;
+const MORE_STORY_HEIGHT = 1.3;
 
-/** @param {NewsStory} story */
-const estimateCardHeight = (story) =>
-  CARD_TEXT_HEIGHT + (findPhotoUrl(story.photo) ? PHOTO_HEIGHT : 0);
+/** @param {NewsCard} card */
+const estimateCardHeight = ({ lead, more }) =>
+  CARD_TEXT_HEIGHT +
+  (findPhotoUrl(lead.photo) ? PHOTO_HEIGHT : 0) +
+  (more.length > 0 ? MORE_LABEL_HEIGHT + more.length * MORE_STORY_HEIGHT : 0);
 
 /**
- * The stories in `columnCount` columns, each card in turn going to the shortest, so each column
+ * The cards in `columnCount` columns, each card in turn going to the shortest, so each column
  * stacks its cards without gaps and the newest still come first.
- * @param {NewsStory[]} stories
+ * @param {NewsCard[]} cards
  * @param {number} columnCount
  */
-function placeInColumns(stories, columnCount) {
-  /** @type {{ height: number, stories: NewsStory[] }[]} */
-  const columns = Array.from({ length: columnCount }, () => ({ height: 0, stories: [] }));
-  for (const story of stories) {
+function placeInColumns(cards, columnCount) {
+  /** @type {{ height: number, cards: NewsCard[] }[]} */
+  const columns = Array.from({ length: columnCount }, () => ({ height: 0, cards: [] }));
+  for (const card of cards) {
     const shortest = columns.reduce((best, column) =>
       column.height < best.height ? column : best,
     );
-    shortest.height += estimateCardHeight(story);
-    shortest.stories.push(story);
+    shortest.height += estimateCardHeight(card);
+    shortest.cards.push(card);
   }
-  return columns.map((column) => column.stories);
+  return columns.map((column) => column.cards);
 }
 
 /**
- * A card for each story the Worker saved, from only the outlets `choices` reads, in `columnCount`
- * columns, each story this device has opened marked with a check.
- * @param {NewsStory[]} stories
+ * The cards the Worker saved, with only the outlets `choices` reads, in `columnCount` columns, each
+ * lead this device has opened marked with a check.
+ * @param {NewsCard[]} cards
  * @param {import("./news-picks.js").NewsChoices} choices
  * @param {number} now
  * @param {{ columnCount?: number, opened?: OpenedStories }} [options]
  */
-export function renderNews(stories, choices, now, { columnCount = 1, opened = {} } = {}) {
-  const read = pickReadStories(stories, choices);
+export function renderNews(cards, choices, now, { columnCount = 1, opened = {} } = {}) {
+  const read = pickReadCards(cards, choices);
   if (!read.length) return html`<p class="empty-note">No news yet</p>`;
   return html`<div class="news-cards">
       ${placeInColumns(read, columnCount).map(
         (column) =>
           html`<ul class="news-column">
             ${column.map(
-              (story) => html`<li data-key="${story.id}">${renderCard(story, now, opened)}</li>`,
+              (card) => html`<li data-key="${card.lead.id}">${renderCard(card, now, opened)}</li>`,
             )}
           </ul>`,
       )}

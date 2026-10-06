@@ -2109,6 +2109,40 @@ table.standings tr.playoff-line + tr td {
   font-size: var(--size-glance);
   color: var(--ink-dim);
 }
+/* The stories under a card's lead, quieter than it: a headline and its outlet each. */
+.news-more {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}
+.news-more-label {
+  margin: 0;
+  font-size: var(--size-small);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.news-more-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.news-more-title {
+  margin: 0 0 2px;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+.news-more-title a {
+  color: inherit;
+  text-decoration: none;
+}
 .news-summary {
   margin: 2px 0 0;
   font-size: var(--size-read);
@@ -2170,10 +2204,12 @@ table.standings tr.playoff-line + tr td {
 }
 @media (hover: hover) {
   .news-title a,
+  .news-more-title a,
   .read-button {
     transition: color 0.15s;
   }
   .news-title a:hover,
+  .news-more-title a:hover,
   .read-button:hover {
     color: var(--ink-hover);
   }
