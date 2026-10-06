@@ -1078,9 +1078,13 @@ table.roster {
   border-collapse: separate;
   border-spacing: 0;
 }
+/* Once it sticks, the column names sit just under the sheet's top, the line over them tucked up
+   out of sight. */
 table.roster thead {
+  --roster-band-height: 18px;
+  --roster-space-stuck: 4px;
   position: sticky;
-  top: 0;
+  top: calc(var(--roster-space-stuck) - var(--roster-band-height));
   z-index: 3;
   background: var(--card);
 }
@@ -1099,6 +1103,8 @@ table.roster .roster-head th {
   box-shadow: inset 0 -1px 0 var(--divider);
 }
 table.roster .roster-bands th {
+  box-sizing: border-box;
+  height: var(--roster-band-height);
   padding-bottom: 2px;
   text-align: left;
 }

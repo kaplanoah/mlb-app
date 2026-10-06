@@ -140,7 +140,7 @@ test("on a phone, swiping the roster across keeps each player's number and name 
   );
 });
 
-test("on a phone, scrolling down the roster takes its title away and stops the column names at the sheet's top", async ({
+test("on a phone, scrolling down the roster takes its title away and stops the column names 4px under the sheet's top", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -151,9 +151,9 @@ test("on a phone, scrolling down the roster takes its title away and stops the c
 
   // The sheet's scrolling area starts inside its top border.
   const top = await sheet.evaluate(
-    (dialog) => dialog.getBoundingClientRect().top + dialog.clientTop,
+    (element) => element.getBoundingClientRect().top + element.clientTop,
   );
-  expect((await readBox(sheet.locator("table.roster thead"))).y).toBe(top);
+  expect((await readBox(sheet.locator("table.roster .roster-head"))).y).toBe(top + 4);
   const title = await readBox(sheet.locator("#rosterTitle"));
   expect(title.y + title.height).toBeLessThan(top);
 });
