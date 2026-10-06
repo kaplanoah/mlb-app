@@ -100,6 +100,17 @@ function isMonotonic(lefts) {
   return steps.every((step) => step >= 0) || steps.every((step) => step <= 0);
 }
 
+/**
+ * Whether the sheet was seen somewhere between where it started and where it ended, as in a
+ * slide and never in a jump. A busy machine draws only a few of a slide's frames, so how many
+ * places it was seen in says nothing.
+ * @param {number[]} lefts
+ */
+function hasStopOnTheWay(lefts) {
+  const [low, high] = [Math.min(lefts[0], lefts.at(-1)), Math.max(lefts[0], lefts.at(-1))];
+  return lefts.some((left) => left > low && left < high);
+}
+
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -226,7 +237,7 @@ test("a team's sheet slides in from the right beside the game's, which slides a 
   await expectShown(gameSheet);
   await expect(teamSheet).toBeHidden();
   const lefts = await readLefts();
-  expect(new Set(lefts).size).toBeGreaterThan(5);
+  expect(hasStopOnTheWay(lefts)).toBe(true);
   expect(isMonotonic(lefts)).toBe(true);
   expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
   await expect(gameSheet).toHaveCSS("filter", "brightness(1)");

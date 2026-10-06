@@ -102,11 +102,21 @@ test("a page let go eases back up", async ({ page }) => {
   await openApp(page);
   await openGames(page);
   const header = page.locator("header.top");
+  await header.evaluate((element) => {
+    const transitions = /** @type {string[]} */ ([]);
+    new MutationObserver(() => transitions.push(element.style.transition)).observe(element, {
+      attributeFilter: ["style"],
+    });
+    Object.assign(window, { headerTransitions: transitions });
+  });
 
   await pullDown(page, 60);
 
-  expect(await header.evaluate((element) => element.style.transition)).toBe("top 0.3s");
   await expect(header).toHaveCSS("top", "auto");
+  const transitions = await page.evaluate(
+    () => /** @type {string[]} */ (/** @type {any} */ (window).headerTransitions),
+  );
+  expect(transitions).toContain("top 0.3s");
 });
 
 test("a swipe down in an open sheet is the sheet's, not a pull", async ({ page }) => {
