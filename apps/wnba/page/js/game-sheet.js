@@ -5,7 +5,6 @@
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { renderNetworks } from "#shared/network-logos.js";
-import { redrawSheet } from "#shared/sheet-resize.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { renderBoxScore, renderPendingBoxScore } from "./box-score-view.js";
 import { renderClub } from "./clubs.js";
@@ -34,7 +33,7 @@ let shown = null;
 /** @type {(() => void) | null} */
 let unwatchDetails = null;
 
-const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("gameDialog"));
+const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gameSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 /** @param {string} id */
@@ -112,13 +111,11 @@ function renderSheet() {
   const game = shown && findGame(shown.id);
   if (!game) return;
   const body = findElement("gameBody");
-  redrawSheet(findDialog(), () => {
-    findElement("gameTitle").textContent = nameGame(game);
-    setHtml(findElement("gameWhen"), renderWhen(game));
-    body.setAttribute("style", formatSheetColors(game.away.team, game.home.team));
-    setHtml(body, html`${renderFaceOff(game)}${renderDetails(shown, game)}`);
-    body.setAttribute("aria-busy", String(isLoading(shown)));
-  });
+  findElement("gameTitle").textContent = nameGame(game);
+  setHtml(findElement("gameWhen"), renderWhen(game));
+  body.setAttribute("style", formatSheetColors(game.away.team, game.home.team));
+  setHtml(body, html`${renderFaceOff(game)}${renderDetails(shown, game)}`);
+  body.setAttribute("aria-busy", String(isLoading(shown)));
 }
 
 /** @param {any} error why the box score didn't load */
@@ -259,7 +256,7 @@ function reopenGameSheet(saved) {
 function openGameSheet(id) {
   if (!findGame(id)) return;
   showGame(id);
-  openSheet(findDialog());
+  openSheet(findSheet());
 }
 
 /**
@@ -292,14 +289,13 @@ function forgetGame() {
 }
 
 export function startGameSheet() {
-  const dialog = findDialog();
   for (const holder of ["gamePager", "updates"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
-  wireSheet(dialog, {
+  wireSheet(findSheet(), {
     doneButton: findElement("gameDoneBtn"),
     forwardButton: findElement("gameForwardBtn"),
     keeper: { read: readShownGame, reopen: reopenGameSheet },
     name: "Game",
+    forget: forgetGame,
   });
-  dialog.addEventListener("close", forgetGame);
 }

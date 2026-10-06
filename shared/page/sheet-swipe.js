@@ -1,5 +1,5 @@
 // On phones, a dialog shown as a sheet from the bottom closes with a swipe down, and slides down
-// whichever way it closes. Sheets opened over one another move and close together.
+// whichever way it closes.
 
 // Matches chrome.css's phone layout, where dialogs are sheets.
 const SHEET_MEDIA = "(max-width: 779px)";
@@ -11,7 +11,7 @@ const SWIPE_START_PX = 6;
 const SHEET_MOTION_MS = 250;
 const SHEET_EASING = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 
-export const isSheetLayout = () => matchMedia(SHEET_MEDIA).matches;
+const isSheetLayout = () => matchMedia(SHEET_MEDIA).matches;
 const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
@@ -19,7 +19,7 @@ const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)"
  * @param {HTMLElement} dialog
  * @param {string} to a transform
  */
-export function slideSheet(dialog, to) {
+function slideSheet(dialog, to) {
   const from = dialog.style.transform || "none";
   dialog.style.transform = "";
   const duration = prefersReducedMotion() ? 0 : SHEET_MOTION_MS;
@@ -32,7 +32,7 @@ export function slideSheet(dialog, to) {
 
 // A sheet still opening goes straight to where it was opening to, so a finger moves it from there.
 /** @param {HTMLElement} sheet */
-export function finishOpening(sheet) {
+function finishOpening(sheet) {
   for (const motion of sheet.getAnimations()) if (motion instanceof CSSAnimation) motion.finish();
 }
 
@@ -51,46 +51,38 @@ function fadeBackdropOut(dialog) {
 const closingSheets = new WeakSet();
 
 /**
- * Slides sheets down together, the first one's backdrop fading with them, and closes them, the
- * last opened first.
- * @param {HTMLDialogElement[]} dialogs in the order they opened
- */
-async function slideSheetsClosed(dialogs) {
-  const closing = dialogs.filter((dialog) => !closingSheets.has(dialog));
-  if (!closing.length) return;
-  for (const dialog of closing) closingSheets.add(dialog);
-  const motions = [
-    ...closing.map((dialog) => slideSheet(dialog, "translateY(100%)")),
-    fadeBackdropOut(closing[0]),
-  ];
-  await motions[0].finished;
-  for (const dialog of [...closing].reverse()) {
-    dialog.close();
-    dialog.removeAttribute("data-dragged");
-  }
-  for (const motion of motions) motion.cancel();
-  for (const dialog of closing) closingSheets.delete(dialog);
-}
-
-/**
- * Closes sheets, the last opened first, sliding them down together where they show as sheets.
- * @param {HTMLDialogElement[]} dialogs in the order they opened
- */
-export function closeSheets(dialogs) {
-  if (isSheetLayout()) slideSheetsClosed(dialogs);
-  else for (const dialog of [...dialogs].reverse()) dialog.close();
-}
-
-/**
- * Moves the sheet, and those under it, with a finger swiping down from its top, and closes them
- * at the end of a far or fast enough swipe. A swipe down the scrolled content scrolls it to its
- * top, then moves the sheet. Touches on the sheet's own gestures, and swipes mostly sideways,
- * leave it where it is.
+ * Slides a sheet down, its backdrop fading with it, and closes it.
  * @param {HTMLDialogElement} dialog
- * @param {{ isOwnGesture: (target: EventTarget) => boolean, listStack: () => HTMLDialogElement[] }} options
- *   `listStack` names every sheet showing, in the order they opened
  */
-export function closeOnSwipeDown(dialog, { isOwnGesture, listStack }) {
+async function slideSheetClosed(dialog) {
+  if (closingSheets.has(dialog)) return;
+  closingSheets.add(dialog);
+  const motions = [slideSheet(dialog, "translateY(100%)"), fadeBackdropOut(dialog)];
+  await motions[0].finished;
+  dialog.close();
+  dialog.removeAttribute("data-dragged");
+  for (const motion of motions) motion.cancel();
+  closingSheets.delete(dialog);
+}
+
+/**
+ * Closes a sheet, sliding it down where it shows as a sheet.
+ * @param {HTMLDialogElement} dialog
+ */
+export function closeSheet(dialog) {
+  if (isSheetLayout()) slideSheetClosed(dialog);
+  else dialog.close();
+}
+
+/**
+ * Moves the sheet with a finger swiping down from its top, and closes it at the end of a far or
+ * fast enough swipe. A swipe down the scrolled content scrolls it to its top, then moves the
+ * sheet. Touches on the sheet's own gestures, and swipes mostly sideways, leave it where it is.
+ * @param {HTMLDialogElement} dialog
+ * @param {{ isOwnGesture: (target: EventTarget) => boolean, findScroller: () => HTMLElement }} options
+ *   `findScroller` names what scrolls the content the finger is on
+ */
+export function closeOnSwipeDown(dialog, { isOwnGesture, findScroller }) {
   /** @type {{ originX: number, originY: number, startY: number, lastY: number, lastTime: number, speed: number, isDragging: boolean } | null} */
   let swipe = null;
 
@@ -129,7 +121,7 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, listStack }) {
    * @param {{ startY: number }} moving
    */
   function startsDragging(clientY, moving) {
-    if (dialog.scrollTop > 0 || clientY < moving.startY) moving.startY = clientY;
+    if (findScroller().scrollTop > 0 || clientY < moving.startY) moving.startY = clientY;
     return clientY - moving.startY >= SWIPE_START_PX;
   }
 
@@ -146,20 +138,17 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, listStack }) {
   }
 
   /** @param {number} offset */
-  function moveStack(offset) {
-    for (const sheet of listStack()) {
-      if (!sheet.hasAttribute("data-dragged")) finishOpening(sheet);
-      sheet.setAttribute("data-dragged", "");
-      sheet.style.transform = `translateY(${offset}px)`;
-    }
+  function moveSheet(offset) {
+    if (!dialog.hasAttribute("data-dragged")) finishOpening(dialog);
+    dialog.setAttribute("data-dragged", "");
+    dialog.style.transform = `translateY(${offset}px)`;
   }
 
-  function springStackBack() {
-    for (const sheet of listStack())
-      slideSheet(sheet, "none").finished.then((slide) => {
-        slide.cancel();
-        sheet.removeAttribute("data-dragged");
-      });
+  function springSheetBack() {
+    slideSheet(dialog, "none").finished.then((slide) => {
+      slide.cancel();
+      dialog.removeAttribute("data-dragged");
+    });
   }
 
   /** @param {TouchEvent} event */
@@ -177,7 +166,7 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, listStack }) {
     swipe.isDragging = true;
     if (event.cancelable) event.preventDefault();
     trackSwipeSpeed(clientY, event.timeStamp);
-    moveStack(Math.max(0, clientY - swipe.startY));
+    moveSheet(Math.max(0, clientY - swipe.startY));
   }
 
   /** @param {TouchEvent} event */
@@ -187,8 +176,8 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, listStack }) {
     swipe = null;
     if (!isDragging) return;
     const isFarOrFast = lastY - startY > CLOSE_DISTANCE_PX || speed > CLOSE_SPEED_PX_PER_MS;
-    if (event.type === "touchend" && isFarOrFast) slideSheetsClosed(listStack());
-    else springStackBack();
+    if (event.type === "touchend" && isFarOrFast) slideSheetClosed(dialog);
+    else springSheetBack();
   }
 
   dialog.addEventListener("touchstart", startSwipe, { passive: true });

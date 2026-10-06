@@ -31,3 +31,13 @@ export async function recordSheetMotions(page) {
   });
   return () => page.evaluate(() => /** @type {any} */ (window).sheetMotions.splice(0));
 }
+
+/**
+ * Waits until every motion on the page that runs for a time has ended. A motion tied to a scroll,
+ * like a sheet's as its row moves, lasts as long as the sheet, so it doesn't count.
+ * @param {import("@playwright/test").Page} page
+ */
+export const waitForTimedMotions = (page) =>
+  page.waitForFunction(() =>
+    document.getAnimations().every((motion) => motion.timeline !== document.timeline),
+  );

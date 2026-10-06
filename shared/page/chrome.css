@@ -139,12 +139,13 @@ nav.tabs {
 
 /* :focus-visible counts a bare Shift press, so focus rings key off body.kbd instead. A scroll area
    takes focus so the keyboard can scroll it, which Safari doesn't give it. A sheet takes focus
-   itself when nothing in it has it, as when one over it closes on a phone, where a tapped button
-   never takes focus, and a ring around the whole sheet would show nothing. */
+   itself when nothing in it has it, as when a swipe brings it into view on a phone, where a tapped
+   button never takes focus, and a ring around the whole sheet would show nothing. */
 button:focus,
 select:focus,
 [role="region"]:focus,
-dialog:focus {
+dialog:focus,
+.sheet-page:focus {
   outline: none;
 }
 body.kbd button:focus,
@@ -289,8 +290,7 @@ section.view.active {
   }
 }
 
-/* Settings are as tall as what they hold, up to nearly the screen's height, and their header
-   scrolls with them. They never scroll past their top or bottom, so a swipe down at the top moves
+/* Settings are nearly the screen's height, like every sheet, and their header scrolls with them. They never scroll past their top or bottom, so a swipe down at the top moves
    the sheet instead. An app that fills the whole sheet sizes its sections from --section-gap and
    --bottom-padding. */
 .settings-panel {
@@ -299,7 +299,8 @@ section.view.active {
   --bottom-padding: 22px;
   width: calc(100% - 24px);
   max-width: 420px;
-  max-height: calc(100% - 48px);
+  height: calc(100% - 48px);
+  max-height: none;
   margin: auto;
   padding: 0;
   background: var(--card);
@@ -312,10 +313,13 @@ section.view.active {
 .settings-panel::backdrop {
   background: rgba(0, 0, 0, 0.6);
 }
+/* What they hold fills them, the copyright at their foot, so Diagnostics stay just out of sight. */
 .settings-body {
   display: flex;
   flex-direction: column;
   gap: var(--section-gap);
+  box-sizing: border-box;
+  min-height: 100%;
   padding: 0 22px var(--bottom-padding);
 }
 .sheet-top {
@@ -364,7 +368,8 @@ section.view.active {
 .settings-footer {
   display: grid;
   gap: 2px;
-  margin-top: calc(18px - var(--section-gap));
+  margin-top: auto;
+  padding-top: calc(18px - var(--section-gap));
   text-align: center;
 }
 .settings-footer .settings-version {
@@ -802,7 +807,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     --bottom-padding: max(22px, env(safe-area-inset-bottom));
     width: 100%;
     max-width: none;
-    max-height: calc(100% - 44px - env(safe-area-inset-top));
+    height: calc(100% - 44px - env(safe-area-inset-top));
     margin: auto 0 0;
     border-width: 1px 0 0;
     border-radius: 22px 22px 0 0;

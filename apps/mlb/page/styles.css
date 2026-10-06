@@ -1218,7 +1218,6 @@ body.kbd .rank-item .grip:focus {
    settings, the ranking, the copyright at their end, or Diagnostics past it, each of which would
    otherwise be close enough to the one before for the scroll to settle back on that. */
 .settings-panel {
-  height: 100%;
   container-type: size;
   scroll-snap-type: y proximity;
   scroll-padding-top: var(--section-gap);

@@ -66,24 +66,20 @@ function showPart(id, { markup, hidden, classes, style, scrolls }) {
   restoreScrolls(element, scrolls);
 }
 
-/** @param {any} sheet */
-function findSheetDialog(sheet) {
-  const dialog = typeof sheet?.id === "string" ? document.getElementById(sheet.id) : null;
-  return dialog instanceof HTMLDialogElement && !dialog.open ? dialog : null;
+/** @param {any} saved */
+function findLastSheet(saved) {
+  const sheet = typeof saved?.id === "string" ? document.getElementById(saved.id) : null;
+  const dialog = sheet?.closest("dialog");
+  return sheet && dialog && !dialog.open ? { sheet, dialog } : null;
 }
 
 /**
- * Shows a sheet over the one it was opened from, as sheet.js stacks them, its back button naming
- * that one as it did.
- * @param {HTMLDialogElement} dialog
- * @param {HTMLDialogElement} under
+ * Names the sheet a sheet was opened from on its back button, as sheet.js does.
+ * @param {HTMLElement} sheet
  * @param {unknown} backLabel
  */
-function coverLastSheet(dialog, under, backLabel) {
-  dialog.setAttribute("data-stacked", "");
-  dialog.style.minHeight = `${under.getBoundingClientRect().height}px`;
-  under.setAttribute("data-covered", "");
-  const backButton = /** @type {HTMLElement | null} */ (dialog.querySelector(".sheet-back"));
+function labelBackButton(sheet, backLabel) {
+  const backButton = /** @type {HTMLElement | null} */ (sheet.querySelector(".sheet-back"));
   const label = backButton?.querySelector(".sheet-back-label");
   if (!backButton || !label || typeof backLabel !== "string") return;
   label.textContent = backLabel;
@@ -91,23 +87,42 @@ function coverLastSheet(dialog, under, backLabel) {
   backButton.hidden = false;
 }
 
+/**
+ * Puts a dialog's sheets back in its row, in the order they opened, and shows the last of them.
+ * @param {HTMLDialogElement} dialog
+ * @param {{ sheet: HTMLElement, saved: any }[]} sheets
+ */
+function showLastDialog(dialog, sheets) {
+  const row = dialog.querySelector(":scope > .sheet-row");
+  sheets.forEach(({ sheet, saved }, index) => {
+    if (sheet === dialog) return;
+    sheet.hidden = false;
+    sheet.style.order = String(index);
+    labelBackButton(sheet, saved.backLabel);
+  });
+  dialog.setAttribute("data-reopened", "");
+  dialog.showModal();
+  if (row) row.scrollLeft = (sheets.length - 1) * row.clientWidth;
+  for (const { sheet, saved } of sheets) sheet.scrollTop = Number(saved.scrollTop) || 0;
+}
+
 // A sheet that was showing is still there when the page comes back, so it shows without rising
-// again, over any it was opened from, until the page's modules take it over (sheet.js's
+// again, beside any it was opened from, until the page's modules take it over (sheet.js's
 // reopenSheets) or close it.
 function showLastSheets() {
-  const sheets = readSaved("openSheets");
-  if (!Array.isArray(sheets)) return;
-  /** @type {HTMLDialogElement | null} */
-  let under = null;
-  for (const sheet of sheets) {
-    const dialog = findSheetDialog(sheet);
-    if (!dialog) continue;
-    dialog.setAttribute("data-reopened", "");
-    if (under) coverLastSheet(dialog, under, sheet.backLabel);
-    dialog.showModal();
-    dialog.scrollTop = Number(sheet.scrollTop) || 0;
-    under = dialog;
+  const saved = readSaved("openSheets");
+  if (!Array.isArray(saved)) return;
+  /** @type {Map<HTMLDialogElement, { sheet: HTMLElement, saved: any }[]>} */
+  const dialogs = new Map();
+  for (const each of saved) {
+    const found = findLastSheet(each);
+    if (found)
+      dialogs.set(found.dialog, [
+        ...(dialogs.get(found.dialog) ?? []),
+        { sheet: found.sheet, saved: each },
+      ]);
   }
+  for (const [dialog, sheets] of dialogs) showLastDialog(dialog, sheets);
 }
 
 // What the page last showed is a drawing of its own, so the note that its views are still empty

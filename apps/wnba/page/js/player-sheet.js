@@ -1,9 +1,8 @@
-// The sheet a tap on a player's name opens, over the sheet it was in: her facts and numbers for
+// The sheet a tap on a player's name opens, beside the sheet it was in: her facts and numbers for
 // the season shown, which the Worker reads from the league, read the first time the sheet shows
 // her season and again once they're old. She shows as out only while her team still plays.
 
 import { setHtml } from "#shared/html.js";
-import { redrawSheet } from "#shared/sheet-resize.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import {
@@ -32,7 +31,7 @@ const reads = new Map();
 /** @type {PlayerSubject | null} */
 let shownPlayer = null;
 
-const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("playerDialog"));
+const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("playerSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 /**
@@ -95,21 +94,19 @@ function renderSheet() {
   if (!subject) return;
   const { player, isLoading } = readPlayer(subject, session.year);
   const showsOut = !isPastSeason() && isStillPlaying(session.season?.series ?? [], subject.team);
-  redrawSheet(findDialog(), () => {
-    setHtml(findElement("playerTitle"), renderPlayerHeading(subject, player, showsOut));
-    setHtml(findElement("playerNote"), describePlayerNote(subject, player));
-    setHtml(findElement("playerFacts"), renderPlayerFacts(player, isLoading) || "");
-    setHtml(
-      findElement("playerBody"),
-      renderPlayerBody({
-        player,
-        isLoading,
-        season: session.season,
-        isPastSeason: isPastSeason(),
-        now: Date.now(),
-      }),
-    );
-  });
+  setHtml(findElement("playerTitle"), renderPlayerHeading(subject, player, showsOut));
+  setHtml(findElement("playerNote"), describePlayerNote(subject, player));
+  setHtml(findElement("playerFacts"), renderPlayerFacts(player, isLoading) || "");
+  setHtml(
+    findElement("playerBody"),
+    renderPlayerBody({
+      player,
+      isLoading,
+      season: session.season,
+      isPastSeason: isPastSeason(),
+      now: Date.now(),
+    }),
+  );
 }
 
 /**
@@ -119,7 +116,7 @@ function renderSheet() {
 function preparePlayer(subject) {
   shownPlayer = subject;
   renderSheet();
-  return findDialog();
+  return findSheet();
 }
 
 /** @param {unknown} value */
@@ -154,16 +151,15 @@ function nameForForward() {
 export const refreshPlayerSheet = () => renderSheet();
 
 export function startPlayerSheet() {
-  const dialog = findDialog();
-  wireSheet(dialog, {
+  wireSheet(findSheet(), {
     doneButton: findElement("playerDoneBtn"),
     backButton: findElement("playerBackBtn"),
     keeper: { read: () => shownPlayer, reopen: reopenPlayer },
     name: "Player",
     nameForForward,
+    forget: () => {
+      shownPlayer = null;
+    },
   });
   document.addEventListener("click", openOnTap);
-  dialog.addEventListener("close", () => {
-    shownPlayer = null;
-  });
 }
