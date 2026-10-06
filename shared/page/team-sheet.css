@@ -9,6 +9,10 @@
  * --sheet-part-head, an app's :root defines these tokens:
  *   --ink-mid              text between --ink and --ink-dim, for the note and the labels
  *   --ink-hover            a team's name under the pointer, --ink with enough of --accent to see
+ *
+ * A sheet with more than one page has a pill under its title, drawn by pager.css, which the app
+ * links too, and its :root also defines:
+ *   --team-pages-thumb     the thumb under the shown page's name, which stands out from --card
  */
 
 /* The button only clears the browser's own look, so a team's name keeps the type of wherever it
@@ -50,6 +54,23 @@ body.kbd .team-open:focus {
     padding-top: 2px;
   }
 }
+/* The pill between a sheet's pages. Its thumb slides to the page a tap shows. */
+.team-pages {
+  --pager-thumb: var(--team-pages-thumb);
+  margin-top: 12px;
+}
+.team-pages .pager-thumb {
+  transition: transform 0.25s ease;
+}
+.team-pages button[aria-selected="true"] {
+  --nearness: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-pages .pager-thumb {
+    transition: none;
+  }
+}
+
 #teamTitle {
   display: flex;
   align-items: center;

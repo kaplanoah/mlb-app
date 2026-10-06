@@ -1,7 +1,8 @@
 // The sheet a team's name or dot opens wherever it shows. Phones show it as a sheet from the
 // bottom, wider screens as a modal, like a game's sheet, over a sheet it opens from, and in place
 // of another team's. Each league hands it which teams it knows and what a team's sheet shows, and
-// builds the buttons that open it with renderTeamSheetButton.
+// builds the buttons that open it with renderTeamSheetButton. A league whose sheet has more than
+// one page names them, and a pill under the title switches between them.
 
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { renderSheetPart } from "./sheet-part.js";
@@ -9,13 +10,17 @@ import { redrawSheet } from "./sheet-resize.js";
 import { openSheet, wireSheet } from "./sheet.js";
 
 /** @typedef {import("./html.js").Markup} Markup */
-/** @typedef {{ heading: Markup, note: Markup | string, body: Markup }} TeamSheet */
-/** @typedef {{ isTeam: (team: string) => boolean, renderSheet: (team: string) => TeamSheet }} League */
+/** @typedef {{ id: string, label: string }} TeamPage */
+/** @typedef {{ heading: Markup, note: Markup | string, body: Markup, pages?: TeamPage[] }} TeamSheet */
+/** @typedef {{ isTeam: (team: string) => boolean, renderSheet: (team: string, page: string | null) => TeamSheet }} League */
 
 /** @type {League | null} */
 let league = null;
 /** @type {string | null} */
 let shownTeam = null;
+// The page the pill shows, or null for a sheet's first.
+/** @type {string | null} */
+let shownPage = null;
 let areAllTitlesShown = false;
 
 const TITLES_SHOWN = 3;
@@ -25,12 +30,36 @@ const MOST_TITLES_LISTED = 6;
 const findDialog = () => /** @type {HTMLDialogElement} */ (document.getElementById("teamDialog"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
+/**
+ * The pill between a sheet's pages, its thumb under the shown one.
+ * @param {TeamPage[]} pages
+ * @param {string} shown
+ */
+function renderPagePill(pages, shown) {
+  const index = Math.max(
+    0,
+    pages.findIndex((page) => page.id === shown),
+  );
+  return html`<div class="pager-tabs team-pages" role="tablist" aria-label="Team" style="--list-count: ${pages.length}; --swipe: ${index}">
+    <span class="pager-thumb" aria-hidden="true"></span>
+    ${pages.map(
+      (page) =>
+        html`<button type="button" role="tab" data-page="${page.id}" aria-selected="${String(page.id === shown)}">${page.label}</button>`,
+    )}
+  </div>`;
+}
+
 function renderSheet() {
   if (!league || !shownTeam) return;
-  const { heading, note, body } = league.renderSheet(shownTeam);
-  redrawSheet(findDialog(), () => {
+  const { heading, note, body, pages = [] } = league.renderSheet(shownTeam, shownPage);
+  const page = pages.find((each) => each.id === shownPage)?.id ?? pages[0]?.id ?? "";
+  const dialog = findDialog();
+  redrawSheet(dialog, () => {
+    dialog.dataset.page = page;
     setHtml(findElement("teamTitle"), heading);
     setHtml(findElement("teamNote"), note);
+    const pill = document.getElementById("teamPages");
+    if (pill) setHtml(pill, pages.length > 1 && renderPagePill(pages, page));
     setHtml(findElement("teamBody"), body);
   });
 }
@@ -39,17 +68,19 @@ function renderSheet() {
 function openTeamSheet(team) {
   if (!league?.isTeam(team)) return;
   shownTeam = team;
+  shownPage = null;
   areAllTitlesShown = false;
   renderSheet();
   openSheet(findDialog());
 }
 
-const readShownTeam = () => shownTeam && { team: shownTeam, areAllTitlesShown };
+const readShownTeam = () => shownTeam && { team: shownTeam, page: shownPage, areAllTitlesShown };
 
-/** @param {{ team: string, areAllTitlesShown: boolean } | null} shown */
+/** @param {{ team: string, page?: string | null, areAllTitlesShown: boolean } | null} shown */
 function reopenTeamSheet(shown) {
   if (!shown || !league?.isTeam(shown.team)) return false;
   shownTeam = shown.team;
+  shownPage = typeof shown.page === "string" ? shown.page : null;
   areAllTitlesShown = shown.areAllTitlesShown === true;
   renderSheet();
   return true;
@@ -73,6 +104,16 @@ function showAllTitlesOnTap(event) {
   renderSheet();
 }
 
+/** @param {Event} event */
+function showPageOnTap(event) {
+  const tab = /** @type {HTMLElement | null} */ (
+    /** @type {Element} */ (event.target).closest("[data-page]")
+  );
+  if (!tab?.dataset.page || tab.dataset.page === shownPage) return;
+  shownPage = tab.dataset.page;
+  renderSheet();
+}
+
 /** @param {League} teams */
 export function startTeamSheet(teams) {
   league = teams;
@@ -82,8 +123,10 @@ export function startTeamSheet(teams) {
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
   });
   findElement("teamBody").addEventListener("click", showAllTitlesOnTap);
+  document.getElementById("teamPages")?.addEventListener("click", showPageOnTap);
   dialog.addEventListener("close", () => {
     shownTeam = null;
+    shownPage = null;
   });
   document.addEventListener("click", openFromTap);
 }

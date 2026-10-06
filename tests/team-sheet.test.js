@@ -21,6 +21,7 @@ function createPage() {
   globalThis.getComputedStyle = /** @type {any} */ (() => ({ height: "400px" }));
   const dialog = Object.assign(new EventTarget(), {
     id: "teamDialog",
+    dataset: {},
     open: false,
     scrollTop: 0,
     showModal() {
@@ -37,6 +38,7 @@ function createPage() {
     teamDialog: dialog,
     teamTitle: { innerHTML: "" },
     teamNote: { innerHTML: "" },
+    teamPages: Object.assign(new EventTarget(), { innerHTML: "" }),
     teamBody: Object.assign(new EventTarget(), { innerHTML: "" }),
     teamDoneBtn: new EventTarget(),
   };
@@ -58,14 +60,36 @@ const BOS_TITLES = [2018, 2013, 2007, 2004, 1918, 1916, 1915];
 
 const page = createPage();
 let season = "the season so far";
-startTeamSheet({
-  isTeam: (team) => team === "NYY" || team === "BOS",
-  renderSheet: (team) => ({
-    heading: html`<b>${team}</b>`,
-    note: `${team} note`,
-    body: team === "BOS" ? renderTitles(BOS_TITLES) : html`<p>${season}</p>`,
-  }),
-});
+const PAGES = [
+  { id: "stats", label: "Stats" },
+  { id: "roster", label: "Roster" },
+];
+
+/**
+ * A sheet for each team: the Mets' with a Stats and a Roster page, each showing which it was asked for, or first.
+ * @param {string} team
+ * @param {string | null} shownPage
+ */
+function renderSheet(team, shownPage) {
+  const sheet = { heading: html`<b>${team}</b>`, note: `${team} note` };
+  if (team === "NYM") return { ...sheet, body: html`<p>${shownPage ?? "first"}</p>`, pages: PAGES };
+  return { ...sheet, body: team === "BOS" ? renderTitles(BOS_TITLES) : html`<p>${season}</p>` };
+}
+
+startTeamSheet({ isTeam: (team) => ["NYY", "BOS", "NYM"].includes(team), renderSheet });
+
+// A tap on the pill's tab for a page.
+function tapPage(pill, id) {
+  const event = new Event("click");
+  Object.defineProperty(event, "target", { value: { closest: () => ({ dataset: { page: id } }) } });
+  pill.dispatchEvent(event);
+}
+
+/** The pages' names in the pill, and which shows. */
+const readPill = () =>
+  [...page.elements.teamPages.innerHTML.matchAll(/aria-selected="(\w+)">(\w+)</g)].map(
+    ([, selected, label]) => `${label}${selected === "true" ? " (shown)" : ""}`,
+  );
 
 // A tap on the titles' button for the rest, or on something else in the sheet's body.
 function tapInBody(body, isOnMore) {
@@ -199,4 +223,37 @@ test("a sheet's part has its title, and a note across from it only when it has o
   assert.match(part.text, /<h3>Playoffs<\/h3>\s*<span>Alive<\/span>/);
   assert.match(part.text, /<p>Games<\/p>/);
   assert.doesNotMatch(renderSheetPart("Season", html`<p>Stats</p>`).text, /<span>/);
+});
+
+test("a sheet with pages opens on its first, under a pill that shows the one a tap picks, and a sheet without has no pill", () => {
+  tapTeam(page.document, "NYM");
+  assert.deepEqual(readPill(), ["Stats (shown)", "Roster"]);
+  assert.equal(page.elements.teamBody.innerHTML, "<p>first</p>");
+  assert.equal(page.dialog.dataset.page, "stats");
+
+  tapPage(page.elements.teamPages, "roster");
+  assert.deepEqual(readPill(), ["Stats", "Roster (shown)"]);
+  assert.match(page.elements.teamPages.innerHTML, /--swipe: 1/);
+  assert.equal(page.elements.teamBody.innerHTML, "<p>roster</p>");
+  assert.equal(page.dialog.dataset.page, "roster");
+
+  tapTeam(page.document, "NYY");
+  assert.equal(page.elements.teamPages.innerHTML, "");
+  assert.equal(page.dialog.dataset.page, "");
+  tapTeam(page.document, "NYM");
+  assert.deepEqual(readPill(), ["Stats (shown)", "Roster"]);
+  page.dialog.close();
+});
+
+test("a sheet a reload put back open shows the page it was on", () => {
+  tapTeam(page.document, "NYM");
+  tapPage(page.elements.teamPages, "roster");
+  const saved = listOpenSheets();
+  page.dialog.close();
+
+  page.dialog.open = true;
+  reopenSheets(saved);
+  assert.deepEqual(readPill(), ["Stats", "Roster (shown)"]);
+  assert.equal(page.elements.teamBody.innerHTML, "<p>roster</p>");
+  page.dialog.close();
 });

@@ -258,9 +258,30 @@ test("each team's five leading scorers are those with the most points a game who
   assert.equal(fewGames.filter((leader) => leader.team === "IND").length, 5);
 });
 
-test("without the players' averages, there are no top scorers, and the feed is missing", () => {
-  const { leaders, missing } = buildAfternoon({ ...RESPONSES, players: null });
-  assert.deepEqual([leaders, missing], [[], ["players"]]);
+test("every player on a team has her averages a game, for her team's roster", () => {
+  const { averages } = buildAfternoon();
+  assert.equal(averages.length, 239);
+  assert.deepEqual(
+    averages.find((player) => player.lastName === "Stewart"),
+    {
+      team: "NYL",
+      id: 1627668,
+      firstName: "Breanna",
+      lastName: "Stewart",
+      games: 42,
+      minutes: 32.9,
+      points: 20.8,
+      rebounds: 8.3,
+      assists: 3.3,
+      steals: 1.4,
+      blocks: 1.3,
+    },
+  );
+});
+
+test("without the players' averages, there are no top scorers or averages, and the feed is missing", () => {
+  const { leaders, averages, missing } = buildAfternoon({ ...RESPONSES, players: null });
+  assert.deepEqual([leaders, averages, missing], [[], [], ["players"]]);
 });
 
 test("polling waits until 15 minutes before the next set start, and runs every 15 seconds in a game", () => {

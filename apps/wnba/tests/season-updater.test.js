@@ -5,6 +5,7 @@ import { buildSnapshot } from "../page/js/snapshot.js";
 import {
   listNotifications,
   loadCurrentSnapshot,
+  readAverages,
   readUpdates,
   saveSnapshot,
 } from "../worker/src/season-updater.js";
@@ -56,12 +57,15 @@ function finishTonight(snapshot, [awayScore, homeScore]) {
   return { ...snapshot, games, series };
 }
 
-test("the season saves its version, games, series, standings, and top scorers, and only when they change", async () => {
+test("the season saves its version, games, series, standings, and top scorers, every player's averages apart from it, and only when they change", async () => {
   const docs = createDocs();
   await saveSnapshot(docs, SNAPSHOT);
   await saveSnapshot(docs, { ...SNAPSHOT, asOf: "2026-09-30T22:00:00Z" });
 
-  assert.deepEqual(docs.writes, ["seasons/2026"]);
+  assert.deepEqual(docs.writes, ["seasons/2026", "averages/2026"]);
+  const averages = await readAverages(docs, 2026);
+  assert.equal(averages.players.length, SNAPSHOT.averages.length);
+  assert.ok(!("averages" in (await readUpdates(docs, 2026))));
   const saved = await readUpdates(docs, 2026);
   assert.equal(saved.version, SNAPSHOT.version);
   assert.equal(saved.games.length, 28);
@@ -122,12 +126,13 @@ test("a feed that didn't answer leaves its saved field as it was", async () => {
   assert.equal((await readUpdates(docs, 2026)).standings.length, 15);
 });
 
-test("the top scorers stay as they were when the players' averages didn't answer", async () => {
+test("the top scorers and every player's averages stay as they were when the players' averages didn't answer", async () => {
   const docs = createDocs();
   await saveSnapshot(docs, SNAPSHOT);
   await saveSnapshot(docs, buildWithout(["players"]));
 
   assert.equal((await readUpdates(docs, 2026)).leaders.length, 75);
+  assert.equal((await readAverages(docs, 2026)).players.length, SNAPSHOT.averages.length);
 });
 
 // The afternoon's feeds, with some that didn't answer.

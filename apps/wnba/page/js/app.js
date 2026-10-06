@@ -29,6 +29,7 @@ import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
+import { renderRosterPage, startRosterPage } from "./roster-page.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
 import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
@@ -118,9 +119,22 @@ function drawLastSeen() {
   }
 }
 
-/** @param {string} team */
-const renderShownTeam = (team) =>
-  renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
+const TEAM_PAGES = [
+  { id: "stats", label: "Stats" },
+  { id: "roster", label: "Roster" },
+];
+
+// ESPN's roster is today's, so a past season's sheet has only its stats.
+/**
+ * @param {string} team
+ * @param {string | null} page
+ */
+function renderShownTeam(team, page) {
+  const stats = renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
+  if (isPastSeason()) return stats;
+  const body = page === "roster" ? renderRosterPage(team, session.year) : stats.body;
+  return { ...stats, body, pages: TEAM_PAGES };
+}
 
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };
@@ -176,6 +190,7 @@ async function boot() {
   startGamePager();
   startGameSheet();
   startTeamSheet({ isTeam: (team) => team in TEAMS, renderSheet: renderShownTeam });
+  startRosterPage();
   startSettingsSheet();
   startNewsChoices(drawNews);
   startOpenedStories(findElement("newsList"), drawNews);

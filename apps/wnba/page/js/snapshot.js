@@ -250,6 +250,26 @@ const listLeaders = (players) =>
     listTeamLeaders(players, team, LEADERS_PER_TEAM).map((leader) => ({ team, ...leader })),
   );
 
+/**
+ * Every player's averages a game, for her team's Roster page.
+ * @param {any} players the stats site's season averages
+ */
+const listAverages = (players) =>
+  readStatsTable(players)
+    .map((row) => ({
+      team: findTeamCode(row.TEAM_ID),
+      id: row.PLAYER_ID,
+      ...splitName(row.PLAYER_NAME),
+      games: row.GP,
+      minutes: row.MIN,
+      points: row.PTS,
+      rebounds: row.REB,
+      assists: row.AST,
+      steals: row.STL,
+      blocks: row.BLK,
+    }))
+    .filter((player) => player.team);
+
 // The schedule and the scoreboard hold the last season's games until the league starts the next.
 const listPlayoffGames = (games, season) =>
   games.filter((game) => readPlayoffGameId(game.gameId)?.season === season);
@@ -475,6 +495,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     series,
     standings: readStandingsRows(responses.standings),
     leaders: listLeaders(responses.players),
+    averages: listAverages(responses.players),
     missing: LEAGUE_FEEDS.filter((name) => !responses[name]),
     standIn: standIns.size ? "espn" : null,
   };
