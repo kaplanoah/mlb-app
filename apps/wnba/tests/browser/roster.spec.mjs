@@ -140,6 +140,44 @@ test("on a phone, swiping the roster across keeps each player's number and name 
   );
 });
 
+test("on a phone, the line at the names' edge keeps 10px clear of the longest name and its Out chip", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const sheet = await openLibertyRoster(page);
+  await expect(sheet.locator("table.roster .foul-chip").first()).toBeVisible();
+
+  const gaps = await sheet.locator("table.roster tbody th.roster-player").evaluateAll((cells) =>
+    cells.map((cell) => {
+      const range = document.createRange();
+      range.selectNodeContents(/** @type {Element} */ (cell.querySelector(".roster-last")));
+      return cell.getBoundingClientRect().right - range.getBoundingClientRect().right;
+    }),
+  );
+  expect(Math.min(...gaps)).toBeCloseTo(10, 0);
+});
+
+test("on a phone, the roster scrolled across stops at its edges, and back at its left edge a swipe right goes back to the team", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const sheet = await openLibertyRoster(page);
+  await expect(sheet).toHaveCSS("overscroll-behavior-x", "auto");
+
+  await scrollSheet(sheet, { left: 200 });
+  await expect(sheet).toHaveCSS("overscroll-behavior-x", "none");
+
+  await scrollSheet(sheet, { left: 0 });
+  await expect(sheet).toHaveCSS("overscroll-behavior-x", "auto");
+  await (
+    await drag(page, { x: 60, y: 300 }, { x: 250 })
+  )();
+  await expectShown(page.locator("#teamSheet"));
+  await expectSteppedAway(sheet);
+});
+
 test("on a phone, scrolling down the roster takes its title away and stops the column names 4px under the sheet's top", async ({
   page,
 }) => {

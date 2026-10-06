@@ -1050,6 +1050,12 @@ table.players td.quiet-stat {
   --roster-number-width: 22px;
   --roster-number-gap: 11px;
   --roster-name-left: calc(18px + var(--roster-number-width) + var(--roster-number-gap));
+  --roster-name-gap: 10px;
+}
+/* Scrolled across, the table stops at either edge without springing past it. Only back at its left
+   edge does it hand a swipe right on to the row, back to the team. */
+#rosterSheet.is-scrolled-across {
+  overscroll-behavior-x: none;
 }
 #rosterSheet .sheet-content {
   box-sizing: border-box;
@@ -1179,9 +1185,11 @@ table.roster .roster-number::before {
   width: 18px;
   background: var(--card);
 }
+/* The line at the names' edge keeps clear of the longest name and its Out chip. */
 table.roster .roster-player {
   left: var(--roster-name-left);
   padding-left: 0;
+  padding-right: var(--roster-name-gap);
   text-align: left;
 }
 table.roster .roster-player::after {
