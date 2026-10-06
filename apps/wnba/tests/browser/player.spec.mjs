@@ -74,6 +74,34 @@ test("her last game's AVG hangs left of the four columns, which center on the sh
   expect(label.x + label.width).toBeLessThanOrEqual(table.x);
 });
 
+test("her name, team, and facts share a tinted band over a hairline, as the team's sheet under it does, each fact centered under its label", async ({
+  page,
+}) => {
+  await openApp(page);
+  const sheet = await openFromRoster(page, "Breanna Stewart");
+  /** @param {import("@playwright/test").Locator} dialog */
+  const readBand = (dialog) =>
+    dialog.locator(".sheet-top").evaluate((top) => {
+      const style = getComputedStyle(top);
+      return [style.backgroundColor, style.borderBottomWidth, style.borderBottomColor];
+    });
+
+  expect(await readBand(sheet)).toEqual(await readBand(page.locator("#teamDialog")));
+  // Each part stretches across its fact, so its words' own box shows where they sit.
+  const [label, value] = await sheet
+    .locator(".player-fact")
+    .first()
+    .evaluate((fact) =>
+      [...fact.children].map((part) => {
+        const words = document.createRange();
+        words.selectNodeContents(part);
+        const box = words.getBoundingClientRect();
+        return box.left + box.width / 2;
+      }),
+    );
+  expect(Math.abs(label - value)).toBeLessThan(1);
+});
+
 test("a player out while her team still plays says so beside her name, and one who hasn't played says she has no games yet", async ({
   page,
 }) => {
