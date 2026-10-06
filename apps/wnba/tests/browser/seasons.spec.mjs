@@ -138,6 +138,54 @@ test("a past season's header names its last game, and leaves out the current sea
   await expect(stamp).not.toContainText("Next tip-off");
 });
 
+/** @param {import("@playwright/test").Page} page */
+const findTitle = (page) => page.getByRole("heading", { level: 1 });
+
+test("an earlier season puts its year in the title until the current one is back", async ({
+  page,
+}) => {
+  await openApp(page, ONE_PAST_SEASON);
+  await expect(findTitle(page)).toHaveText("WNBA");
+
+  await chooseSeason(page, 2025);
+  await expect(findTitle(page)).toHaveText("WNBA 2025");
+
+  await chooseSeason(page, 2026);
+  await expect(findTitle(page)).toHaveText("WNBA");
+});
+
+test("once the Finals are won, the current season's year is in the title too", async ({ page }) => {
+  const app = await openApp(page);
+  await expect(findTitle(page)).toHaveText("WNBA");
+
+  await app.changeSeason((season) => ({
+    ...season,
+    series: season.series.map((series) =>
+      series.round === 3 ? { ...series, winner: "NYL" } : series,
+    ),
+  }));
+
+  await expect(findTitle(page)).toHaveText("WNBA 2026");
+});
+
+test("the year is the title's font and size, lighter and dimmer", async ({ page }) => {
+  await openApp(page, ONE_PAST_SEASON);
+  await chooseSeason(page, 2025);
+  const readLook = (selector) =>
+    page.locator(selector).evaluate((element) => {
+      const style = getComputedStyle(element);
+      const { fontFamily, fontSize, letterSpacing, fontWeight, color } = style;
+      return { fontFamily, fontSize, letterSpacing, fontWeight, color };
+    });
+
+  const title = await readLook("header.top h1");
+  const year = await readLook("#titleYear");
+
+  expect({ ...year, fontWeight: title.fontWeight, color: title.color }).toEqual(title);
+  expect(Number(year.fontWeight)).toBeLessThan(Number(title.fontWeight));
+  expect(year.color).not.toBe(title.color);
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

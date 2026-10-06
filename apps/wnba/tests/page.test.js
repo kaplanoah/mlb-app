@@ -11,7 +11,11 @@ import {
   sortGamesByDay,
 } from "../page/js/games-view.js";
 import { renderScoreboard } from "../page/js/scoreboard.js";
-import { describeSeriesAfterWin, describeSeriesStanding } from "../page/js/series.js";
+import {
+  describeSeriesAfterWin,
+  describeSeriesStanding,
+  isPlayoffsOver,
+} from "../page/js/series.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeStampProblem, renderStampLines } from "../page/js/stamp.js";
 import { renderStandings } from "../page/js/standings-view.js";
@@ -84,6 +88,16 @@ test("a series reads as who leads, a tie, or who won it", () => {
   assert.equal(describeSeriesStanding(valkyries), "Valkyries lead 1-0");
   assert.equal(describeSeriesStanding(aces), "Tied 1-1");
   assert.equal(describeSeriesStanding(SEASON.series.find((series) => series.id === "2-1")), "");
+});
+
+test("the playoffs are over only once the Finals has a winner", () => {
+  const finals = SEASON.series.find((series) => series.round === 3);
+  const withFinals = (winner) =>
+    SEASON.series.map((series) => (series === finals ? { ...series, winner } : series));
+
+  assert.equal(isPlayoffsOver(SEASON.series), false);
+  assert.equal(isPlayoffsOver(withFinals("NYL")), true);
+  assert.equal(isPlayoffsOver(SEASON.series.filter((series) => series.round < 3)), false);
 });
 
 test("a final reads as how its winner left the series: ahead, level, behind, or through", () => {

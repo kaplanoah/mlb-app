@@ -17,7 +17,8 @@ import { holdStore } from "../../../../tests/browser/hold-store.mjs";
 const loadFixture = (name) =>
   JSON.parse(readFileSync(new URL(`../fixtures/${name}.json`, import.meta.url), "utf8"));
 export const EVENING_FIXTURE = loadFixture("2026-09-24-evening");
-const FINAL_2025_FIXTURE = loadFixture("2025-final");
+// The 2025 season after the World Series, when nothing was left to play.
+export const FINAL_2025_FIXTURE = loadFixture("2025-final");
 
 export const buildFixtureSnapshot = (fixture) =>
   MLBSnapshot.buildSnapshot(fixture.responses, {

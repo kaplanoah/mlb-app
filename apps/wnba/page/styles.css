@@ -223,6 +223,10 @@ header.top {
   align-items: center;
   gap: 10px;
 }
+.season-year {
+  font-weight: 400;
+  color: var(--ink-dim);
+}
 header.top h1 {
   font-family: var(--heading);
   font-size: 1.72rem;
