@@ -29,6 +29,45 @@ async function openFeverOverGame(page) {
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
+  test("going back from a team leaves a forward button on the game that names the team and goes to it again, until another opens", async ({
+    page,
+  }) => {
+    await openApp(page);
+    const { gameSheet, teamSheet } = await openFeverOverGame(page);
+    const forward = gameSheet.getByRole("button", { name: "Forward to Fever" });
+    await expect(forward).toBeHidden();
+
+    await teamSheet.getByRole("button", { name: "Back to Game 2" }).click();
+    await expect(teamSheet).toBeHidden();
+    await expect(forward).toHaveText("Fever");
+
+    await forward.click();
+    await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
+    await expect(teamSheet.getByRole("button", { name: "Back to Game 2" })).toBeVisible();
+
+    await teamSheet.getByRole("button", { name: "Back to Game 2" }).click();
+    await gameSheet
+      .locator(".faceoff")
+      .getByRole("button", { name: "Team details: Las Vegas Aces" })
+      .click();
+    await teamSheet.getByRole("button", { name: "Back to Game 2" }).click();
+    await expect(gameSheet.getByRole("button", { name: "Forward to Aces" })).toBeVisible();
+  });
+
+  test("on a phone, a sheet covered by another hides, so none of it shows past the other's corners, and shows again as a finger pulls the other away", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const { gameSheet } = await openFeverOverGame(page);
+    await expect(gameSheet).toHaveCSS("visibility", "hidden");
+
+    const release = await drag(page, { x: 60, y: 400 }, { x: 60 });
+    await expect(gameSheet).toHaveCSS("visibility", "visible");
+    await release();
+    await expect(gameSheet).toHaveCSS("visibility", "hidden");
+  });
+
   test("on a phone, a swipe right goes back to the game, a swipe left goes forward to the team again, and a swipe down closes both", async ({
     page,
   }) => {
@@ -90,6 +129,7 @@ test("a team's sheet slides in from the right over the game's, which dims and st
     name: "sheet-push",
   });
   await expect(gameSheet).toHaveCSS("filter", "brightness(0.75)");
+  await expect(gameSheet).toHaveCSS("visibility", "hidden");
   await expect
     .poll(() =>
       gameSheet.evaluate((dialog) => new DOMMatrix(getComputedStyle(dialog).transform).m41),
@@ -104,4 +144,28 @@ test("a team's sheet slides in from the right over the game's, which dims and st
   });
   await expect(teamSheet).toBeHidden();
   await expect(gameSheet).toHaveCSS("filter", "none");
+});
+
+test("on a phone, a swipe back and forth moves the sheets with the finger, never running an opening motion again", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  const readMotions = await recordSheetMotions(page);
+  await openApp(page);
+  const { gameSheet, teamSheet } = await openFeverOverGame(page);
+  await expect(gameSheet).toHaveCSS("visibility", "hidden");
+  await readMotions();
+
+  await (
+    await drag(page, { x: 60, y: 400 }, { x: 250 })
+  )();
+  await expect(teamSheet).toBeHidden();
+  await (
+    await drag(page, { x: 330, y: 400 }, { x: -250 })
+  )();
+  await expect(teamSheet.getByRole("button", { name: "Back to Game 2" })).toBeVisible();
+  await expect(gameSheet).toHaveCSS("visibility", "hidden");
+
+  const motions = await readMotions();
+  expect(motions.filter((motion) => motion.name)).toEqual([]);
 });

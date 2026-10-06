@@ -1046,6 +1046,10 @@ table.players td.quiet-stat {
   --roster-number-gap: 11px;
   --roster-name-left: calc(18px + var(--roster-number-width) + var(--roster-number-gap));
 }
+/* The roster's table scrolls across under a finger too, before a swipe steps back. */
+#rosterDialog {
+  touch-action: pan-x pan-y pinch-zoom;
+}
 #rosterDialog .sheet-content {
   box-sizing: border-box;
   width: max-content;

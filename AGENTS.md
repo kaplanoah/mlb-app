@@ -19,7 +19,7 @@
 - Route a browser test's requests by a pattern, like the root's `matchPath` in `tests/browser/harness.mjs`, never a function, which makes Playwright ask the test about every request the page makes and slows each load; lint rejects one. To unroute one of two routes with the same pattern, name its handler too.
 - Before a test changes what the page reads next, wait until the page shows its last read, or the change races the read still on its way.
 - A theme changes only colors, so each view lays out the same in each of an app's themes. The WNBA's `tests/browser/themes.spec.mjs` checks every view in Walnut against Maple, on a phone and a wide screen, with the root's `tests/browser/theme-layout.mjs`; a new view joins its list.
-- A browser test that isn't about motion asks for reduced motion, with `page.emulateMedia({ reducedMotion: "reduce" })` or, for a whole file, `test.use({ contextOptions: { reducedMotion: "reduce" } })`, so it doesn't wait out eased scrolls and springs. Each animation keeps a full-motion test of its own.
+- A browser test that isn't about motion asks for reduced motion, with `page.emulateMedia({ reducedMotion: "reduce" })` or, for a whole file, `test.use({ contextOptions: { reducedMotion: "reduce" } })`, so it doesn't wait out eased scrolls and springs. Each animation keeps a full-motion test of its own. A gesture, like a swipe, is tested both ways too: its full-motion test drives it with the root's `tests/browser/touch.mjs`, as a finger does, and checks what moves and what doesn't once the finger lifts, since a motion that replays or jumps then shows only in full motion.
 
 ## Repo
 

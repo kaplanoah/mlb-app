@@ -4,17 +4,16 @@
 // enough; anything less springs back. Something under the finger that scrolls sideways, like a
 // wide table, scrolls to its edge first.
 
-import { isSheetLayout, slideSheet } from "./sheet-swipe.js";
+import { finishOpening, isSheetLayout, slideSheet } from "./sheet-swipe.js";
 
 // A touch has to move this far before it counts as a swipe, so a tap stays a tap.
 const SWIPE_START_PX = 6;
 // A step happens past this share of the sheet's width, or this fast.
 const STEP_SHARE = 0.3;
 const STEP_SPEED_PX_PER_MS = 0.5;
-// On a phone, the sheet under the top one sits this share of its width to the left, dimmed to
-// this brightness, as sheet.css places it.
+// On a phone, the sheet under the top one sits this share of its width to the left, as sheet.css
+// places it.
 const UNDER_SHIFT = 0.28;
-const UNDER_BRIGHTNESS = 0.75;
 
 /**
  * @typedef {object} SheetSteps
@@ -60,17 +59,14 @@ function canScroll(element, toward) {
 /**
  * @param {HTMLElement} sheet
  * @param {number} offset how far right of its place, in pixels
- * @param {number} brightness
  */
-function placeSheet(sheet, offset, brightness = 1) {
+function placeSheet(sheet, offset) {
   sheet.style.transform = `translateX(${offset}px)`;
-  sheet.style.filter = brightness < 1 ? `brightness(${brightness})` : "";
 }
 
 /** @param {HTMLElement} sheet */
 function releaseSheet(sheet) {
   sheet.style.transform = "";
-  sheet.style.filter = "";
   sheet.removeAttribute("data-dragged");
 }
 
@@ -82,8 +78,7 @@ function releaseSheet(sheet) {
  * @param {number} width
  */
 function placeUnder(sheet, progress, width) {
-  const shift = isSheetLayout() ? -UNDER_SHIFT * width * (1 - progress) : 0;
-  placeSheet(sheet, shift, UNDER_BRIGHTNESS + (1 - UNDER_BRIGHTNESS) * progress);
+  placeSheet(sheet, isSheetLayout() ? -UNDER_SHIFT * width * (1 - progress) : 0);
 }
 
 /**
@@ -127,6 +122,8 @@ export function followSideSwipes(dialog, steps) {
     }
     const ahead = steps.prepareAhead();
     if (!ahead) return null;
+    ahead.setAttribute("data-dragged", "");
+    placeSheet(ahead, moving.width);
     steps.showAhead(ahead);
     return { mode: /** @type {const} */ ("forward"), other: ahead };
   }
@@ -143,7 +140,10 @@ export function followSideSwipes(dialog, steps) {
     const step = chooseStep(moving, across);
     if (!step) return false;
     Object.assign(moving, step);
-    for (const sheet of [dialog, step.other]) sheet.setAttribute("data-dragged", "");
+    for (const sheet of [dialog, step.other]) {
+      finishOpening(sheet);
+      sheet.setAttribute("data-dragged", "");
+    }
     return true;
   }
 

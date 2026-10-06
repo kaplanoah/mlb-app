@@ -15,6 +15,8 @@ import { openSheet, wireSheet } from "./sheet.js";
  * @typedef {object} League
  * @property {(team: string) => boolean} isTeam
  * @property {(team: string) => TeamSheet} renderSheet
+ * @property {(team: string) => string} nameTeam a team's short name, for a forward button back to
+ *   its sheet
  * @property {(team: string) => HTMLDialogElement | null} [prepareNext] the sheet a swipe left from
  *   a team's opens over it, filled in and ready to open
  */
@@ -93,6 +95,7 @@ export function startTeamSheet(teams) {
     backButton: document.getElementById("teamBackBtn") ?? undefined,
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
     nameForBack: () => NAME_FOR_BACK,
+    nameForForward: () => (shownTeam && league?.nameTeam(shownTeam)) || NAME_FOR_BACK,
     prepareNext: () => (shownTeam && league?.prepareNext?.(shownTeam)) || null,
   });
   findElement("teamBody").addEventListener("click", showAllTitlesOnTap);
