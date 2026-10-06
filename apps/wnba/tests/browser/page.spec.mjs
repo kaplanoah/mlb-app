@@ -58,13 +58,13 @@ test("every font the page's views draw with is preloaded", async ({ page }) => {
   expect(await listFontsNotPreloaded(page)).toEqual([]);
 });
 
-test("a losing score is lit at three quarters, without the winner's glow", async ({ page }) => {
+test("a losing score is dimmed, without the winner's glow", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await page.getByRole("tab", { name: "Previous" }).click();
   const loser = page.locator("#games-previous .scoreboard.lost");
   const winner = page.locator("#games-previous .scoreboard:not(.lost)");
-  await expect(loser.locator("rect.on").first()).toHaveCSS("opacity", "0.75");
+  await expect(loser.locator("rect.on").first()).toHaveCSS("opacity", "0.72");
   await expect(loser.locator("svg").first()).toHaveCSS("filter", "none");
   await expect(winner.locator("rect.on").first()).toHaveCSS("opacity", "1");
   await expect(winner.locator("svg").first()).not.toHaveCSS("filter", "none");
