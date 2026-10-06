@@ -2263,3 +2263,226 @@ body.kbd .appearance-choice:has(input:focus) .appearance-icon {
     min-width: 28px;
   }
 }
+
+/* A player's name, wherever it shows, opens her sheet, and reads as the text around it. */
+.player-open {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+table.roster .player-open {
+  display: block;
+}
+body.kbd .player-open:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .player-open:hover,
+  .player-open:hover :is(.roster-first, .roster-last) {
+    color: var(--ink-hover);
+  }
+}
+
+/* A player's sheet: under her name and team, her position, age, height, and first season, each
+   under a quiet label, without lines between them. */
+.sheet-top:has(.player-facts) {
+  padding-bottom: 21px;
+}
+.player-facts {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 0;
+}
+.player-fact {
+  display: grid;
+  gap: 1px;
+  padding-inline: 12px;
+}
+.player-fact dt {
+  font-size: var(--size-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+.player-fact dd {
+  margin: 0;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  color: var(--ink);
+}
+.player-body {
+  gap: 29px;
+}
+
+/* Her last game's four numbers center on the sheet by themselves, their line running as far past
+   the first as past the last, and AVG hangs outside the table to the left of her averages, on
+   their line, so it doesn't pull the columns off center. */
+.player-last-game {
+  display: grid;
+  gap: 12px;
+}
+table.player-game {
+  justify-self: center;
+  width: min(100%, 15.5rem);
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+table.player-game th {
+  padding: 0 4px 5px;
+  font-size: var(--size-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  text-align: center;
+}
+table.player-game td {
+  font-family: var(--numbers);
+  line-height: 18px;
+  text-align: center;
+}
+.player-game-line td {
+  padding: 10px 4px 5px;
+  border-top: 1px solid var(--divider);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.player-average td {
+  padding: 5px 4px 6px;
+  font-size: var(--size-glance);
+  font-weight: 400;
+}
+.player-average td:first-child {
+  position: relative;
+}
+.player-average-label {
+  position: absolute;
+  top: 5px;
+  right: calc(100% + 2px);
+  font-family: var(--display);
+  font-size: var(--size-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+.player-lines {
+  display: grid;
+  gap: 8px;
+}
+.player-lines .team-detail > .team-label {
+  margin-right: 8px;
+}
+.player-count {
+  font-weight: 600;
+}
+
+/* Her points in each playoff game sit at the end of its row, over a small unit. */
+.player-points {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--numbers);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.player-points small,
+.player-dnp {
+  font-family: var(--display);
+  font-size: var(--size-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+/* Each average's rank among the players the WNBA ranks, on a curve of how all their numbers
+   spread, with her place on it in her team's color for the theme, which js/sheet-colors.js hands
+   it. */
+.player-ranks {
+  --team: var(--team-light, var(--ink-dim));
+  display: grid;
+  gap: 12px;
+}
+:root[data-theme="dark"] .player-ranks {
+  --team: var(--team-dark, var(--ink-dim));
+}
+.player-rank-row {
+  display: grid;
+  grid-template-columns: 3em 3.2em minmax(0, 1fr) 6.6em;
+  align-items: center;
+  gap: 10px;
+}
+.player-rank-label {
+  font-size: var(--size-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-dim);
+}
+.player-rank-value {
+  font-family: var(--numbers);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.player-curve {
+  position: relative;
+  height: 18px;
+  margin-left: 7px;
+}
+.player-curve svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.player-curve-area {
+  fill: color-mix(in srgb, var(--ink-dim) 16%, transparent);
+}
+.player-curve-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink-dim) 55%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.player-curve i {
+  position: absolute;
+  bottom: 0;
+  width: 1.5px;
+  translate: -50% 0;
+  background: var(--team);
+}
+.player-curve b {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--team);
+  box-shadow: 0 0 0 2px var(--card);
+}
+.player-rank {
+  font-size: var(--size-glance);
+  color: var(--ink-dim);
+  text-align: right;
+  white-space: nowrap;
+}
+.player-rank-place {
+  font-weight: 500;
+  color: var(--ink);
+}
+.player-rank-note {
+  margin: 8px 0 0;
+  font-size: var(--size-glance);
+  line-height: 1.35;
+  color: var(--ink-dim);
+  text-align: center;
+}

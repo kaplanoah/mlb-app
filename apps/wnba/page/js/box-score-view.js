@@ -4,6 +4,7 @@ import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderPendingTapeRow, renderTapeRow } from "#shared/tape.js";
 import { renderClub } from "./clubs.js";
 import { renderLeadChart, renderPendingLeadChart } from "./lead-chart.js";
+import { renderPlayerButton } from "./player-button.js";
 import {
   findLeader,
   measureAgainst,
@@ -220,7 +221,10 @@ function renderTopScorers(side, isLive) {
   const rows = pickTopScorers(side.players).map(
     (player) => html`<tr>
       <th scope="row">
-        <span class="first-name">${player.firstName}</span> ${player.lastName}${renderFouls(player, isLive)}
+        ${renderPlayerButton(
+          { ...player, team: side.team },
+          html`<span class="first-name">${player.firstName}</span> ${player.lastName}`,
+        )}${renderFouls(player, isLive)}
       </th>
       <td>${player.points}</td>
       <td>${player.rebounds}</td>

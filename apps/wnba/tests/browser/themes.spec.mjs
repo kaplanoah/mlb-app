@@ -77,6 +77,16 @@ const VIEWS = [
     close: (page) => page.keyboard.press("Escape"),
   },
   {
+    name: "a player's sheet",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
+      await page.locator("#teamDialog").getByRole("button", { name: "Roster" }).click();
+      await page.locator("#rosterDialog").getByRole("button", { name: "Breanna Stewart" }).click();
+    },
+    shown: (page) => page.locator("#playerDialog .player-curve b").first(),
+    close: (page) => page.keyboard.press("Escape"),
+  },
+  {
     name: "News",
     open: (page) => page.getByRole("tab", { name: "News" }).click(),
     shown: (page) => page.locator(".news-more").first(),
