@@ -131,7 +131,7 @@ export function describePlayerNote(subject, player) {
 }
 
 /**
- * Her position, age, height, and first season, each under its label, leaving out any the league
+ * Her position, height, age, and first season, each under its label, leaving out any the league
  * doesn't have.
  * @param {Player | null} player
  * @param {boolean} isLoading
@@ -140,14 +140,14 @@ export function renderPlayerFacts(player, isLoading) {
   if (!player)
     return (
       isLoading &&
-      html`<div class="player-facts">${renderPlaceholder("Position 00 0'0\" 0000")}</div>`
+      html`<div class="player-facts">${renderPlaceholder("Position 0'0\" 00 0000")}</div>`
     );
   const facts = player.facts;
   /** @type {[string, string | number | null | undefined][]} */
   const cells = [
     ["Position", describePosition(facts?.position ?? null)],
-    ["Age", facts?.age],
     ["Height", facts?.height],
+    ["Age", facts?.age],
     ["Debut", facts?.debut],
   ];
   const shown = cells.filter(([, value]) => value != null);

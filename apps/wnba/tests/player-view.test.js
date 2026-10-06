@@ -121,7 +121,7 @@ test("under her name, her team, number, and college, or her country for a player
 test("her facts name her position in words, and leave out any the league doesn't have", () => {
   assert.equal(
     readText(renderPlayerFacts(createPlayer(), false)),
-    `Position Forward Age 32 Height 6'4" Debut 2016`,
+    `Position Forward Height 6'4" Age 32 Debut 2016`,
   );
   const player = createPlayer();
   player.facts.age = null;

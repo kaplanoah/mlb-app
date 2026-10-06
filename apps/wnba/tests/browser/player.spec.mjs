@@ -40,8 +40,8 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   await expect(sheet.locator("#playerNote")).toHaveText("Liberty•#30•Connecticut");
   await expect(sheet.locator(".player-fact")).toHaveText([
     "PositionForward",
-    "Age32",
     `Height6'4"`,
+    "Age32",
     "Debut2016",
   ]);
   await expect(sheet.locator(".player-game-line td")).toHaveText(["19", "2", "3", "40.0"]);
