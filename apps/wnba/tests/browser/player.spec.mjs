@@ -58,6 +58,25 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   await expectShown(page.locator("#rosterSheet"));
 });
 
+test("a tap anywhere in a player's row on her roster opens her sheet, and a tap on a column's name only sorts", async ({
+  page,
+}) => {
+  await openApp(page);
+  const roster = await openLibertyRoster(page);
+  await roster.getByRole("columnheader", { name: "Pts" }).getByRole("button").click();
+  await expect(roster).not.toHaveAttribute("inert");
+
+  await roster
+    .locator("table.roster tbody tr", { hasText: "Stewart" })
+    .locator("td")
+    .last()
+    .click();
+
+  const sheet = page.locator("#playerSheet");
+  await expect(sheet.locator("#playerTitle")).toHaveText("Breanna Stewart");
+  await expectShown(sheet);
+});
+
 test("her last game's AVG hangs left of the four columns, which center on the sheet by themselves", async ({
   page,
 }) => {

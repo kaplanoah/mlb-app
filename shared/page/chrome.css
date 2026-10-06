@@ -761,6 +761,11 @@ body:has(> .home-screen-bar:not([hidden])) {
   font-size: var(--size-small);
 }
 
+/* A sheet rises and slides away at the pace and easing of the phone's own sheets, as
+   sheet-swipe.js moves it too. */
+:root {
+  --sheet-motion: 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
 @keyframes sheet-rise {
   from {
     transform: translateY(100%);
@@ -815,10 +820,10 @@ body:has(> .home-screen-bar:not([hidden])) {
   }
   @media (prefers-reduced-motion: no-preference) {
     .settings-panel[open] {
-      animation: sheet-rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      animation: sheet-rise var(--sheet-motion);
     }
     .settings-panel[open]::backdrop {
-      animation: backdrop-fade-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      animation: backdrop-fade-in var(--sheet-motion);
     }
     /* A sheet the page put back open as it loaded was already showing, so it doesn't rise again. */
     .settings-panel[open][data-reopened],

@@ -1063,9 +1063,10 @@ table.players td.quiet-stat {
   width: 100cqw;
 }
 #rosterBody {
+  --roster-space-above: 15px;
   display: grid;
   gap: 8px;
-  padding-top: 15px;
+  padding-top: var(--roster-space-above);
 }
 #rosterSheet :is(.roster-coach, .sheet-message) {
   position: sticky;
@@ -1077,9 +1078,13 @@ table.roster {
   border-collapse: separate;
   border-spacing: 0;
 }
+/* Once it sticks, the column names sit just under the sheet's top, the line over them tucked up
+   out of sight. */
 table.roster thead {
+  --roster-band-height: 18px;
+  --roster-space-stuck: 4px;
   position: sticky;
-  top: 0;
+  top: calc(var(--roster-space-stuck) - var(--roster-band-height));
   z-index: 3;
   background: var(--card);
 }
@@ -1098,8 +1103,13 @@ table.roster .roster-head th {
   box-shadow: inset 0 -1px 0 var(--divider);
 }
 table.roster .roster-bands th {
+  box-sizing: border-box;
+  height: var(--roster-band-height);
   padding-bottom: 2px;
   text-align: left;
+}
+table.roster tbody tr:has(.player-open) {
+  cursor: pointer;
 }
 table.roster tbody td,
 table.roster tbody th {
@@ -1185,6 +1195,10 @@ table.roster .roster-player::after {
 }
 .is-scrolled-across table.roster .roster-player::after {
   visibility: visible;
+}
+/* It runs up through the room above the table to the band under the title. */
+table.roster .roster-bands .roster-player::after {
+  top: calc(-1 * var(--roster-space-above));
 }
 table.roster tbody th.roster-player {
   line-height: 1.2;

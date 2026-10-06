@@ -175,6 +175,24 @@ test.describe("with reduced motion", () => {
     expect(await readHeight(teamSheet)).toBe(await readHeight(gameSheet));
   });
 
+  test("on a phone, each sheet rounds its top corners inside the dialog's, which shows nothing of its own behind them, and the row never moves past its first or last sheet", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const { gameSheet, teamSheet } = await openFeverFromGame(page);
+    const dialog = page.locator("#sheetDialog");
+
+    await expect(dialog).toHaveCSS("border-top-left-radius", "22px");
+    await expect(dialog).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(dialog.locator(".sheet-row")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(dialog.locator(".sheet-row")).toHaveCSS("overscroll-behavior-x", "none");
+    for (const sheet of [gameSheet, teamSheet]) {
+      await expect(sheet).toHaveCSS("border-top-left-radius", "22px 21px");
+      await expect(sheet).toHaveCSS("border-top-right-radius", "22px 21px");
+    }
+  });
+
   test("on a phone, a swipe right goes back to the game, a swipe left goes forward to the team again, and a swipe down closes both", async ({
     page,
   }) => {
@@ -223,7 +241,7 @@ test("a team's sheet slides in from the right beside the game's, which slides a 
   const { gameSheet, teamSheet } = await openFeverFromGame(page);
 
   expect(await readLeft(findContent(gameSheet))).toBeCloseTo(-UNDER_SHIFT * PHONE.width, 1);
-  await expect(gameSheet).toHaveCSS("opacity", "0.75");
+  await expect(gameSheet).toHaveCSS("filter", "brightness(0.75)");
 
   const readLefts = await startTrackingLeft(page, "teamSheet");
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
@@ -233,7 +251,7 @@ test("a team's sheet slides in from the right beside the game's, which slides a 
   expect(lefts.at(-1)).toBe(PHONE.width);
   expect(new Set(lefts).size).toBeGreaterThan(5);
   expect(isMonotonic(lefts)).toBe(true);
-  await expect(gameSheet).toHaveCSS("opacity", "1");
+  await expect(gameSheet).toHaveCSS("filter", "brightness(1)");
 });
 
 test("on a phone, a finger moving the team's sheet moves the game's under it at a fraction of its pace, without the page changing anything, and the sheets settle without stepping back or running an opening motion", async ({

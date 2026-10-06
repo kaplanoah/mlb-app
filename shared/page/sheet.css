@@ -32,17 +32,20 @@
  *   --logos-for-dark         version for a light (or dark) one, and none when it doesn't
  */
 
+/* The dialog only frames its sheets, each of which rounds its corners to fit inside the dialog's,
+   so a sheet in mid-swipe is a card of its own, with the page showing past its corners. */
 .sheet-panel {
+  --sheet-radius: 12px;
   width: calc(100% - 24px);
   max-width: 440px;
   height: calc(100% - 48px);
   max-height: none;
   padding: 0;
   overflow: hidden;
-  background: var(--card);
+  background: transparent;
   color: var(--ink);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
+  border-radius: var(--sheet-radius);
   box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
   overscroll-behavior: none;
 }
@@ -53,18 +56,17 @@
 .sheet-panel::backdrop {
   background: rgba(0, 0, 0, 0.6);
 }
-/* The row scrolls from sheet to sheet and stops only on one, never past the first or last. Behind
-   the sheets it's black, so a sheet that lets it through dims. */
+/* The row scrolls from sheet to sheet and stops only on one. Past the first or the last it doesn't
+   move at all, as the first screen of a phone's app doesn't. */
 .sheet-row {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  overscroll-behavior-x: contain;
+  overscroll-behavior-x: none;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  background: #000;
 }
 .sheet-row::-webkit-scrollbar {
   display: none;
@@ -80,6 +82,7 @@
   overscroll-behavior-y: none;
   scroll-snap-align: start;
   scroll-snap-stop: always;
+  border-radius: calc(var(--sheet-radius) - 1px);
   background: var(--card);
 }
 .sheet-page[hidden] {
@@ -164,8 +167,8 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 }
 
 /* A sheet leaving to the left, as the one after it slides in, shows what it holds moving at a
-   fraction of the row's pace, and lets the row's black through. The sheet itself stays where the
-   row puts it, since the row stops where a sheet's box is. */
+   fraction of the row's pace, and dims. The sheet itself stays where the row puts it, since the
+   row stops where a sheet's box is. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .sheet-page {
@@ -183,7 +186,7 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 }
 @keyframes sheet-page-dim {
   to {
-    opacity: 0.75;
+    filter: brightness(0.75);
   }
 }
 @keyframes sheet-page-under {
@@ -318,9 +321,14 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
     max-width: none;
     height: calc(100% - 44px - env(safe-area-inset-top));
     margin: auto 0 0;
+    --sheet-radius: 22px;
     border-width: 1px 0 0;
-    border-radius: 22px 22px 0 0;
+    border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  }
+  .sheet-page {
+    border-radius: var(--sheet-radius) var(--sheet-radius) 0 0 / calc(var(--sheet-radius) - 1px)
+      calc(var(--sheet-radius) - 1px) 0 0;
   }
   /* Done shows only to screen readers here, so an action takes the head's right edge. */
   .sheet-action {
@@ -331,10 +339,10 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
   }
   @media (prefers-reduced-motion: no-preference) {
     .sheet-panel[open] {
-      animation: sheet-rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      animation: sheet-rise var(--sheet-motion);
     }
     .sheet-panel[open]::backdrop {
-      animation: backdrop-fade-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      animation: backdrop-fade-in var(--sheet-motion);
     }
   }
 }
