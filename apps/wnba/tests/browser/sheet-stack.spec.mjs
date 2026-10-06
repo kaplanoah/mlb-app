@@ -59,6 +59,37 @@ async function startTrackingLeft(page, id) {
 }
 
 /**
+ * Where the team's sheet and the game's content are, read on one frame, once the row has stopped
+ * moving under a finger held still: the browser may still be applying the finger's last moves.
+ * @param {import("@playwright/test").Page} page
+ */
+const readRestingLefts = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const row = /** @type {Element} */ (document.querySelector("#sheetDialog .sheet-row"));
+        const readLeft = (/** @type {string} */ selector) =>
+          /** @type {Element} */ (document.querySelector(selector)).getBoundingClientRect().x -
+          row.getBoundingClientRect().x;
+        const read = () => ({
+          teamLeft: readLeft("#teamSheet"),
+          gameLeft: readLeft("#gameSheet > .sheet-content"),
+        });
+        let last = read();
+        const readOnRest = () =>
+          requestAnimationFrame(() => {
+            const now = read();
+            if (now.teamLeft === last.teamLeft) resolve(now);
+            else {
+              last = now;
+              readOnRest();
+            }
+          });
+        readOnRest();
+      }),
+  );
+
+/**
  * Whether each step goes the same way as the first, never back.
  * @param {number[]} lefts
  */
@@ -211,7 +242,7 @@ test("on a phone, a finger moving the team's sheet moves the game's under it at 
   await page.setViewportSize(PHONE);
   const readMotions = await recordSheetMotions(page);
   await openApp(page);
-  const { gameSheet, teamSheet } = await openFeverFromGame(page);
+  const { gameSheet } = await openFeverFromGame(page);
   await readMotions();
   await page.evaluate(() => {
     const changes = /** @type {string[]} */ ([]);
@@ -225,12 +256,9 @@ test("on a phone, a finger moving the team's sheet moves the game's under it at 
   });
 
   const release = await drag(page, { x: 60, y: 400 }, { x: 250 });
-  const teamLeft = await readLeft(teamSheet);
+  const { teamLeft, gameLeft } = await readRestingLefts(page);
   expect(teamLeft).toBeGreaterThan(PHONE.width / 2);
-  expect(await readLeft(findContent(gameSheet))).toBeCloseTo(
-    -UNDER_SHIFT * (PHONE.width - teamLeft),
-    0,
-  );
+  expect(gameLeft).toBeCloseTo(-UNDER_SHIFT * (PHONE.width - teamLeft), 0);
   expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
 
   const readLefts = await startTrackingLeft(page, "teamSheet");

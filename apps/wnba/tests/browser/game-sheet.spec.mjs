@@ -769,7 +769,19 @@ const storeBeforeLoad = (page, items) =>
   }, items);
 
 /** @param {import("@playwright/test").Locator} sheet */
-const readScrollTop = (sheet) => sheet.evaluate((dialog) => dialog.scrollTop);
+const readScrollTop = (sheet) => sheet.evaluate((element) => element.scrollTop);
+
+// Text above what shows can change height by a pixel or two as the page's fonts arrive or it
+// redraws, which the browser's scroll anchoring makes up for, keeping what shows where it was.
+const ANCHORING_PX = 4;
+
+/**
+ * @param {import("@playwright/test").Locator} sheet
+ * @param {number} scrollTop
+ */
+async function expectScrolledTo(sheet, scrollTop) {
+  expect(Math.abs((await readScrollTop(sheet)) - scrollTop)).toBeLessThanOrEqual(ANCHORING_PX);
+}
 
 test("a reload shows the open sheet where it was scrolled before the page's code arrives, and the code keeps it there", async ({
   page,
@@ -777,8 +789,8 @@ test("a reload shows the open sheet where it was scrolled before the page's code
   await openApp(page);
   const sheet = await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
-  await sheet.evaluate((dialog) => {
-    dialog.scrollTop = 200;
+  await sheet.evaluate((element) => {
+    element.scrollTop = 200;
   });
   const release = await holdPageCode(page);
   const reads = countBoxScoreReads(page);
@@ -787,11 +799,11 @@ test("a reload shows the open sheet where it was scrolled before the page's code
 
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("First Round Game 2");
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
-  expect(await readScrollTop(sheet)).toBe(200);
+  await expectScrolledTo(sheet, 200);
   release();
   await expect.poll(() => reads.count).toBe(1);
   await expect(sheet.locator("#gameWhen")).toHaveText("Fever won to tie 1-1•Yesterday");
-  expect(await readScrollTop(sheet)).toBe(200);
+  await expectScrolledTo(sheet, 200);
 
   await sheet.getByRole("button", { name: "Done" }).click();
   await expect(sheet).toBeHidden();
