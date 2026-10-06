@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildSnapshot } from "../page/js/snapshot.js";
+import { listUpcomingMeetings } from "../worker/src/preview.js";
 import {
   listNotifications,
   loadCurrentSnapshot,
@@ -35,6 +36,12 @@ function createDocs() {
     remove: async (key) => stored.delete(key),
   };
 }
+
+/** The snapshot as the Worker reads it, with each upcoming game's meetings from the schedule. */
+const SNAPSHOT_WITH_MEETINGS = {
+  ...SNAPSHOT,
+  meetings: listUpcomingMeetings(GAMES.preview.schedule, SNAPSHOT),
+};
 
 // Tonight's first game, finished, with the series it settles.
 function finishTonight(snapshot, [awayScore, homeScore]) {
@@ -84,6 +91,29 @@ const setTonightsState = (snapshot, state) => ({
 });
 
 const findTonight = (season) => season.games.find((game) => game.id === "1042600132");
+
+test("each upcoming game's meetings are saved for its two teams, only when they change, and stay as they were without the schedule", async () => {
+  const docs = createDocs();
+  await saveSnapshot(docs, SNAPSHOT_WITH_MEETINGS);
+  await saveSnapshot(docs, SNAPSHOT_WITH_MEETINGS);
+
+  const meetingKeys = docs.writes.filter((key) => key.startsWith("meetings/"));
+  assert.deepEqual(meetingKeys, [
+    "meetings/2026-ATL-WAS",
+    "meetings/2026-DAL-GSV",
+    "meetings/2026-IND-LVA",
+  ]);
+  const saved = await docs.read("meetings/2026-IND-LVA");
+  assert.deepEqual(saved.teams, ["IND", "LVA"]);
+  assert.equal(saved.meetings.length, 3);
+
+  const changed = structuredClone(SNAPSHOT_WITH_MEETINGS);
+  changed.meetings[0].meetings.pop();
+  await saveSnapshot(docs, { ...changed, missing: ["schedule"] });
+  assert.equal(docs.writes.filter((key) => key.startsWith("meetings/")).length, 3);
+  await saveSnapshot(docs, changed);
+  assert.equal(docs.writes.at(-1), "meetings/2026-ATL-WAS");
+});
 
 test("a game ends when it's first found final after being seen live, and keeps that end", async () => {
   const docs = createDocs();

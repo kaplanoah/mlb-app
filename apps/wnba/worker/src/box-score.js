@@ -1,13 +1,18 @@
 import { readGameState } from "../../page/js/snapshot.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
+import { nameGameDetailsKey, readKeptDoc } from "./store-docs.js";
 import { fetchWnbaJson } from "./wnba.js";
 
 // Reads the league's box score for one game, for the game sheet: each team's points by quarter,
-// its stats, and every player who got in.
+// its stats, and every player who got in. The store keeps each finished game's
+// (game-details-updater.js), so the route reads the league only for a game still being played, or
+// one the store hasn't kept yet.
+
+/** @typedef {import("./store-docs.js").ReadDoc} ReadDoc */
 
 // A live game's box score changes with every play, so it's kept as briefly as the scoreboard.
 const BOX_SCORE_CACHE_SECONDS = 5;
-const GAME_ID = /^\d{10}$/;
+export const GAME_ID = /^\d{10}$/;
 // The league's CDN has no box score for a game that hasn't started, and says so with a 403.
 const NOT_YET_STATUSES = [403, 404];
 
@@ -70,31 +75,41 @@ export function describeBoxScore(response) {
   };
 }
 
-// A finished game's box score never changes, so it's read once and kept.
-export function createBoxScoreServer({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
-  /** @type {Map<string, ReturnType<typeof describeBoxScore>>} */
-  const finishedBoxScores = new Map();
+/**
+ * The league's box score for one game, read afresh.
+ * @param {(input: string, init: object) => Promise<Response>} fetchImpl
+ * @param {string} id
+ */
+export async function fetchBoxScore(fetchImpl, id) {
+  const response = await fetchWnbaJson(
+    fetchImpl,
+    nameBoxScoreRequest(id),
+    BOX_SCORE_CACHE_SECONDS,
+    hasBoxScore,
+  );
+  return describeBoxScore(response);
+}
 
-  /** @param {string} id */
-  async function loadBoxScore(id) {
-    if (finishedBoxScores.has(id)) return finishedBoxScores.get(id);
-    const response = await fetchWnbaJson(
-      fetchImpl,
-      nameBoxScoreRequest(id),
-      BOX_SCORE_CACHE_SECONDS,
-      hasBoxScore,
-    );
-    const boxScore = describeBoxScore(response);
-    if (boxScore.state === "final") finishedBoxScores.set(id, boxScore);
-    return boxScore;
+// A finished game's box score never changes, so the one the store keeps is served as it is.
+export function createBoxScoreServer({ fetchImpl = (input, init) => fetch(input, init) } = {}) {
+  /**
+   * @param {string} id
+   * @param {ReadDoc | undefined} readDoc
+   */
+  async function loadBoxScore(id, readDoc) {
+    const kept = (await readKeptDoc(readDoc, nameGameDetailsKey(id)))?.boxScore;
+    return kept?.state === "final" ? kept : fetchBoxScore(fetchImpl, id);
   }
 
-  /** @param {URL} url */
-  async function serveBoxScore(url) {
+  /**
+   * @param {URL} url
+   * @param {ReadDoc} [readDoc] the store's documents, when the Worker has a store
+   */
+  async function serveBoxScore(url, readDoc) {
     const id = url.searchParams.get("id") ?? "";
     if (!GAME_ID.test(id)) return respondJson({ error: "id must be a WNBA game id" }, 400);
     try {
-      return respondJson(await loadBoxScore(id));
+      return respondJson(await loadBoxScore(id, readDoc));
     } catch (error) {
       if (NOT_YET_STATUSES.includes(/** @type {{ status?: number }} */ (error).status))
         return respondJson({ error: "The WNBA has no box score for that game yet" }, 404);
@@ -102,5 +117,5 @@ export function createBoxScoreServer({ fetchImpl = (input, init) => fetch(input,
     }
   }
 
-  return { loadBoxScore, serveBoxScore };
+  return { serveBoxScore };
 }

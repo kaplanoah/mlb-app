@@ -14,7 +14,7 @@ import {
   nameTeamGameLogRequest,
   nameTotalsRequest,
 } from "../../worker/src/player.js";
-import { createPreviewServer } from "../../worker/src/preview.js";
+import { createPreviewServer, listUpcomingMeetings } from "../../worker/src/preview.js";
 import {
   createRosterServer,
   nameEspnRosterRequest,
@@ -110,28 +110,33 @@ const listPlayerAnswers = () => [
 export { test, expect, matchPath, GAMES, NOW };
 
 /**
- * The league's answers to the game sheet's routes, from the recorded box scores and schedule, with
- * any box score changed, or the schedule refused. A game without a box score is one that hasn't
- * started.
- * ESPN answers for the one game its lead was recorded for, Valkyries at Wings, Game 2.
- * @param {{ boxScores?: Record<string, any>, isScheduleRefused?: boolean, leadSummary?: any }} league
+ * The league's answers to the game sheet's routes, and to what the store reads ahead of them, from
+ * the recorded box scores and schedule, with any box score changed, or the schedule refused. A game
+ * without a box score is one that hasn't started. ESPN answers for the one game its lead was
+ * recorded for, Valkyries at Wings, Game 2.
+ * @param {{ boxScores?: Record<string, any>, isScheduleRefused?: boolean }} league
  */
-function createLeagueFetch({
-  boxScores = {},
-  isScheduleRefused = false,
-  leadSummary = LEAD.summary,
-}) {
+function listLeagueAnswers({ boxScores = {}, isScheduleRefused = false }) {
   const answers = new Map([
     ...Object.entries({ ...GAMES.boxScores, ...boxScores }).map(
       ([id, box]) => /** @type {[string, any]} */ ([nameBoxScoreRequest(id), box]),
     ),
     [nameScoreboardRequest(LEAD.game.start), LEAD.scoreboard],
-    [nameSummaryRequest(LEAD.eventId), leadSummary],
+    [nameSummaryRequest(LEAD.eventId), LEAD.summary],
     ...listRosterAnswers(),
     ...listPlayerAnswers(),
   ]);
   if (!isScheduleRefused) answers.set(REQUESTS.schedule, GAMES.preview.schedule);
-  return async (url) =>
+  return answers;
+}
+
+/**
+ * The league as the game sheet's routes read it, refusing what it has no answer for.
+ * @param {Parameters<typeof listLeagueAnswers>[0]} league
+ */
+function createLeagueFetch(league) {
+  const answers = listLeagueAnswers(league);
+  return async (/** @type {string} */ url) =>
     answers.has(url)
       ? new Response(JSON.stringify(answers.get(url)))
       : new Response("<Error>AccessDenied</Error>", { status: 403 });
@@ -167,11 +172,12 @@ function readAfternoonSnapshot(season) {
 }
 
 /**
- * What the store's job that keeps the players reads: the recorded rosters and players' numbers.
- * Anything else the store's jobs read, like the news, answers with nothing.
+ * The league as the store's jobs read it: the recorded box scores, leads, rosters, and players'
+ * numbers. Anything else, like the news, answers with nothing.
+ * @param {Parameters<typeof listLeagueAnswers>[0]} league
  */
-function createPlayerFeedFetch() {
-  const answers = new Map([...listRosterAnswers(), ...listPlayerAnswers()]);
+function createStoreFetch(league) {
+  const answers = listLeagueAnswers(league);
   return async (/** @type {string} */ url) =>
     answers.has(url)
       ? new Response(JSON.stringify(answers.get(url)))
@@ -179,18 +185,24 @@ function createPlayerFeedFetch() {
 }
 
 /**
- * The Worker's store, already updated once from the afternoon's feeds, with the rosters and
- * players' numbers its job keeps.
+ * The Worker's store, already updated once from the afternoon's feeds, with each upcoming game's
+ * meetings from the schedule, and what its jobs keep: the rosters, players' numbers, and finals'
+ * box scores and leads.
+ * @param {Parameters<typeof listLeagueAnswers>[0]} [league]
  */
-async function createAfternoonStore() {
-  const loadSnapshot = async (season) => readAfternoonSnapshot(season);
+async function createAfternoonStore(league = {}) {
+  const loadSnapshot = async (season) => {
+    const snapshot = readAfternoonSnapshot(season);
+    const schedule = league.isScheduleRefused ? null : GAMES.preview.schedule;
+    return { ...snapshot, meetings: listUpcomingMeetings(schedule, snapshot) };
+  };
   const testStore = createTestStore(SeasonStore, {
     loadSnapshot,
     now: NOW,
-    fetchImpl: createPlayerFeedFetch(),
+    fetchImpl: createStoreFetch(league),
   });
   await testStore.store.alarm();
-  // The news and the players run beside the update, and finish before the page opens, so they never
+  // The store's jobs run beside the update, and finish before the page opens, so they never
   // overwrite what a test writes.
   await Promise.all(testStore.store.jobRuns.values());
   return testStore;
@@ -198,26 +210,29 @@ async function createAfternoonStore() {
 
 /**
  * The page as the Worker serves it, with the Worker's store behind it, already updated once from
- * the afternoon's feeds, and the game and team sheets' routes reading the recorded answers. On a
+ * the afternoon's feeds, and the game and team sheets' routes reading the store, and the recorded
+ * answers for what it doesn't keep, unless the league is down by the time the page opens. On a
  * phone, the afternoon's finals would fill the Updates box above every view, so it starts
  * dismissed unless a test is about it.
  * @param {import("@playwright/test").Page} page
  * A past season's record is built from the afternoon's by its change in `pastSeasons`, by year.
- * @param {{ league?: Parameters<typeof createLeagueFetch>[0], isShowingUpdates?: boolean, pastSeasons?: Record<number, (season: any) => any> }} [options]
+ * @param {{ league?: Parameters<typeof listLeagueAnswers>[0], isLeagueDownForPage?: boolean, isShowingUpdates?: boolean, pastSeasons?: Record<number, (season: any) => any> }} [options]
  */
 export async function openApp(
   page,
-  { league = {}, isShowingUpdates = false, pastSeasons = {} } = {},
+  { league = {}, isLeagueDownForPage = false, isShowingUpdates = false, pastSeasons = {} } = {},
 ) {
   if (!isShowingUpdates)
     await page.addInitScript(() => localStorage.setItem("updatesSeenAt", String(Date.now() * 2)));
-  const testStore = await createAfternoonStore();
+  const testStore = await createAfternoonStore(league);
   const { context, store } = testStore;
   const readSeason = async () => structuredClone(await context.ctx.storage.get("seasons/2026"));
   for (const [year, change] of Object.entries(pastSeasons))
     await context.ctx.storage.put(`seasons/${year}`, change(await readSeason()));
   const openSockets = await connectToStore(page, testStore);
-  const fetchImpl = createLeagueFetch(league);
+  const fetchImpl = isLeagueDownForPage
+    ? async () => new Response("", { status: 503 })
+    : createLeagueFetch(league);
   const boxScores = createBoxScoreServer({ fetchImpl });
   const previews = createPreviewServer({ fetchImpl, now: () => Date.parse(NOW) });
   const leads = createLeadServer({ fetchImpl });
@@ -227,14 +242,16 @@ export async function openApp(
     fetchImpl,
     now: () => Date.parse(NOW),
   });
-  await page.route(matchPath("/lead"), (route) => answerFromWorker(route, leads.serveLead));
+  const readDoc = (/** @type {string} */ key) => store.docs.read(key);
+  await page.route(matchPath("/lead"), (route) =>
+    answerFromWorker(route, (url) => leads.serveLead(url, readDoc)),
+  );
   await page.route(matchPath("/box-score"), (route) =>
-    answerFromWorker(route, boxScores.serveBoxScore),
+    answerFromWorker(route, (url) => boxScores.serveBoxScore(url, readDoc)),
   );
   await page.route(matchPath("/preview"), (route) =>
-    answerFromWorker(route, previews.servePreview),
+    answerFromWorker(route, (url) => previews.servePreview(url, readDoc)),
   );
-  const readDoc = (/** @type {string} */ key) => store.docs.read(key);
   await page.route(matchPath("/roster"), (route) =>
     answerFromWorker(route, (url) => rosters.serveRoster(url, readDoc)),
   );

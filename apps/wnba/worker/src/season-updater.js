@@ -6,6 +6,7 @@ import {
   capNotifications,
   describeAsNotification,
 } from "../../../../shared/worker/notifications.js";
+import { nameMeetingsKey } from "./preview.js";
 
 // Keeps the current season's saved data up to date from the league, whether or not a page is
 // open, and says which finished games and series are news. `docs` reads and writes the store's
@@ -60,6 +61,16 @@ function addEndTimes(savedGames, games, asOf) {
 export async function saveSnapshot(docs, snapshot) {
   await saveSeason(docs, snapshot);
   if (!snapshot.missing.includes("players")) await saveAverages(docs, snapshot);
+  if (!snapshot.missing.includes("schedule")) await saveMeetings(docs, snapshot);
+}
+
+// Each upcoming game's meetings, which its sheet reads through the Worker, kept for each pair of
+// teams.
+async function saveMeetings(docs, snapshot) {
+  for (const pair of snapshot.meetings ?? []) {
+    const key = nameMeetingsKey(pair.season, pair.teams);
+    if (!isSameJson(await docs.read(key), pair)) await docs.write(key, pair);
+  }
 }
 
 async function saveAverages(docs, snapshot) {

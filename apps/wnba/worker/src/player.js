@@ -437,10 +437,7 @@ function readTeam(searchParams) {
   return Object.hasOwn(TEAMS, team) ? team : null;
 }
 
-/**
- * Reads a document from the store, as null when it has none.
- * @typedef {(key: string) => Promise<any>} ReadDoc
- */
+/** @typedef {import("./store-docs.js").ReadDoc} ReadDoc */
 
 /**
  * @param {object} options

@@ -5,6 +5,7 @@ import { createFeedKeeper } from "../../../../shared/worker/feed-keeper.js";
 import { createReusedLoader, fetchUpstream } from "../../../../shared/worker/upstream.js";
 import { createGameEnds } from "./game-ends.js";
 import { createEspnGameReader, readEndTime } from "./lead.js";
+import { listUpcomingMeetings } from "./preview.js";
 import { ESPN_HEADERS, fetchWnbaJson, SEASON_PARAM } from "./wnba.js";
 
 const EDGE_CACHE_SECONDS = 5;
@@ -189,7 +190,11 @@ export function createSnapshotServer({
   async function fetchSnapshot(season, requestedAt) {
     const responses = await fetchResponses(season);
     const snapshot = WNBASnapshot.buildSnapshot(responses, { season, now: requestedAt });
-    return { ...snapshot, games: await gameEnds.addEnds(snapshot.games) };
+    return {
+      ...snapshot,
+      games: await gameEnds.addEnds(snapshot.games),
+      meetings: listUpcomingMeetings(responses.schedule, snapshot),
+    };
   }
 
   const loadSnapshot = createReusedLoader(fetchSnapshot, SNAPSHOT_REUSE_MS, now);

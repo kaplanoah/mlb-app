@@ -1,6 +1,6 @@
-// A game's details for its sheet, from the Worker, which reads the league for them: the box score
-// of a game that has started and the score through it for its lead chart, and the meetings that
-// preview one that hasn't.
+// A game's details for its sheet, from the Worker, which answers from the store, or reads the
+// league for what the store doesn't keep: the box score of a game that has started and the score
+// through it for its lead chart, and the meetings that preview one that hasn't.
 
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 
@@ -28,9 +28,9 @@ export function fetchPreview({ season, away, home }) {
   });
 }
 
-/** @param {{ away: string, home: string, start: string }} game */
-export function fetchLead({ away, home, start }) {
-  const query = new URLSearchParams({ away, home, start });
+/** @param {{ id: string, away: string, home: string, start: string }} game */
+export function fetchLead({ id, away, home, start }) {
+  const query = new URLSearchParams({ id, away, home, start });
   return fetchFromWorker(`lead?${query}`, {
     reuseMs: BOX_SCORE_REUSE_MS,
     timeoutMs: FETCH_TIMEOUT_MS,
