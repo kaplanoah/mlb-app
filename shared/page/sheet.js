@@ -11,6 +11,7 @@
 // what it showed.
 
 import { stepBackOnEdgeSwipe } from "./sheet-edge-swipe.js";
+import { noteSheetStep, trackRow } from "./sheet-log.js";
 import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
 
 /**
@@ -76,6 +77,9 @@ const findShownSheet = (dialog) => {
   const { sheets, shown } = readStack(dialog);
   return sheets[shown] ?? dialog;
 };
+
+/** @param {HTMLElement[]} sheets */
+const listIds = (sheets) => sheets.map((sheet) => sheet.id).join(", ");
 
 /** @param {HTMLElement} sheet */
 const nameSheet = (sheet) => sheetParts.get(sheet)?.name ?? "Back";
@@ -164,6 +168,7 @@ function settleOnSheet(dialog, index) {
   prepareNextSheet(dialog);
   placeSheets(dialog);
   focusShownSheet(dialog);
+  noteSheetStep(`settle on ${stack.sheets[index].id}`);
 }
 
 /**
@@ -174,6 +179,7 @@ function dropSteppedAway(dialog) {
   const stack = readStack(dialog);
   const next = stack.sheets[stack.shown + 1];
   if (!next || next === stack.prepared) return;
+  noteSheetStep(`let go of ${listIds(stack.sheets.slice(stack.shown + 1))}`);
   dropSheetsAhead(stack);
   prepareNextSheet(dialog);
   placeSheets(dialog);
@@ -201,7 +207,12 @@ function scrollToSheet(dialog, index) {
   if (!row) return;
   const left = index * row.clientWidth;
   if (Math.abs(row.scrollLeft - left) <= SETTLED_PX) return settleOnSheet(dialog, index);
-  row.scrollTo({ left, behavior: prefersReducedMotion() ? "instant" : "smooth" });
+  const behavior = prefersReducedMotion() ? "instant" : "smooth";
+  noteSheetStep(
+    `scroll from ${Math.round(row.scrollLeft)} to ${left} of ${row.scrollWidth}, ${behavior}`,
+  );
+  row.scrollTo({ left, behavior });
+  trackRow(row);
 }
 
 /** @param {HTMLElement} sheet */
@@ -225,6 +236,21 @@ function showDialog(dialog, sheet) {
   settleOnSheet(dialog, 0);
 }
 
+// A phone's browser can leave the row where it is when asked to scroll in the frame that changed
+// what it holds, so the row sets off for a sheet just brought into it once a frame has drawn it.
+/**
+ * @param {HTMLDialogElement} dialog
+ * @param {HTMLElement} sheet
+ */
+function scrollToSheetOnceDrawn(dialog, sheet) {
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const { sheets } = readStack(dialog);
+      if (sheets.at(-1) === sheet) scrollToSheet(dialog, sheets.length - 1);
+    }),
+  );
+}
+
 /**
  * Brings a sheet into the open dialog beside the shown one, in place of any after it.
  * @param {HTMLDialogElement} dialog
@@ -237,7 +263,7 @@ function showBeside(dialog, sheet) {
   dropSheetsAhead(stack, sheet);
   stack.sheets.push(sheet);
   placeSheets(dialog);
-  scrollToSheet(dialog, stack.sheets.length - 1);
+  scrollToSheetOnceDrawn(dialog, sheet);
 }
 
 /**
@@ -247,6 +273,8 @@ function showBeside(dialog, sheet) {
  */
 export function openSheet(sheet) {
   const dialog = findDialog(sheet);
+  if (sheet !== dialog)
+    noteSheetStep(`open ${sheet.id} over ${dialog.open ? findShownSheet(dialog).id : "the page"}`);
   if (!dialog.open) showDialog(dialog, sheet);
   else if (findShownSheet(dialog) !== sheet) showBeside(dialog, sheet);
   sheet.scrollTop = 0;
@@ -299,6 +327,9 @@ function wireDialog(dialog) {
   if (!row) return;
   row.addEventListener("scroll", () => settleWhereScrolled(dialog), { passive: true });
   row.addEventListener("scrollend", () => settleWhereScrolled(dialog));
+  row.addEventListener("scrollend", () =>
+    noteSheetStep(`row rests at ${Math.round(row.scrollLeft)}`),
+  );
   stepBackOnEdgeSwipe(row, {
     findShownSheet: () => findShownSheet(dialog),
     readShown: () => readStack(dialog).shown,
