@@ -522,3 +522,31 @@ test("each team's wins sit on a block that casts a shadow on the card", async ({
   const box = await wins.boundingBox();
   expect([box.width, box.height]).toEqual([27, 28]);
 });
+
+test.describe("on a phone's touchscreen", () => {
+  test.use({ viewport: PHONE, hasTouch: true, isMobile: true });
+
+  test("a tap anywhere on a team's row in the bracket, beside its name or on its wins, lands on the team's button and opens its sheet", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    const row = page.locator('[data-series="1-0"] .team-line[data-team="NYL"]');
+    await expect(row).toBeVisible();
+    const [name, wins] = await Promise.all(
+      [row.locator(".team-name"), row.locator(".wins")].map((part) => part.boundingBox()),
+    );
+    const besideName = { x: (name.x + name.width + wins.x) / 2, y: name.y + name.height / 2 };
+    const onWins = { x: wins.x + wins.width / 2, y: wins.y + wins.height / 2 };
+    for (const spot of [besideName, onWins]) {
+      const target = await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.team,
+        spot,
+      );
+      expect(target).toBe("NYL");
+    }
+
+    await page.touchscreen.tap(besideName.x, besideName.y);
+    await expect(page.locator("#teamSheet #teamTitle")).toHaveText("New York Liberty");
+  });
+});
