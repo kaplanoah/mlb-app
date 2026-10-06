@@ -46,6 +46,9 @@ const AT_REST_PX = 1;
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
+// What lets each row that's on its way to a sheet snap again.
+/** @type {WeakMap<HTMLElement, () => void>} */
+const snapHolds = new WeakMap();
 /** @type {WeakMap<HTMLDialogElement, Stack>} */
 const stacks = new WeakMap();
 // In the order they opened.
@@ -191,6 +194,35 @@ function settleWhereScrolled(dialog) {
   if (offset < AT_REST_PX) dropSteppedAway(dialog);
 }
 
+/** @param {HTMLElement} row */
+function releaseSnap(row) {
+  snapHolds.get(row)?.();
+  row.classList.remove("is-moving");
+}
+
+/**
+ * Keeps the row from snapping until it arrives at `left`, or a finger takes it over. Safari snaps
+ * a row back to the sheet it last rested on whenever the page lays out again, which would stop it
+ * on its way, as when the sheet it's moving to has just come into the row.
+ * @param {HTMLElement} row
+ * @param {number} left
+ */
+function holdSnapUntilArrival(row, left) {
+  releaseSnap(row);
+  row.classList.add("is-moving");
+  const releaseOnArrival = () => {
+    if (Math.abs(row.scrollLeft - left) <= SETTLED_PX) releaseSnap(row);
+  };
+  const releaseOnTouch = () => releaseSnap(row);
+  row.addEventListener("scroll", releaseOnArrival, { passive: true });
+  row.addEventListener("touchstart", releaseOnTouch, { passive: true });
+  snapHolds.set(row, () => {
+    snapHolds.delete(row);
+    row.removeEventListener("scroll", releaseOnArrival);
+    row.removeEventListener("touchstart", releaseOnTouch);
+  });
+}
+
 /**
  * Scrolls the row to the sheet at `index`, which settles on it once there.
  * @param {HTMLDialogElement} dialog
@@ -200,7 +232,11 @@ function scrollToSheet(dialog, index) {
   const row = findRow(dialog);
   if (!row) return;
   const left = index * row.clientWidth;
-  if (Math.abs(row.scrollLeft - left) <= SETTLED_PX) return settleOnSheet(dialog, index);
+  if (Math.abs(row.scrollLeft - left) <= SETTLED_PX) {
+    releaseSnap(row);
+    return settleOnSheet(dialog, index);
+  }
+  holdSnapUntilArrival(row, left);
   row.scrollTo({ left, behavior: prefersReducedMotion() ? "instant" : "smooth" });
 }
 
@@ -221,7 +257,10 @@ function showDialog(dialog, sheet) {
   dialog.showModal();
   openDialogs.add(dialog);
   const row = findRow(dialog);
-  if (row) row.scrollLeft = 0;
+  if (row) {
+    releaseSnap(row);
+    row.scrollLeft = 0;
+  }
   settleOnSheet(dialog, 0);
 }
 

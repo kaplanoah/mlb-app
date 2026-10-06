@@ -32,6 +32,12 @@ class FakeElement extends EventTarget {
     this.clientWidth = ROW_WIDTH;
     this.textContent = "";
     this.style = { order: "", transform: "" };
+    /** @type {Set<string>} */
+    this.classes = new Set();
+    this.classList = {
+      add: (/** @type {string} */ name) => this.classes.add(name),
+      remove: (/** @type {string} */ name) => this.classes.delete(name),
+    };
   }
 
   /**
@@ -108,14 +114,24 @@ class FakeElement extends EventTarget {
   }
 }
 
-// A row scrolls at once, as it does when less motion is asked for, and says so.
+// A row scrolls at once, as it does when less motion is asked for, and says so, or, held, notes
+// where it was asked to go and stays put until moved.
 class FakeRow extends FakeElement {
   constructor() {
     super({ className: "sheet-row" });
+    this.isHeld = false;
+    /** @type {number | null} */
+    this.target = null;
   }
 
   /** @param {{ left: number }} options */
   scrollTo({ left }) {
+    this.target = left;
+    if (!this.isHeld) this.moveTo(left);
+  }
+
+  /** @param {number} left */
+  moveTo(left) {
     this.scrollLeft = left;
     this.dispatchEvent(new Event("scroll"));
   }
@@ -175,6 +191,7 @@ function createRowDialog(ids, partsById = {}) {
   globalThis.matchMedia = /** @type {any} */ (
     (query) => ({ matches: query.includes("reduced-motion") })
   );
+  globalThis.Node = /** @type {any} */ (FakeElement);
   const dialog = new FakeDialog("sheetDialog");
   globalThis.document = /** @type {any} */ ({
     get activeElement() {
@@ -336,6 +353,28 @@ test("a sheet that names its next one has it wait after it for a swipe, again af
   click(sheets.rosterSheet.backButton);
   assert.deepEqual(listInRow(row), ["teamSheet", "rosterSheet"]);
   assert.equal(findReachable(row), "teamSheet");
+  dialog.close();
+});
+
+test("a row on its way to a sheet doesn't snap until it arrives, or a finger takes it over", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
+  open(sheets.gameSheet.sheet);
+  row.isHeld = true;
+
+  open(sheets.teamSheet.sheet);
+  assert.equal(row.classes.has("is-moving"), true);
+  row.moveTo(ROW_WIDTH / 2);
+  assert.equal(row.classes.has("is-moving"), true);
+  row.moveTo(ROW_WIDTH);
+  assert.equal(row.classes.has("is-moving"), false);
+  assert.equal(findReachable(row), "teamSheet");
+
+  click(sheets.teamSheet.backButton);
+  assert.equal(row.classes.has("is-moving"), true);
+  row.dispatchEvent(
+    Object.assign(new Event("touchstart"), { touches: [{ clientX: 0, clientY: 0 }] }),
+  );
+  assert.equal(row.classes.has("is-moving"), false);
   dialog.close();
 });
 
