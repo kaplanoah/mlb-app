@@ -73,7 +73,11 @@ function renderSheet(team) {
   return { ...sheet, body: team === "BOS" ? renderTitles(BOS_TITLES) : html`<p>${season}</p>` };
 }
 
-startTeamSheet({ isTeam: (team) => ["NYY", "BOS", "NYM"].includes(team), renderSheet });
+startTeamSheet({
+  isTeam: (team) => ["NYY", "BOS", "NYM"].includes(team),
+  nameTeam: (team) => team,
+  renderSheet,
+});
 
 // A tap on the titles' button for the rest, or on something else in the sheet's body.
 function tapInBody(body, isOnMore) {

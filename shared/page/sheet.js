@@ -1,7 +1,7 @@
 // A dialog shown as a sheet, from the bottom on phones and as a modal on wider screens. It opens
 // at its top. A sheet opened from another slides in over it, like the next screen of an app, with
 // a back button that names the one under it, and a swipe right takes it away again, which a
-// swipe left undoes. Done, a click on the backdrop, Escape, and on phones a swipe down close every
+// swipe left, or the forward button that names it, undoes. Done, a click on the backdrop, Escape, and on phones a swipe down close every
 // sheet showing at once. A page that loads again shows the sheets it showed before, where they
 // were scrolled (show-last-drawn.js), and each sheet's code takes back what it showed.
 
@@ -19,10 +19,14 @@ import { closeOnSwipeDown, closeSheets, slideSheet } from "./sheet-swipe.js";
  * @property {HTMLElement} doneButton
  * @property {HTMLElement} [backButton] shown when the sheet opens over another, with its
  *   `.sheet-back-label` naming that one
+ * @property {HTMLElement} [forwardButton] shown when a step back has left a sheet to step
+ *   forward to, with its `.sheet-forward-label` naming that one
  * @property {(target: EventTarget) => boolean} [isOwnGesture] a touch on a target this claims,
  *   like a drag handle or a picker, never moves the sheet
  * @property {SheetKeeper} [keeper]
  * @property {() => string} [nameForBack] what a sheet opened over this one calls it
+ * @property {() => string} [nameForForward] what the sheet under this one calls it, once a step
+ *   back has left it to step forward to
  * @property {() => HTMLDialogElement | null} [prepareNext] the sheet a swipe left opens over this
  *   one when there's no sheet to step forward to, filled in and ready to open
  */
@@ -35,7 +39,7 @@ const sheetParts = new WeakMap();
 /** @type {Set<HTMLDialogElement>} */
 const leavingSheets = new Set();
 // The sheet the last step back took away, which a step forward from the one under it shows again.
-/** @type {{ dialog: HTMLDialogElement, subject: unknown, under: HTMLDialogElement } | null} */
+/** @type {{ dialog: HTMLDialogElement, subject: unknown, under: HTMLDialogElement, name: string } | null} */
 let stepAhead = null;
 
 const findTopSheet = () => openSheets.at(-1) ?? null;
@@ -82,12 +86,28 @@ function coverSheet(under, dialog) {
   labelBackButton(dialog, under);
 }
 
+// Only the top sheet, when a step back left one over it, has somewhere to step forward to.
+function labelForwardButtons() {
+  const top = findTopSheet();
+  for (const dialog of openSheets) {
+    const button = sheetParts.get(dialog)?.forwardButton;
+    if (!button) continue;
+    const isShown = !!stepAhead && dialog === top && stepAhead.under === dialog;
+    button.hidden = !isShown;
+    if (!isShown || !stepAhead) continue;
+    const label = button.querySelector(".sheet-forward-label");
+    if (label) label.textContent = stepAhead.name;
+    button.setAttribute("aria-label", `Forward to ${stepAhead.name}`);
+  }
+}
+
 /** @param {HTMLDialogElement} dialog */
 function showSheet(dialog) {
   const under = findTopSheet();
   if (under) coverSheet(under, dialog);
   dialog.showModal();
   openSheets.push(dialog);
+  labelForwardButtons();
 }
 
 /**
@@ -107,8 +127,9 @@ function uncoverSheet(dialog) {
   dialog.removeAttribute("data-stacked");
   dialog.removeAttribute("data-covered");
   dialog.style.minHeight = "";
-  const backButton = sheetParts.get(dialog)?.backButton;
-  if (backButton) backButton.hidden = true;
+  const parts = sheetParts.get(dialog);
+  if (parts?.backButton) parts.backButton.hidden = true;
+  if (parts?.forwardButton) parts.forwardButton.hidden = true;
 }
 
 /** @param {Event} event */
@@ -117,9 +138,12 @@ function forgetSheet(event) {
   const index = openSheets.indexOf(dialog);
   if (index >= 0) openSheets.splice(index, 1);
   dialog.removeAttribute("data-reopened");
+  dialog.removeAttribute("data-still");
   uncoverSheet(dialog);
-  findTopSheet()?.removeAttribute("data-covered");
+  const top = findTopSheet();
+  top?.removeAttribute("data-covered");
   if (!openSheets.length) stepAhead = null;
+  labelForwardButtons();
 }
 
 /** Takes the top sheet away to show the one under it, which a step forward undoes. */
@@ -128,7 +152,13 @@ function stepBack() {
   const under = openSheets.at(-2);
   if (!dialog || !under || leavingSheets.has(dialog)) return;
   leavingSheets.add(dialog);
-  stepAhead = { dialog, subject: sheetParts.get(dialog)?.keeper?.read() ?? null, under };
+  const parts = sheetParts.get(dialog);
+  stepAhead = {
+    dialog,
+    subject: parts?.keeper?.read() ?? null,
+    under,
+    name: parts?.nameForForward?.() ?? "Forward",
+  };
   under.removeAttribute("data-covered");
   slideSheet(dialog, "translateX(100%)").finished.then((slide) => {
     dialog.close();
@@ -162,6 +192,12 @@ function prepareAhead() {
   return sheetParts.get(top)?.prepareNext?.() ?? null;
 }
 
+/** Opens the sheet a step forward from the top one shows, if any, over it. */
+function stepForward() {
+  const ahead = prepareAhead();
+  if (ahead) showSheet(ahead);
+}
+
 /**
  * Wires a sheet's ways to close and to step between sheets, and with a `keeper`, its showing
  * again on the page's next load or a step forward.
@@ -173,6 +209,7 @@ export function wireSheet(dialog, parts) {
   const isOwnGesture = parts.isOwnGesture ?? (() => false);
   parts.doneButton.addEventListener("click", closeAllSheets);
   parts.backButton?.addEventListener("click", stepBack);
+  parts.forwardButton?.addEventListener("click", stepForward);
   dialog.addEventListener("click", closeOnBackdropClick);
   dialog.addEventListener("close", forgetSheet);
   dialog.addEventListener("cancel", closeAllOnCancel);
@@ -181,7 +218,10 @@ export function wireSheet(dialog, parts) {
     isTop: () => findTopSheet() === dialog,
     findUnder: () => openSheets.at(-2) ?? null,
     prepareAhead,
-    showAhead: showSheet,
+    showAhead: (ahead) => {
+      ahead.setAttribute("data-still", "");
+      showSheet(ahead);
+    },
     stepBack,
     dropAhead: (ahead) => ahead.close(),
     isOwnGesture,
