@@ -6,6 +6,10 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
+    at: "2026-10-06T14:55:00Z",
+    text: "More leading scorers shown on team and game pages, with more data for each scorer, and player names are now tappable",
+  },
+  {
     at: "2026-10-06T04:37:00Z",
     text: html`Team rosters. Tap on a team in the bracket, standings, or a game's details page, then swipe left or tap <b>Roster</b>.`,
   },
