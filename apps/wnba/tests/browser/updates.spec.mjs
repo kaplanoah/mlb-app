@@ -163,7 +163,7 @@ test.describe("on a phone, in full motion", () => {
 test.describe("on a phone, with a release note out", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("the note sits under the finals, headed New in the app, its word in bold set like a team's name, and closes with them", async ({
+  test("the note sits under the finals, headed New in the app, its word in bold a step heavier than its text in the same font, unlike the finals' team names, and closes with them", async ({
     page,
   }) => {
     await serveReleaseNote(page);
@@ -176,8 +176,12 @@ test.describe("on a phone, with a release note out", () => {
     ]);
     await expect(updates.locator(".updates-notes .what")).toHaveText("Tap a game, then Channels.");
     const bold = updates.locator(".updates-notes .what b");
-    await expect(bold).toHaveCSS("font-weight", "600");
-    await expect(bold).toHaveCSS("font-family", /Barlow Condensed/);
+    await expect(bold).toHaveCSS("font-weight", "500");
+    await expect(bold).not.toHaveCSS("font-family", /Condensed/);
+    await expect(updates.locator(".updates-list .what b").first()).toHaveCSS(
+      "font-family",
+      /Barlow Condensed/,
+    );
     const finals = await updates.locator(".updates-list").first().boundingBox();
     const notes = await updates.locator(".updates-notes").boundingBox();
     expect(notes.y).toBeGreaterThan(finals.y + finals.height);

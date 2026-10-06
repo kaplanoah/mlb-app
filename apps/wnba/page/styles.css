@@ -1567,11 +1567,15 @@ th[aria-sort="ascending"] .roster-caret {
 .updates-list .series-score {
   white-space: nowrap;
 }
-.updates-list .what b {
+.updates > .updates-list .what b {
   font-family: var(--team-name);
   font-size: var(--size-read-condensed);
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+/* A release note's word that should stand out stays in its text's font, a step heavier. */
+.updates-notes .what b {
+  font-weight: 500;
 }
 
 /* Barlow reads lighter than baseball's monospace, so the names in a pill are a little heavier. */
