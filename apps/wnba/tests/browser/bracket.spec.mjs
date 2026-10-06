@@ -1,6 +1,10 @@
 import { TEAMS } from "../../page/js/teams.js";
 import { test, expect, openApp } from "./harness.mjs";
 
+/** @param {string} hex */
+const formatRgb = (hex) =>
+  `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(", ")})`;
+
 const PHONE = { width: 390, height: 844 };
 
 /**
@@ -394,11 +398,23 @@ test("a team's dot splits its colors top and bottom at the team's own split, wit
 }) => {
   await openApp(page);
   const club = page.locator('[data-series="1-0"] [data-team]').first();
-  const split = TEAMS[/** @type {string} */ (await club.getAttribute("data-team"))].dotSplit;
-  expect(split).not.toBe(50);
-  await expect(club.locator(".dot")).toHaveCSS(
+  const team = TEAMS[/** @type {string} */ (await club.getAttribute("data-team"))];
+  expect(team.dotSplit).not.toBe(50);
+  const dot = club.locator(".dot");
+  await expect(dot).toHaveCSS(
     "background-image",
-    new RegExp(`^linear-gradient\\(rgb\\([^)]*\\) ${split}%, rgb\\([^)]*\\) ${split}%\\)$`),
+    `linear-gradient(${formatRgb(team.color)} ${team.dotSplit}%, rgba(0, 0, 0, 0) ${team.dotSplit}%)`,
+  );
+  await expect(dot).toHaveCSS("background-color", formatRgb(team.color2));
+});
+
+test("a team's dot draws its top color once, so no sliver of it can show along the bottom edge", async ({
+  page,
+}) => {
+  await openApp(page);
+  await expect(page.locator('[data-series="1-0"] .dot').first()).toHaveCSS(
+    "background-repeat",
+    "no-repeat",
   );
 });
 
