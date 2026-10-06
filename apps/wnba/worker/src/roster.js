@@ -2,7 +2,14 @@ import { TEAMS } from "../../page/js/teams.js";
 import { normalizeName } from "../../page/js/player-names.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 import { createReusedLoader, fetchUpstream } from "../../../../shared/worker/upstream.js";
-import { ESPN_HEADERS, SEASON_PARAM, fetchWnbaJson } from "./wnba.js";
+import {
+  ESPN_HEADERS,
+  SEASON_PARAM,
+  fetchWnbaJson,
+  hasTable,
+  isCurrentSeason,
+  readTable,
+} from "./wnba.js";
 
 // Reads a team's roster for a season, for its sheet's Roster page: each player's number, position,
 // height, and age from the league's roster of that season, and where she came from and her first
@@ -50,34 +57,6 @@ export const namePlayerListRequest = (season) =>
 
 /** @param {number} espnId */
 export const nameEspnRosterRequest = (espnId) => `${ESPN_SITE}/teams/${espnId}/roster`;
-
-/**
- * The rows of one of the stats site's tables, each keyed by its column names.
- * @param {any} answer
- * @param {string} name
- */
-function readTable(answer, name) {
-  const table = (answer?.resultSets ?? []).find((set) => set.name === name);
-  if (!table) return [];
-  return table.rowSet.map((row) =>
-    Object.fromEntries(table.headers.map((header, index) => [header, row[index]])),
-  );
-}
-
-/**
- * Whether an answer holds the named table, as one that's really the stats site's does.
- * @param {string} name
- */
-const hasTable = (name) => (/** @type {any} */ answer) =>
-  Array.isArray(answer?.resultSets) && answer.resultSets.some((set) => set?.name === name);
-
-/**
- * Whether a season is the one being played now, or one not yet begun.
- * @param {number} season
- * @param {number} now
- */
-const isCurrentSeason = (season, now) =>
-  season >= /** @type {number} */ (SEASON_PARAM.readSeason(new URLSearchParams(), now));
 
 // The league writes a height as 6-4.
 /** @param {string | null | undefined} height */

@@ -5,6 +5,7 @@
 
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import { renderPlayerButton } from "./player-button.js";
 import { renderSheetMessage } from "./sheet-parts.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
@@ -236,14 +237,18 @@ const OUT_CHIP = html`<span class="foul-chip"><span class="foul-chip-words">Out<
 
 /**
  * @param {RosterRow} row
+ * @param {string} team
  * @param {boolean} showsOut whether the Out chip shows, as it does only while the team still plays
  */
-const renderRow = (row, showsOut) =>
+const renderRow = (row, team, showsOut) =>
   html`<tr data-key="${row.id}">
     <td class="roster-number">${NUMBER_COLUMN.read(row)}</td>
     <th scope="row" class="roster-player">
-      <span class="roster-first">${row.firstName}</span>
-      <span class="roster-last">${row.lastName}${showsOut && row.isOut && OUT_CHIP}</span>
+      ${renderPlayerButton(
+        { ...row, team },
+        html`<span class="roster-first">${row.firstName}</span>
+          <span class="roster-last">${row.lastName}${showsOut && row.isOut && OUT_CHIP}</span>`,
+      )}
     </th>
     ${[...BIO_COLUMNS, ...STAT_COLUMNS].map(
       (column) => html`<td${renderClass(column)}>${column.read(row)}</td>`,
@@ -295,7 +300,7 @@ export function renderRoster({ roster, averages, sort, isLoading, showsOut }) {
     return renderSheetMessage("Couldn't load the roster. Close and try again in a minute.");
   const rows = sortRows(matchAverages(roster.players, averages), sort);
   return html`${renderTable(
-    rows.map((row) => renderRow(row, showsOut)),
+    rows.map((row) => renderRow(row, roster.team, showsOut)),
     sort,
   )}${renderCoach(roster.coach)}`;
 }

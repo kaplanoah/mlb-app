@@ -8,6 +8,7 @@ import { describeDay, readGameDay } from "./days.js";
 import { nameTeam, readPlayoffRuns } from "./series.js";
 import { formatTeamColors } from "./sheet-colors.js";
 import { describeNumbers, describeRecords, renderPlayerTable } from "./sheet-parts.js";
+import { renderPlayerButton } from "./player-button.js";
 import { ROUNDS } from "./snapshot.js";
 import { renderStreak } from "./standings-view.js";
 import { TEAMS } from "./teams.js";
@@ -66,7 +67,9 @@ const LEADER_COLUMNS = [
 /** @param {Leader} leader */
 const renderLeaderRow = (leader) =>
   html`<tr>
-    <th scope="row"><span class="first-name">${leader.firstName}</span> ${leader.lastName}</th>
+    <th scope="row">
+      ${renderPlayerButton(leader, html`<span class="first-name">${leader.firstName}</span> ${leader.lastName}`)}
+    </th>
     ${LEADER_COLUMNS.map((column) =>
       column.isQuiet
         ? html`<td class="quiet-stat">${column.read(leader)}</td>`
@@ -147,8 +150,25 @@ function describeChip(run, { hasField }) {
   return { label: round, kind: "alive" };
 }
 
+/**
+ * A team's playoffs as its sheets show them: its run, its games, whether it still plays, and the
+ * chip that says how far it has got.
+ * @param {Season | null} season
+ * @param {string} team
+ */
+export function readTeamPlayoffs(season, team) {
+  const runs = readPlayoffRuns(season?.series ?? []);
+  const run = runs.get(team);
+  return {
+    run,
+    games: listTeamGames(season ?? {}, team),
+    isPlaying: !!run && !run.isOut && !run.isChampion,
+    chip: describeChip(run, { hasField: runs.size > 0 }),
+  };
+}
+
 /** @param {{ label: string, kind: string } | null} chip */
-const renderChip = (chip) =>
+export const renderChip = (chip) =>
   chip && html`<span class="status-chip ${chip.kind}">${chip.label}</span>`;
 
 /**
@@ -390,11 +410,18 @@ function describeMatchup(game, team) {
     <span class="team-round">${round}</span>`;
 }
 
+/** @param {{ own: number, theirs: number }} score */
+const renderScore = ({ own, theirs }) =>
+  html`<span class="team-score tabular">${own}-${theirs}</span>`;
+
 /**
+ * A finished game's row: its number, whether the team won, who it played, and, at its end, the
+ * score or whatever `renderEnd` shows in its place.
  * @param {Game} game
  * @param {string} team
+ * @param {(score: { own: number, theirs: number }) => import("#shared/html.js").Markup} [renderEnd]
  */
-function renderFinishedGame(game, team) {
+export function renderFinishedGame(game, team, renderEnd = renderScore) {
   const place = findPlace(game, team) ?? "home";
   const own = game[place].score ?? 0;
   const theirs = game[OTHER_PLACE[place]].score ?? 0;
@@ -403,7 +430,7 @@ function renderFinishedGame(game, team) {
     <span class="team-game-number">G${game.number}</span>
     <span class="team-result ${isWin ? "won" : "lost"}">${isWin ? "W" : "L"}</span>
     <span class="team-matchup">${describeMatchup(game, team)}</span>
-    <span class="team-score tabular">${own}-${theirs}</span>
+    ${renderEnd({ own, theirs })}
   </div>`;
 }
 
@@ -419,7 +446,7 @@ const NEXT_GAME_ICON = html`<svg class="next-game-icon" viewBox="0 0 256 256" fi
  * @param {string} team
  * @param {number} now
  */
-function renderNextGame(game, team, now) {
+export function renderNextGame(game, team, now) {
   const isSoon = game.state === "live" || isToday(game, now);
   return html`<div class="team-game next${isSoon ? " soon" : ""}">
     <span class="team-game-number">G${game.number}</span>
@@ -481,11 +508,7 @@ export const renderTeamHeading = (code) =>
  */
 export function renderTeamSheet(season, code, { year, now }) {
   const row = season?.standings?.find((each) => each.team === code);
-  const runs = readPlayoffRuns(season?.series ?? []);
-  const run = runs.get(code);
-  const games = listTeamGames(season ?? {}, code);
-  const isPlaying = !!run && !run.isOut && !run.isChampion;
-  const chip = describeChip(run, { hasField: runs.size > 0 });
+  const { run, games, isPlaying, chip } = readTeamPlayoffs(season, code);
   const titles = listTitles(code, run, year);
   const regularSeason = html`${renderRegularSeason(code, season?.standings ?? [])}
   ${renderLeadingScorers(findTeamLeaders(season, code))}`;

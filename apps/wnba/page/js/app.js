@@ -29,6 +29,7 @@ import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
+import { refreshPlayerSheet, startPlayerSheet } from "./player-sheet.js";
 import { prepareRoster, startRosterSheet } from "./roster-sheet.js";
 import { renderRosterButton } from "./roster-view.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
@@ -89,6 +90,7 @@ function renderAll() {
   renderStamp();
   refreshGameSheet();
   refreshTeamSheet();
+  refreshPlayerSheet();
 }
 
 // What new data changes eases in, as does the season the store answers with after the one the page
@@ -188,6 +190,7 @@ async function boot() {
     prepareNext: prepareNextFromTeam,
   });
   startRosterSheet();
+  startPlayerSheet();
   startSettingsSheet();
   startNewsChoices(drawNews);
   startOpenedStories(findElement("newsList"), drawNews);
