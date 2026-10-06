@@ -92,6 +92,9 @@
   min-width: 0;
   line-height: 1.45;
 }
+.updates-list .what b {
+  font-weight: 600;
+}
 /* Release notes sit under the updates, apart from them by space alone, and close under their
    heading. */
 .updates-section {

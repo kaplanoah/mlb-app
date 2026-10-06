@@ -26,8 +26,12 @@ const DISMISS_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
  * an update about one game, the button that opens the game, as its row in the Games view does.
  * @typedef {{ at: number, day?: Date | null, endedNextDay?: boolean, text: Markup, action?: Markup | false }} Update
  */
-/** @typedef {{ at: string, text: string }} ReleaseNote when it went out, as an ISO time, and what it says */
-/** @typedef {{ at: number, text: string }} Note a release note to show */
+/**
+ * When it went out, as an ISO time, and what it says, with any word that should stand out, like a
+ * button's name, in <b>.
+ * @typedef {{ at: string, text: string | Markup }} ReleaseNote
+ */
+/** @typedef {{ at: number, text: string | Markup }} Note a release note to show */
 
 const MAX_SHOWN = 12;
 const NOTE_SHOWN_MS = 14 * 24 * 60 * 60 * 1000;
