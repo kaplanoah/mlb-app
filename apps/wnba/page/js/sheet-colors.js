@@ -84,3 +84,10 @@ export function formatSheetColors(away, home) {
  */
 export const formatTeamColors = (code) =>
   THEMES.map((theme) => `--team-${theme}: ${TEAMS[code].chartColors[theme][0]};`).join(" ");
+
+/**
+ * The style that hands a player's sheet her team's mark color on each theme.
+ * @param {string} code
+ */
+export const formatMarkColors = (code) =>
+  THEMES.map((theme) => `--mark-${theme}: ${TEAMS[code].markColors[theme]};`).join(" ");

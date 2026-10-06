@@ -156,6 +156,18 @@ test("her regular season ranks each average among the players the WNBA ranks, on
   const text = renderBody(createPlayer());
   assert.match(text, /Regular season 42 games Pts 20\.8 7th of 125 3P% 25\.4 76th of 76/);
   assert.match(text, /only ranks players who've played 31 games or, for shooting percentages/);
+  assert.match(
+    String(
+      renderPlayerBody({
+        player: createPlayer(),
+        isLoading: false,
+        season: SEASON,
+        isPastSeason: false,
+        now: NOW,
+      }).text,
+    ),
+    /class="player-ranks" style="--mark-light: #449274; --mark-dark: #87d5b5;"/,
+  );
 });
 
 test("a stat she isn't ranked in shows her number alone, and the note says why", () => {

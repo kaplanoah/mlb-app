@@ -11,7 +11,7 @@ import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderTeamDetail } from "#shared/team-sheet.js";
 import { renderDot, renderTeamName } from "./clubs.js";
 import { describeDay } from "./days.js";
-import { formatTeamColors } from "./sheet-colors.js";
+import { formatMarkColors } from "./sheet-colors.js";
 import { renderSheetMessage } from "./sheet-parts.js";
 import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from "./team-view.js";
 
@@ -374,7 +374,7 @@ function renderRegularSeason(team, season) {
   });
   return renderSheetPart(
     "Regular season",
-    html`<div class="player-ranks" style="${formatTeamColors(team)}">
+    html`<div class="player-ranks" style="${formatMarkColors(team)}">
       ${rows}
       <p class="player-rank-note">${describeRankNote(season)}</p>
     </div>`,

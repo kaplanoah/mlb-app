@@ -29,6 +29,41 @@ async function openFeverOverGame(page) {
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
+  test("every sheet bands its top alike, in the same tint over the same hairline, which a game's face-off draws under its teams", async ({
+    page,
+  }) => {
+    await openApp(page);
+    const { teamSheet } = await openFeverOverGame(page);
+    await teamSheet.getByRole("button", { name: "Roster" }).click();
+    await page.locator("#rosterDialog").getByRole("button", { name: "Aliyah Boston" }).click();
+    await expect(page.locator("#playerDialog .player-facts")).toBeVisible();
+    // Where each sheet's band ends: a game's runs on through its face-off.
+    const bandEnds = {
+      gameDialog: ".faceoff",
+      teamDialog: ".sheet-top",
+      rosterDialog: ".sheet-top",
+      playerDialog: ".sheet-top",
+    };
+
+    const sheets = await page.locator("dialog.sheet-panel").evaluateAll(
+      (dialogs, ends) =>
+        dialogs.map((dialog) => {
+          const top = getComputedStyle(dialog.querySelector(".sheet-top"));
+          const end = ends[dialog.id] && getComputedStyle(dialog.querySelector(ends[dialog.id]));
+          return {
+            id: dialog.id,
+            band: [top.backgroundColor, end?.borderBottomWidth, end?.borderBottomColor],
+          };
+        }),
+      bandEnds,
+    );
+
+    expect(sheets.map((sheet) => sheet.id)).toEqual(Object.keys(bandEnds));
+    const [first, ...rest] = sheets;
+    for (const sheet of rest) expect(sheet.band, sheet.id).toEqual(first.band);
+    expect(first.band[1]).toBe("1px");
+  });
+
   test("going back from a team leaves a forward button on the game that names the team and goes to it again, until another opens", async ({
     page,
   }) => {

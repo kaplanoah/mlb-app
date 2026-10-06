@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  formatMarkColors,
   formatSheetColors,
   measureColorDistance,
   pickSheetColors,
+  readOklab,
 } from "../page/js/sheet-colors.js";
 import { TEAMS } from "../page/js/teams.js";
 
@@ -13,6 +15,12 @@ const THEMES = /** @type {const} */ (["light", "dark"]);
 const CODES = Object.keys(TEAMS);
 // What a team's name needs to read, as WCAG asks of text its size.
 const SMALLEST_CONTRAST = 4.5;
+// What a mark needs to stand out, as WCAG asks of a graphic, and how far past it a mark made
+// darker or lighter may go.
+const MARK_CONTRAST = 3;
+const MARK_CONTRAST_ROOM = 0.1;
+// How far apart two hues may be and still read as the same color.
+const SAME_HUE_DEGREES = 3;
 
 /**
  * A token's value in the block of styles.css that a selector opens.
@@ -66,6 +74,50 @@ test("every team's chart colors read as text on the sheet and the floor, on each
       }
     }
   }
+});
+
+/** @param {string} hex */
+function readHue(hex) {
+  const [, greenRed, blueYellow] = readOklab(hex);
+  return (Math.atan2(blueYellow, greenRed) * 180) / Math.PI;
+}
+
+/**
+ * @param {string} first
+ * @param {string} second
+ */
+function measureHueGap(first, second) {
+  const gap = Math.abs(readHue(first) - readHue(second)) % 360;
+  return Math.min(gap, 360 - gap);
+}
+
+test("every team's mark colors stand out on the sheet, each one of its own colors or that color's hue made only as dark or light as standing out needs", () => {
+  const sheets = {
+    light: readToken(":root", "--card"),
+    dark: readToken(':root[data-theme="dark"]', "--card"),
+  };
+  for (const code of CODES) {
+    const { color, color2, markColors } = TEAMS[code];
+    for (const theme of THEMES) {
+      const mark = markColors[theme];
+      const contrast = measureContrast(mark, sheets[theme]);
+      const name = `${code}'s ${mark} on ${sheets[theme]}`;
+      assert.ok(contrast >= MARK_CONTRAST, `${name} is ${contrast.toFixed(2)} to 1`);
+      if ([color, color2].includes(mark)) continue;
+      assert.ok(
+        [color, color2].some((own) => measureHueGap(own, mark) <= SAME_HUE_DEGREES),
+        `${name} keeps neither ${color}'s hue nor ${color2}'s`,
+      );
+      assert.ok(
+        contrast <= MARK_CONTRAST + MARK_CONTRAST_ROOM,
+        `${name} goes past what standing out needs, at ${contrast.toFixed(2)} to 1`,
+      );
+    }
+  }
+});
+
+test("a player's sheet hands its curves her team's mark color on each theme", () => {
+  assert.equal(formatMarkColors("NYL"), "--mark-light: #449274; --mark-dark: #87d5b5;");
 });
 
 test("every pairing of teams, either way round, gets two colors that read apart, on each theme", () => {
