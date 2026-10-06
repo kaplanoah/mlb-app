@@ -354,8 +354,8 @@ export function describeRankNote(season) {
   if (season.stats.every((stat) => stat.rank != null))
     return `The number of ranked players varies by stat because the WNBA only ranks players who've played ${season.gamesNeeded} games or, for shooting percentages, made a certain number of shots`;
   if (season.games < season.gamesNeeded)
-    return `Not ranked until she's played ${season.gamesNeeded} games, or for a percentage, made enough shots. She's played ${season.games}.`;
-  return "Not ranked in a shooting percentage until she's made enough shots";
+    return `The WNBA only ranks players who've played ${season.gamesNeeded} games or, for shooting percentages, made a certain number of shots. She's played ${season.games} ${season.games === 1 ? "game" : "games"}.`;
+  return "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.";
 }
 
 /**

@@ -185,12 +185,14 @@ test("a stat she isn't ranked in shows her number alone, and the note says why",
   assert.equal(String(body.text).match(/player-curve-area/g)?.length, 1);
   assert.equal(
     describeRankNote(player.regularSeason),
-    "Not ranked until she's played 31 games, or for a percentage, made enough shots. She's played 21.",
+    "The WNBA only ranks players who've played 31 games or, for shooting percentages, made a certain number of shots. She's played 21 games.",
   );
+  player.regularSeason.games = 1;
+  assert.match(describeRankNote(player.regularSeason), /She's played 1 game\.$/);
   player.regularSeason.games = 40;
   assert.equal(
     describeRankNote(player.regularSeason),
-    "Not ranked in a shooting percentage until she's made enough shots",
+    "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.",
   );
 });
 
