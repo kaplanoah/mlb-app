@@ -13,7 +13,7 @@ import {
 } from "../page/js/roster-view.js";
 import { isStillPlaying } from "../page/js/series.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
-import { describeRoster } from "../worker/src/roster.js";
+import { describeRoster, listOutNames } from "../worker/src/roster.js";
 import { convertToText, Markup } from "../../../shared/page/html.js";
 import { stripTags } from "../../../tests/text.js";
 
@@ -35,7 +35,7 @@ const LIBERTY = describeRoster({
   season: 2026,
   leagueRoster: ROSTERS.rosters["NYL:2026"],
   playerList: ROSTERS.playerList,
-  espnRoster: ROSTERS.espnRosters.NYL,
+  outNames: listOutNames(ROSTERS.espnRosters.NYL),
   now: Date.parse(ROSTERS.recordedAt),
 });
 

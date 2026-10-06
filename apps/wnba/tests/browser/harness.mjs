@@ -7,6 +7,8 @@ import {
   nameSummaryRequest,
 } from "../../worker/src/lead.js";
 import {
+  PLAYOFFS,
+  REGULAR_SEASON,
   createPlayerServer,
   nameGameLogRequest,
   nameTeamGameLogRequest,
@@ -32,6 +34,7 @@ import {
   openLockedPage,
 } from "../../../../tests/browser/harness.mjs";
 import { holdStore } from "../../../../tests/browser/hold-store.mjs";
+import { joinGameLogs } from "../player-fixtures.js";
 
 const AFTERNOON = JSON.parse(
   readFileSync(new URL("../fixtures/2026-09-30-afternoon.json", import.meta.url), "utf8"),
@@ -75,6 +78,15 @@ const PLAYERS = JSON.parse(
 );
 
 const listPlayerAnswers = () => [
+  ...Object.keys(PLAYERS.totals).flatMap((season) =>
+    [REGULAR_SEASON, PLAYOFFS].map(
+      (seasonType) =>
+        /** @type {[string, any]} */ ([
+          nameGameLogRequest(Number(season), seasonType),
+          joinGameLogs(PLAYERS.gameLogs, Number(season), seasonType),
+        ]),
+    ),
+  ),
   ...Object.entries(PLAYERS.totals).map(
     ([season, totals]) =>
       /** @type {[string, any]} */ ([nameTotalsRequest(Number(season)), totals]),
@@ -89,7 +101,7 @@ const listPlayerAnswers = () => [
   ...Object.entries(PLAYERS.gameLogs).map(([key, games]) => {
     const [id, season, seasonType] = key.split(":");
     return /** @type {[string, any]} */ ([
-      nameGameLogRequest(id, Number(season), seasonType),
+      nameGameLogRequest(Number(season), seasonType, id),
       games,
     ]);
   }),
@@ -154,13 +166,32 @@ function readAfternoonSnapshot(season) {
   return structuredClone(afternoonSnapshots.get(season));
 }
 
-/** The Worker's store, already updated once from the afternoon's feeds. */
+/**
+ * What the store's job that keeps the players reads: the recorded rosters and players' numbers.
+ * Anything else the store's jobs read, like the news, answers with nothing.
+ */
+function createPlayerFeedFetch() {
+  const answers = new Map([...listRosterAnswers(), ...listPlayerAnswers()]);
+  return async (/** @type {string} */ url) =>
+    answers.has(url)
+      ? new Response(JSON.stringify(answers.get(url)))
+      : new Response(null, { status: 201 });
+}
+
+/**
+ * The Worker's store, already updated once from the afternoon's feeds, with the rosters and
+ * players' numbers its job keeps.
+ */
 async function createAfternoonStore() {
   const loadSnapshot = async (season) => readAfternoonSnapshot(season);
-  const testStore = createTestStore(SeasonStore, { loadSnapshot, now: NOW });
+  const testStore = createTestStore(SeasonStore, {
+    loadSnapshot,
+    now: NOW,
+    fetchImpl: createPlayerFeedFetch(),
+  });
   await testStore.store.alarm();
-  // The news runs beside the update, and finishes before the page opens, so it never overwrites
-  // the news a test writes.
+  // The news and the players run beside the update, and finish before the page opens, so they never
+  // overwrite what a test writes.
   await Promise.all(testStore.store.jobRuns.values());
   return testStore;
 }
@@ -203,8 +234,13 @@ export async function openApp(
   await page.route(matchPath("/preview"), (route) =>
     answerFromWorker(route, previews.servePreview),
   );
-  await page.route(matchPath("/roster"), (route) => answerFromWorker(route, rosters.serveRoster));
-  await page.route(matchPath("/player"), (route) => answerFromWorker(route, players.servePlayer));
+  const readDoc = (/** @type {string} */ key) => store.docs.read(key);
+  await page.route(matchPath("/roster"), (route) =>
+    answerFromWorker(route, (url) => rosters.serveRoster(url, readDoc)),
+  );
+  await page.route(matchPath("/player"), (route) =>
+    answerFromWorker(route, (url) => players.servePlayer(url, readDoc)),
+  );
   await loadPageAt(page, NOW);
 
   return {

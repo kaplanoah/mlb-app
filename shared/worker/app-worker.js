@@ -149,7 +149,8 @@ const GATE_PATH = "/gate.html";
  * @param {Parameters<typeof decodePageFiles>[0]} app.pageFiles
  * @param {(url: URL) => Response | Promise<Response>} app.serveSnapshot
  * @param {(request: Request, env: any, storePath: string) => Response | Promise<Response>} app.forwardToStore
- * @param {Record<string, (url: URL) => Response | Promise<Response>>} [app.reads] more GET paths
+ * @param {Record<string, (url: URL, env: any) => Response | Promise<Response>>} [app.reads] more GET
+ *   paths, each handed the Worker's bindings, so it can read the store
  */
 export function createAppWorker({ pageFiles, serveSnapshot, forwardToStore, reads = {} }) {
   const releaseCommit = readReleaseCommit(pageFiles);
@@ -185,7 +186,8 @@ export function createAppWorker({ pageFiles, serveSnapshot, forwardToStore, read
       if ((await readAccess(request, env)) !== "open") return serveLocked(request, appPath);
       if (isStorePath(appPath)) return forwardToStore(request, env, appPath);
       if (request.method === "GET" && appPath === "/snapshot") return serveSnapshot(url);
-      if (request.method === "GET" && Object.hasOwn(reads, appPath)) return reads[appPath](url);
+      if (request.method === "GET" && Object.hasOwn(reads, appPath))
+        return reads[appPath](url, env);
       if (isIndexPath(appPath)) return servePage(request, env, appPath);
       return servePageFile(request, appPath);
     },

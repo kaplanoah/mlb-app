@@ -1,6 +1,6 @@
 // The sheet beside a team's that its Roster button, or a swipe left, brings in: the team's roster
-// for the season shown, which the Worker reads from the league, beside every player's averages
-// that season, which the store keeps, read together as the team's sheet shows a season and again
+// for the season shown, which the store keeps, beside every player's averages that season, which
+// the store also keeps, read together as the team's sheet shows a season and again
 // once they're old, sorted by the column the viewer picked until the sheet shows another team. Who
 // is out shows only while the team still plays.
 
