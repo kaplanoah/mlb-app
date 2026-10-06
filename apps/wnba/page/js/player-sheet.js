@@ -25,8 +25,6 @@ const FETCH_TIMEOUT_MS = 15 * 1000;
 const READ_AGAIN_MS = 10 * 60 * 1000;
 // A sheet that didn't load says to try again in a minute.
 const RETRY_MS = 60 * 1000;
-// What a sheet opened over a player's calls it on its back button.
-const NAME_FOR_BACK = "Player";
 
 // Each read is kept by her id, team, and season, as 1627668:NYL:2026.
 /** @type {Map<string, PlayerRead>} */
@@ -147,7 +145,7 @@ function openOnTap(event) {
 
 // A forward button back to her sheet names her by her last name, once it has loaded.
 function nameForForward() {
-  if (!shownPlayer) return NAME_FOR_BACK;
+  if (!shownPlayer) return "Player";
   const { player } = readPlayer(shownPlayer, session.year);
   return player?.lastName ?? shownPlayer.name;
 }
@@ -161,7 +159,7 @@ export function startPlayerSheet() {
     doneButton: findElement("playerDoneBtn"),
     backButton: findElement("playerBackBtn"),
     keeper: { read: () => shownPlayer, reopen: reopenPlayer },
-    nameForBack: () => NAME_FOR_BACK,
+    name: "Player",
     nameForForward,
   });
   document.addEventListener("click", openOnTap);

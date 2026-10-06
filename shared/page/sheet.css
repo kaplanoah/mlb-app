@@ -127,32 +127,23 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 }
 
 /* A sheet opened over another covers that one's backdrop, which stays as it is. The one under it
-   dims, and on a phone steps aside, while a finger moving either one holds them where it puts
-   them. Once it has, it hides, so none of it shows past the rounded corners of the one over it,
-   until a finger or a step back brings it out again. */
+   dims, and on a phone steps aside and a little down, so none of it shows past the rounded
+   corners of the one over it, while a finger moving either one holds them where it puts them. It
+   stays drawn, so a swipe that brings it out never waits on it. */
 .sheet-panel[data-stacked]::backdrop {
   background: transparent;
 }
 .sheet-panel[data-covered] {
   filter: brightness(0.75);
-  visibility: hidden;
 }
 .sheet-panel[data-covered][data-dragged] {
   filter: none;
-  visibility: visible;
 }
 @media (prefers-reduced-motion: no-preference) {
   .sheet-panel {
     transition:
       transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-      visibility 0s;
-  }
-  .sheet-panel[data-covered] {
-    transition:
-      transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-      visibility 0s 0.3s;
+      filter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   .sheet-panel[open][data-stacked] {
     animation: sheet-push 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -295,7 +286,7 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
   }
   .sheet-panel[data-covered] {
-    transform: translateX(-28%);
+    transform: translate(-28%, 24px);
   }
   /* Done shows only to screen readers here, so an action takes the head's right edge. */
   .sheet-action {

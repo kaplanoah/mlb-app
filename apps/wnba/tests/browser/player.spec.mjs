@@ -106,9 +106,9 @@ test("a top scorer's name in a box score opens her sheet over the game's, and a 
   await game.getByRole("button", { name: "A'ja Wilson" }).click();
   const sheet = page.locator("#playerDialog");
   await expect(sheet.locator("#playerTitle")).toHaveText("A'ja Wilson");
-  await expect(sheet.getByRole("button", { name: "Back to Game 2" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Back to Game" })).toBeVisible();
 
-  await sheet.getByRole("button", { name: "Back to Game 2" }).click();
+  await sheet.getByRole("button", { name: "Back to Game" }).click();
   await expect(sheet).toBeHidden();
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Standings" }).click();
