@@ -36,8 +36,9 @@ import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
  */
 /**
  * A dialog's sheets, in the row's order, and the one it shows. `prepared` is a sheet that waits
- * beside the last one for a swipe left.
- * @typedef {{ sheets: HTMLElement[], shown: number, prepared: HTMLElement | null }} Stack
+ * beside the last one for a swipe left, and `steppedAway` the sheets a step back left after the
+ * shown one, which leave the row once it rests.
+ * @typedef {{ sheets: HTMLElement[], shown: number, prepared: HTMLElement | null, steppedAway: HTMLElement[] }} Stack
  */
 
 // A row settles on a sheet within this many pixels of its edge, and has come to rest on it within
@@ -62,11 +63,18 @@ const findDialog = (sheet) => /** @type {HTMLDialogElement} */ (sheet.closest("d
 const findRow = (dialog) =>
   /** @type {HTMLElement | null} */ (dialog.querySelector(":scope > .sheet-row"));
 
+/**
+ * @param {HTMLElement[]} sheets
+ * @param {number} shown
+ * @returns {Stack}
+ */
+const createStack = (sheets, shown) => ({ sheets, shown, prepared: null, steppedAway: [] });
+
 /** @param {HTMLDialogElement} dialog */
 function readStack(dialog) {
   let stack = stacks.get(dialog);
   if (!stack) {
-    stack = { sheets: [], shown: 0, prepared: null };
+    stack = createStack([], 0);
     stacks.set(dialog, stack);
   }
   return stack;
@@ -132,6 +140,7 @@ const forgetSheet = (sheet) => sheetParts.get(sheet)?.forget?.();
 function dropSheetsAhead(stack, kept) {
   const dropped = stack.sheets.splice(stack.shown + 1);
   stack.prepared = null;
+  stack.steppedAway = [];
   for (const sheet of dropped) if (sheet !== kept) forgetSheet(sheet);
 }
 
@@ -143,6 +152,16 @@ function focusShownSheet(dialog) {
   const title = sheet.getAttribute("aria-labelledby");
   if (title) dialog.setAttribute("aria-labelledby", title);
   if (!sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true });
+}
+
+/**
+ * Notes the sheets a step back to the sheet at `index` leaves after it, but the one waiting for a
+ * swipe left.
+ * @param {Stack} stack
+ * @param {number} index
+ */
+function noteSteppedAway(stack, index) {
+  stack.steppedAway = stack.sheets.slice(index + 1).filter((sheet) => sheet !== stack.prepared);
 }
 
 /** @param {HTMLDialogElement} dialog */
@@ -163,6 +182,7 @@ function prepareNextSheet(dialog) {
 function settleOnSheet(dialog, index) {
   const stack = readStack(dialog);
   if (!stack.sheets[index]) return;
+  if (index < stack.shown) noteSteppedAway(stack, index);
   stack.shown = index;
   if (stack.sheets[index] === stack.prepared) stack.prepared = null;
   prepareNextSheet(dialog);
@@ -172,13 +192,13 @@ function settleOnSheet(dialog, index) {
 }
 
 /**
- * Takes the sheets a step back left out of the row, keeping any that waits for a swipe left.
+ * Takes the sheets a step back left out of the row, and any after them. A sheet opened since, which
+ * the row may not have set off for yet, stays.
  * @param {HTMLDialogElement} dialog
  */
 function dropSteppedAway(dialog) {
   const stack = readStack(dialog);
-  const next = stack.sheets[stack.shown + 1];
-  if (!next || next === stack.prepared) return;
+  if (!stack.steppedAway.length) return;
   noteSheetStep(`let go of ${listIds(stack.sheets.slice(stack.shown + 1))}`);
   dropSheetsAhead(stack);
   prepareNextSheet(dialog);
@@ -227,28 +247,13 @@ function stepBack(sheet) {
  * @param {HTMLElement} sheet
  */
 function showDialog(dialog, sheet) {
-  stacks.set(dialog, { sheets: sheet === dialog ? [] : [sheet], shown: 0, prepared: null });
+  stacks.set(dialog, createStack(sheet === dialog ? [] : [sheet], 0));
   placeSheets(dialog);
   dialog.showModal();
   openDialogs.add(dialog);
   const row = findRow(dialog);
   if (row) row.scrollLeft = 0;
   settleOnSheet(dialog, 0);
-}
-
-// A phone's browser can leave the row where it is when asked to scroll in the frame that changed
-// what it holds, so the row sets off for a sheet just brought into it once a frame has drawn it.
-/**
- * @param {HTMLDialogElement} dialog
- * @param {HTMLElement} sheet
- */
-function scrollToSheetOnceDrawn(dialog, sheet) {
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      const { sheets } = readStack(dialog);
-      if (sheets.at(-1) === sheet) scrollToSheet(dialog, sheets.length - 1);
-    }),
-  );
 }
 
 /**
@@ -263,7 +268,7 @@ function showBeside(dialog, sheet) {
   dropSheetsAhead(stack, sheet);
   stack.sheets.push(sheet);
   placeSheets(dialog);
-  scrollToSheetOnceDrawn(dialog, sheet);
+  scrollToSheet(dialog, stack.sheets.length - 1);
 }
 
 /**
@@ -424,7 +429,7 @@ function reopenDialog(dialog, saved) {
   const row = findRow(dialog);
   if (!row) return;
   const shown = reopened.length - 1;
-  stacks.set(dialog, { sheets: reopened, shown, prepared: null });
+  stacks.set(dialog, createStack(reopened, shown));
   row.scrollLeft = shown * row.clientWidth;
   settleOnSheet(dialog, shown);
 }
