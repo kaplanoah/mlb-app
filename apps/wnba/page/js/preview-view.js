@@ -29,7 +29,6 @@ const ROAD_HOME = html`<span class="label-split">Road <i aria-hidden="true"></i>
 const SEASON_ROW_LABELS = ["Record", "PPG", "Opp PPG", "Margin", ROAD_HOME, "Last 10"];
 // Teams in a playoff series have usually met a few times by then.
 const PENDING_MEETINGS = 3;
-const LEADERS_PER_TEAM = 3;
 
 /** @param {Meeting} meeting */
 const findWinner = (meeting) => (meeting.home.score > meeting.away.score ? "home" : "away");
@@ -158,9 +157,7 @@ function renderSeasons(teams, season) {
  * @param {Season | null} season
  */
 function renderLeadingScorers(teams, season) {
-  const [away, home] = SIDES.map((place) =>
-    findTeamLeaders(season, teams[place]).slice(0, LEADERS_PER_TEAM),
-  );
+  const [away, home] = SIDES.map((place) => findTeamLeaders(season, teams[place]));
   if (!away.length || !home.length)
     return renderSheetPart(
       "Leading scorers",

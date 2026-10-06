@@ -110,6 +110,13 @@ const listPlayerAnswers = () => [
 export { test, expect, matchPath, GAMES, NOW };
 
 /**
+ * A hex color as the browser's computed style writes it.
+ * @param {string} hex
+ */
+export const formatRgb = (hex) =>
+  `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(", ")})`;
+
+/**
  * The league's answers to the game sheet's routes, and to what the store reads ahead of them, from
  * the recorded box scores and schedule, with any box score changed, or the schedule refused. A game
  * without a box score is one that hasn't started. ESPN answers for the one game its lead was

@@ -1,9 +1,5 @@
 import { TEAMS } from "../../page/js/teams.js";
-import { test, expect, openApp } from "./harness.mjs";
-
-/** @param {string} hex */
-const formatRgb = (hex) =>
-  `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(", ")})`;
+import { test, expect, openApp, formatRgb } from "./harness.mjs";
 
 const PHONE = { width: 390, height: 844 };
 

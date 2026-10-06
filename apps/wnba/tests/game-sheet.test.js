@@ -154,7 +154,7 @@ test("fewer turnovers lead, and a tie leads neither way", () => {
   assert.deepEqual(readTapeBars(renderBoxScore(box), "Turnovers"), ["lead 75", "100"]);
 });
 
-test("each team's top three scorers show in one table, minutes last, and a live game flags a player in foul trouble", () => {
+test("each team's top five scorers show in one table, minutes last, a tie going to who played longer, and a live game flags a player in foul trouble", () => {
   const final = renderBoxScore(readBoxScore("1042600122"));
   assert.equal(countPlayerTables(final), 1);
   const [aces, fever] = listPlayerGroups(final);
@@ -163,6 +163,8 @@ test("each team's top three scorers show in one table, minutes last, and a live 
     "Jackie Young 31 4 5 36",
     "A'ja Wilson 22 9 2 34",
     "Chelsea Gray 10 1 7 37",
+    "Stephanie Talbot 9 5 1 27",
+    "Cheyenne Parker-Tyus 9 3 0 15",
   ]);
   assert.equal(fever[1], "Caitlin Clark Fouled out 27 7 15 33");
 
@@ -232,7 +234,7 @@ test("a preview compares the season stats from the saved standings, the visitors
   assert.deepEqual(readTapeBars(markup, "Road Home"), ["59", "lead 68"]);
 });
 
-test("a preview lists the first three of each team's saved leading scorers in one table, best first, with how well each shoots and how much she plays", () => {
+test("a preview lists each team's five saved leading scorers, as its team sheet does, in one table, best first, with how well each shoots and how much she plays", () => {
   assert.equal(countPlayerTables(renderFeverAtAces()), 1);
   const [fever, aces] = listPlayerGroups(renderFeverAtAces());
   assert.deepEqual(fever, [
@@ -240,7 +242,10 @@ test("a preview lists the first three of each team's saved leading scorers in on
     "Kelsey Mitchell 24.7 1.7 2.8 50.9 32.5",
     "Caitlin Clark 22.3 4.0 8.3 44.5 31.1",
     "Aliyah Boston 16.1 8.0 3.0 52.8 27.1",
+    "Sophie Cunningham 7.9 2.3 1.2 46.0 22.2",
+    "Monique Billings 6.5 4.8 1.0 51.6 18.7",
   ]);
+  assert.equal(aces.length, 6);
   assert.equal(aces[1], "A'ja Wilson 26.2 9.4 3.2 52.7 32.0");
 });
 
@@ -281,7 +286,7 @@ test("a box score still loading has the loaded one's parts and measures, with pl
   ]);
   assert.deepEqual(
     listPlayerGroups(pending).map((rows) => rows.length),
-    [4, 4],
+    [6, 6],
   );
   assert.ok(countPlaceholders(pending) > 0);
 });

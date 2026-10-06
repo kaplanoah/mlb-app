@@ -26,7 +26,7 @@ import { nameTeam } from "./series.js";
 /** @type {("away" | "home")[]} */
 const SIDES = ["away", "home"];
 const REGULATION_PERIODS = 4;
-const TOP_PERFORMERS = 3;
+const TOP_PERFORMERS = 5;
 // A player fouls out on her sixth, so a fourth while the game is on puts her in trouble.
 const FOUL_TROUBLE = 4;
 const FOUL_OUT = 6;

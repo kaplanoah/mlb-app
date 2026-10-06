@@ -202,8 +202,7 @@ function placeInColumns(cards, columnCount) {
 export function renderNews(topics, choices, now, { columnCount = 1, opened = {} } = {}) {
   const cards = buildNewsCards(topics, choices);
   if (!cards.length) return html`<p class="empty-note">No news yet</p>`;
-  return html`<h2 class="section-label">This week</h2>
-    <div class="news-cards">
+  return html`<div class="news-cards">
       ${placeInColumns(cards, columnCount).map(
         (column) =>
           html`<ul class="news-column">
