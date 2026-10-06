@@ -14,8 +14,6 @@ import { openSheet, wireSheet } from "./sheet.js";
  * @typedef {object} League
  * @property {(team: string) => boolean} isTeam
  * @property {(team: string) => TeamSheet} renderSheet
- * @property {(team: string) => string} nameTeam a team's short name, for the forward button that
- *   steps forward to its sheet
  * @property {(team: string) => HTMLElement | null} [prepareNext] the sheet that waits beside a
  *   team's for a swipe left, filled in and ready to show
  */
@@ -89,7 +87,6 @@ export function startTeamSheet(teams) {
     backButton: document.getElementById("teamBackBtn") ?? undefined,
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
     name: "Team",
-    nameForForward: () => (shownTeam && league?.nameTeam(shownTeam)) || "Team",
     prepareNext: () => (shownTeam && league?.prepareNext?.(shownTeam)) || null,
     forget: () => {
       shownTeam = null;

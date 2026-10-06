@@ -21,8 +21,7 @@
  * A sheet opened from another slides in from the right over it, as the row scrolls, and the one
  * it came from slides a little way left under it and dims, where the browser can tie a motion to
  * a scroll. Its .sheet-back, in its head, names the one it came from in --accent, and a
- * .sheet-action across from it, like a team's Roster or the forward button that names the sheet a
- * step back left, takes the same color.
+ * .sheet-action across from it, like a team's Roster, takes the same color.
  *
  * Where to watch a game, as network-logos.js builds it, is a line of its channels, or a note to
  * check back while they aren't listed, which takes these tokens from the app's :root:
@@ -144,8 +143,7 @@
 .sheet-action {
   right: 44px;
 }
-.sheet-back[hidden],
-.sheet-action[hidden] {
+.sheet-back[hidden] {
   display: none;
 }
 /* A slot an app fills with an action, which places the action itself. */
@@ -164,7 +162,7 @@
   min-width: 0;
   padding-inline: 76px;
 }
-.sheet-head:has(.sheet-action:not([hidden])) .sheet-title {
+.sheet-head:has(.sheet-action) .sheet-title {
   min-width: 0;
   padding-inline: 116px;
 }
@@ -341,7 +339,7 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
   .sheet-action {
     right: 0;
   }
-  .sheet-head:has(.sheet-action:not([hidden])) .sheet-title {
+  .sheet-head:has(.sheet-action) .sheet-title {
     padding-inline: 76px;
   }
   @media (prefers-reduced-motion: no-preference) {

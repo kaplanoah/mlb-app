@@ -147,13 +147,6 @@ function openOnTap(event) {
   openSheet(preparePlayer({ id, team, name }));
 }
 
-// A forward button back to her sheet names her by her last name, once it has loaded.
-function nameForForward() {
-  if (!shownPlayer) return "Player";
-  const { player } = readPlayer(shownPlayer, session.year);
-  return player?.lastName ?? shownPlayer.name;
-}
-
 /** Redraws the open sheet from what the page shows now. */
 export const refreshPlayerSheet = () => renderSheet();
 
@@ -163,7 +156,6 @@ export function startPlayerSheet() {
     backButton: findElement("playerBackBtn"),
     keeper: { read: () => shownPlayer, reopen: reopenPlayer },
     name: "Player",
-    nameForForward,
     forget: () => {
       shownPlayer = null;
     },

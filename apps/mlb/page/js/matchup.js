@@ -350,7 +350,6 @@ export function startMatchups() {
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
     doneButton: findElement("matchupDoneBtn"),
-    forwardButton: findElement("matchupForwardBtn"),
     keeper: { read: () => shown, reopen: reopenMatchup },
     name: "Game",
     forget: () => {

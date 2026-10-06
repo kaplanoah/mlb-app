@@ -1,6 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
-import { expectShown, expectSteppedAway, readLeft } from "../../../../tests/browser/sheet-row.mjs";
+import { expectShown, readLeft } from "../../../../tests/browser/sheet-row.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
 
 const PHONE = { width: 390, height: 844 };
@@ -35,7 +35,8 @@ async function openFeverFromGame(page) {
 const findContent = (sheet) => sheet.locator(":scope > .sheet-content");
 
 /**
- * Notes where a sheet is on each frame, until the returned function stops and reads the notes.
+ * Notes where a sheet is on each frame it's in the row, until the returned function stops and
+ * reads the notes.
  * @param {import("@playwright/test").Page} page
  * @param {string} id
  */
@@ -45,7 +46,8 @@ async function startTrackingLeft(page, id) {
     const row = /** @type {Element} */ (sheet.closest(".sheet-row"));
     const lefts = /** @type {number[]} */ ([]);
     const note = () => {
-      lefts.push(Math.round(sheet.getBoundingClientRect().x - row.getBoundingClientRect().x));
+      if (!sheet.hidden)
+        lefts.push(Math.round(sheet.getBoundingClientRect().x - row.getBoundingClientRect().x));
       if (!(/** @type {any} */ (window).isTrackingDone)) requestAnimationFrame(note);
     };
     Object.assign(window, { trackedLefts: lefts, isTrackingDone: false });
@@ -136,32 +138,6 @@ test.describe("with reduced motion", () => {
     expect(first.band[1]).toBe("1px");
   });
 
-  test("going back from a team leaves a forward button on the game that names the team and goes to it again, until another opens", async ({
-    page,
-  }) => {
-    await openApp(page);
-    const { gameSheet, teamSheet } = await openFeverFromGame(page);
-    const forward = gameSheet.getByRole("button", { name: "Forward to Fever" });
-
-    await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-    await expectShown(gameSheet);
-    await expect(forward).toHaveText("Fever");
-
-    await forward.click();
-    await expectShown(teamSheet);
-    await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
-
-    await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-    await expectShown(gameSheet);
-    await gameSheet
-      .locator(".faceoff")
-      .getByRole("button", { name: "Team details: Las Vegas Aces" })
-      .click();
-    await expectShown(teamSheet);
-    await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-    await expect(gameSheet.getByRole("button", { name: "Forward to Aces" })).toBeVisible();
-  });
-
   test("on a phone, every sheet is as tall as the screen allows, whatever it holds", async ({
     page,
   }) => {
@@ -195,7 +171,7 @@ test.describe("with reduced motion", () => {
     }
   });
 
-  test("on a phone, a swipe right goes back to the game, a swipe left goes forward to the team again, and a swipe down closes both", async ({
+  test("on a phone, a swipe right goes back to the game and takes the team's sheet away, so a swipe left leaves the game where it is, and a swipe down closes it", async ({
     page,
   }) => {
     await page.setViewportSize(PHONE);
@@ -206,13 +182,13 @@ test.describe("with reduced motion", () => {
       await drag(page, { x: 60, y: 400 }, { x: 250 })
     )();
     await expectShown(gameSheet);
-    await expectSteppedAway(teamSheet);
+    await expect(teamSheet).toBeHidden();
 
     await (
       await drag(page, { x: 330, y: 400 }, { x: -250 })
     )();
-    await expectShown(teamSheet);
-    await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
+    await expectShown(gameSheet);
+    await expect(teamSheet).toBeHidden();
 
     await (
       await drag(page, { x: 200, y: 120 }, { y: 300 })
@@ -235,7 +211,7 @@ test.describe("with reduced motion", () => {
   });
 });
 
-test("a team's sheet slides in from the right beside the game's, which slides a little way left under it and dims, and slides away again on the back button, a frame at a time", async ({
+test("a team's sheet slides in from the right beside the game's, which slides a little way left under it and dims, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -248,11 +224,11 @@ test("a team's sheet slides in from the right beside the game's, which slides a 
   const readLefts = await startTrackingLeft(page, "teamSheet");
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
   await expectShown(gameSheet);
+  await expect(teamSheet).toBeHidden();
   const lefts = await readLefts();
-
-  expect(lefts.at(-1)).toBe(PHONE.width);
   expect(new Set(lefts).size).toBeGreaterThan(5);
   expect(isMonotonic(lefts)).toBe(true);
+  expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
   await expect(gameSheet).toHaveCSS("filter", "brightness(1)");
 });
 
@@ -284,10 +260,11 @@ test("on a phone, a finger moving the team's sheet moves the game's under it at 
   const readLefts = await startTrackingLeft(page, "teamSheet");
   await release();
   await expectShown(gameSheet);
+  await expect(page.locator("#teamSheet")).toBeHidden();
   const lefts = await readLefts();
 
   expect(isMonotonic(lefts)).toBe(true);
-  expect(lefts.at(-1)).toBe(PHONE.width);
+  expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
   const motions = await readMotions();
   expect(motions.filter((motion) => motion.name && motion.name !== "sheet-page-under")).toEqual([]);
 });

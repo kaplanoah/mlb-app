@@ -26,7 +26,7 @@ export async function expectShown(sheet) {
 
 /**
  * Waits until the row has moved on from the sheet, which stays beside the one it shows, out of
- * reach, while a step forward can bring it back.
+ * reach: under it, or after it, waiting for a swipe left.
  * @param {import("@playwright/test").Locator} sheet
  */
 export async function expectSteppedAway(sheet) {

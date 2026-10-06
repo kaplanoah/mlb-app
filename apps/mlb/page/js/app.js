@@ -1,5 +1,5 @@
 import { renderBracket, watchBracketSpace } from "./bracket-view.js";
-import { listRankedOrder, nameTeam } from "./clubs.js";
+import { listRankedOrder } from "./clubs.js";
 import { startCatchUpNote } from "#shared/catch-up-note.js";
 import { startCaughtUpSweep } from "#shared/caught-up-sweep.js";
 import { startPullToRefresh } from "#shared/pull-to-refresh.js";
@@ -83,7 +83,6 @@ function wireControls() {
   startMatchups();
   startTeamSheet({
     isTeam: (id) => id in TEAMS,
-    nameTeam,
     renderSheet: (id) => renderTeamSheet(id),
   });
   startSettings();

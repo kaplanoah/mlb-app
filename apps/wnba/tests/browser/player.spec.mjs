@@ -1,5 +1,5 @@
 import { test, expect, openApp, openGameSheet } from "./harness.mjs";
-import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
+import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -54,7 +54,7 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await sheet.getByRole("button", { name: "Back to Roster" }).click();
-  await expectSteppedAway(sheet);
+  await expect(sheet).toBeHidden();
   await expectShown(page.locator("#rosterSheet"));
 });
 
@@ -180,7 +180,7 @@ test("a top scorer's name in a box score opens her sheet over the game's, and a 
   await expect(sheet.getByRole("button", { name: "Back to Game" })).toBeVisible();
 
   await sheet.getByRole("button", { name: "Back to Game" }).click();
-  await expectSteppedAway(sheet);
+  await expect(sheet).toBeHidden();
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
