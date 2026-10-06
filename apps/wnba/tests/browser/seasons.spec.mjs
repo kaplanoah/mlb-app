@@ -116,7 +116,7 @@ test("a past season's final opens its sheet with its box score", async ({ page }
     .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
     .click();
 
-  const sheet = page.getByRole("dialog");
+  const sheet = page.locator("#gameSheet");
   await expect(sheet.locator(".faceoff .score")).toHaveText(/89\s*99/);
   await expect(sheet.locator(".line-score tbody tr").first()).toHaveText(
     /Aces\s*26\s*17\s*17\s*29\s*89/,

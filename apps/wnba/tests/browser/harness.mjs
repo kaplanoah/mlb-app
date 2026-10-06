@@ -286,5 +286,5 @@ export async function findGameButton(page, name) {
  */
 export async function openGameSheet(page, name) {
   await (await findGameButton(page, name)).click();
-  return page.getByRole("dialog");
+  return page.locator("#gameSheet");
 }

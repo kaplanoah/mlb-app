@@ -8,8 +8,11 @@ import {
   matchPath,
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
-import { recordSheetMotions } from "../../../../tests/browser/sheet-motions.mjs";
-import { recordSheetResizes } from "../../../../tests/browser/sheet-resizes.mjs";
+import {
+  recordSheetMotions,
+  waitForTimedMotions,
+} from "../../../../tests/browser/sheet-motions.mjs";
+import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { readOklab } from "../../page/js/sheet-colors.js";
@@ -434,7 +437,7 @@ async function openRegularSeasonPoints(page, code) {
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
   return page
-    .locator("#teamDialog .tape-row")
+    .locator("#teamSheet .tape-row")
     .filter({ has: page.locator(".tape-label", { hasText: /^PPG$/ }) })
     .last();
 }
@@ -727,42 +730,8 @@ test("a finger coming down on a game starts reading its box score, and the sheet
   await expect.poll(() => reads.count).toBe(1);
 
   await button.click();
-  await expect(page.getByRole("dialog").locator(".line-score")).toBeVisible();
+  await expect(page.locator("#gameSheet .line-score")).toBeVisible();
   expect(reads.count).toBe(1);
-});
-
-test("a sheet that can't load its box score eases from the box score's shape down to the message", async ({
-  page,
-}) => {
-  const readResizes = await recordSheetResizes(page);
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await openApp(page);
-  await page.route(matchPath("/box-score"), (route) =>
-    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
-  );
-  const release = await holdBoxScores(page);
-  const sheet = await openGameSheet(page, ACES_AT_FEVER);
-  await expect(sheet.locator(".tape-label")).toHaveCount(8);
-
-  release();
-  await expect(sheet.locator(".sheet-message")).toBeVisible();
-  const resizes = (await readResizes()).filter((resize) => resize.id === "gameDialog");
-  expect(resizes).toHaveLength(1);
-  const [from, to] = resizes[0].heights.map(parseFloat);
-  expect(to).toBeLessThan(from);
-});
-
-test("with less motion asked for, a sheet takes its new height at once", async ({ page }) => {
-  const readResizes = await recordSheetResizes(page);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await openApp(page);
-  await page.route(matchPath("/box-score"), (route) =>
-    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
-  );
-  const sheet = await openGameSheet(page, ACES_AT_FEVER);
-
-  await expect(sheet.locator(".sheet-message")).toBeVisible();
-  expect(await readResizes()).toEqual([]);
 });
 
 test("no text in a game's sheet is smaller than 10.5px, in its box score or its preview", async ({
@@ -800,7 +769,19 @@ const storeBeforeLoad = (page, items) =>
   }, items);
 
 /** @param {import("@playwright/test").Locator} sheet */
-const readScrollTop = (sheet) => sheet.evaluate((dialog) => dialog.scrollTop);
+const readScrollTop = (sheet) => sheet.evaluate((element) => element.scrollTop);
+
+// Text above what shows can change height by a pixel or two as the page's fonts arrive or it
+// redraws, which the browser's scroll anchoring makes up for, keeping what shows where it was.
+const ANCHORING_PX = 4;
+
+/**
+ * @param {import("@playwright/test").Locator} sheet
+ * @param {number} scrollTop
+ */
+async function expectScrolledTo(sheet, scrollTop) {
+  expect(Math.abs((await readScrollTop(sheet)) - scrollTop)).toBeLessThanOrEqual(ANCHORING_PX);
+}
 
 test("a reload shows the open sheet where it was scrolled before the page's code arrives, and the code keeps it there", async ({
   page,
@@ -808,8 +789,8 @@ test("a reload shows the open sheet where it was scrolled before the page's code
   await openApp(page);
   const sheet = await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
-  await sheet.evaluate((dialog) => {
-    dialog.scrollTop = 200;
+  await sheet.evaluate((element) => {
+    element.scrollTop = 200;
   });
   const release = await holdPageCode(page);
   const reads = countBoxScoreReads(page);
@@ -818,11 +799,11 @@ test("a reload shows the open sheet where it was scrolled before the page's code
 
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("First Round Game 2");
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
-  expect(await readScrollTop(sheet)).toBe(200);
+  await expectScrolledTo(sheet, 200);
   release();
   await expect.poll(() => reads.count).toBe(1);
   await expect(sheet.locator("#gameWhen")).toHaveText("Fever won to tie 1-1•Yesterday");
-  expect(await readScrollTop(sheet)).toBe(200);
+  await expectScrolledTo(sheet, 200);
 
   await sheet.getByRole("button", { name: "Done" }).click();
   await expect(sheet).toBeHidden();
@@ -839,17 +820,17 @@ test("a team's sheet open over a game's opens over it again on a reload, its bac
     .locator(".faceoff")
     .getByRole("button", { name: "Team details: Las Vegas Aces" })
     .click();
-  const teamSheet = page.locator("#teamDialog");
+  const teamSheet = page.locator("#teamSheet");
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
 
   await page.reload();
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
-  await expect(page.locator("#gameDialog")).toBeAttached();
+  await expect(page.locator("#gameSheet")).toBeAttached();
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-  await expect(teamSheet).toBeHidden();
-  await expect(page.locator("#gameDialog .foul-chip")).toHaveText(["Fouled out"]);
-  await expect(page.locator("#gameDialog .foul-chip")).toBeVisible();
+  await expectSteppedAway(teamSheet);
+  await expect(page.locator("#gameSheet .foul-chip")).toHaveText(["Fouled out"]);
+  await expect(page.locator("#gameSheet .foul-chip")).toBeVisible();
 });
 
 test("a sheet whose game the season no longer has closes once the page's code arrives", async ({
@@ -857,13 +838,13 @@ test("a sheet whose game the season no longer has closes once the page's code ar
 }) => {
   await storeBeforeLoad(page, {
     openSheets: JSON.stringify([
-      { id: "gameDialog", scrollTop: 0, subject: { id: "0000000000", kind: "box" } },
+      { id: "gameSheet", scrollTop: 0, subject: { id: "0000000000", kind: "box" } },
     ]),
   });
 
   await openApp(page);
 
-  await expect(page.locator("#gameDialog")).toBeHidden();
+  await expect(page.locator("#gameSheet")).toBeHidden();
 });
 
 test.describe("on a phone", () => {
@@ -883,7 +864,7 @@ test.describe("on a phone", () => {
     await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
     const answered = page.waitForResponse(matchPath("/box-score"));
     const listSheetMotions = async () =>
-      (await readMotions()).filter(({ id }) => id === "gameDialog");
+      (await readMotions()).filter(({ id }) => id === "sheetDialog");
 
     await page.reload();
 
@@ -894,7 +875,7 @@ test.describe("on a phone", () => {
     await expect(sheet).toBeHidden();
     await openGameSheet(page, ACES_AT_FEVER);
     await expect.poll(listSheetMotions).toContainEqual({
-      id: "gameDialog",
+      id: "sheetDialog",
       part: "sheet",
       name: "sheet-rise",
     });
@@ -906,7 +887,7 @@ test.describe("on a phone", () => {
     await openApp(page);
     const sheet = await openGameSheet(page, ACES_AT_FEVER);
     await expect(sheet.locator(".sheet-grabber")).toBeVisible();
-    await page.waitForFunction(() => document.getAnimations().length === 0);
+    await waitForTimedMotions(page);
     await expect(sheet.getByRole("button", { name: "Done" })).toHaveCSS("width", "1px");
     const box = await sheet.boundingBox();
     expect(Math.round(box.y + box.height)).toBe(844);
@@ -941,18 +922,18 @@ test.describe("on a phone", () => {
     for (const [way, close] of Object.entries(closings)) {
       const sheet = await openGameSheet(page, ACES_AT_FEVER);
       await expect.poll(readMotions, way).toContainEqual({
-        id: "gameDialog",
+        id: "sheetDialog",
         part: "::backdrop",
         name: "backdrop-fade-in",
       });
-      await page.waitForFunction(() => document.getAnimations().length === 0);
+      await waitForTimedMotions(page);
       await readMotions();
 
       await close();
       await expect(sheet, way).toBeHidden();
       expect(await readMotions(), way).toEqual([
-        { id: "gameDialog", part: "sheet", to: { transform: "translateY(100%)" } },
-        { id: "gameDialog", part: "::backdrop", to: { opacity: 0 } },
+        { id: "sheetDialog", part: "sheet", to: { transform: "translateY(100%)" } },
+        { id: "sheetDialog", part: "::backdrop", to: { opacity: 0 } },
       ]);
     }
   });
@@ -1035,7 +1016,7 @@ test("a game's row names its teams in their own type, and a tap anywhere on it, 
   if (!box) throw new Error("The Fever's name isn't shown");
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.locator("#gameTitle")).toHaveText("First Round Game 2");
-  await expect(page.locator("#teamDialog")).toBeHidden();
+  await expect(page.locator("#teamSheet")).toBeHidden();
 });
 
 test.describe("on a phone", () => {
@@ -1053,7 +1034,7 @@ test.describe("on a phone", () => {
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
 
     await expect(page.locator("#gameTitle")).toHaveText("First Round Game 2");
-    await expect(page.locator("#teamDialog")).toBeHidden();
+    await expect(page.locator("#teamSheet")).toBeHidden();
   });
 });
 
@@ -1062,9 +1043,9 @@ test("a team's name in a game's sheet opens its sheet over the game's, whose bac
 }) => {
   await openApp(page);
   await (await findGameButton(page, ACES_AT_FEVER)).click();
-  const gameSheet = page.locator("#gameDialog");
+  const gameSheet = page.locator("#gameSheet");
   await expect(gameSheet.locator(".line-score")).toBeVisible();
-  const teamSheet = page.locator("#teamDialog");
+  const teamSheet = page.locator("#teamSheet");
 
   for (const place of [".faceoff", ".line-score", ".players"]) {
     await gameSheet
@@ -1073,12 +1054,11 @@ test("a team's name in a game's sheet opens its sheet over the game's, whose bac
       .getByRole("button", { name: "Team details: Las Vegas Aces" })
       .click();
     await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
-    await expect(teamSheet).toHaveAttribute("data-stacked");
-    await expect(gameSheet).toHaveAttribute("data-covered");
+    await expectShown(teamSheet);
+    await expectSteppedAway(gameSheet);
     await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-    await expect(teamSheet).toBeHidden();
-    await expect(gameSheet).toBeVisible();
-    await expect(gameSheet).not.toHaveAttribute("data-covered");
+    await expectSteppedAway(teamSheet);
+    await expectShown(gameSheet);
   }
 
   await gameSheet
@@ -1093,7 +1073,7 @@ test("a team's name in a game's sheet opens its sheet over the game's, whose bac
 test("Escape closes a team's sheet and the game's under it at once", async ({ page }) => {
   await openApp(page);
   await (await findGameButton(page, ACES_AT_FEVER)).click();
-  const gameSheet = page.locator("#gameDialog");
+  const gameSheet = page.locator("#gameSheet");
   await gameSheet
     .locator(".faceoff")
     .getByRole("button", { name: "Team details: Las Vegas Aces" })
@@ -1101,7 +1081,7 @@ test("Escape closes a team's sheet and the game's under it at once", async ({ pa
   await expect(page.locator("#teamTitle")).toHaveText("Las Vegas Aces");
 
   await page.keyboard.press("Escape");
-  await expect(page.locator("#teamDialog")).toBeHidden();
+  await expect(page.locator("#teamSheet")).toBeHidden();
   await expect(gameSheet).toBeHidden();
 });
 
@@ -1110,7 +1090,7 @@ test("going back from a team's sheet to a game's leaves no focus ring around the
 }) => {
   await openApp(page);
   await (await findGameButton(page, ACES_AT_FEVER)).click();
-  const gameSheet = page.locator("#gameDialog");
+  const gameSheet = page.locator("#gameSheet");
   await expect(gameSheet.locator(".line-score")).toBeVisible();
   // On an iPhone a tapped button never takes focus, so the game's sheet keeps it.
   await gameSheet.evaluate((dialog) => dialog.focus());
@@ -1118,11 +1098,11 @@ test("going back from a team's sheet to a game's leaves no focus ring around the
     .locator(".faceoff")
     .getByRole("button", { name: "Team details: Las Vegas Aces" })
     .dispatchEvent("click");
-  const teamSheet = page.locator("#teamDialog");
+  const teamSheet = page.locator("#teamSheet");
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
 
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).dispatchEvent("click");
-  await expect(teamSheet).toBeHidden();
+  await expectSteppedAway(teamSheet);
   await expect(gameSheet).toBeFocused();
   await expect(gameSheet).toHaveCSS("outline-style", "none");
 });
@@ -1134,7 +1114,7 @@ test("going back from a team's sheet to a game's leaves no focus ring around the
 async function openWashingtonSheet(page) {
   await page.getByRole("tab", { name: "Games" }).click();
   await page.locator('#games-today [data-game="1042600132"] .game-open').click();
-  return page.getByRole("dialog");
+  return page.locator("#gameSheet");
 }
 
 test("a game's sheet says where to watch it, still once it's over, and its row doesn't", async ({

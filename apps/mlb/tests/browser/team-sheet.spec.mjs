@@ -8,6 +8,7 @@ import {
   EVENING_FIXTURE,
   ON_A_PHONE,
 } from "./harness.mjs";
+import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -32,17 +33,17 @@ test("a game's row names its clubs plainly, and a tap anywhere on it, their name
   const astros = await row.locator(".game-side.away .club").boundingBox();
   if (!astros) throw new Error("The Astros' name isn't shown");
   await page.mouse.click(astros.x + astros.width / 2, astros.y + astros.height / 2);
-  await expect(page.locator("#matchupDialog")).toBeVisible();
-  await expect(page.locator("#teamDialog")).toBeHidden();
+  await expect(page.locator("#matchupSheet")).toBeVisible();
+  await expect(page.locator("#teamSheet")).toBeHidden();
 });
 
 test("a club's sheet open over the matchup on a reload shows again over it, and its Done closes both", async ({
   page,
 }) => {
   await (await showGames(page)).click();
-  const matchup = page.locator("#matchupDialog");
+  const matchup = page.locator("#matchupSheet");
   await matchup.getByRole("button", { name: "Team details: Astros" }).first().click();
-  const teamSheet = page.locator("#teamDialog");
+  const teamSheet = page.locator("#teamSheet");
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
 
   await page.reload();
@@ -98,7 +99,7 @@ test.describe("on a phone", () => {
     await tapOn(page, update.getByRole("button", { name: /^Pitching matchup/ }));
 
     await expect(page.locator("#matchupBody")).toContainText(/White Sox[\s\S]*Royals/);
-    await expect(page.locator("#teamDialog")).toBeHidden();
+    await expect(page.locator("#teamSheet")).toBeHidden();
   });
 
   test("a tap on a club's name in an update about a game opens the game's matchup", async ({
@@ -108,7 +109,7 @@ test.describe("on a phone", () => {
     await tapOn(page, update.getByRole("button", { name: "Team details: White Sox" }));
 
     await expect(page.locator("#matchupBody")).toContainText(/White Sox[\s\S]*Royals/);
-    await expect(page.locator("#teamDialog")).toBeHidden();
+    await expect(page.locator("#teamSheet")).toBeHidden();
   });
 
   test("a tap on a club's name in a game's row opens the matchup, since a thumb lands on a name easily", async ({
@@ -117,8 +118,8 @@ test.describe("on a phone", () => {
     const gameButton = await showGames(page);
     await tapOn(page, gameButton.locator("xpath=..").locator(".game-side.away .club"));
 
-    await expect(page.locator("#matchupDialog")).toBeVisible();
-    await expect(page.locator("#teamDialog")).toBeHidden();
+    await expect(page.locator("#matchupSheet")).toBeVisible();
+    await expect(page.locator("#teamSheet")).toBeHidden();
   });
 });
 
@@ -126,15 +127,16 @@ test("a club's name in the matchup opens its sheet over it, whose back button go
   page,
 }) => {
   await (await showGames(page)).click();
-  const matchup = page.locator("#matchupDialog");
+  const matchup = page.locator("#matchupSheet");
   await matchup.getByRole("button", { name: "Team details: Athletics" }).first().click();
-  const teamSheet = page.locator("#teamDialog");
+  const teamSheet = page.locator("#teamSheet");
 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Athletics");
-  await expect(matchup).toHaveAttribute("data-covered");
+  await expectShown(teamSheet);
+  await expectSteppedAway(matchup);
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
-  await expect(teamSheet).toBeHidden();
-  await expect(matchup).toBeVisible();
+  await expectSteppedAway(teamSheet);
+  await expectShown(matchup);
 });
 
 test("a club's row in the standings opens its sheet, with its race and titles, and Done closes it", async ({
@@ -143,7 +145,7 @@ test("a club's row in the standings opens its sheet, with its race and titles, a
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator('.div-grid tr[data-team="SEA"] td.mid').first().click();
-  const sheet = page.locator("#teamDialog");
+  const sheet = page.locator("#teamSheet");
 
   await expect(sheet.locator("#teamTitle")).toHaveText(/Mariners/);
   await expect(sheet.locator(".sheet-part h3")).toHaveText(["Season", "Titles"]);
@@ -162,7 +164,7 @@ test("a club in the bracket opens its sheet", async ({ page }) => {
   const name = await club.locator(".team-name").textContent();
   await club.click();
 
-  await expect(page.locator("#teamDialog #teamTitle")).toHaveText(new RegExp(name));
+  await expect(page.locator("#teamSheet #teamTitle")).toHaveText(new RegExp(name));
 });
 
 test("a club in the ranking stays a handle to drag, not a way to its sheet", async ({ page }) => {
@@ -173,7 +175,7 @@ test("a club in the ranking stays a handle to drag, not a way to its sheet", asy
 
   await expect(page.locator("#rankList .team-open")).toHaveCount(0);
   await firstClub.click();
-  await expect(page.locator("#teamDialog")).toBeHidden();
+  await expect(page.locator("#teamSheet")).toBeHidden();
 });
 
 test("a club's sheet title is its dot and name, in the page's own type, not in capitals, over gold part titles and green labels", async ({
@@ -182,16 +184,16 @@ test("a club's sheet title is its dot and name, in the page's own type, not in c
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
-  const title = page.locator("#teamDialog #teamTitle");
+  const title = page.locator("#teamSheet #teamTitle");
 
   await expect(title.locator(".dot")).toBeVisible();
   await expect(title).toHaveCSS("font-family", /^"Chivo Mono"/);
   await expect(title).toHaveCSS("text-transform", "none");
-  await expect(page.locator("#teamDialog .sheet-part h3").first()).toHaveCSS(
+  await expect(page.locator("#teamSheet .sheet-part h3").first()).toHaveCSS(
     "color",
     "rgb(244, 193, 92)",
   );
-  await expect(page.locator("#teamDialog .team-detail .team-label")).toHaveCSS(
+  await expect(page.locator("#teamSheet .team-detail .team-label")).toHaveCSS(
     "color",
     "rgb(127, 168, 143)",
   );

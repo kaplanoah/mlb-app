@@ -13,14 +13,14 @@ import {
 } from "../shared/page/team-sheet.js";
 import { stripTags } from "./text.js";
 
-// Stand-ins for the page's team dialog and its parts, on a wide screen without motion.
+// Stand-ins for the page's team sheet, a dialog of its own here, and its parts, on a wide screen
+// without motion.
 function createPage() {
   globalThis.matchMedia = /** @type {any} */ (
     (query) => ({ matches: query.includes("reduced-motion") })
   );
-  globalThis.getComputedStyle = /** @type {any} */ (() => ({ height: "400px" }));
   const dialog = Object.assign(new EventTarget(), {
-    id: "teamDialog",
+    id: "teamSheet",
     open: false,
     scrollTop: 0,
     showModal() {
@@ -30,21 +30,25 @@ function createPage() {
       dialog.open = false;
       dialog.dispatchEvent(new Event("close"));
     },
-    style: { minHeight: "" },
+    closest: () => dialog,
+    contains: () => true,
+    getAttribute: () => null,
     setAttribute() {},
     removeAttribute() {},
-    getBoundingClientRect: () => ({ height: 400 }),
-    querySelector: () => ({ classList: { toggle: () => {} } }),
+    querySelector: () => null,
   });
   const elements = {
-    teamDialog: dialog,
+    teamSheet: dialog,
     teamTitle: { innerHTML: "" },
     teamNote: { innerHTML: "" },
     teamAction: { innerHTML: "" },
     teamBody: Object.assign(new EventTarget(), { innerHTML: "" }),
     teamDoneBtn: new EventTarget(),
   };
-  const document = Object.assign(new EventTarget(), { getElementById: (id) => elements[id] });
+  const document = Object.assign(new EventTarget(), {
+    activeElement: null,
+    getElementById: (id) => elements[id],
+  });
   globalThis.document = /** @type {any} */ (document);
   return { dialog, elements, document };
 }
@@ -202,7 +206,7 @@ test("a sheet a reload put back open shows its team again, with every title if t
   page.dialog.close();
 
   page.dialog.open = true;
-  reopenSheets([{ id: "teamDialog", scrollTop: 0, subject: { team: "XYZ" } }]);
+  reopenSheets([{ id: "teamSheet", scrollTop: 0, subject: { team: "XYZ" } }]);
   assert.equal(page.dialog.open, false);
 });
 

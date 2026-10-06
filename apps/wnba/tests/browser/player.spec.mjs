@@ -1,4 +1,5 @@
 import { test, expect, openApp, openGameSheet } from "./harness.mjs";
+import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -10,8 +11,8 @@ const PHONE = { width: 390, height: 844 };
 async function openLibertyRoster(page) {
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-  await page.locator("#teamDialog").getByRole("button", { name: "Roster" }).click();
-  const roster = page.locator("#rosterDialog");
+  await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
+  const roster = page.locator("#rosterSheet");
   await expect(roster.locator(".roster-coach")).toBeVisible();
   return roster;
 }
@@ -24,7 +25,7 @@ async function openLibertyRoster(page) {
 async function openFromRoster(page, name) {
   const roster = await openLibertyRoster(page);
   await roster.getByRole("button", { name }).click();
-  const sheet = page.locator("#playerDialog");
+  const sheet = page.locator("#playerSheet");
   await expect(sheet.locator(".player-facts")).toBeVisible();
   return sheet;
 }
@@ -53,8 +54,8 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await sheet.getByRole("button", { name: "Back to Roster" }).click();
-  await expect(sheet).toBeHidden();
-  await expect(page.locator("#rosterDialog")).toBeVisible();
+  await expectSteppedAway(sheet);
+  await expectShown(page.locator("#rosterSheet"));
 });
 
 test("her last game's AVG hangs left of the four columns, which center on the sheet by themselves", async ({
@@ -155,16 +156,16 @@ test("a top scorer's name in a box score opens her sheet over the game's, and a 
   await openApp(page);
   const game = await openGameSheet(page, "Game details: Aces at Fever, First Round Game 2");
   await game.getByRole("button", { name: "A'ja Wilson" }).click();
-  const sheet = page.locator("#playerDialog");
+  const sheet = page.locator("#playerSheet");
   await expect(sheet.locator("#playerTitle")).toHaveText("A'ja Wilson");
   await expect(sheet.getByRole("button", { name: "Back to Game" })).toBeVisible();
 
   await sheet.getByRole("button", { name: "Back to Game" }).click();
-  await expect(sheet).toBeHidden();
+  await expectSteppedAway(sheet);
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-  await page.locator("#teamDialog").getByRole("button", { name: "Breanna Stewart" }).click();
+  await page.locator("#teamSheet").getByRole("button", { name: "Breanna Stewart" }).click();
   await expect(sheet.locator("#playerTitle")).toHaveText("Breanna Stewart");
   await expect(sheet.getByRole("button", { name: "Back to Team" })).toBeVisible();
 });
@@ -179,8 +180,8 @@ test("her sheet, which reads her numbers again, the roster, and the team's sheet
   await page.reload();
   await reread;
 
-  const sheet = page.locator("#playerDialog");
+  const sheet = page.locator("#playerSheet");
   await expect(sheet.locator(".player-curve b")).toHaveCount(8);
   await sheet.getByRole("button", { name: "Back to Roster" }).click();
-  await expect(page.locator("#rosterDialog .roster-coach")).toBeVisible();
+  await expect(page.locator("#rosterSheet .roster-coach")).toBeVisible();
 });

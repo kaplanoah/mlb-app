@@ -64,26 +64,26 @@ const VIEWS = [
     name: "a team's sheet",
     open: (page) =>
       page.getByRole("button", { name: "Team details: Minnesota Lynx" }).first().click(),
-    shown: (page) => page.locator("#teamDialog table.players"),
+    shown: (page) => page.locator("#teamSheet table.players"),
     close: (page) => page.keyboard.press("Escape"),
   },
   {
     name: "a team's roster",
     open: async (page) => {
       await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-      await page.locator("#teamDialog").getByRole("button", { name: "Roster" }).click();
+      await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
     },
-    shown: (page) => page.locator("#rosterDialog .roster-coach"),
+    shown: (page) => page.locator("#rosterSheet .roster-coach"),
     close: (page) => page.keyboard.press("Escape"),
   },
   {
     name: "a player's sheet",
     open: async (page) => {
       await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-      await page.locator("#teamDialog").getByRole("button", { name: "Roster" }).click();
-      await page.locator("#rosterDialog").getByRole("button", { name: "Breanna Stewart" }).click();
+      await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
+      await page.locator("#rosterSheet").getByRole("button", { name: "Breanna Stewart" }).click();
     },
-    shown: (page) => page.locator("#playerDialog .player-curve b").first(),
+    shown: (page) => page.locator("#playerSheet .player-curve b").first(),
     close: (page) => page.keyboard.press("Escape"),
   },
   {
