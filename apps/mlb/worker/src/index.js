@@ -3,7 +3,7 @@ import { createAppWorker } from "../../../../shared/worker/app-worker.js";
 import { createPitcherServer } from "./pitchers.js";
 import { createRotationServer } from "./rotations.js";
 import { createSnapshotServer } from "./snapshot.js";
-import { SeasonStore, forwardToStore } from "./store.js";
+import { SeasonStore, forwardToStore, readStoreDoc } from "./store.js";
 
 const snapshots = createSnapshotServer();
 const pitchers = createPitcherServer();
@@ -14,8 +14,8 @@ export default createAppWorker({
   serveSnapshot: (url) => snapshots.serveSnapshot(url),
   forwardToStore,
   reads: {
-    "/pitcher": (url) => pitchers.servePitcher(url),
-    "/rotation": (url) => rotations.serveRotation(url),
+    "/pitcher": (url, env) => pitchers.servePitcher(url, (key) => readStoreDoc(env, key)),
+    "/rotation": (url, env) => rotations.serveRotation(url, (key) => readStoreDoc(env, key)),
   },
 });
 

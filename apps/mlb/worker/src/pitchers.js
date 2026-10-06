@@ -1,10 +1,14 @@
+import { readEasternDay } from "#shared/days.js";
 import { readClubId } from "../../page/js/snapshot.js";
 import { fetchMlbJson, SEASON_PARAM } from "./mlb.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 import { createReusedLoader } from "../../../../shared/worker/upstream.js";
 
-// Reads MLB for one pitcher's side of the matchup sheet: who he is, his season, what he throws,
-// his last starts, and where he ranks among the season's starters.
+// One pitcher's side of the matchup sheet: who he is, his season, what he throws, his last starts,
+// and where he ranks among the season's qualified starters, MLB's pitchers with an inning for each
+// of their team's games. The store keeps every starter's side for the current season, and the
+// qualified starters of each season it keeps (pitcher-updater.js), so a sheet reads MLB itself only
+// for what the store doesn't keep.
 
 // A pitcher's numbers change at most once a game, and the league's once a day of games.
 const PITCHER_CACHE_SECONDS = 10 * 60;
@@ -13,8 +17,8 @@ const LEAGUE_REUSE_MS = LEAGUE_CACHE_SECONDS * 1000;
 const FASTBALLS = ["FF", "SI"];
 const RECENT_STARTS = 3;
 // MLB takes about 20 seconds to describe every starter's pitches at once, and one or two for a
-// few dozen, so the speeds come in parallel batches.
-const SPEED_BATCH_SIZE = 30;
+// few dozen, so pitchers are read in parallel batches.
+const BATCH_SIZE = 30;
 const LARGEST_PERSON_ID = 9_999_999;
 
 const PERSON_FIELDS = [
@@ -22,7 +26,7 @@ const PERSON_FIELDS = [
   "id",
   "useName",
   "useLastName",
-  "currentAge",
+  "birthDate",
   "pitchHand",
   "code",
   "stats",
@@ -38,120 +42,210 @@ const PERSON_FIELDS = [
   "averageSpeed",
   "description",
 ].join(",");
-const STARTS_FIELDS = [
+const GAME_LOG_FIELDS = [
+  "people",
+  "id",
+  "useLastName",
+  "pitchHand",
+  "code",
   "stats",
   "splits",
   "date",
   "stat",
   "gamesStarted",
   "inningsPitched",
+  "numberOfPitches",
   "runs",
   "strikeOuts",
   "opponent",
-  "id",
   "isHome",
 ].join(",");
-const LEAGUE_FIELDS = [
+const QUALIFIED_FIELDS = [
   "stats",
   "splits",
   "player",
   "id",
   "stat",
-  "gamesStarted",
   "era",
   "strikeoutsPer9Inn",
   "walksPer9Inn",
 ].join(",");
-const SPEED_FIELDS = [
-  "people",
-  "id",
+const APPEARANCE_FIELDS = [
   "stats",
-  "type",
-  "displayName",
   "splits",
+  "player",
+  "id",
   "stat",
-  "percentage",
-  "averageSpeed",
-  "code",
+  "gamesPlayed",
+  "gamesStarted",
 ].join(",");
 
-// The season line and pitch mix are the regular season's, like the league's they're ranked
-// against; the recent starts include the postseason's.
-export const listPitcherRequests = (id, season) => ({
-  person:
-    `/api/v1/people/${id}?hydrate=stats(group=[pitching],type=[season,pitchArsenal],season=${season})` +
-    `&fields=${PERSON_FIELDS}`,
-  starts:
-    `/api/v1/people/${id}/stats?stats=gameLog&group=pitching&season=${season}` +
-    `&gameType=R,F,D,L,W&fields=${STARTS_FIELDS}`,
-});
+/** @param {number} season */
+export const nameStartersKey = (season) => `starters/${season}`;
 
-export const listLeagueRequest = (season) =>
-  `/api/v1/stats?stats=season&group=pitching&season=${season}&sportId=1&playerPool=all` +
-  `&limit=3000&fields=${LEAGUE_FIELDS}`;
+/**
+ * @param {number} season
+ * @param {number} id
+ */
+export const namePitcherKey = (season, id) => `pitchers/${season}-${id}`;
 
-const listSpeedRequest = (season, ids) =>
-  `/api/v1/people?personIds=${ids.join(",")}` +
-  `&hydrate=stats(group=[pitching],type=[pitchArsenal],season=${season})&fields=${SPEED_FIELDS}`;
+// Sorted, so the same pitchers make the same request and MLB's cache can answer it.
+/** @param {number[]} ids */
+const joinIds = (ids) => [...ids].sort((first, second) => first - second).join(",");
 
+// The season line and pitch mix are the regular season's, like the qualified starters' they're
+// ranked against; the game logs include the postseason's.
+/**
+ * @param {number} season
+ * @param {number[]} ids
+ */
+export const listPeopleRequest = (season, ids) =>
+  `/api/v1/people?personIds=${joinIds(ids)}` +
+  `&hydrate=stats(group=[pitching],type=[season,pitchArsenal],season=${season})` +
+  `&fields=${PERSON_FIELDS}`;
+
+/**
+ * @param {number} season
+ * @param {number[]} ids
+ */
+export const listGameLogRequest = (season, ids) =>
+  `/api/v1/people?personIds=${joinIds(ids)}` +
+  `&hydrate=stats(group=[pitching],type=[gameLog],season=${season},gameType=[R,F,D,L,W])` +
+  `&fields=${GAME_LOG_FIELDS}`;
+
+/** @param {number} season */
+export const listQualifiedRequest = (season) =>
+  `/api/v1/stats?stats=season&group=pitching&season=${season}&sportId=1&playerPool=qualified` +
+  `&limit=1000&fields=${QUALIFIED_FIELDS}`;
+
+/**
+ * Every pitcher's games and starts in the regular season (R) or the postseason (P).
+ * @param {number} season
+ * @param {"R" | "P"} gameType
+ */
+export const listAppearancesRequest = (season, gameType) =>
+  `/api/v1/stats?stats=season&group=pitching&season=${season}&gameType=${gameType}&sportId=1` +
+  `&playerPool=all&limit=3000&fields=${APPEARANCE_FIELDS}`;
+
+/**
+ * The rows of one of MLB's league tables.
+ * @param {any} leagueResponse
+ * @returns {any[]}
+ */
+export const readLeagueRows = (leagueResponse) => leagueResponse?.stats?.[0]?.splits || [];
+
+/** @param {any} qualifiedResponse */
+export const listQualifiedIds = (qualifiedResponse) =>
+  readLeagueRows(qualifiedResponse).map((row) => row.player.id);
+
+/**
+ * The pitchers in batches of as many as one request reads.
+ * @param {number[]} ids
+ */
+export function splitIntoBatches(ids) {
+  const batches = [];
+  for (let start = 0; start < ids.length; start += BATCH_SIZE)
+    batches.push(ids.slice(start, start + BATCH_SIZE));
+  return batches;
+}
+
+/**
+ * Every person MLB describes for `ids`, read in parallel batches.
+ * @param {(path: string) => Promise<any>} fetchJson
+ * @param {(ids: number[]) => string} nameRequest
+ * @param {number[]} ids
+ */
+export async function fetchPeople(fetchJson, nameRequest, ids) {
+  const answers = await Promise.all(
+    splitIntoBatches(ids).map((batch) => fetchJson(nameRequest(batch))),
+  );
+  return answers.flatMap((answer) => answer?.people || []);
+}
+
+/**
+ * @param {any} person
+ * @param {string} type
+ * @returns {any[]}
+ */
 const readStats = (person, type) =>
-  person?.stats?.find((entry) => entry.type?.displayName === type)?.splits || [];
+  person?.stats?.find((/** @type {any} */ entry) => entry.type?.displayName === type)?.splits || [];
 
+/**
+ * @param {number | null | undefined} value
+ * @param {number} places
+ */
 const roundTo = (value, places) =>
-  Number.isFinite(value) ? Math.round(value * 10 ** places) / 10 ** places : null;
+  Number.isFinite(value) ? Math.round(Number(value) * 10 ** places) / 10 ** places : null;
 
-// The fastball he throws most, a four-seamer or a sinker, stands for how hard he throws.
+// The fastball he throws most, a four-seamer or a sinker, stands for how hard he throws, to the
+// tenth of a mile an hour the sheet shows.
+/** @param {any[]} arsenal */
 function readFastballSpeed(arsenal) {
   const fastballs = arsenal
     .filter((pitch) => FASTBALLS.includes(pitch.stat?.type?.code))
     .sort((first, second) => second.stat.percentage - first.stat.percentage);
-  return fastballs[0]?.stat.averageSpeed ?? null;
+  return roundTo(fastballs[0]?.stat.averageSpeed, 1);
 }
 
-// Starters are the pitchers with at least half as many starts as the most any pitcher has made,
-// so there's a field to rank against early in a season too.
-function listStarterLines(leagueResponse) {
-  const lines = leagueResponse?.stats?.[0]?.splits || [];
-  const most = Math.max(0, ...lines.map((line) => line.stat?.gamesStarted || 0));
-  const minimum = Math.max(1, Math.ceil(most / 2));
-  return { minimum, lines: lines.filter((line) => (line.stat?.gamesStarted || 0) >= minimum) };
-}
+/**
+ * The season's qualified starters and their numbers, each starter's speed from `speeds`.
+ * @param {any} qualifiedResponse
+ * @param {Map<number, number | null>} speeds
+ */
+export const describeStarters = (qualifiedResponse, speeds) => ({
+  starters: readLeagueRows(qualifiedResponse).map((row) => ({
+    id: row.player.id,
+    era: Number(row.stat.era),
+    k9: Number(row.stat.strikeoutsPer9Inn),
+    bb9: Number(row.stat.walksPer9Inn),
+    speed: speeds.get(row.player.id) ?? null,
+  })),
+});
 
-export function buildLeague(leagueResponse, speedResponses) {
-  const { minimum, lines } = listStarterLines(leagueResponse);
-  const speeds = new Map(
-    speedResponses
-      .flatMap((response) => response?.people || [])
-      .map((person) => [person.id, readFastballSpeed(readStats(person, "pitchArsenal"))]),
+/**
+ * Each person's fastball speed, by id.
+ * @param {any[]} people
+ */
+export const readSpeeds = (people) =>
+  new Map(
+    people.map((person) => [person.id, readFastballSpeed(readStats(person, "pitchArsenal"))]),
   );
-  const starters = lines.map((line) => ({
-    id: line.player.id,
-    era: Number(line.stat.era),
-    k9: Number(line.stat.strikeoutsPer9Inn),
-    bb9: Number(line.stat.walksPer9Inn),
-    speed: speeds.get(line.player.id) ?? null,
-  }));
-  return { minimum, starters };
-}
 
 const MEASURES = { era: "low", k9: "high", bb9: "low", speed: "high" };
 
-// A rank counts only the starters strictly better, so tied starters share one.
+/**
+ * A rank counts only the starters strictly better, so tied starters share one.
+ * @param {any[]} starters
+ * @param {keyof typeof MEASURES} key
+ * @param {number | null} value
+ */
 function rankAmong(starters, key, value) {
   const values = starters.map((starter) => starter[key]).filter(Number.isFinite);
   if (!Number.isFinite(value) || !values.length) return null;
-  const isBetter = (other) => (MEASURES[key] === "low" ? other < value : other > value);
+  const isBetter = (/** @type {number} */ other) =>
+    MEASURES[key] === "low" ? other < Number(value) : other > Number(value);
   return { rank: values.filter(isBetter).length + 1, of: values.length };
 }
 
-function rankStarter(league, id) {
-  const starter = league.starters.find((candidate) => candidate.id === id);
+/**
+ * @param {any[]} starters
+ * @param {number} id
+ */
+function rankStarter(starters, id) {
+  const starter = starters.find((candidate) => candidate.id === id);
   if (!starter) return null;
   return Object.fromEntries(
-    Object.keys(MEASURES).map((key) => [key, rankAmong(league.starters, key, starter[key])]),
+    Object.keys(MEASURES).map((key) => [
+      key,
+      rankAmong(starters, /** @type {keyof typeof MEASURES} */ (key), starter[key]),
+    ]),
   );
 }
 
+/**
+ * @param {any} line
+ * @param {any[]} arsenal
+ */
 function describeLine(line, arsenal) {
   if (!line) return null;
   return {
@@ -159,24 +253,25 @@ function describeLine(line, arsenal) {
     era: line.era,
     k9: roundTo(Number(line.strikeoutsPer9Inn), 1),
     bb9: roundTo(Number(line.walksPer9Inn), 1),
-    speed: roundTo(readFastballSpeed(arsenal), 1),
+    speed: readFastballSpeed(arsenal),
   };
 }
 
-const describePitch = ({ stat }) => ({
+const describePitch = (/** @type {any} */ { stat }) => ({
   code: stat.type.code,
   name: stat.type.description,
   share: roundTo(stat.percentage, 3),
   mph: roundTo(stat.averageSpeed, 1),
 });
 
-function listRecentStarts(startsResponse) {
-  const games = startsResponse?.stats?.[0]?.splits || [];
-  return games
+/**
+ * Every start in a pitcher's game log, the newest first.
+ * @param {any} gameLogPerson
+ */
+export const listStarts = (gameLogPerson) =>
+  /** @type {any[]} */ (gameLogPerson?.stats?.[0]?.splits || [])
     .filter((game) => game.stat?.gamesStarted)
-    .sort((first, second) => first.date.localeCompare(second.date))
-    .slice(-RECENT_STARTS)
-    .reverse()
+    .sort((first, second) => second.date.localeCompare(first.date))
     .map((game) => ({
       date: game.date,
       opp: readClubId(game.opponent?.id),
@@ -184,75 +279,143 @@ function listRecentStarts(startsResponse) {
       ip: game.stat.inningsPitched,
       runs: game.stat.runs,
       k: game.stat.strikeOuts,
+      pitches: game.stat.numberOfPitches ?? null,
     }));
-}
 
-export function describePitcher({ person: personResponse, starts }, league) {
-  const person = personResponse?.people?.[0];
-  if (!person) return null;
+/**
+ * A pitcher's side of the sheet as the store keeps it, from MLB's description of him and his game
+ * log.
+ * @param {any} person
+ * @param {any} gameLogPerson
+ */
+export function describePitcher(person, gameLogPerson) {
   const arsenal = readStats(person, "pitchArsenal").filter((pitch) => pitch.stat?.type?.code);
   return {
     id: person.id,
     firstName: person.useName,
     lastName: person.useLastName,
     hand: person.pitchHand?.code ?? null,
-    age: person.currentAge ?? null,
+    birthDate: person.birthDate ?? null,
     line: describeLine(readStats(person, "season")[0]?.stat, arsenal),
-    ranks: rankStarter(league, person.id),
-    starters: { count: league.starters.length, minimum: league.minimum },
     pitches: arsenal.map(describePitch),
-    starts: listRecentStarts(starts),
+    starts: listStarts(gameLogPerson).slice(0, RECENT_STARTS),
   };
 }
 
+/**
+ * His age on the league's day of `now`.
+ * @param {string | null} birthDate as YYYY-MM-DD
+ * @param {number} now
+ */
+function measureAge(birthDate, now) {
+  if (!birthDate) return null;
+  const today = readEasternDay(now).date;
+  const hasHadBirthday = today.slice(5) >= birthDate.slice(5);
+  return Number(today.slice(0, 4)) - Number(birthDate.slice(0, 4)) - (hasHadBirthday ? 0 : 1);
+}
+
+/**
+ * The sheet's side for a pitcher, ranked among the season's qualified starters.
+ * @param {ReturnType<typeof describePitcher>} pitcher
+ * @param {{ starters: any[] }} qualified
+ * @param {number} now
+ */
+export function composePitcher({ birthDate, ...pitcher }, { starters }, now) {
+  return {
+    ...pitcher,
+    age: measureAge(birthDate, now),
+    ranks: rankStarter(starters, pitcher.id),
+    starters: { count: starters.length },
+  };
+}
+
+/** @param {URLSearchParams} searchParams */
 function readPersonId(searchParams) {
   const id = Number(searchParams.get("id"));
   return Number.isInteger(id) && id > 0 && id <= LARGEST_PERSON_ID ? id : null;
 }
 
+/**
+ * Reads a document from the store, as null when it has none.
+ * @typedef {(key: string) => Promise<any>} ReadDoc
+ */
+
+const NOTHING_SAVED = { pitcher: null, qualified: null };
+
+/**
+ * @param {object} [options]
+ * @param {(input: string, init: object) => Promise<Response>} [options.fetchImpl]
+ * @param {() => number} [options.now]
+ */
 export function createPitcherServer({
   fetchImpl = (input, init) => fetch(input, init),
   now = () => Date.now(),
 } = {}) {
-  async function fetchLeague(season) {
-    const league = await fetchMlbJson(fetchImpl, listLeagueRequest(season), LEAGUE_CACHE_SECONDS);
-    const ids = listStarterLines(league)
-      .lines.map((line) => line.player.id)
-      .sort((first, second) => first - second);
-    const batches = [];
-    for (let start = 0; start < ids.length; start += SPEED_BATCH_SIZE)
-      batches.push(ids.slice(start, start + SPEED_BATCH_SIZE));
-    const speeds = await Promise.all(
-      batches.map((batch) =>
-        fetchMlbJson(fetchImpl, listSpeedRequest(season, batch), LEAGUE_CACHE_SECONDS),
-      ),
+  /** @param {number} season */
+  async function fetchQualified(season) {
+    /** @param {string} path */
+    const fetchJson = (path) => fetchMlbJson(fetchImpl, path, LEAGUE_CACHE_SECONDS);
+    const qualified = await fetchJson(listQualifiedRequest(season));
+    const people = await fetchPeople(
+      fetchJson,
+      (ids) => listPeopleRequest(season, ids),
+      listQualifiedIds(qualified),
     );
-    return buildLeague(league, speeds);
+    return describeStarters(qualified, readSpeeds(people));
   }
 
   // Every sheet opened in a day ranks against one read of the league.
-  const loadLeague = createReusedLoader(fetchLeague, LEAGUE_REUSE_MS, now);
+  const loadQualified = createReusedLoader(fetchQualified, LEAGUE_REUSE_MS, now);
 
-  async function loadPitcher(id, season) {
-    const requests = listPitcherRequests(id, season);
-    const [person, starts, league] = await Promise.all([
-      fetchMlbJson(fetchImpl, requests.person, PITCHER_CACHE_SECONDS),
-      fetchMlbJson(fetchImpl, requests.starts, PITCHER_CACHE_SECONDS),
-      loadLeague(season),
+  /**
+   * @param {number} id
+   * @param {number} season
+   */
+  async function fetchPitcher(id, season) {
+    const [people, gameLogs] = await Promise.all([
+      fetchMlbJson(fetchImpl, listPeopleRequest(season, [id]), PITCHER_CACHE_SECONDS),
+      fetchMlbJson(fetchImpl, listGameLogRequest(season, [id]), PITCHER_CACHE_SECONDS),
     ]);
-    return describePitcher({ person, starts }, league);
+    const person = people?.people?.[0];
+    return person ? describePitcher(person, gameLogs?.people?.[0]) : null;
   }
 
-  /** @param {URL} url */
-  async function servePitcher(url) {
+  /**
+   * What the store keeps of the sheet, each part null when it doesn't keep it, or can't be read.
+   * @param {number} id
+   * @param {number} season
+   * @param {ReadDoc} readDoc
+   */
+  async function readSaved(id, season, readDoc) {
+    try {
+      const [pitcher, qualified] = await Promise.all([
+        readDoc(namePitcherKey(season, id)),
+        readDoc(nameStartersKey(season)),
+      ]);
+      return { pitcher, qualified };
+    } catch (error) {
+      console.error(`Reading pitcher ${id} from the store failed: ${describeError(error)}`);
+      return NOTHING_SAVED;
+    }
+  }
+
+  /**
+   * @param {URL} url
+   * @param {ReadDoc} [readDoc] the store's documents, when the Worker has a store
+   */
+  async function servePitcher(url, readDoc) {
     const id = readPersonId(url.searchParams);
     if (id == null) return respondJson({ error: "id must be an MLB person id" }, 400);
     const season = SEASON_PARAM.readSeason(url.searchParams, now());
     if (season == null) return respondJson({ error: SEASON_PARAM.rule }, 400);
     try {
-      const pitcher = await loadPitcher(id, season);
+      const saved = readDoc ? await readSaved(id, season, readDoc) : NOTHING_SAVED;
+      const [pitcher, qualified] = await Promise.all([
+        saved.pitcher ?? fetchPitcher(id, season),
+        saved.qualified ?? loadQualified(season),
+      ]);
       if (!pitcher) return respondJson({ error: "MLB has no pitcher with that id" }, 404);
-      return respondJson(pitcher);
+      return respondJson(composePitcher(pitcher, qualified, now()));
     } catch (error) {
       return respondJson({ error: `Couldn't read MLB: ${describeError(error)}` }, 502);
     }

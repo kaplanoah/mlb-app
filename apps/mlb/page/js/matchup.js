@@ -1,5 +1,5 @@
 // The matchup sheet every game opens: the two starters face to face, where each ranks among the
-// season's starters, what each throws, and their last starts. A club yet to name today's starter
+// season's qualified starters, what each throws, and their last starts. A club yet to name today's starter
 // shows who started its last games instead, and how rested each would be, and any other starter
 // still to be named is one to check back for. Until each side loads, placeholders hold its shape.
 // Phones show it as a sheet from the bottom that a swipe down closes, wider screens as a modal,
@@ -96,15 +96,13 @@ function describeTapeSide(side, measure) {
 
 const isUnranked = (side) => Boolean(side.pitcher?.line && !side.pitcher.ranks);
 
-function describeUnranked({ pitcher }) {
-  const starts = pitcher.line.starts === 1 ? "1 start is" : `${pitcher.line.starts} starts are`;
-  return `${pitcher.lastName}'s ${starts} too few to rank him among this season's starters`;
-}
+const describeUnranked = ({ pitcher }) =>
+  `${pitcher.lastName} hasn't pitched enough innings to rank among this season's qualified starters`;
 
 function renderTapeNotes(sides, counted) {
   const barsNote =
     sides.some((side) => side.pitcher?.ranks) &&
-    html`<p class="tape-note">Bars are the share of this season's ${counted.count} starters, pitchers with ${counted.minimum} or more starts, he beats</p>`;
+    html`<p class="tape-note">Bars are the share of this season's ${counted.count} qualified starters he beats</p>`;
   const unrankedNotes = sides
     .filter(isUnranked)
     .map((side) => html`<p class="tape-note">${describeUnranked(side)}</p>`);
@@ -124,7 +122,7 @@ function renderTape(sides) {
   );
   const notes = counted
     ? renderTapeNotes(sides, counted)
-    : html`<p class="tape-note">${renderPlaceholder("Bars are the share of this season's starters he beats")}</p>`;
+    : html`<p class="tape-note">${renderPlaceholder("Bars are the share of this season's qualified starters he beats")}</p>`;
   return html`<div class="tape">
     ${rows}
     ${notes}

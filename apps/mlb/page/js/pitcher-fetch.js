@@ -1,9 +1,9 @@
-// What the matchup sheet reads from the Worker, which reads MLB for it: a pitcher's side, or the
+// What the matchup sheet reads from the Worker, which keeps it from MLB: a pitcher's side, or the
 // last starters of a club that hasn't named one.
 
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 
-// Loading the league for the first time in a day takes the Worker a few seconds.
+// Reading MLB for what the Worker doesn't keep takes it a few seconds.
 const FETCH_TIMEOUT_MS = 20 * 1000;
 // A pitcher's numbers and a club's starts change at most once a game, so a sheet opened again
 // soon reuses them.

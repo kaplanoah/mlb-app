@@ -8,7 +8,7 @@ import { describeError } from "./responses.js";
 // each update until it times out. What it keeps goes in `storage`, since a Durable Object leaves
 // memory between updates.
 
-const SETTLE_MS = 10 * 60 * 1000;
+export const SETTLE_MS = 10 * 60 * 1000;
 const FAILED_FEED_WAIT_MS = 5 * 60 * 1000;
 const FINALS_KEY = "finals";
 
