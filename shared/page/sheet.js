@@ -9,6 +9,7 @@
 // showed before, where they were scrolled (show-last-drawn.js), and each sheet's code takes back
 // what it showed.
 
+import { stepBackOnEdgeSwipe } from "./sheet-edge-swipe.js";
 import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
 
 /**
@@ -308,8 +309,14 @@ function wireDialog(dialog) {
     findScroller: () => findShownSheet(dialog),
   });
   const row = findRow(dialog);
-  row?.addEventListener("scroll", () => settleWhereScrolled(dialog), { passive: true });
-  row?.addEventListener("scrollend", () => settleWhereScrolled(dialog));
+  if (!row) return;
+  row.addEventListener("scroll", () => settleWhereScrolled(dialog), { passive: true });
+  row.addEventListener("scrollend", () => settleWhereScrolled(dialog));
+  stepBackOnEdgeSwipe(row, {
+    findShownSheet: () => findShownSheet(dialog),
+    readShown: () => readStack(dialog).shown,
+    scrollToSheet: (index) => scrollToSheet(dialog, index),
+  });
 }
 
 /**
