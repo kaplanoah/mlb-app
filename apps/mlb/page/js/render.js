@@ -14,7 +14,11 @@ const isSeasonOver = () => !!session.state && !!buildBracket(session.state).ws?.
 function renderTitleYear() {
   const shownYear = session.activeYear;
   showTitleYear(
-    chooseTitleYear({ shownYear, currentYear: session.currentSeason, isSeasonOver: isSeasonOver() }),
+    chooseTitleYear({
+      shownYear,
+      currentYear: session.currentSeason,
+      isSeasonOver: isSeasonOver(),
+    }),
   );
 }
 

@@ -8,7 +8,7 @@
  */
 export function chooseTitleYear({ shownYear, currentYear, isSeasonOver }) {
   const isEarlierSeason = currentYear !== null && shownYear !== currentYear;
-  return isEarlierSeason ? shownYear : null;
+  return isEarlierSeason || isSeasonOver ? shownYear : null;
 }
 
 /**
