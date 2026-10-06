@@ -68,6 +68,7 @@
   overscroll-behavior-x: none;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
+  container-type: inline-size;
 }
 .sheet-row::-webkit-scrollbar {
   display: none;
@@ -174,7 +175,8 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 
 /* A sheet leaving to the left, as the one after it slides in, shows what it holds moving at a
    fraction of the row's pace, and dims. The sheet itself stays where the row puts it, since the
-   row stops where a sheet's box is. */
+   row stops where a sheet's box is. What it holds moves by the row's width, since a sheet that
+   scrolls sideways holds more than its width. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .sheet-page {
@@ -197,7 +199,7 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 }
 @keyframes sheet-page-under {
   to {
-    transform: translateX(72%);
+    transform: translateX(72cqw);
   }
 }
 .sheet-note {
