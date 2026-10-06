@@ -10,21 +10,6 @@ const ROW_WIDTH = 390;
 /** @type {FakeElement | null} */
 let focused = null;
 
-/** @type {FrameRequestCallback[]} */
-let frames = [];
-globalThis.requestAnimationFrame = (callback) => frames.push(callback);
-
-// Draws the next frame, running what waited for it.
-function drawFrame() {
-  const waiting = frames;
-  frames = [];
-  for (const callback of waiting) callback(0);
-}
-
-function drawFrames() {
-  while (frames.length) drawFrame();
-}
-
 // Just enough of an element for sheet.js: its family, attributes, and what it can be asked.
 class FakeElement extends EventTarget {
   /** @param {{ id?: string, tag?: string, className?: string }} [options] */
@@ -123,14 +108,21 @@ class FakeElement extends EventTarget {
   }
 }
 
-// A row scrolls at once, as it does when less motion is asked for, and says so.
+// A row scrolls at once, as it does when less motion is asked for, and says so, or, held, stays
+// put until moved.
 class FakeRow extends FakeElement {
   constructor() {
     super({ className: "sheet-row" });
+    this.isHeld = false;
   }
 
   /** @param {{ left: number }} options */
   scrollTo({ left }) {
+    if (!this.isHeld) this.moveTo(left);
+  }
+
+  /** @param {number} left */
+  moveTo(left) {
     this.scrollLeft = left;
     this.dispatchEvent(new Event("scroll"));
   }
@@ -234,14 +226,8 @@ const findReachable = (row) => row.children.find((sheet) => !sheet.hidden && !sh
  */
 const keepShown = (shown, reopen = () => true) => ({ read: () => shown, reopen });
 
-/**
- * Opens a sheet, and draws frames until the row has gone to it.
- * @param {FakeElement} sheet
- */
-function open(sheet) {
-  openSheet(/** @type {any} */ (sheet));
-  drawFrames();
-}
+/** @param {FakeElement} sheet */
+const open = (sheet) => openSheet(/** @type {any} */ (sheet));
 
 test("a sheet opens its dialog with it alone in the row, at its top, and opening it again keeps it open there", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
@@ -295,31 +281,6 @@ test("a sheet opened from another comes in after it, with a back button that nam
   dialog.close();
 });
 
-test("a sheet brought in beside the shown one is in the row at once, and the row goes to it once a frame has drawn it", () => {
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
-  open(sheets.gameSheet.sheet);
-
-  openSheet(/** @type {any} */ (sheets.teamSheet.sheet));
-  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
-  assert.equal(row.scrollLeft, 0);
-  drawFrame();
-  assert.equal(row.scrollLeft, 0);
-  drawFrame();
-  assert.equal(row.scrollLeft, ROW_WIDTH);
-  assert.equal(findReachable(row), "teamSheet");
-  dialog.close();
-});
-
-test("a dialog closed before the row sets off for a sheet doesn't scroll", () => {
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
-  open(sheets.gameSheet.sheet);
-
-  openSheet(/** @type {any} */ (sheets.teamSheet.sheet));
-  dialog.close();
-  drawFrames();
-  assert.equal(row.scrollLeft, 0);
-});
-
 test("back scrolls to the sheet before and takes the one it left out of the row, which lets go of what it showed", () => {
   /** @type {string[]} */
   const forgotten = [];
@@ -335,6 +296,22 @@ test("back scrolls to the sheet before and takes the one it left out of the row,
   assert.equal(findReachable(row), "gameSheet");
   assert.deepEqual(listInRow(row), ["gameSheet"]);
   assert.deepEqual(forgotten, ["team"]);
+  dialog.close();
+});
+
+test("a sheet opened again after a step back away from it, before the row has come to rest, stays for the row to go to", () => {
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+  row.isHeld = true;
+  row.moveTo(1);
+  assert.equal(findReachable(row), "gameSheet");
+
+  open(sheets.teamSheet.sheet);
+  row.moveTo(0);
+  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
+  row.moveTo(ROW_WIDTH);
+  assert.equal(findReachable(row), "teamSheet");
   dialog.close();
 });
 
