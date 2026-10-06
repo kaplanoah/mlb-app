@@ -1538,6 +1538,14 @@ th[aria-sort="ascending"] .roster-caret {
 .team-line + .team-line {
   border-top: 1px solid var(--divider);
 }
+/* A tap anywhere on a team's row lands on its name's button, stretched over the row, as a game's
+   row has a button over it, so the phone treats the whole row as one tap target. */
+.team-line .team-open::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+}
 /* The number and Seed share a baseline. Each is trimmed to its letters, from the top of a capital
    to the baseline, so the pair centers on its row by what's drawn rather than by its fonts' boxes. */
 .seed-label {
