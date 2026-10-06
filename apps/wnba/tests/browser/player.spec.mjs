@@ -141,9 +141,32 @@ test("a player short of the WNBA's rule shows her numbers without a rank, and sa
 
   await expect(sheet.locator(".player-rank-place")).toHaveText(["7th"]);
   await expect(sheet.locator(".player-rank-note")).toHaveText(
-    "Not ranked until she's played 31 games, or for a percentage, made enough shots. She's played 21.",
+    "The WNBA only ranks players who've played 31 games or, for shooting percentages, made a certain number of shots. She's played 21 games.",
   );
   expect(await listStrayPeriods(page)).toEqual([]);
+});
+
+test("on a phone, a player who played enough games but made too few shots for a percentage says so, its lines even, so no word sits alone", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const sheet = await openFromRoster(page, "Pauline Astier");
+  const note = sheet.locator(".player-rank-note");
+
+  await expect(note).toHaveText(
+    "For shooting percentages, the WNBA only ranks players who've made a certain number of shots. She hasn't made enough yet.",
+  );
+  const lastLineWords = await note.evaluate((element) => {
+    const words = document.createRange();
+    words.selectNodeContents(element);
+    const lines = [...words.getClientRects()];
+    const lastTop = Math.max(...lines.map((line) => line.top));
+    const lastLine = lines.filter((line) => Math.abs(line.top - lastTop) < 2);
+    const width = lastLine.reduce((sum, line) => sum + line.width, 0);
+    return width / element.getBoundingClientRect().width;
+  });
+  expect(lastLineWords).toBeGreaterThan(0.5);
 });
 
 test("a top scorer's name in a box score opens her sheet over the game's, and a leader's name on a team's sheet over the team's", async ({

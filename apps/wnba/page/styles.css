@@ -2486,10 +2486,12 @@ table.player-game td {
   font-weight: 500;
   color: var(--ink);
 }
+/* Its lines run even, so no word sits alone on the last one. */
 .player-rank-note {
   margin: 8px 0 0;
   font-size: var(--size-glance);
   line-height: 1.35;
   color: var(--ink-dim);
   text-align: center;
+  text-wrap: balance;
 }
