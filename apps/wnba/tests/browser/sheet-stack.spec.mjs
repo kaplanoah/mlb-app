@@ -7,7 +7,7 @@ const PHONE = { width: 390, height: 844 };
 const ACES_AT_FEVER = "Game details: Aces at Fever, First Round Game 2";
 // A sheet the next one covers sits this share of the screen's width to the left, as sheet.css
 // moves it.
-const UNDER_SHIFT = 0.28;
+const UNDER_SHIFT = 0.3;
 
 /**
  * Opens the Aces at the Fever's sheet, from the Previous games, then the Fever's beside it.
@@ -178,7 +178,10 @@ test.describe("with reduced motion", () => {
       const band = await sheet
         .locator(".sheet-top")
         .evaluate((top) => getComputedStyle(top).backgroundColor);
-      await expect(sheet).toHaveCSS("box-shadow", `${band} 14px 0px 0px 0px`);
+      await expect(sheet).toHaveCSS(
+        "box-shadow",
+        `rgba(0, 0, 0, 0.12) 0px 0px 16px 0px, ${band} 14px 0px 0px 0px`,
+      );
     }
   });
 
@@ -222,7 +225,7 @@ test.describe("with reduced motion", () => {
   });
 });
 
-test("a team's sheet slides in from the right beside the game's, which slides a little way left under it and dims, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
+test("a team's sheet slides in from the right beside the game's, casting a soft shadow along its edge over the game's, which slides a little way left under it and shades a little, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -230,7 +233,8 @@ test("a team's sheet slides in from the right beside the game's, which slides a 
   const { gameSheet, teamSheet } = await openFeverFromGame(page);
 
   expect(await readLeft(findContent(gameSheet))).toBeCloseTo(-UNDER_SHIFT * PHONE.width, 1);
-  await expect(gameSheet).toHaveCSS("filter", "brightness(0.75)");
+  await expect(gameSheet).toHaveCSS("filter", "brightness(0.9)");
+  await expect(teamSheet).toHaveCSS("box-shadow", /^rgba\(0, 0, 0, 0\.12\) 0px 0px 16px 0px,/);
 
   const readLefts = await startTrackingLeft(page, "teamSheet");
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();

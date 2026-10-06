@@ -318,7 +318,7 @@ test.describe("in full motion", () => {
     await expectShown(page.locator("#playerSheet"));
 
     const content = sheet.locator(":scope > .sheet-content");
-    expect(await readLeft(content)).toBeCloseTo(-0.28 * PHONE.width, 0);
+    expect(await readLeft(content)).toBeCloseTo(-0.3 * PHONE.width, 0);
   });
 
   test("on a phone, a short swipe right on the roster's title springs back to the roster once the finger lifts", async ({

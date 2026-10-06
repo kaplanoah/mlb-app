@@ -109,7 +109,7 @@ test("a Read button is raised like a card, a button's height, its words centered
   expect(look.roomAbove).toBe(look.roomBelow);
 });
 
-test("a pill's names are buttons, in sentence case at a button's weight, and its bar held at the top ends in a line, not a fade", async ({
+test("a pill's names are buttons, in sentence case at a button's weight and height, centered on their capitals, the pill 10px under the header and 9px over the first card, and its bar held at the top ends in a line, not a fade", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -119,6 +119,17 @@ test("a pill's names are buttons, in sentence case at a button's weight, and its
   const name = page.locator("#games-bar .pager-tabs button").first();
   await expect(name).toHaveCSS("text-transform", "none");
   await expect(name).toHaveCSS("font-weight", "500");
+  await expect(name).toHaveCSS("height", "30px");
+  await expect(name).toHaveCSS("text-box-trim", "trim-both");
+  const room = await page.evaluate(() => {
+    const readBox = (/** @type {string} */ selector) =>
+      /** @type {Element} */ (document.querySelector(selector)).getBoundingClientRect();
+    const header = readBox("header.top");
+    const pill = readBox("#games-bar .pager-tabs");
+    const card = readBox("#games-previous .game-list");
+    return { above: pill.top - header.bottom, height: pill.height, below: card.top - pill.bottom };
+  });
+  expect(room).toEqual({ above: 10, height: 36, below: 9 });
 
   await page.evaluate(() => scrollTo({ top: 400, behavior: "instant" }));
   const bar = page.locator("#games-bar");
@@ -172,7 +183,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
   });
 }
 
-test("a sheet barely dims the page behind it, and a switch stays round", async ({ page }) => {
+test("a sheet lightly dims the page behind it, and a switch stays round", async ({ page }) => {
   await openApp(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const settings = page.locator("#settingsDialog");
@@ -180,7 +191,7 @@ test("a sheet barely dims the page behind it, and a switch stays round", async (
   const dim = await settings.evaluate(
     (dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor,
   );
-  expect(dim).toBe("rgba(0, 0, 0, 0.01)");
+  expect(dim).toBe("rgba(0, 0, 0, 0.08)");
   const toggle = settings.locator(".switch").first();
   await expect(toggle).toHaveCSS("border-radius", "14px");
   await expect(toggle.locator(".switch-knob")).toHaveCSS("border-radius", "50%");

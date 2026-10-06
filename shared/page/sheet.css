@@ -53,9 +53,9 @@
   display: flex;
   flex-direction: column;
 }
-/* A sheet barely dims the page behind it, as a phone's own sheets do. */
+/* A sheet lightly dims the page behind it, as a phone's own sheets do. */
 .sheet-panel::backdrop {
-  background: rgba(0, 0, 0, 0.01);
+  background: rgba(0, 0, 0, 0.08);
 }
 /* The row scrolls from sheet to sheet and stops only on one. Past the first or the last it doesn't
    move at all, as the first screen of a phone's app doesn't. */
@@ -90,7 +90,9 @@
   scroll-snap-stop: always;
   border-top-left-radius: calc(var(--sheet-radius) - 1px);
   background: var(--card);
-  box-shadow: var(--sheet-radius) 0 0 var(--sheet-band, var(--card));
+  box-shadow:
+    0 0 16px rgba(0, 0, 0, 0.12),
+    var(--sheet-radius) 0 0 var(--sheet-band, var(--card));
 }
 .sheet-page[hidden] {
   display: none;
@@ -173,9 +175,10 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 }
 
 /* A sheet leaving to the left, as the one after it slides in, shows what it holds moving at a
-   fraction of the row's pace, and dims. The sheet itself stays where the row puts it, since the
-   row stops where a sheet's box is. What it holds moves by the row's width, since a sheet that
-   scrolls sideways holds more than its width. */
+   fraction of the row's pace, and shades a little, while the soft shadow along the new sheet's
+   edge does most of the work of setting it apart, as a phone's own screens do. The sheet itself
+   stays where the row puts it, since the row stops where a sheet's box is. What it holds moves by
+   the row's width, since a sheet that scrolls sideways holds more than its width. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .sheet-page {
@@ -193,12 +196,12 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
 }
 @keyframes sheet-page-dim {
   to {
-    filter: brightness(0.75);
+    filter: brightness(0.9);
   }
 }
 @keyframes sheet-page-under {
   to {
-    transform: translateX(72cqw);
+    transform: translateX(70cqw);
   }
 }
 .sheet-note {
