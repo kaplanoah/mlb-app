@@ -140,7 +140,7 @@ test("a card shows its teams, the lead's headline, writer, outlet, day, and summ
 
   assert.equal(
     text,
-    "This week Dream Liberty Photo: USA TODAY Sports Film review: How the Dream changed " +
+    "Dream Liberty Photo: USA TODAY Sports Film review: How the Dream changed " +
       "Michael Waterloo | The IX | Today What happened. Read on The IX " +
       "More on this There's one key element Madeline Kenney | NY Post | Yesterday " +
       "Photo via NY Post What happened. Read on NY Post",

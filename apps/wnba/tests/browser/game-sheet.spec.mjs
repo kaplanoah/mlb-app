@@ -6,6 +6,7 @@ import {
   findGameButton,
   GAMES,
   matchPath,
+  formatRgb,
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import {
@@ -42,13 +43,6 @@ const LARGEST_HUE_TURN = 10;
 // Most of these tests are about what a sheet shows, so they skip the eased scrolling between the
 // Games lists. The ones about how a sheet moves ask for full motion.
 test.use({ contextOptions: { reducedMotion: "reduce" } });
-
-/**
- * A color as the browser computes it.
- * @param {string} hex like #1c1c1c
- */
-const formatRgb = (hex) =>
-  `rgb(${[1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(", ")})`;
 
 /**
  * A color's hue in OKLCH, in degrees.
@@ -572,7 +566,12 @@ test("a live game's sheet shows its game as it goes, and stops watching it once 
   await expect(sheet.locator(".sheet-part-head", { hasText: "Team stats" })).toContainText(
     "So far",
   );
-  await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out", "5 fouls", "4 fouls"]);
+  await expect(sheet.locator(".foul-chip")).toHaveText([
+    "Fouled out",
+    "Fouled out",
+    "5 fouls",
+    "4 fouls",
+  ]);
   await expect.poll(() => app.listWatchedPaths()).toContain("games/1042600112");
 
   await app.changeSeason((season) => {
@@ -641,7 +640,7 @@ test("a game the league has no box score for says so, and a preview whose meetin
     "Couldn't load this season's meetings.",
   );
   await expect(preview.locator(".tape-label")).toHaveCount(6);
-  await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
+  await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(10);
 });
 
 test("a final's box score and a preview's meetings open from what the store keeps, with the league down", async ({
@@ -667,7 +666,7 @@ test("a preview takes the season stats and leading scorers from the store as it 
 }) => {
   const app = await openApp(page);
   const sheet = await openGameSheet(page, FEVER_AT_ACES);
-  await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
+  await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(10);
 
   await app.changeSeason((season) => ({ ...season, leaders: [] }));
 
@@ -702,7 +701,7 @@ test("while its box score loads, the sheet holds the box score's shape, then fil
   ]);
   await expect(sheet.locator(".tape-label")).toHaveCount(8);
   await expect(sheet.locator(".line-score tbody th")).toHaveText(["Aces", "Fever"]);
-  await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(6);
+  await expect(sheet.locator(".players tbody tr:not(.players-head)")).toHaveCount(10);
   await expect(sheet.locator(".tape-value .placeholder")).toHaveCount(16);
 
   release();
