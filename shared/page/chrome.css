@@ -17,8 +17,8 @@
  *   --radius-control                           a button's or a field's corners, and the hover square
  *                                              behind an icon button
  *   --radius-track                             the corners of a track that holds choices, like a
- *                                              switch or a pager's pill; what sits inside it takes
- *                                              those less the room around it
+ *                                              pager's pill; what sits inside it takes those less
+ *                                              the room around it
  *   --radius-sheet, --radius-sheet-phone       a sheet's corners, and the settings dialog's, on wide
  *                                              screens and on phones
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
@@ -315,11 +315,12 @@ section.view.active {
   color: var(--ink);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sheet);
-  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.01);
   overscroll-behavior: none;
 }
+/* Settings barely dim the page behind them, as a phone's own sheets do. */
 .settings-panel::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.01);
 }
 /* What they hold fills them, the copyright at their foot, so Diagnostics stay just out of sight. */
 .settings-body {
@@ -607,7 +608,8 @@ section.view.active {
   flex-shrink: 0;
   padding: 0;
   border: 1px solid var(--card-border);
-  border-radius: var(--radius-track);
+  /* A switch is round in every app, whatever its corners elsewhere, like the phone's own. */
+  border-radius: 14px;
   background: var(--divider);
   cursor: pointer;
   transition: background 0.2s;
@@ -618,7 +620,7 @@ section.view.active {
   left: 3px;
   width: 20px;
   height: 20px;
-  border-radius: calc(var(--radius-track) - 4px);
+  border-radius: 50%;
   background: var(--ink-dim);
   transition:
     transform 0.2s,
@@ -824,7 +826,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     margin: auto 0 0;
     border-width: 1px 0 0;
     border-radius: var(--radius-sheet-phone) var(--radius-sheet-phone) 0 0;
-    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.01);
   }
   @media (prefers-reduced-motion: no-preference) {
     .settings-panel[open] {

@@ -87,8 +87,9 @@
  * scrolls under it, never a fade.
  *
  * Buttons say what they do in sentence case, as capitals are only for labels and chips. The one
- * that's on is filled orange, inside a darker edge so it reads the same height as the rest, which
- * are raised and outlined, in ink, with any icon in orange; one in a sheet's corner is orange text.
+ * that's on, like the list a pill shows, is filled orange, inside a darker edge so it reads the
+ * same height as the rest, which are raised and outlined, in ink, with any icon in orange; one in
+ * a sheet's corner is orange text. A switch stays round, like the phone's own.
  * Each is --control-height tall at --control-weight, its words centered on their capitals.
  *
  * Text stops at 600, but for the Games list's day numbers.
@@ -169,12 +170,11 @@
   --header-gap: 14px;
   --pager-track: var(--raised);
   --pager-track-edge: var(--edge);
-  --pager-thumb: var(--card);
-  --pager-thumb-edge: rgba(255, 255, 255, 0.12);
-  --pager-thumb-lift:
-    0 0 0 1px color-mix(in srgb, var(--edge) 85%, transparent),
-    0 1px 2px color-mix(in srgb, var(--shadow-ink) 15%, transparent);
+  --pager-thumb: var(--action);
+  --pager-thumb-edge: transparent;
+  --pager-thumb-lift: inset 0 0 0 1px color-mix(in srgb, var(--action) 70%, var(--shadow-ink));
   --pager-label: var(--ink-mid);
+  --pager-chosen-label: var(--action-ink);
   --held-bar-fade: 0px;
   --held-bar-line: var(--divider);
   --updates-head: var(--structure);
@@ -218,9 +218,6 @@
   --glass-pill: rgba(255, 255, 255, 0.11);
   --glass-solid: rgba(42, 31, 24, 0.94);
   --glass-contrast: #000000;
-  /* Tinted cream, since plain white over the walnut reads grey. */
-  --pager-thumb: rgba(255, 214, 170, 0.12);
-  --pager-thumb-edge: rgba(255, 226, 196, 0.03);
   --logos-for-light: none;
   --logos-for-dark: inline;
   color-scheme: dark;
@@ -1663,9 +1660,10 @@ th[aria-sort="ascending"] .roster-caret {
 
 /* A pill's names are buttons, so they're in sentence case at a button's weight. */
 .pager-tabs button {
+  padding-block: 5px;
   font-size: var(--size-glance);
   font-weight: var(--control-weight);
-  letter-spacing: 0;
+  letter-spacing: 0.01em;
   text-transform: none;
 }
 

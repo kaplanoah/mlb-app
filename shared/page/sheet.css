@@ -46,15 +46,16 @@
   color: var(--ink);
   border: 1px solid var(--card-border);
   border-radius: var(--sheet-radius);
-  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.01);
   overscroll-behavior: none;
 }
 .sheet-panel[open] {
   display: flex;
   flex-direction: column;
 }
+/* A sheet barely dims the page behind it, as a phone's own sheets do. */
 .sheet-panel::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.01);
 }
 /* The row scrolls from sheet to sheet and stops only on one. Past the first or the last it doesn't
    move at all, as the first screen of a phone's app doesn't. */
@@ -330,7 +331,7 @@ body.kbd :is(.sheet-back, .sheet-action):focus {
     --sheet-radius: var(--radius-sheet-phone);
     border-width: 1px 0 0;
     border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.01);
   }
   .sheet-page {
     border-top-left-radius: var(--sheet-radius) calc(var(--sheet-radius) - 1px);

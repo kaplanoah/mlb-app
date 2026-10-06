@@ -131,3 +131,57 @@ test("a pill's names are buttons, in sentence case at a button's weight, and its
     `linear-gradient(${floor} 100%, rgba(0, 0, 0, 0))`,
   );
 });
+
+/**
+ * A color as red, green, and blue, however the page computes it.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} color
+ */
+const readChannels = (page, color) =>
+  page.evaluate((value) => {
+    const context = /** @type {CanvasRenderingContext2D} */ (
+      document.createElement("canvas").getContext("2d")
+    );
+    context.fillStyle = value;
+    context.fillRect(0, 0, 1, 1);
+    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+  }, color);
+
+for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
+  test(`the list a pill shows is filled orange, its name in the color on orange, in ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await page.getByRole("tab", { name: "Previous" }).click();
+    const chosen = page.locator("#games-bar .pager-tabs button.active");
+    await expect(chosen).toHaveText("Previous");
+    await page.clock.runFor(2000);
+    const [orange, onOrange] = await Promise.all(
+      ["--orange", "--orange-ink"].map(async (token) =>
+        readChannels(page, await readTokenColor(page, token)),
+      ),
+    );
+    const thumb = await page
+      .locator("#games-bar .pager-thumb")
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+    const name = await chosen.evaluate((element) => getComputedStyle(element).color);
+    expect(await readChannels(page, thumb)).toEqual(orange);
+    expect(await readChannels(page, name)).toEqual(onOrange);
+  });
+}
+
+test("a sheet barely dims the page behind it, and a switch stays round", async ({ page }) => {
+  await openApp(page);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.locator("#settingsDialog");
+  await expect(settings).toBeVisible();
+  const dim = await settings.evaluate(
+    (dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor,
+  );
+  expect(dim).toBe("rgba(0, 0, 0, 0.01)");
+  const toggle = settings.locator(".switch").first();
+  await expect(toggle).toHaveCSS("border-radius", "14px");
+  await expect(toggle.locator(".switch-knob")).toHaveCSS("border-radius", "50%");
+});

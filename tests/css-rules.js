@@ -58,8 +58,10 @@ export const listRootTokens = (path) =>
       .map((declaration) => declaration.property),
   );
 
-// The floating tab bar is a capsule in every app, for its glass, and app icons keep their own shape.
+// The floating tab bar is a capsule in every app, for its glass, a switch is round like the phone's
+// own, and app icons keep their own shape.
 const OWN_SHAPES = new Set([
+  ".switch",
   ".tab-bar::before",
   "nav.tabs .tab-list button",
   ".tab-glass",
@@ -83,7 +85,7 @@ const hasOwnShape = (rule) => rule.split(",").every((selector) => OWN_SHAPES.has
 
 /**
  * Each corner a stylesheet sets some other way than from the shape tokens, but for a circle, the
- * tab bar's capsule, and an app icon.
+ * tab bar's capsule, a switch, and an app icon.
  * @param {string} path
  */
 export const listStrayCorners = (path) =>
