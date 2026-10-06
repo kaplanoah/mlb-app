@@ -118,6 +118,54 @@ test("a game still to be scheduled says its time isn't set, and a game that may 
   assert.equal(deciding.isIfNeeded, true);
 });
 
+/**
+ * ESPN's listing of the semifinal opener between the Liberty and the Dream, at a time of its own.
+ * @param {string} start
+ * @param {boolean} isTimeValid
+ */
+function listSemifinalOpener(start, isTimeValid) {
+  const answers = structuredClone(Object.values(ESPN_SCOREBOARD.answers));
+  const opener = answers
+    .flatMap((answer) => answer.events)
+    .find((event) => event.shortName === "NY @ ATL");
+  const [competition] = opener.competitions;
+  Object.assign(competition, { date: start, timeValid: isTimeValid });
+  opener.date = start;
+  return answers;
+}
+
+// The afternoon's schedule doesn't know the Liberty's opponent yet, so the Dream stands in.
+const SCHEDULE_WITH_OPENER = structuredClone(RESPONSES.schedule);
+SCHEDULE_WITH_OPENER.leagueSchedule.gameDates
+  .flatMap((day) => day.games)
+  .find((game) => game.gameId === "1042600201").homeTeam.teamTricode = "ATL";
+
+const buildWithOpener = (networks) =>
+  buildAfternoon({ ...RESPONSES, schedule: SCHEDULE_WITH_OPENER, networks });
+const findSemifinalOpener = (networks) =>
+  buildWithOpener(networks).games.find((game) => game.id === "1042600201");
+
+test("a game the league hasn't timed takes ESPN's time once ESPN has set it", () => {
+  const timed = findSemifinalOpener(listSemifinalOpener("2026-10-04T18:00Z", true));
+  assert.deepEqual([timed.start, timed.isTimeSet], ["2026-10-04T18:00Z", true]);
+  const untimed = findSemifinalOpener(listSemifinalOpener("2026-10-04T04:00Z", false));
+  assert.deepEqual([untimed.start, untimed.isTimeSet], ["2026-10-04T04:00:00Z", false]);
+});
+
+test("ESPN's time for the same teams on another day leaves a game's time unset", () => {
+  const dayBefore = findSemifinalOpener(listSemifinalOpener("2026-10-03T23:30Z", true));
+  assert.deepEqual([dayBefore.start, dayBefore.isTimeSet], ["2026-10-04T04:00:00Z", false]);
+});
+
+test("a game timed from ESPN takes its place among the day's games by its start", () => {
+  const { games } = buildWithOpener(listSemifinalOpener("2026-10-04T21:00Z", true));
+  const onTheDay = games.filter((game) => game.start.startsWith("2026-10-04"));
+  assert.deepEqual(
+    onTheDay.map((game) => game.id),
+    ["1042600211", "1042600201"],
+  );
+});
+
 test("each series names its seeds, its wins, its winner, and its next game", () => {
   const { series } = buildAfternoon();
   assert.equal(series.length, 7);

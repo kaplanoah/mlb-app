@@ -2,8 +2,10 @@
 // The league's own feeds: today's scoreboard and the season's schedule from its CDN, and the
 // playoff bracket, the standings, and the players' season averages from its stats site. When the
 // scoreboard doesn't answer, ESPN's stands in for today's scores and clocks. The league's feeds
-// don't say where a game is on, so ESPN's scoreboard does.
+// don't say where a game is on, so ESPN's scoreboard does, and it says when a game starts while the
+// league's schedule still has its time to be decided.
 
+import { readEasternDay } from "#shared/days.js";
 import * as PollSchedule from "#shared/poll-schedule.js";
 import { findTeamCode, findTeamCodeByEspnId, TEAMS } from "./teams.js";
 
@@ -272,6 +274,9 @@ const listAverages = (players) =>
 const listPlayoffGames = (games, season) =>
   games.filter((game) => readPlayoffGameId(game.gameId)?.season === season);
 
+const sortByStart = (games) =>
+  games.sort((first, second) => Date.parse(first.start) - Date.parse(second.start));
+
 // The scoreboard is the freshest word on today's games, so it replaces the schedule's copy.
 function mergeGames(schedule, scoreboard, season) {
   const scheduled = listPlayoffGames(
@@ -281,9 +286,7 @@ function mergeGames(schedule, scoreboard, season) {
   const today = listPlayoffGames(scoreboard?.scoreboard?.games ?? [], season).map(normalizeGame);
   const byId = new Map(scheduled.map((game) => [game.id, game]));
   for (const game of today) byId.set(game.id, game);
-  return [...byId.values()].sort(
-    (first, second) => Date.parse(first.start) - Date.parse(second.start),
-  );
+  return sortByStart([...byId.values()]);
 }
 
 // A team not known yet has a seed of 0 in the feeds, and goes after the one that is, as in the bracket.
@@ -432,6 +435,7 @@ function readNetworkGame(event) {
   const ordered = [...broadcasts.filter(isNational), ...broadcasts.filter(isLocal)];
   return {
     start: competition.date ?? event.date,
+    isTimeSet: competition.timeValid === true,
     home: sides.home,
     away: sides.away,
     networks: [...new Set(ordered.flatMap((broadcast) => broadcast.names ?? []))],
@@ -441,17 +445,38 @@ function readNetworkGame(event) {
 // Until ESPN names both teams, its game could be any of a round's games at that time.
 const hasBothTeams = (networkGame) => !!(networkGame.home?.team && networkGame.away?.team);
 
+const readStartDay = (game) => readEasternDay(Date.parse(game.start)).date;
+const isOnSameDay = (game, espnGame) => readStartDay(game) === readStartDay(espnGame);
+
+// Matched by day rather than by the nearest start, since the league's placeholder start, at midnight
+// Eastern, can be nearer the same teams' game the night before.
+function findEspnStart(game, networkGames) {
+  const timed = networkGames.find(
+    (espnGame) =>
+      espnGame.isTimeSet && isSameMatchup(game, espnGame) && isOnSameDay(game, espnGame),
+  );
+  return timed?.start ?? null;
+}
+
+function addEspnStart(game, networkGames) {
+  if (game.isTimeSet || !game.start) return game;
+  const start = findEspnStart(game, networkGames);
+  return start ? { ...game, start, isTimeSet: true } : game;
+}
+
 /**
- * Where each game is or was on, as far as ESPN knows.
+ * Where each game is or was on, and when one the league hasn't timed yet starts, as far as ESPN
+ * knows.
  * @param {any[]} games
  * @param {any[]} networkGames
  */
-function addNetworks(games, networkGames) {
+function addEspnListings(games, networkGames) {
   const known = networkGames.filter(hasBothTeams);
-  return games.map((game) => ({
-    ...game,
-    networks: findEspnGame(game, known)?.networks ?? [],
-  }));
+  return sortByStart(
+    games
+      .map((game) => addEspnStart(game, known))
+      .map((game) => ({ ...game, networks: findEspnGame(game, known)?.networks ?? [] })),
+  );
 }
 
 /**
@@ -474,7 +499,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     !responses.scoreboard && responses.backup ? responses.backup.games.map(readBackupGame) : [];
   const leagueGames = mergeGames(responses.schedule, responses.scoreboard, season);
   const standIns = matchBackupGames(leagueGames, backupGames);
-  const games = addNetworks(
+  const games = addEspnListings(
     leagueGames.map((game) =>
       standIns.has(game.id) ? applyBackupGame(game, standIns.get(game.id)) : game,
     ),
