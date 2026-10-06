@@ -340,6 +340,6 @@ test.describe("in full motion", () => {
     await release();
 
     await expectShown(sheet);
-    await expect(page.locator("#sheetDialog .sheet-row")).not.toHaveClass(/is-moving/);
+    await expect(page.locator("#sheetDialog .sheet-row")).not.toHaveClass(/is-swiped/);
   });
 });

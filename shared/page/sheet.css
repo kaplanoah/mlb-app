@@ -72,9 +72,8 @@
 .sheet-row::-webkit-scrollbar {
   display: none;
 }
-/* While a finger or a step moves the row, as sheet-edge-swipe.js and sheet.js do, it snaps only once
-   it arrives. */
-.sheet-row.is-moving {
+/* While sheet-edge-swipe.js moves the row with a finger, it snaps only once it comes to rest. */
+.sheet-row.is-swiped {
   scroll-snap-type: none;
 }
 /* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole

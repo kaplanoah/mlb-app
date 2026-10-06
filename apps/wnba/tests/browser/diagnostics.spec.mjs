@@ -187,6 +187,49 @@ for (const [moved, moveViewport] of [
   });
 }
 
+test("with Diagnostics on, a tap that opens a team's sheet from a game's, the row's steps, and going back are logged", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await page
+    .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
+    .click();
+  const teamButton = page
+    .locator("#gameSheet .faceoff")
+    .getByRole("button", { name: "Team details: Indiana Fever" });
+  await teamButton.click();
+  await expect(page.locator("#teamTitle")).toHaveText("Indiana Fever");
+  await page
+    .locator("#teamSheet")
+    .getByRole("button", { name: "Back to Game", exact: true })
+    .click();
+  await expect(page.locator("#teamSheet")).toBeHidden();
+  await page.clock.runFor(2000);
+  await page.keyboard.press("Escape");
+  await openSettings(page);
+
+  const log = findRecords(page).locator(".diagnostics-record", { hasText: "Sheets" });
+  await expect(log).toHaveCount(1);
+  await log.locator("summary").click();
+  const lines = await log.locator("li").allInnerTexts();
+  const steps = lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""));
+  expect(steps).toEqual(
+    expect.arrayContaining([
+      "open gameSheet over the page",
+      "settle on gameSheet",
+      expect.stringMatching(/^click at \d+,\d+ on Team details: Indiana Fever$/),
+      "open teamSheet over gameSheet",
+      expect.stringMatching(/^scroll from 0 to \d+ of \d+, instant$/),
+      "settle on teamSheet",
+      expect.stringMatching(/^let go of teamSheet/),
+      expect.stringMatching(/^row by frame: /),
+    ]),
+  );
+});
+
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);
