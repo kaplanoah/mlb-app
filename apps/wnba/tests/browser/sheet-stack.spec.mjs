@@ -117,7 +117,7 @@ function hasStopOnTheWay(lefts) {
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-  test("every sheet bands its top alike, in the same tint over the same hairline, which a game's face-off draws under its teams", async ({
+  test("no sheet sets its top apart with a tint or a line, so two sheets side by side show no edge where one ends, nor a game's face-off under its teams", async ({
     page,
   }) => {
     await openApp(page);
@@ -125,30 +125,28 @@ test.describe("with reduced motion", () => {
     await teamSheet.getByRole("tab", { name: "Roster" }).click();
     await page.locator("#rosterSection").getByRole("button", { name: "Aliyah Boston" }).click();
     await expect(page.locator("#playerSheet .player-facts")).toBeVisible();
-    // Where each sheet's band ends: a game's runs on through its face-off.
-    const bandEnds = {
-      gameSheet: ".faceoff",
-      teamSheet: ".sheet-top",
-      playerSheet: ".sheet-top",
-    };
 
-    const sheets = await page.locator(".sheet-page").evaluateAll(
-      (pages, ends) =>
-        pages.map((sheet) => {
-          const top = getComputedStyle(sheet.querySelector(".sheet-top"));
-          const end = ends[sheet.id] && getComputedStyle(sheet.querySelector(ends[sheet.id]));
+    const sheets = await page.locator(".sheet-page").evaluateAll((pages) =>
+      pages.map((sheet) => {
+        const sheetColor = getComputedStyle(sheet).backgroundColor;
+        const tops = [...sheet.querySelectorAll(".sheet-top, .faceoff")].map((element) => {
+          const style = getComputedStyle(element);
+          const isClear = style.backgroundColor === "rgba(0, 0, 0, 0)";
           return {
-            id: sheet.id,
-            band: [top.backgroundColor, end?.borderBottomWidth, end?.borderBottomColor],
+            isSheetColor: isClear || style.backgroundColor === sheetColor,
+            border: style.borderBottomWidth,
+            shadow: style.boxShadow,
           };
-        }),
-      bandEnds,
+        });
+        return { id: sheet.id, tops };
+      }),
     );
 
-    expect(sheets.map((sheet) => sheet.id)).toEqual(Object.keys(bandEnds));
-    const [first, ...rest] = sheets;
-    for (const sheet of rest) expect(sheet.band, sheet.id).toEqual(first.band);
-    expect(first.band[1]).toBe("1px");
+    expect(sheets.map((sheet) => sheet.id)).toEqual(["gameSheet", "teamSheet", "playerSheet"]);
+    expect(sheets[0].tops).toHaveLength(2);
+    for (const sheet of sheets)
+      for (const top of sheet.tops)
+        expect(top, sheet.id).toEqual({ isSheetColor: true, border: "0px", shadow: "none" });
   });
 
   test("on a phone, every sheet fills the screen, whatever it holds", async ({ page }) => {
