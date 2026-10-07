@@ -113,9 +113,10 @@ function measureHueGap(first, second) {
 }
 
 test("every team's mark colors stand out on the sheet, each one of its own colors or that color's hue made only as dark or light as standing out needs", () => {
+  assert.match(STYLES, /--sheet: var\(--bg\);/, "a sheet is the floor's color");
   const sheets = {
-    light: readToken(":root", "--card"),
-    dark: readToken(':root[data-theme="dark"]', "--card"),
+    light: readToken(":root", "--bg"),
+    dark: readToken(':root[data-theme="dark"]', "--bg"),
   };
   for (const code of CODES) {
     const { color, color2, markColors } = TEAMS[code];
@@ -138,7 +139,7 @@ test("every team's mark colors stand out on the sheet, each one of its own color
 });
 
 test("a player's sheet hands its curves her team's mark color on each theme", () => {
-  assert.equal(formatMarkColors("NYL"), "--mark-light: #449274; --mark-dark: #87d5b5;");
+  assert.equal(formatMarkColors("NYL"), "--mark-light: #39876b; --mark-dark: #87d5b5;");
 });
 
 test("every pairing of teams, either way round, gets two colors that read apart, on each theme", () => {
