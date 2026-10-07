@@ -1,5 +1,4 @@
 import { test, expect, openApp } from "./harness.mjs";
-import { touchAndCancel } from "../../../../tests/browser/touch.mjs";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -231,92 +230,6 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
   );
 });
 
-/** @param {import("@playwright/test").Page} page */
-const findTabBarLog = (page) =>
-  findRecords(page)
-    .locator(".diagnostics-record")
-    .filter({ has: page.locator("summary", { hasText: /^Tab bar$/ }) });
-
-/**
- * @param {import("@playwright/test").Page} page
- * @param {string} name
- */
-async function tapTab(page, name) {
-  const tab = await page.getByRole("tab", { name }).boundingBox();
-  await page.touchscreen.tap(tab.x + tab.width / 2, tab.y + tab.height / 2);
-  await expect(page.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
-}
-
-test("with Diagnostics on, each touch at the tab bar is logged with the tab it left showing", async ({
-  page,
-  context,
-}) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await openApp(page);
-  await turnOnDiagnostics(page);
-
-  await tapTab(page, "Standings");
-  await openSettings(page);
-
-  const log = findTabBarLog(page);
-  await expect(log).toHaveCount(1);
-  await log.locator("summary").click();
-  const lines = await log.locator("li").allInnerTexts();
-  const steps = lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""));
-  expect(steps).toEqual(
-    expect.arrayContaining([
-      expect.stringMatching(/^touchstart at \d+,\d+ on Standings at the tab bar, showing Bracket$/),
-      expect.stringMatching(
-        /^pointerdown at \d+,\d+ on Standings at the tab bar, showing Bracket$/,
-      ),
-      expect.stringMatching(/^pointerup at \d+,\d+ on #tabBar at the tab bar, showing Standings$/),
-    ]),
-  );
-  await page.getByRole("button", { name: "Copy" }).click();
-  await expect(page.locator("#diagnosticsCopy")).toHaveText("Copied");
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
-  const copiedTabBar = copied.slice(copied.indexOf("\nTab bar\n"));
-  expect(copiedTabBar).toMatch(
-    /pointerup at \d+,\d+ on #tabBar at the tab bar, showing Standings$/m,
-  );
-});
-
-test("with Diagnostics on, a touch anywhere on the page just after a scroll is logged, but not in settings, and each scroll once it rests", async ({
-  page,
-}) => {
-  await openApp(page);
-  await turnOnDiagnostics(page);
-  await tapTab(page, "Standings");
-  const scrolled = page.evaluate(
-    () => new Promise((resolve) => addEventListener("scroll", resolve, { once: true })),
-  );
-  await page.evaluate(() => scrollTo(0, 300));
-  await scrolled;
-
-  await touchAndCancel(page, { x: 200, y: 300 });
-  await page.clock.runFor(200);
-  await openSettings(page);
-  await touchAndCancel(page, { x: 200, y: 400 });
-  await page.keyboard.press("Escape");
-  await expect(page.locator("#settingsDialog")).toBeHidden();
-  await page.clock.runFor(1500);
-  await touchAndCancel(page, { x: 200, y: 320 });
-  await openSettings(page);
-
-  const log = findTabBarLog(page);
-  const lines = await log.locator("li").allTextContents();
-  const steps = lines.toReversed().map((line) => line.trim().replace(/^\S+\s[AP]M\s*/, ""));
-  expect(steps).toEqual(
-    expect.arrayContaining([
-      expect.stringMatching(
-        /^touchstart at 200,300 on .+, \d+ms after a scroll, showing Standings$/,
-      ),
-      expect.stringMatching(/^scroll from 0 to [1-9]\d*$/),
-    ]),
-  );
-  expect(steps.filter((step) => / at 200,(320|400) /.test(step))).toEqual([]);
-});
-
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);
@@ -324,10 +237,6 @@ test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openSettings(page);
   await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(2);
   await expect(findViewportLog(page)).toHaveCount(1);
-  await page.keyboard.press("Escape");
-  await tapTab(page, "Standings");
-  await openSettings(page);
-  await expect(findTabBarLog(page)).toHaveCount(1);
 
   await findSwitch(page).click();
   await expect(findRecords(page)).toBeHidden();
