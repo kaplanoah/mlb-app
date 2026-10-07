@@ -414,13 +414,15 @@ function renderRegularSeason(team, season, isPastSeason) {
       ${renderCurve(stat, isFewestFirst)}${renderRank(stat)}
     </div>`;
   });
-  const hasTurnovers = shown.some(({ isFewestFirst }) => isFewestFirst);
+  const isRankedInTurnovers = season.stats.some(
+    (stat) => stat.key === "turnovers" && stat.rank != null,
+  );
   return renderSheetPart(
     "Regular season",
     html`<div class="player-ranks" style="${formatMarkColors(team)}">
       ${rows}
       <div class="player-rank-notes">
-        ${hasTurnovers && html`<p class="player-rank-note">Turnovers ranked by fewest</p>`}
+        ${isRankedInTurnovers && html`<p class="player-rank-note">Turnovers ranked by fewest</p>`}
         <p class="player-rank-note">${describeRankNote(season, isPastSeason)}</p>
       </div>
     </div>`,
