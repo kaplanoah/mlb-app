@@ -1707,10 +1707,24 @@ test("on a phone, a tap slides the tab bar's pill to its tab, and then nothing a
   await page.setViewportSize(PHONE);
   await openApp(page);
   const pill = page.locator(".tab-pill");
+  // A loaded machine can see the slide end before it looks, so the pill notes each transition.
+  await pill.evaluate((element) => {
+    const transitions = /** @type {string[]} */ ([]);
+    for (const type of ["transitionrun", "transitionend", "transitioncancel"]) {
+      element.addEventListener(type, (event) =>
+        transitions.push(`${type} ${/** @type {TransitionEvent} */ (event).propertyName}`),
+      );
+    }
+    Object.assign(window, { pillTransitions: transitions });
+  });
+  const readPillTransitions = () =>
+    page.evaluate(() => /** @type {any} */ (window).pillTransitions);
 
   await page.getByRole("tab", { name: "Games" }).click();
 
-  expect(await pill.evaluate((element) => element.getAnimations().length)).toBe(1);
+  await expect
+    .poll(readPillTransitions)
+    .toEqual(["transitionrun transform", "transitionend transform"]);
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   const pillBox = await pill.boundingBox();
   const tabBox = await page.getByRole("tab", { name: "Games" }).boundingBox();
