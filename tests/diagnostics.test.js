@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  countSecondsLeft,
   describeDevice,
   describeLoad,
   describeOpenSheets,
   describeTimeAway,
+  nameRecordButton,
   writeHeader,
   writeRecordsAsText,
 } from "../shared/page/diagnostics.js";
@@ -80,9 +82,19 @@ const IPHONE_SAFARI =
 const IPHONE_HOME_SCREEN =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 
-test("a device names an iPhone's iOS version, Safari version, and WebKit build", () => {
-  assert.equal(describeDevice(IPHONE_SAFARI), "iPhone, iOS 18.6.2, Safari 18.6, WebKit 605.1.15");
-  assert.equal(describeDevice(IPHONE_HOME_SCREEN), "iPhone, iOS 18.6.2, WebKit 605.1.15");
+const IPHONE_IOS_26 =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
+
+test("a device names an iPhone's Safari version and WebKit build, and the iOS version only as what Safari reports", () => {
+  assert.equal(
+    describeDevice(IPHONE_IOS_26),
+    "iPhone, Safari 26.0, WebKit 605.1.15, reports iOS 18.7",
+  );
+  assert.equal(
+    describeDevice(IPHONE_SAFARI),
+    "iPhone, Safari 18.6, WebKit 605.1.15, reports iOS 18.6.2",
+  );
+  assert.equal(describeDevice(IPHONE_HOME_SCREEN), "iPhone, WebKit 605.1.15, reports iOS 18.6.2");
   assert.equal(
     describeDevice("Mozilla/5.0 (X11; Linux x86_64)"),
     "Mozilla/5.0 (X11; Linux x86_64)",
@@ -111,7 +123,7 @@ test("the copied text opens with the release, the device, and the page's state",
       normalizeSpaces(writeHeader(PAGE_FACTS)),
       [
         "WNBA v2.27.13 commit abc1234",
-        "Device: iPhone, iOS 18.6.2, WebKit 605.1.15",
+        "Device: iPhone, WebKit 605.1.15, reports iOS 18.6.2",
         "Runs from the Home Screen",
         "Viewport 390x844 at 3x",
         "Reduced motion off",
@@ -152,4 +164,25 @@ test("a record on request lists each open sheet and which one its dialog shows",
     ["Sheet sheetDialog", "Sheet teamSheet, shown", "Sheet settingsDialog, shown"],
   );
   assert.deepEqual(describeOpenSheets([]), ["No sheets open"]);
+});
+
+test("a record counts down the whole seconds it has left, from 5 to 1, then none", () => {
+  assert.equal(countSecondsLeft(0), 5);
+  assert.equal(countSecondsLeft(999), 5);
+  assert.equal(countSecondsLeft(1000), 4);
+  assert.equal(countSecondsLeft(4001), 1);
+  assert.equal(countSecondsLeft(5000), 0);
+  assert.equal(countSecondsLeft(6000), 0);
+});
+
+test("the record button says Record, counts down while recording, then offers the report and says it went", () => {
+  const idle = { secondsLeft: 0, reportStep: null, isTouch: true };
+  assert.equal(nameRecordButton(idle), "Record");
+  assert.equal(nameRecordButton({ ...idle, secondsLeft: 5 }), "Recording 5");
+  assert.equal(nameRecordButton({ ...idle, secondsLeft: 1 }), "Recording 1");
+  assert.equal(nameRecordButton({ ...idle, reportStep: "ready" }), "Share report");
+  assert.equal(nameRecordButton({ ...idle, reportStep: "ready", isTouch: false }), "Copy report");
+  assert.equal(nameRecordButton({ ...idle, reportStep: "shared" }), "Shared");
+  assert.equal(nameRecordButton({ ...idle, reportStep: "copied" }), "Copied");
+  assert.equal(nameRecordButton({ ...idle, secondsLeft: 3, reportStep: "ready" }), "Recording 3");
 });

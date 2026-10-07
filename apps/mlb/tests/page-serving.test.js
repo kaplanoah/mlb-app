@@ -34,12 +34,13 @@ test("the page asks nothing of other sites before it draws, and serves its own f
   assert.equal(font.headers.get("content-type"), "font/woff2");
 });
 
-test("the page links the shared chrome before its own styles, so its own rules win ties", async () => {
+test("the page links the shared chrome, then Diagnostics, before its own styles, so its own rules win ties", async () => {
   const page = await (await requestPage("/k3y/")).text();
   const chromeAt = page.indexOf('<link rel="stylesheet" href="shared/chrome.css" />');
+  const diagnosticsAt = page.indexOf('<link rel="stylesheet" href="shared/diagnostics.css" />');
   const stylesAt = page.indexOf('<link rel="stylesheet" href="styles.css" />');
-  assert.ok(chromeAt !== -1 && stylesAt !== -1);
-  assert.ok(chromeAt < stylesAt);
+  assert.ok(chromeAt !== -1 && diagnosticsAt !== -1 && stylesAt !== -1);
+  assert.ok(chromeAt < diagnosticsAt && diagnosticsAt < stylesAt);
 });
 
 test("every response keeps the address out of search engines and referrers", async () => {
@@ -72,6 +73,13 @@ test("the page's files are served with their types, and the icon as PNG bytes", 
   assert.equal(
     await chrome.text(),
     readFileSync(`${import.meta.dirname}/../../../shared/page/chrome.css`, "utf8"),
+  );
+
+  const diagnostics = await requestPage("/k3y/shared/diagnostics.css");
+  assert.equal(diagnostics.headers.get("content-type"), "text/css; charset=utf-8");
+  assert.equal(
+    await diagnostics.text(),
+    readFileSync(`${import.meta.dirname}/../../../shared/page/diagnostics.css`, "utf8"),
   );
 
   const icon = await requestPage("/k3y/icon-180.png");

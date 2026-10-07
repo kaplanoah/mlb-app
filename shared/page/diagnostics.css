@@ -1,0 +1,141 @@
+/*
+ * The Diagnostics switch and records at the very end of settings. Apps link it right after
+ * chrome.css, which sets the settings' --bottom-padding, and before their own styles.css, which may
+ * refine these rules.
+ *
+ * An app's :root defines these tokens:
+ *   --card, --card-border, --divider    a record's color, its edge, and the line under its summary
+ *   --ink, --ink-mid, --ink-dim         text, from brightest to dimmest
+ *   --accent, --accent-ink              the report button, a dip, and text on the button
+ *   --radius-card                       a record's corners
+ *   --radius-control                    a button's corners
+ */
+/*
+ * Diagnostics sit just past the end of settings, out of the sheet's height, so only someone who
+ * scrolls past the copyright finds them. While on, the records of recent opens list under the
+ * switch.
+ */
+.settings-body {
+  position: relative;
+}
+.diagnostics-area {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 10px;
+  padding: 0 22px var(--bottom-padding);
+}
+.diagnostics {
+  display: grid;
+  gap: 8px;
+}
+.diagnostics[hidden] {
+  display: none;
+}
+.diagnostics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.diagnostics-head h3 {
+  margin: 0;
+  font-size: var(--size-read);
+  font-weight: 500;
+}
+.diagnostics-actions {
+  display: flex;
+  gap: 8px;
+}
+.diagnostics-button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-border);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--size-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* Once a record on request ends, sending it is the one thing to tap next, so it's filled. */
+.diagnostics-button.diagnostics-report {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--accent-ink);
+}
+.diagnostics-button:disabled {
+  color: var(--ink-mid);
+}
+.diagnostics-empty {
+  margin: 0;
+  font-size: var(--size-glance);
+  color: var(--ink-dim);
+}
+.diagnostics-record {
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+.diagnostics-record summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: var(--size-glance);
+  cursor: pointer;
+  list-style: none;
+}
+.diagnostics-record summary::-webkit-details-marker {
+  display: none;
+}
+.diagnostics-when {
+  min-width: 0;
+}
+.diagnostics-flag {
+  flex: none;
+  font-size: var(--size-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+.diagnostics-flag.dip,
+.diagnostics-lines .diagnostics-dip {
+  color: var(--accent);
+}
+.diagnostics-lines {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--divider);
+  list-style: none;
+  font-size: var(--size-small);
+  color: var(--ink-mid);
+  overflow-wrap: anywhere;
+}
+.diagnostics-lines li {
+  display: grid;
+  grid-template-columns: 5ch 1fr;
+  gap: 10px;
+}
+.diagnostics-viewport li {
+  grid-template-columns: auto 1fr;
+}
+.diagnostics-ms {
+  text-align: right;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 779px) {
+  .diagnostics-area {
+    padding-inline: 18px;
+  }
+}
