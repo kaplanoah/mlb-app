@@ -76,9 +76,11 @@
   scroll-snap-type: none;
 }
 /* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole
-   sheet. */
+   sheet. Each sheet is a layer of its own, as each section is: iOS lays out what a row that scrolls
+   sideways holds but can leave it undrawn, while it draws every layer inside the row. */
 .sheet-page {
   position: relative;
+  will-change: transform;
   flex: 0 0 100%;
   min-width: 0;
   overflow: hidden auto;
@@ -122,6 +124,7 @@
   scroll-snap-type: none;
 }
 .sheet-section {
+  will-change: transform;
   flex: 0 0 100%;
   min-width: 0;
   overflow: hidden auto;
