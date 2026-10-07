@@ -1,7 +1,7 @@
 // The sheet every game opens, from its row or an update about it, in two sections under pills:
-// Game, the game's row with its score and status as the store updates them, then its starters on
-// one line that slides to Matchup, which sets the two face to face (matchup.js). Phones show it
-// over the whole screen, wider screens as a modal, like Settings.
+// Game, the game's row with its score and status as the store updates them, where to watch it, and
+// its starters on one line that slides to Matchup, which sets the two face to face (matchup.js).
+// Phones show it over the whole screen, wider screens as a modal, like Settings.
 
 import { renderTeamDot } from "./clubs.js";
 import {
@@ -15,6 +15,7 @@ import {
 import { watchGameOpens } from "#shared/game-row.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { isLoadingSide, listSides, loadSide, renderMatchupBody } from "./matchup.js";
+import { renderNetworks } from "#shared/network-logos.js";
 import { session } from "./session.js";
 import { wireSheetSections } from "#shared/sheet-sections.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
@@ -77,12 +78,25 @@ function renderStarters(sides) {
   </button>`;
 }
 
+// Only a game still to be played says where it's on.
+/** @param {MatchupGame} game */
+const renderWhereToWatch = (game) =>
+  game.state === "pre" || game.state === "live" ? renderNetworks(game.networks ?? []) : html``;
+
+/**
+ * The Game section: the game's row, where to watch it, and its starters.
+ * @param {MatchupGame} game
+ * @param {any[]} sides
+ */
+export const renderGameBody = (game, sides) =>
+  html`${renderGameFaceOff(game)}${renderWhereToWatch(game)}${renderStarters(sides)}`;
+
 function renderSheet() {
   if (!shown) return;
   const game = readCurrentGame(shown.game);
   setHtml(findElement("gameTitle"), nameGame(game));
   setHtml(findElement("gameWhen"), renderWhen(game));
-  setHtml(findElement("gameBody"), html`${renderGameFaceOff(game)}${renderStarters(shown.sides)}`);
+  setHtml(findElement("gameBody"), renderGameBody(game, shown.sides));
   const matchup = findElement("matchupBody");
   setHtml(matchup, renderMatchupBody(game, shown.sides));
   matchup.setAttribute("aria-busy", String(shown.sides.some((side) => isLoadingSide(side, game))));
