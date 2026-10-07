@@ -1096,9 +1096,10 @@ table.players td.quiet-stat {
 }
 
 /* A team's Roster section scrolls both ways on its own, stopping at its edges without springing
-   past them, while its note and the coach stay across its width, and each player's number and
-   name stay at its left. The column names stop at its top. Its sides are its table's, since a
-   sticky cell's offset counts from inside the section's own padding. */
+   past them, while its note and the coach stay across its width, and the table of each player's
+   number and name stays at its left as one box, since a box for each cell stuck in a scroller
+   gives each a layer of its own. The column names stop at its top. Its sides are its tables',
+   since a sticky box's offset counts from inside the section's own padding. */
 #rosterSection {
   overflow: auto;
   overscroll-behavior: none;
@@ -1106,7 +1107,6 @@ table.players td.quiet-stat {
   padding-inline: 0;
   --roster-number-width: 22px;
   --roster-number-gap: 11px;
-  --roster-name-left: calc(18px + var(--roster-number-width) + var(--roster-number-gap));
   --roster-name-gap: 10px;
 }
 #rosterBody {
@@ -1131,6 +1131,12 @@ table.players td.quiet-stat {
 table.roster {
   border-collapse: separate;
   border-spacing: 0;
+}
+/* The two tables' rows are each as tall as a two-line name with an Out chip, so they line up. */
+.roster-tables {
+  --roster-row-height: 50px;
+  display: flex;
+  align-items: flex-start;
 }
 /* Once it sticks, the column names sit just under the sheet's top, the line over them tucked up
    out of sight. */
@@ -1162,8 +1168,11 @@ table.roster .roster-bands th {
   padding-bottom: 2px;
   text-align: left;
 }
-table.roster tbody tr:has(.player-open) {
+table.roster tbody tr[data-player-row] {
   cursor: pointer;
+}
+table.roster tbody tr {
+  height: var(--roster-row-height);
 }
 table.roster tbody td,
 table.roster tbody th {
@@ -1171,6 +1180,9 @@ table.roster tbody th {
   border-top: 1px solid var(--divider);
   vertical-align: middle;
   white-space: nowrap;
+}
+table.roster tbody tr:first-child {
+  height: calc(var(--roster-row-height) - 1px);
 }
 table.roster tbody tr:first-child > * {
   border-top: 0;
@@ -1202,17 +1214,19 @@ table.roster .roster-season-start {
   padding-left: 16px;
   border-left: 1px solid var(--divider);
 }
-/* Each player's number and name stay at the left while the rest scrolls under them. */
-table.roster .roster-number,
-table.roster .roster-player {
+/* The numbers and names stay at the left while the rest scrolls under them, the sheet's own side
+   beside them covering what scrolls under it. */
+table.roster-pinned {
   position: sticky;
-  z-index: 1;
+  left: 0;
+  z-index: 4;
+  margin-left: -18px;
+  padding-left: 18px;
   background: var(--sheet);
 }
 /* A cell's width takes in its padding, so the number column is exactly as wide as the room the
    pinned names leave for it. */
 table.roster .roster-number {
-  left: 18px;
   width: calc(var(--roster-number-width) + var(--roster-number-gap));
   padding-left: 0;
   padding-right: var(--roster-number-gap);
@@ -1222,19 +1236,10 @@ table.roster td.roster-number {
   font-weight: 400;
   color: color-mix(in srgb, var(--ink-dim) 65%, var(--sheet));
 }
-/* The sheet's own side beside the number covers what scrolls under it. */
-table.roster .roster-number::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  bottom: 0;
-  left: -18px;
-  width: 18px;
-  background: var(--sheet);
-}
 /* The line at the names' edge keeps clear of the longest name and its Out chip. */
 table.roster .roster-player {
-  left: var(--roster-name-left);
+  position: relative;
+  background: var(--sheet);
   padding-left: 0;
   padding-right: var(--roster-name-gap);
   text-align: left;
@@ -1269,7 +1274,10 @@ table.roster tbody th.roster-player {
   font-weight: 400;
   color: var(--ink-mid);
 }
+/* A last name's line is one line tall, so an Out chip, which rises a little past it, doesn't make
+   its row taller than the rest. */
 .roster-last {
+  height: 1lh;
   font-size: var(--size-read);
   font-weight: 600;
   color: var(--ink);

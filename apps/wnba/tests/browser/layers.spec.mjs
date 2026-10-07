@@ -12,7 +12,9 @@ const BUDGETS = {
   Standings: 11,
   News: 8,
   "Team sheet, Team": 16,
-  "Team sheet, Roster": 52,
+  // The roster's numbers and names stay put as one table rather than two cells a player, each a
+  // layer of its own.
+  "Team sheet, Roster": 20,
   "Team sheet over the game's": 15,
 };
 

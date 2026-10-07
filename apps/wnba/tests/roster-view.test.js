@@ -53,6 +53,29 @@ const readFacts = (markup) => stripTags(markup).replace(/&bull;/g, " | ");
 const listLastNames = (markup) =>
   [...markup.matchAll(/<span class="roster-last">([^<]+)/g)].map((match) => match[1]);
 
+/**
+ * The text of each plain cell in the row with a key.
+ * @param {string} markup
+ * @param {string} key
+ */
+function readCells(markup, key) {
+  const row = markup.slice(markup.indexOf(`data-key="${key}"`));
+  return [...row.slice(0, row.indexOf("</tr>")).matchAll(/<td[^>]*>([^<]*)/g)].map((cell) =>
+    convertToText(new Markup(cell[1])),
+  );
+}
+
+/**
+ * Whose row each row of a roster's table is, in its order.
+ * @param {string} markup
+ * @param {string} table the table's class
+ */
+function listRowPlayers(markup, table) {
+  const start = markup.indexOf(`class="roster ${table}`);
+  const rows = markup.slice(start, markup.indexOf("</table>", start));
+  return [...rows.matchAll(/data-player-row="([^"]+)"/g)].map((match) => match[1]);
+}
+
 test("each player on the roster has her averages from the league, or none before she's played", () => {
   const rows = matchAverages(LIBERTY.players, AVERAGES);
   const findRow = (lastName) => rows.find((row) => row.lastName === lastName);
@@ -121,10 +144,8 @@ test("the roster lists its players by last name with their facts, their points, 
   assert.match(markup, /<span class="roster-country">France<\/span>/);
   assert.match(markup, /scope="colgroup">Per game</);
   assert.match(markup, /class="roster-player" aria-sort="ascending"/);
-  const stewart = markup.slice(markup.indexOf('data-key="1627668"'));
-  const cells = [...stewart.slice(0, stewart.indexOf("</tr>")).matchAll(/<td[^>]*>([^<]*)/g)];
   assert.deepEqual(
-    cells.map((cell) => convertToText(new Markup(cell[1]))),
+    [...readCells(markup, "1627668"), ...readCells(markup, "1627668:facts")],
     ["30", "F", `6'4"`, "Connecticut", "32", "2016", "42", "32.9", "20.8", "8.3", "3.3"],
   );
   assert.doesNotMatch(markup, /Steals|Blocks/);
@@ -150,4 +171,19 @@ test("while the roster loads, stand-ins hold its shape, and a roster that didn't
     renderText({ roster: null, isLoading: false }),
     /Couldn&#39;t load the roster\. Close and try again in a minute\./,
   );
+});
+
+test("the pinned table of numbers and names holds the same players in the same order as the table of facts beside it, whatever the sort", () => {
+  for (const sort of [DEFAULT_SORT, { key: "points", isDescending: true }]) {
+    const markup = renderText({ sort });
+    const pinned = listRowPlayers(markup, "roster-pinned");
+    assert.equal(pinned.length, 15);
+    assert.deepEqual(listRowPlayers(markup, "roster-facts"), pinned);
+  }
+  const loading = renderText({ roster: null, isLoading: true });
+  const countRows = (table) => {
+    const start = loading.indexOf(`class="roster ${table}`);
+    return loading.slice(start, loading.indexOf("</table>", start)).match(/<tr>/g)?.length;
+  };
+  assert.equal(countRows("roster-pinned"), countRows("roster-facts"));
 });
