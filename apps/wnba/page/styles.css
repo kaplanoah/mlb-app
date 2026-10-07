@@ -775,7 +775,7 @@ header.top h1 {
   --faceoff-teams-drop: 4px;
   --faceoff-status-gap: 2px;
   --faceoff-watch-gap: 12px;
-  --faceoff-bonus-gap: 4px;
+  --faceoff-bonus-gap: 7px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   grid-template-areas:
