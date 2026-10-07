@@ -1,0 +1,55 @@
+// Each app has a Worker per channel. Production deploys from main. Beta deploys from the beta
+// branch, so a change can be used on a phone before it merges, with its own store, key, and
+// address, from the environment of the same name in the app's wrangler.toml.
+import { parseArgs } from "node:util";
+
+/** @typedef {{ branch: string, environment: string | null, label: string | null, howToShip: string }} Channel */
+
+/** @type {Record<string, Channel>} */
+const CHANNELS = {
+  production: {
+    branch: "main",
+    environment: null,
+    label: null,
+    howToShip: "Merge through a pull request",
+  },
+  beta: {
+    branch: "beta",
+    environment: "beta",
+    label: "beta",
+    howToShip: "Push it with git push -f origin <branch>:beta",
+  },
+};
+
+/**
+ * @param {string} [name]
+ * @returns {Channel}
+ */
+export function findChannel(name = "production") {
+  if (Object.hasOwn(CHANNELS, name)) return CHANNELS[name];
+  throw new Error(
+    `There's no channel named ${name}. The channels are: ${Object.keys(CHANNELS).join(", ")}.`,
+  );
+}
+
+/**
+ * A command's arguments: its app and anything else it names, its own switches, and the channel
+ * `--channel` names, production when it names none.
+ * @param {string[]} args
+ * @param {Record<string, { type: "boolean" }>} [switches]
+ * @returns {{ positionals: string[], flags: Record<string, boolean | undefined>, channel: string }}
+ */
+export function readCommandLine(args, switches = {}) {
+  const { values, positionals } = parseArgs({
+    args,
+    options: { ...switches, channel: { type: "string" } },
+    allowPositionals: true,
+  });
+  const { channel = "production", ...flags } = values;
+  findChannel(String(channel));
+  return {
+    positionals,
+    flags: /** @type {Record<string, boolean | undefined>} */ (flags),
+    channel: String(channel),
+  };
+}

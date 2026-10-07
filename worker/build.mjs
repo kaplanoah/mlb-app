@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { findAppRoot, findPageRoot, listAppsOrExit } from "./apps.mjs";
+import { findChannel, readCommandLine } from "./channels.mjs";
 import { pinPageFiles, readPageFiles } from "./page-files.mjs";
 import { readVersion } from "./release.mjs";
 
@@ -16,28 +17,92 @@ const describeBanner = (app) =>
 
 const runGit = (args) => execFileSync("git", args, { cwd: fileURLToPath(root), encoding: "utf8" });
 
+// A branch on another channel hasn't merged, so its version is main's where the branch left it.
+/** @param {(args: string[]) => string} git */
+function readBranchBase(git) {
+  try {
+    return git(["merge-base", "HEAD", `origin/${findChannel().branch}`]).trim();
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Names the commit being built and the app's version, for the page's settings. Only deploys go
- * live, so the build time is the deploy time.
+ * Names the commit being built and the app's version, for the page's settings, with the channel's
+ * label on the version of any but production. Only deploys go live, so the build time is the
+ * deploy time.
  * @param {string} app
+ * @param {(args: string[]) => string} [git]
+ * @param {Date} [now]
+ * @param {string} [channel]
  * @returns {{ version: string | null, commit: string, builtAt: string } | null}
  */
-export function readRelease(app, git = runGit, now = new Date()) {
+export function readRelease(app, git = runGit, now = new Date(), channel = "production") {
   let commit;
   try {
     commit = git(["log", "-1", "--format=%h"]).trim();
   } catch {
     return null;
   }
-  return { version: readVersion(app, git), commit, builtAt: now.toISOString() };
+  const builtAt = now.toISOString();
+  const { label } = findChannel(channel);
+  if (!label) return { version: readVersion(app, git), commit, builtAt };
+  const base = readBranchBase(git);
+  const version = base && readVersion(app, git, base);
+  return { version: `${version ?? commit}-${label}`, commit, builtAt };
+}
+
+const HOME_SCREEN_TITLE = /(<meta name="apple-mobile-web-app-title" content=")([^"]+)(")/;
+
+/**
+ * @param {{ contentType: string, text?: string, base64?: string }} file
+ * @param {string} label
+ */
+function labelManifest(file, label) {
+  const manifest = JSON.parse(file.text ?? "{}");
+  const text = JSON.stringify({
+    ...manifest,
+    name: `${manifest.name} ${label}`,
+    short_name: `${manifest.short_name} ${label}`,
+  });
+  return { ...file, text };
+}
+
+/**
+ * @param {{ contentType: string, text?: string, base64?: string }} file
+ * @param {string} label
+ */
+const labelHomeScreenTitle = (file, label) => ({
+  ...file,
+  text: file.text?.replace(
+    HOME_SCREEN_TITLE,
+    (_tag, start, title, end) => `${start}${title} ${label}${end}`,
+  ),
+});
+
+/**
+ * The page files with the channel's label on the name the Home Screen gives the page, so a phone
+ * with both channels tells them apart.
+ * @param {ReturnType<typeof readPageFiles>} files
+ * @param {string | null} label
+ */
+export function labelChannelFiles(files, label) {
+  if (!label) return files;
+  const labeled = Object.entries(files).map(([path, file]) => {
+    if (path === "manifest.webmanifest") return [path, labelManifest(file, label)];
+    if (path.endsWith(".html")) return [path, labelHomeScreenTitle(file, label)];
+    return [path, file];
+  });
+  return Object.fromEntries(labeled);
 }
 
 /**
  * @param {string} app
  * @param {ReturnType<typeof readRelease>} release
+ * @param {string} [channel]
  */
-export function listBundledFiles(app, release) {
-  const files = readPageFiles(findPageRoot(app));
+export function listBundledFiles(app, release, channel = "production") {
+  const files = labelChannelFiles(readPageFiles(findPageRoot(app)), findChannel(channel).label);
   if (!release) return files;
   return {
     ...pinPageFiles(files, release.commit),
@@ -47,7 +112,7 @@ export function listBundledFiles(app, release) {
 
 // Node reads the page from disk through #page-files/<app>; the Worker has no disk, so the build
 // embeds it.
-const embedPageFiles = (app, release) => ({
+const embedPageFiles = (app, release, channel) => ({
   name: "embed-page-files",
   setup(bundler) {
     bundler.onResolve({ filter: new RegExp(`^#page-files/${app}$`) }, () => ({
@@ -55,7 +120,7 @@ const embedPageFiles = (app, release) => ({
       namespace: "page-files",
     }));
     bundler.onLoad({ filter: /.*/, namespace: "page-files" }, () => ({
-      contents: `export default ${JSON.stringify(listBundledFiles(app, release))};`,
+      contents: `export default ${JSON.stringify(listBundledFiles(app, release, channel))};`,
       loader: "js",
     }));
   },
@@ -63,9 +128,12 @@ const embedPageFiles = (app, release) => ({
 
 /**
  * @param {string} app
- * @param {{ release?: ReturnType<typeof readRelease> }} [options]
+ * @param {{ channel?: string, release?: ReturnType<typeof readRelease> }} [options]
  */
-export async function buildWorker(app, { release = readRelease(app) } = {}) {
+export async function buildWorker(
+  app,
+  { channel = "production", release = readRelease(app, undefined, undefined, channel) } = {},
+) {
   const result = await build({
     entryPoints: [fileURLToPath(new URL("worker/src/index.js", findAppRoot(app)))],
     bundle: true,
@@ -73,7 +141,7 @@ export async function buildWorker(app, { release = readRelease(app) } = {}) {
     platform: "neutral",
     target: "es2022",
     banner: { js: describeBanner(app) },
-    plugins: [embedPageFiles(app, release)],
+    plugins: [embedPageFiles(app, release, channel)],
     write: false,
   });
   return result.outputFiles[0].text;
@@ -81,8 +149,9 @@ export async function buildWorker(app, { release = readRelease(app) } = {}) {
 
 // With no app named, builds them all.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  for (const app of listAppsOrExit(process.argv[2])) {
-    const built = await buildWorker(app);
+  const { positionals, channel } = readCommandLine(process.argv.slice(2));
+  for (const app of listAppsOrExit(positionals[0])) {
+    const built = await buildWorker(app, { channel });
     const output = findOutput(app);
     mkdirSync(path.dirname(output), { recursive: true });
     writeFileSync(output, built);

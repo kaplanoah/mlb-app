@@ -10,7 +10,9 @@
       "Bash(node worker/set-app-key.mjs *)",
       "Bash(node worker/set-app-key.mjs)",
       "Bash(node worker/set-access-code.mjs *)",
-      "Bash(node worker/set-access-code.mjs)"
+      "Bash(node worker/set-access-code.mjs)",
+      "Bash(node worker/rollback.mjs *)",
+      "Bash(node worker/rollback.mjs)"
     ]
   }
 }

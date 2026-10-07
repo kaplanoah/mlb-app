@@ -155,18 +155,19 @@ const readMerges = (log) =>
 // --no-renames, a file moved out of an app's page/ lists only where it went.
 /**
  * The app's version at HEAD, from the merges on main's first-parent history since its baseline
- * that change what the app's deploy counts.
+ * that change what the app's deploy counts, or at the commit `head` names.
  * @param {string} app
  * @param {(args: string[]) => string} git
+ * @param {string} [head] the commit to read the version at
  * @returns {string | null} null when HEAD's history doesn't reach the baseline
  */
-export function readVersion(app, git) {
+export function readVersion(app, git, head = "HEAD") {
   let baseline;
   let log;
   try {
     baseline = findBaseline(app, git);
     if (!baseline) return null;
-    git(["merge-base", "--is-ancestor", baseline.commit, "HEAD"]);
+    git(["merge-base", "--is-ancestor", baseline.commit, head]);
     log = git([
       "log",
       "--first-parent",
@@ -175,7 +176,7 @@ export function readVersion(app, git) {
       "--name-only",
       "--diff-merges=first-parent",
       "--no-renames",
-      `${baseline.commit}..HEAD`,
+      `${baseline.commit}..${head}`,
     ]);
   } catch {
     return null;

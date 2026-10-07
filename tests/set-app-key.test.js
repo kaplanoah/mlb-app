@@ -63,3 +63,18 @@ test("keys are long, random, and safe in an address", () => {
   assert.equal(keys.size, 20);
   for (const key of keys) assert.match(key, /^[A-Za-z0-9_-]{32}$/);
 });
+
+test("the beta channel's key goes to the beta Worker, whose address it prints", async () => {
+  const cloudflare = createFakeCloudflare();
+  const url = await setAppKey({
+    app: "mlb",
+    channel: "beta",
+    fetchImpl: cloudflare.fetchImpl,
+    env: ENV,
+    log: () => {},
+    makeKey: () => "n3wkey",
+  });
+  assert.equal(url, "https://mlb-app-beta.example-subdomain.workers.dev/n3wkey/");
+  const put = cloudflare.calls.find((call) => call.init.method === "PUT");
+  assert.equal(put.url, `${API}/scripts/mlb-app-beta/secrets`);
+});

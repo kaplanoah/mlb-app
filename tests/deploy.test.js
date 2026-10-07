@@ -84,6 +84,47 @@ test("the name and compatibility date come from wrangler.toml", async () => {
   assert.throws(() => readWorkerConfig('name = "x"'), /compatibility_date/);
 });
 
+test("the beta channel's Worker is named by its environment, with the top level's date", async () => {
+  const { readAppWorkerConfig, readWorkerConfig } = await loadDeployModule();
+  for (const app of ["mlb", "wnba"])
+    assert.deepEqual(readAppWorkerConfig(app, "beta"), {
+      name: `${app}-app-beta`,
+      compatibilityDate: "2026-09-01",
+    });
+  const toml = 'name = "x"\ncompatibility_date = "2026-09-01"\n';
+  assert.deepEqual(readWorkerConfig(toml), { name: "x", compatibilityDate: "2026-09-01" });
+  assert.throws(() => readWorkerConfig(toml, "beta"), /\[env\.beta\] with a name/);
+  assert.throws(() => readWorkerConfig(toml, "staging"), /no channel named staging/);
+});
+
+test("a beta deploy uploads to the beta Worker, with the same bindings", async () => {
+  const { deploy } = await loadDeployModule();
+  const cloudflare = createFakeCloudflare({ isNew: true });
+  const url = await deploy({
+    app: "mlb",
+    channel: "beta",
+    fetchImpl: cloudflare.fetchImpl,
+    env: ENV,
+    script: "export default {}",
+    commit: NEW_COMMIT,
+    log: () => {},
+    pause: skipPause,
+  });
+  assert.equal(url, "https://mlb-app-beta.example-subdomain.workers.dev/");
+  const apiCalls = describeCalls(cloudflare.calls).filter((call) => call.includes("/scripts/"));
+  assert.ok(
+    apiCalls.every((call) => call.includes("/scripts/mlb-app-beta")),
+    apiCalls.join("\n"),
+  );
+  const upload = cloudflare.calls.find((call) => call.init.method === "PUT");
+  const metadata = JSON.parse(await upload.init.body.get("metadata").text());
+  assert.deepEqual(
+    metadata.bindings.map((binding) => binding.name),
+    ["STORE", "ACCESS_LIMIT"],
+  );
+  assert.deepEqual(metadata.migrations.new_tag, "v1");
+});
+
 test("upload, route, and the Worker URL", async () => {
   const { deploy } = await loadDeployModule();
   const cloudflare = createFakeCloudflare();
@@ -232,6 +273,14 @@ test("each app's wrangler.toml declares the same bindings and migrations", async
     assert.match(
       toml,
       /\[\[ratelimits\]\]\nname = "ACCESS_LIMIT"\nnamespace_id = "2701"\n\n\[ratelimits\.simple\]\nlimit = 10\nperiod = 60/,
+    );
+    assert.match(
+      toml,
+      /\[\[env\.beta\.durable_objects\.bindings\]\]\nname = "STORE"\nclass_name = "SeasonStore"/,
+    );
+    assert.match(
+      toml,
+      /\[\[env\.beta\.ratelimits\]\]\nname = "ACCESS_LIMIT"\nnamespace_id = "2701"\n\n\[env\.beta\.ratelimits\.simple\]\nlimit = 10\nperiod = 60/,
     );
     for (const { tag, new_sqlite_classes: classes } of MIGRATIONS) {
       const declared = `[[migrations]]\ntag = "${tag}"\nnew_sqlite_classes = ${JSON.stringify(classes)}`;
@@ -553,7 +602,7 @@ function createFakeGit({
 test("a release is clean and exactly what GitHub has as main, on any branch", async () => {
   const { checkRelease } = await loadDeployModule();
   const cleanMain = createFakeGit();
-  const release = { commit: "a".repeat(40), newerMain: null };
+  const release = { commit: "a".repeat(40), newer: null };
   assert.deepEqual(checkRelease(cleanMain.git), release);
   assert.ok(
     cleanMain.asked.includes("fetch --quiet origin main"),
@@ -567,7 +616,7 @@ test("a release is clean and exactly what GitHub has as main, on any branch", as
 test("a merged commit that main has moved past names the newer main instead", async () => {
   const { checkRelease } = await loadDeployModule();
   const behind = createFakeGit({ branch: "HEAD", head: "b".repeat(40), isBehind: true });
-  assert.deepEqual(checkRelease(behind.git), { commit: "b".repeat(40), newerMain: "a".repeat(40) });
+  assert.deepEqual(checkRelease(behind.git), { commit: "b".repeat(40), newer: "a".repeat(40) });
   assert.ok(behind.asked.includes(`merge-base --is-ancestor ${"b".repeat(40)} ${"a".repeat(40)}`));
 });
 
@@ -587,6 +636,29 @@ test("anything else is refused, with the reason", async () => {
   );
 });
 
+test("a beta release is exactly what GitHub has as beta", async () => {
+  const { checkRelease } = await loadDeployModule();
+  const fake = createFakeGit({ branch: "claude/some-branch" });
+  assert.deepEqual(checkRelease(fake.git, "beta"), { commit: "a".repeat(40), newer: null });
+  assert.ok(fake.asked.includes("fetch --quiet origin beta"));
+  assert.ok(fake.asked.includes("rev-parse origin/beta"));
+  assert.throws(
+    () => checkRelease(createFakeGit({ head: "b".repeat(40) }).git, "beta"),
+    /isn't beta as GitHub has it \(aaaaaaa\)\. Push it with git push -f origin <branch>:beta/,
+  );
+});
+
+test("a push to beta deploys the beta channel, and main still waits for its CI", () => {
+  const workflow = readFileSync(`${import.meta.dirname}/../.github/workflows/deploy.yml`, "utf8");
+  assert.match(workflow, /push:\n {4}branches: \[main, beta\]/);
+  assert.match(
+    workflow,
+    /CHANNEL: \$\{\{ github\.ref_name == 'beta' && 'beta' \|\| 'production' \}\}/,
+  );
+  assert.match(workflow, /group: deploy-\$\{\{ github\.ref_name \}\}/);
+  assert.match(workflow, /if: github\.event_name == 'push' && env\.CHANNEL == 'production'\n/);
+});
+
 test("deploy:api runs the tests before it deploys, and sends its calls through any proxy", () => {
   const scripts = JSON.parse(
     readFileSync(`${import.meta.dirname}/../package.json`, "utf8"),
@@ -597,7 +669,7 @@ test("deploy:api runs the tests before it deploys, and sends its calls through a
 test("the deploy job runs no package's install scripts or tests while it holds the token", () => {
   const workflow = readFileSync(`${import.meta.dirname}/../.github/workflows/deploy.yml`, "utf8");
   assert.match(workflow, /- run: npm ci --ignore-scripts\n/);
-  assert.match(workflow, /\n {10}node worker\/deploy\.mjs\n/);
+  assert.match(workflow, /\n {10}node worker\/deploy\.mjs --channel "\$CHANNEL"\n/);
   assert.doesNotMatch(workflow, /npm run deploy:api|npm test/);
   assert.match(workflow, /timeout-minutes: \d+/);
 });
@@ -613,6 +685,7 @@ test("project settings ask before a deploy or a key change, and deny running the
     "Bash(wrangler *)",
     "Bash(node worker/deploy.mjs)",
     "Bash(node worker/set-app-key.mjs)",
+    "Bash(node worker/rollback.mjs)",
   ]) {
     assert.ok(permissions.deny.includes(rule), rule);
   }

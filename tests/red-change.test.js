@@ -1,0 +1,163 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { decideGate, findRedReasons, readDiff } from "../worker/red-change.mjs";
+
+/**
+ * A diff that adds `added` to `path` at line 10, after a line it keeps.
+ * @param {string} path
+ * @param {string[]} added
+ */
+const createDiff = (path, added) =>
+  [
+    `diff --git a/${path} b/${path}`,
+    "index 1111111..2222222 100644",
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    `@@ -9,2 +9,${added.length + 1} @@`,
+    " kept",
+    ...added.map((line) => `+${line}`),
+    "-removed",
+    "",
+  ].join("\n");
+
+/** @param {string} path @param {string[]} [addedLines] */
+const findReasons = (path, addedLines = []) =>
+  findRedReasons([
+    { path, addedLines: addedLines.map((text, index) => ({ number: index + 1, text })) },
+  ]);
+
+test("a diff lists each file with its added lines, numbered as the new file has them", () => {
+  const diff = createDiff("apps/wnba/page/styles.css", [".a {", "  color: red;"]);
+  assert.deepEqual(readDiff(diff), [
+    {
+      path: "apps/wnba/page/styles.css",
+      addedLines: [
+        { number: 10, text: ".a {" },
+        { number: 11, text: "  color: red;" },
+      ],
+    },
+  ]);
+});
+
+test("a moved file is listed under both its paths", () => {
+  const diff = "diff --git a/shared/page/sheet.js b/shared/page/sheets.js\n";
+  assert.deepEqual(
+    readDiff(diff).map(({ path }) => path),
+    ["shared/page/sheets.js", "shared/page/sheet.js"],
+  );
+});
+
+test("any change to the shared code that moves, layers, or draws the page is red", () => {
+  for (const file of [
+    "sheet.js",
+    "sheet.css",
+    "sheet-swipe.js",
+    "sheet-sections.js",
+    "side-swipe.js",
+    "pager.js",
+    "pager.css",
+    "pill-thumb.js",
+    "tab-bar.js",
+    "eased-redraw.js",
+    "show-last-drawn.js",
+    "chrome.css",
+    "team-sheet.css",
+    "game-cards.css",
+  ])
+    assert.equal(findReasons(`shared/page/${file}`).length, 1, file);
+  assert.deepEqual(findReasons("shared/page/stamp.js", ["export const x = 1;"]), []);
+  assert.deepEqual(findReasons("apps/mlb/page/js/sheet.js", ["export const x = 1;"]), []);
+});
+
+test("an added line that makes a layer is red in any page's CSS or JavaScript", () => {
+  const layerLines = [
+    "  transform: translateX(0);",
+    "  -webkit-transform: none;",
+    "  filter: blur(2px);",
+    "  backdrop-filter: blur(8px);",
+    "  -webkit-backdrop-filter: blur(8px);",
+    "  mask: url(#m);",
+    "  mask-image: linear-gradient(black, transparent);",
+    "  clip-path: inset(0);",
+    "  will-change: transform;",
+    "  animation: spin 1s linear infinite;",
+    "  transition: opacity 200ms;",
+    "  transition-duration: 200ms;",
+    "  contain: paint;",
+    "  content-visibility: auto;",
+    "  position: fixed;",
+    "  position:sticky;",
+    ".bar { top: 0; position: sticky }",
+    "  element.style.transform = `translateX(${offset}px)`;",
+    "  element.style.webkitBackdropFilter = 'blur(4px)';",
+    "  element.style.willChange = 'transform';",
+    '  element.style.setProperty("transform", value);',
+    '  element.style.setProperty("position", "fixed");',
+    '  element.style.position = "sticky";',
+    "  element.animate([{ opacity: 0 }, { opacity: 1 }], 200);",
+    '  const style = html`<div style="transform: scale(2)"></div>`;',
+  ];
+  for (const path of [
+    "shared/page/stamp.js",
+    "shared/page/type.css",
+    "apps/wnba/page/styles.css",
+    "apps/mlb/page/js/games-view.js",
+  ])
+    for (const line of layerLines)
+      assert.equal(findReasons(path, [line]).length, 1, `${path}: ${line}`);
+});
+
+test("lines that only read or name those properties aren't red", () => {
+  const quietLines = [
+    "  const live = games.filter((game) => game.isLive);",
+    "  if (list.contains(target)) return;",
+    "  item.transformed = true;",
+    "  position: relative;",
+    "  position: absolute;",
+    '  const isFixed = element.style.position === "fixed";',
+    "  // A transform: here would make a layer.",
+    "   * transition: none, so the sheet doesn't slide.",
+    "  color: var(--now);",
+  ];
+  for (const line of quietLines)
+    assert.deepEqual(findReasons("apps/wnba/page/styles.css", [line]), [], line);
+});
+
+test("tests, docs, and the Worker's code are never red", () => {
+  for (const path of [
+    "tests/browser/sheet-stack.spec.mjs",
+    "tests/sheet.test.js",
+    "apps/wnba/tests/browser/sheet-stack.spec.mjs",
+    "apps/wnba/tests/page.test.js",
+    "apps/wnba/worker/src/box-score.js",
+    "shared/worker/app-worker.js",
+    "AGENTS.md",
+  ])
+    assert.deepEqual(findReasons(path, ["  transform: none;", "position: fixed;"]), [], path);
+});
+
+test("a red change is held until it has the phone-ok label, and says why", () => {
+  const diff =
+    createDiff("shared/page/pager.js", ["export const x = 1;"]) +
+    createDiff("apps/wnba/page/styles.css", ["  will-change: transform;"]);
+  const held = decideGate(diff, ["bug"]);
+  assert.equal(held.isHeld, true);
+  assert.match(held.message, /shared\/page\/pager\.js is shared code/);
+  assert.match(
+    held.message,
+    /apps\/wnba\/page\/styles\.css:10 adds a CSS declaration that sets will-change/,
+  );
+  assert.match(held.message, /git push -f origin <branch>:beta/);
+  assert.match(held.message, /owner adds the phone-ok label after using it on the beta app/);
+
+  const labeled = decideGate(diff, ["phone-ok"]);
+  assert.equal(labeled.isHeld, false);
+  assert.match(labeled.message, /labeled phone-ok/);
+});
+
+test("a change that isn't red passes without the label", () => {
+  const diff =
+    createDiff("apps/mlb/page/js/games-view.js", ["  const label = 'Final';"]) +
+    createDiff("tests/sheet.test.js", ["  transform: none;"]);
+  assert.deepEqual(decideGate(diff, []), { isHeld: false, message: "Not a red change." });
+});

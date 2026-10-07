@@ -67,3 +67,11 @@ test("--remove deletes the code and its signing key, and does nothing when there
   assert.ok(!unset.calls.some((call) => call.init.method === "DELETE"));
   assert.ok(printed.includes("The page asks for no code."));
 });
+
+test("the beta channel's code goes to the beta Worker", async () => {
+  const cloudflare = createFakeCloudflare();
+  await changeCode(cloudflare, { channel: "beta", code: "fast break" });
+  const puts = cloudflare.calls.filter((call) => call.init.method === "PUT");
+  assert.equal(puts.length, 2);
+  assert.ok(puts.every((put) => put.url === SECRETS_URL.replace("/wnba-app/", "/wnba-app-beta/")));
+});

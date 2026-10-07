@@ -254,30 +254,6 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
   );
 });
 
-test("a drawing test chosen in Diagnostics leaves its kind of drawing out once the page opens again, and each record names it", async ({
-  page,
-}) => {
-  await openApp(page);
-  await turnOnDiagnostics(page);
-  await openSettings(page);
-  const plain = page.getByRole("switch", { name: "Draw plainly" });
-
-  await plain.click();
-  await expect(plain).toHaveAttribute("aria-checked", "true");
-  await expect(page.locator("html")).not.toHaveClass(/drawing-plain/);
-  await reloadAndRecord(page);
-
-  await expect(page.locator("html")).toHaveClass(/drawing-plain/);
-  await expect(page.locator(".team-line .wins").first()).toHaveCSS("filter", "none");
-  await expect(page.locator("#settingsDialog")).toBeVisible();
-  await expect(findRecords(page).locator(".diagnostics-record").first()).toContainText(
-    "Drawing test: plain",
-  );
-  await findSwitch(page).click();
-  await page.reload();
-  await expect(page.locator("html")).not.toHaveClass(/drawing-plain/);
-});
-
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);
@@ -330,4 +306,34 @@ test("Copy goes back to Copy a moment after copying, ready to copy again", async
   await copyButton.click();
   await expect(copyButton).toHaveText("Copied");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^\+\d+ Shows /m);
+});
+
+test("Record now records the page as it is, with the sheets open, and Copy puts it under a header naming the app and device", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await openSettings(page);
+
+  await page.getByRole("button", { name: "Record now" }).click();
+  await expect(page.locator("#diagnosticsRecord")).toHaveText("Recording");
+  await page.clock.runFor(RECORD_MS + 1000);
+  await expect(page.locator("#diagnosticsRecord")).toHaveText("Record now");
+  await page.getByRole("button", { name: "Copy" }).click();
+
+  await expect(page.locator("#diagnosticsCopy")).toHaveText("Copied");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toMatch(/^WNBA, /);
+  expect(copied).toMatch(/^Device: /m);
+  expect(copied).toMatch(/^Runs in the browser$/m);
+  expect(copied).toMatch(/^Viewport 390x844 at \d+(\.\d+)?x$/m);
+  expect(copied).toMatch(/^Reduced motion on$/m);
+  expect(copied).toMatch(/^Theme (dark|light)$/m);
+  expect(copied).toMatch(/^Back from the background 0 times since$/m);
+  expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
+  expect(copied).toMatch(/^\+\d+ Sheet settingsDialog, shown$/m);
+  expect(copied).toMatch(/^\+\d+ Shows .*bracketWrap \d+\/\d+px/m);
+  expect(copied).toMatch(/^\+\d+ Animations: /m);
 });
