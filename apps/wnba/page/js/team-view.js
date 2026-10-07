@@ -7,7 +7,7 @@ import { renderTitles } from "#shared/team-sheet.js";
 import { renderDot, renderTeamName } from "./clubs.js";
 import { describeDay, readGameDay } from "./days.js";
 import { describeLiveClock, describeStartTime } from "./games-view.js";
-import { findNearestGames } from "./nearest-games.js";
+import { findTeamNearestGames } from "./nearest-games.js";
 import { nameTeam, readPlayoffRuns } from "./series.js";
 import { formatTeamColors } from "./sheet-colors.js";
 import { describeNumbers, describeRecords, renderPlayerTable } from "./sheet-parts.js";
@@ -495,7 +495,7 @@ function readNearestGames(season, team) {
   const decided = new Set(
     (season.series ?? []).filter((series) => series.winner).map((series) => series.id),
   );
-  return findNearestGames(season.nearestGames ?? season.games ?? [], team, decided);
+  return findTeamNearestGames(season.nearestGames ?? season.games ?? [], team, decided);
 }
 
 /** @param {Game} game */

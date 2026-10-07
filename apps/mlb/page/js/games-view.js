@@ -153,14 +153,18 @@ const nameSide = (id) => (id ? nameTeam(id) : "TBD");
 /** @param {{ away?: string, home?: string }} game */
 export const nameGame = (game) => `${nameSide(game.away)} @ ${nameSide(game.home)}`;
 
-// The whole row, or an update about the game, opens the game's sheet, which carries the game as
-// the row shows it, and whether it's today's, when a club yet to name its starter shows who it
-// might be.
-export function renderGameButton(game, isToday) {
-  const label = `Game details: ${nameSide(game.away)} at ${nameSide(game.home)}, ${formatGameDay(game.date)}`;
-  const details = JSON.stringify({ ...game, today: isToday });
-  return html`<button type="button" class="game-open" aria-label="${label}" data-game="${details}"></button>`;
-}
+// A doubleheader's two games share their day and clubs, so its game number tells them apart.
+/** @param {{ date: string, away?: string, home?: string, doubleheader?: number }} game */
+export const nameGameKey = (game) =>
+  `${game.date} ${game.away ?? ""} ${game.home ?? ""} ${game.doubleheader || 1}`;
+
+/** @param {{ date: string, away?: string, home?: string }} game */
+export const describeGameLabel = (game) =>
+  `${nameSide(game.away)} at ${nameSide(game.home)}, ${formatGameDay(game.date)}`;
+
+// The whole row, or an update about the game, opens the game's sheet.
+export const renderGameButton = (game) =>
+  html`<button type="button" class="game-open" aria-label="Game details: ${describeGameLabel(game)}" data-game="${nameGameKey(game)}"></button>`;
 
 const isAwaitingStarter = (game, id, starter, isToday) =>
   isToday && game.state === "pre" && Boolean(id) && !starter;
@@ -191,7 +195,7 @@ function describeGameRow(game, series, isToday, renderClubLine) {
 function renderGame(game, series, isToday) {
   return renderGameRow({
     ...describeGameRow(game, series, isToday, renderSideClub),
-    action: renderGameButton(game, isToday),
+    action: renderGameButton(game),
   });
 }
 

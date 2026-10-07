@@ -8,7 +8,7 @@
 import { readEasternDay } from "#shared/days.js";
 import * as PollSchedule from "#shared/poll-schedule.js";
 import { findTeamCode, findTeamCodeByEspnId, TEAMS } from "./teams.js";
-import { findNearestGames } from "./nearest-games.js";
+import { findTeamNearestGames } from "./nearest-games.js";
 
 // The shape of a snapshot, and of the season record saved from it, which a page reads only when it
 // knows it.
@@ -504,7 +504,7 @@ function listNearestGames(games, series) {
   const decided = new Set(series.filter((each) => each.winner).map((each) => each.id));
   const nearest = new Set(
     Object.keys(TEAMS).flatMap((team) =>
-      Object.values(findNearestGames(games, team, decided)).filter(Boolean),
+      Object.values(findTeamNearestGames(games, team, decided)).filter(Boolean),
     ),
   );
   return games.filter((game) => nearest.has(game));
