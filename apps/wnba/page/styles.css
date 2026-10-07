@@ -80,9 +80,10 @@
  * --radius-chip, then --radius-control on buttons and fields, a little rounder. Dots are round,
  * app icons keep their own shape, and the floating tab bar stays a capsule, like the phone's own.
  *
- * Surfaces. A card and an outlined button are --raised off the floor, inside an --edge. A bar held
- * at the top is the color of what it's on, the floor or a sheet, with a line under it only once
- * something scrolls under it, never a fade.
+ * Surfaces. A card and an outlined button are --raised off the floor, inside an --edge. A sheet and
+ * settings are the floor's own color, so a card in one is raised as on the page, and on a wide
+ * screen they lift off the page by a soft shadow. A bar held at the top is the color of what it's
+ * on, with a line under it only once something scrolls under it, never a fade.
  *
  * Buttons say what they do in sentence case, as capitals are only for labels and chips. The one
  * that's on, like the list a pill shows, is filled orange, inside a darker edge, and the rest are
@@ -114,7 +115,7 @@
   /* A link or team's name under the mouse. Maple's dark ink needs more of the orange than
      Walnut's light ink to show it changed. */
   --ink-hover: color-mix(in srgb, var(--ink) 50%, var(--action));
-  /* Bracket and game cards sit most of the way from the floor to a sheet, so they stand out
+  /* Bracket and game cards sit most of the way from the floor to --card, so they stand out
      without glare. */
   --tile: color-mix(in oklab, var(--card) 75%, var(--bg));
   --line: color-mix(in srgb, var(--card-border) 80%, var(--ink) 20%);
@@ -126,6 +127,12 @@
   --result: var(--teal);
   --result-ink: var(--teal-ink);
   --raised: var(--tile);
+  --sheet: var(--bg);
+  /* A sheet the page's own color lifts just off it on a wide screen, by a close shade and a wide,
+     faint one. */
+  --sheet-shadow:
+    0 2px 6px color-mix(in srgb, var(--shadow-ink) 10%, transparent),
+    0 16px 40px -10px color-mix(in srgb, var(--shadow-ink) 32%, transparent);
   --edge: color-mix(in srgb, var(--line), var(--tile));
   --radius-card: 2px;
   --radius-chip: 2px;
@@ -704,7 +711,7 @@ header.top h1 {
 }
 /* A team's sheet draws its bars the same way, the team's side in its color. */
 :is(.game-sheet-body, .team-tape) .tape-bar i {
-  background: color-mix(in oklch, var(--side) 47%, oklch(from var(--card) l 0 none));
+  background: color-mix(in oklch, var(--side) 47%, oklch(from var(--sheet) l 0 none));
 }
 :is(.game-sheet-body, .team-tape) .tape-bar i.lead {
   background: var(--side);
@@ -892,7 +899,7 @@ header.top h1 {
 }
 .lead-peak {
   fill: var(--side);
-  stroke: var(--card);
+  stroke: var(--sheet);
   stroke-width: 1.5;
 }
 .lead-side {
@@ -1133,7 +1140,7 @@ table.roster thead {
   position: sticky;
   top: calc(var(--roster-space-stuck) - var(--roster-band-height));
   z-index: 3;
-  background: var(--card);
+  background: var(--sheet);
 }
 table.roster thead th {
   padding: 0 0 5px 14px;
@@ -1200,7 +1207,7 @@ table.roster .roster-number,
 table.roster .roster-player {
   position: sticky;
   z-index: 1;
-  background: var(--card);
+  background: var(--sheet);
 }
 /* A cell's width takes in its padding, so the number column is exactly as wide as the room the
    pinned names leave for it. */
@@ -1213,7 +1220,7 @@ table.roster .roster-number {
 }
 table.roster td.roster-number {
   font-weight: 400;
-  color: color-mix(in srgb, var(--ink-dim) 65%, var(--card));
+  color: color-mix(in srgb, var(--ink-dim) 65%, var(--sheet));
 }
 /* The sheet's own side beside the number covers what scrolls under it. */
 table.roster .roster-number::before {
@@ -1223,7 +1230,7 @@ table.roster .roster-number::before {
   bottom: 0;
   left: -18px;
   width: 18px;
-  background: var(--card);
+  background: var(--sheet);
 }
 /* The line at the names' edge keeps clear of the longest name and its Out chip. */
 table.roster .roster-player {
@@ -2550,7 +2557,7 @@ table.player-game td {
   translate: -50% -50%;
   border-radius: 50%;
   background: var(--team);
-  box-shadow: 0 0 0 2px var(--card);
+  box-shadow: 0 0 0 2px var(--sheet);
 }
 .player-rank {
   font-size: var(--size-glance);

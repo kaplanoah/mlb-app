@@ -9,6 +9,8 @@
  *
  * An app's :root defines these tokens:
  *   --bg, --card, --card-border, --divider    the page, card, and line colors
+ *   --sheet                                    a sheet's and the settings dialog's color
+ *   --sheet-shadow                             their shadow on wide screens, or none
  *   --ink, --ink-mid, --ink-dim                text, from brightest to dimmest
  *   --accent, --accent-ink                     the selected tab and a switch that is on, and text on it
  *   --focus-ring                               the keyboard focus ring
@@ -303,7 +305,7 @@ section.view.active {
   max-height: none;
   margin: auto;
   padding: 0;
-  background: var(--card);
+  background: var(--sheet);
   color: var(--ink);
   border: 0;
   overscroll-behavior: none;
@@ -313,6 +315,7 @@ section.view.active {
   .settings-panel {
     border: 1px solid var(--card-border);
     border-radius: var(--radius-sheet);
+    box-shadow: var(--sheet-shadow);
   }
 }
 /* Sheets and settings leave the page behind them as it is. */
@@ -335,7 +338,7 @@ section.view.active {
   min-height: var(--head-height);
   margin-inline: -22px;
   padding: 10px 22px;
-  background: var(--card);
+  background: var(--sheet);
 }
 /* A sheet's title is centered, clear of the close or back button at the head's left. */
 .sheet-head {

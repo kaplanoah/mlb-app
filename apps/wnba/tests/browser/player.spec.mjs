@@ -99,7 +99,7 @@ test("her mark on each curve is her team's mark color for the theme", async ({ p
   const sheet = await openFromRoster(page, "Breanna Stewart");
   const mark = sheet.locator(".player-curve b").first();
 
-  await expect(mark).toHaveCSS("background-color", "rgb(68, 146, 116)");
+  await expect(mark).toHaveCSS("background-color", "rgb(57, 135, 107)");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(mark).toHaveCSS("background-color", "rgb(135, 213, 181)");
 });
