@@ -708,11 +708,11 @@ test("the deploy job runs no package's install scripts or tests while it holds t
   assert.match(workflow, /timeout-minutes: \d+/);
 });
 
-test("project settings ask before a deploy or a key change, and deny running them any other way", () => {
+test("project settings ask before any deploy but beta's or a key change, and deny running them any other way", () => {
   const { permissions } = JSON.parse(
     readFileSync(`${import.meta.dirname}/../.claude/settings.json`, "utf8"),
   );
-  assert.equal(permissions.allow, undefined);
+  assert.deepEqual(permissions.allow, ["Bash(git push -f origin *:beta)"]);
   for (const rule of [
     "Bash(npm run deploy)",
     "Bash(npx wrangler *)",
@@ -720,6 +720,8 @@ test("project settings ask before a deploy or a key change, and deny running the
     "Bash(node worker/deploy.mjs)",
     "Bash(node worker/set-app-key.mjs)",
     "Bash(node worker/rollback.mjs)",
+    // A branch's name has no spaces, so this keeps the beta push from naming any other branch too.
+    "Bash(git push -f origin * *:beta)",
   ]) {
     assert.ok(permissions.deny.includes(rule), rule);
   }

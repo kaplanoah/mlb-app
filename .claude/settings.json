@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "allow": ["Bash(git push -f origin *:beta)"],
     "deny": [
       "Bash(npm run deploy)",
       "Bash(npm run deploy *)",
@@ -12,7 +13,8 @@
       "Bash(node worker/set-access-code.mjs *)",
       "Bash(node worker/set-access-code.mjs)",
       "Bash(node worker/rollback.mjs *)",
-      "Bash(node worker/rollback.mjs)"
+      "Bash(node worker/rollback.mjs)",
+      "Bash(git push -f origin * *:beta)"
     ]
   }
 }
