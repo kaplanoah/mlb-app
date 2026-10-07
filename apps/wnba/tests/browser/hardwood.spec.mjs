@@ -171,7 +171,9 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
         readChannels(page, await readTokenColor(page, token)),
       ),
     );
-    const fill = await chosen.evaluate((element) => getComputedStyle(element).backgroundColor);
+    const fill = await page
+      .locator("#games-bar .pager-thumb")
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
     const name = await chosen.evaluate((element) => getComputedStyle(element).color);
     expect(await readChannels(page, fill)).toEqual(orange);
     expect(await readChannels(page, name)).toEqual(onOrange);

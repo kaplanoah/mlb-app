@@ -96,18 +96,16 @@ const readPagesPosition = (page) =>
     .locator("#games-pages")
     .evaluate((pages) => Math.round((pages.scrollLeft / pages.clientWidth) * 100) / 100);
 
-/** The names in the Games pill filled with the accent. */
+/** The names in the Games pill that its block sits under. */
 const readFilledNames = (page) =>
-  page.locator("#games-bar [role=tab]").evaluateAll((tabs) =>
-    tabs
-      .filter((tab) => {
-        const alpha = getComputedStyle(tab)
-          .backgroundColor.match(/[\d.]+/g)
-          .map(Number)[3];
-        return alpha === undefined || alpha > 0.5;
-      })
-      .map((tab) => tab.textContent.trim()),
-  );
+  page.locator("#games-bar [role=tablist]").evaluate((tabList) => {
+    const thumb = /** @type {Element} */ (
+      tabList.querySelector(".pager-thumb")
+    ).getBoundingClientRect();
+    return [...tabList.querySelectorAll("[role=tab]")]
+      .filter((tab) => Math.abs(tab.getBoundingClientRect().left - thumb.left) < 1)
+      .map((tab) => tab.textContent.trim());
+  });
 
 test("on a phone, swiping the games sideways moves between the lists and fills the shown list's name", async ({
   page,

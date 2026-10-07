@@ -1,3 +1,4 @@
+import { createPillThumb } from "./pill-thumb.js";
 import { stepBackOnEdgeSwipe } from "./sheet-edge-swipe.js";
 import { selectTab, wireTabs } from "./tabs.js";
 
@@ -22,7 +23,10 @@ export function wireSheetSections(sheet) {
   const tabList = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top [role=tablist]"));
   const tabs = /** @type {HTMLButtonElement[]} */ ([...tabList.querySelectorAll("[role=tab]")]);
   const keys = tabs.map((tab) => tab.dataset.tab ?? "");
+  const thumb = createPillThumb(tabList);
   let shown = keys[0];
+  /** @type {string | null} */
+  let slidingTo = null;
   let rowWidth = 0;
 
   /** @param {string} key */
@@ -31,11 +35,11 @@ export function wireSheetSections(sheet) {
       document.getElementById(tabs[keys.indexOf(key)].getAttribute("aria-controls") ?? "")
     );
 
-  // Each pill fills as the row brings its section into view.
+  // The pill's block follows the row, but for while it scrolls to a section a tap chose, where the
+  // block is already sliding.
   function paintSwipe() {
-    const position = row.clientWidth ? row.scrollLeft / row.clientWidth : keys.indexOf(shown);
-    for (const [index, tab] of tabs.entries())
-      tab.style.setProperty("--nearness", String(Math.max(0, 1 - Math.abs(index - position))));
+    if (slidingTo) return;
+    thumb.moveThumb(row.clientWidth ? row.scrollLeft / row.clientWidth : keys.indexOf(shown));
   }
 
   /** @param {string} key */
@@ -49,6 +53,7 @@ export function wireSheetSections(sheet) {
     if (!row.clientWidth) return;
     const index = Math.round(row.scrollLeft / row.clientWidth);
     if (Math.abs(row.scrollLeft - index * row.clientWidth) > SETTLED_PX) return;
+    if (keys[index] === slidingTo) slidingTo = null;
     if (keys[index] && keys[index] !== shown) markShown(keys[index]);
   }
 
@@ -60,11 +65,12 @@ export function wireSheetSections(sheet) {
     if (!keys.includes(key)) return;
     const behavior = isInstant || prefersReducedMotion() ? "instant" : "smooth";
     selectTab(tabs, key);
-    row.scrollTo({ left: keys.indexOf(key) * row.clientWidth, behavior });
-    if (behavior === "instant" || !row.clientWidth) {
-      markShown(key);
-      paintSwipe();
-    }
+    const left = keys.indexOf(key) * row.clientWidth;
+    const isSliding = behavior === "smooth" && Math.abs(row.scrollLeft - left) > SETTLED_PX;
+    slidingTo = isSliding ? key : null;
+    thumb.moveThumb(keys.indexOf(key), { isSliding });
+    row.scrollTo({ left, behavior });
+    if (!isSliding) markShown(key);
   }
 
   // A hidden sheet's sections lose their place, so the row goes back to the shown one each time
@@ -83,6 +89,7 @@ export function wireSheetSections(sheet) {
     showSection(keys[0], true);
   }
 
+  row.addEventListener("pointerdown", () => (slidingTo = null));
   row.addEventListener("scroll", paintSwipe, { passive: true });
   row.addEventListener("scroll", settleWhereScrolled, { passive: true });
   row.addEventListener("scrollend", settleWhereScrolled);
@@ -95,7 +102,7 @@ export function wireSheetSections(sheet) {
     scrollToIndex: (index) => showSection(keys[index]),
   });
   markShown(shown);
-  paintSwipe();
+  thumb.moveThumb(keys.indexOf(shown));
 
   return {
     findSections: () => row,
