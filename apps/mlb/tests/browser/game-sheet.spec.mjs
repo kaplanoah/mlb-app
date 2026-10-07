@@ -290,7 +290,7 @@ test("on a desktop, the title centers over the sheet, with its close button at i
   expect(sides.map(Math.round)).toEqual([19, 19]);
 });
 
-test("the sheet's title and pills hold still while a section scrolls under them, which never scrolls past its ends", async ({
+test("the sheet's title and pills hold still, keeping their band's line, while a section scrolls under them, which never scrolls past its ends", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 500 });
@@ -298,12 +298,15 @@ test("the sheet's title and pills hold still while a section scrolls under them,
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
   const section = sheet.locator("#matchupSection");
   await expect(section).toHaveCSS("overscroll-behavior-y", "none");
+  const top = sheet.locator(".sheet-top");
+  const line = await top.evaluate((element) => getComputedStyle(element).boxShadow);
 
   await section.evaluate((scroller) => {
     scroller.scrollTop = 200;
   });
-  await expect(sheet.locator(".sheet-top")).toBeInViewport();
-  await expect(sheet.locator(".sheet-top")).toHaveClass(/\bstuck\b/);
+  await expect.poll(() => section.evaluate((scroller) => scroller.scrollTop)).toBeGreaterThan(0);
+  await expect(top).toBeInViewport();
+  await expect(top).toHaveCSS("box-shadow", line);
 });
 
 test("the sheet's parts and lists leave room between their rows", async ({ page }) => {
