@@ -34,7 +34,7 @@ import { fetchWnbaJson, hasTable, trimColumns } from "./wnba.js";
 // changed: each team's roster, each player's numbers, and the season's ranked numbers, which go
 // last, so a season that has them is whole. Each run also fills one season the store keeps from
 // before the current one, newest first, and a filled season is never read again, since a past
-// season doesn't change.
+// season doesn't change, unless the sheets come to read a column it was filled without.
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -78,6 +78,10 @@ const NO_ONE_OUT = [];
 
 /** @param {number} season */
 const nameFilledKey = (season) => `filled:${season}`;
+// What a filled season was kept with, so one filled with fewer columns is filled again.
+const FILLED_COLUMNS = [
+  ...new Set([...TOTALS_COLUMNS, ...GAME_LOG_COLUMNS, ...TEAM_GAME_COLUMNS]),
+].join(" ");
 
 /**
  * How many of a season's games the store has seen end.
@@ -126,6 +130,7 @@ function createStoreKeeper() {
   }
 
   /**
+   * Reads a feed trimmed to its columns, kept under them, so one kept with fewer is read again.
    * @param {JobContext} context
    * @param {string} name which feed's limits apply
    * @param {string} url
@@ -133,8 +138,11 @@ function createStoreKeeper() {
    * @param {string[]} columns
    */
   const readStats = (context, name, url, table, columns) =>
-    /** @type {ReturnType<typeof createFeedKeeper>} */ (keeper).readFeed(name, url, async () =>
-      trimColumns(await fetchWnbaJson(context.fetchImpl, url, null, hasTable(table)), columns),
+    /** @type {ReturnType<typeof createFeedKeeper>} */ (keeper).readFeed(
+      name,
+      `${url} ${columns.join(" ")}`,
+      async () =>
+        trimColumns(await fetchWnbaJson(context.fetchImpl, url, null, hasTable(table)), columns),
     );
 
   /**
@@ -288,9 +296,9 @@ function createStoreKeeper() {
    */
   async function fillPastSeason(context, current) {
     for (const season of await listPastSeasons(context.docs, current)) {
-      if (await context.storage.get(nameFilledKey(season))) continue;
+      if ((await context.storage.get(nameFilledKey(season))) === FILLED_COLUMNS) continue;
       const isWhole = await updateSeason(context, season, null);
-      if (isWhole) await context.storage.put(nameFilledKey(season), true);
+      if (isWhole) await context.storage.put(nameFilledKey(season), FILLED_COLUMNS);
       return;
     }
   }

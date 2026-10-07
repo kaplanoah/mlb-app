@@ -19,3 +19,26 @@ export function joinGameLogs(gameLogs, season, seasonType) {
     ],
   };
 }
+
+/**
+ * The league's answer with a turnovers column each row counts from its assists, for a fixture
+ * recorded without one.
+ * @param {any} answer
+ */
+export function addTurnovers(answer) {
+  return {
+    ...answer,
+    resultSets: answer.resultSets.map((/** @type {any} */ table) => {
+      const assists = table.headers.indexOf("AST");
+      if (assists < 0 || table.headers.includes("TOV")) return table;
+      return {
+        ...table,
+        headers: [...table.headers, "TOV"],
+        rowSet: table.rowSet.map((/** @type {any[]} */ row) => [
+          ...row,
+          Math.round(row[assists] * 0.7),
+        ]),
+      };
+    }),
+  };
+}
