@@ -35,6 +35,7 @@
   --bg: #0d1f16;
   --card: #132a1f;
   --sheet: var(--card);
+  --sheet-shadow: none;
   --card-border: #2a4536;
   --ink: #f1ead4;
   --ink-dim: #7fa88f;

@@ -176,6 +176,17 @@ test.describe("with reduced motion", () => {
       await expect(page.locator(".settings-panel")).toHaveCSS("background-color", floor);
     });
 
+  test("on a wide screen, a sheet and settings lift off the page by a shadow", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await openApp(page);
+    await openGame(page);
+    await expect(page.locator("#sheetDialog")).not.toHaveCSS("box-shadow", "none");
+
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.locator(".settings-panel")).not.toHaveCSS("box-shadow", "none");
+  });
+
   test("on a phone, every sheet fills the screen, whatever it holds", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await openApp(page);

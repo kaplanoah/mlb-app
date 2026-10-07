@@ -81,9 +81,9 @@
  * app icons keep their own shape, and the floating tab bar stays a capsule, like the phone's own.
  *
  * Surfaces. A card and an outlined button are --raised off the floor, inside an --edge. A sheet and
- * settings are the floor's own color, so a card in one is raised as on the page. A bar held at the
- * top is the color of what it's on, with a line under it only once something scrolls under it,
- * never a fade.
+ * settings are the floor's own color, so a card in one is raised as on the page, and on a wide
+ * screen they lift off the page by a soft shadow. A bar held at the top is the color of what it's
+ * on, with a line under it only once something scrolls under it, never a fade.
  *
  * Buttons say what they do in sentence case, as capitals are only for labels and chips. The one
  * that's on, like the list a pill shows, is filled orange, inside a darker edge, and the rest are
@@ -128,6 +128,11 @@
   --result-ink: var(--teal-ink);
   --raised: var(--tile);
   --sheet: var(--bg);
+  /* A sheet the page's own color lifts just off it on a wide screen, by a close shade and a wide,
+     faint one. */
+  --sheet-shadow:
+    0 2px 6px color-mix(in srgb, var(--shadow-ink) 10%, transparent),
+    0 16px 40px -10px color-mix(in srgb, var(--shadow-ink) 32%, transparent);
   --edge: color-mix(in srgb, var(--line), var(--tile));
   --radius-card: 2px;
   --radius-chip: 2px;

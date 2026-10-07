@@ -49,6 +49,7 @@
   .sheet-panel {
     border: 1px solid var(--card-border);
     border-radius: var(--radius-sheet);
+    box-shadow: var(--sheet-shadow);
   }
 }
 .sheet-panel[open] {
