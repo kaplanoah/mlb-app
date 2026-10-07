@@ -1770,19 +1770,30 @@ test.describe("on a phone", () => {
     expect(scrollbars).toEqual([]);
   });
 
-  test("the tab bar's glass keeps Maple's colors, and boosts Walnut's a little", async ({
+  test("the tab bar's glass is tinted with each theme's raised wood, inside its edge", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
-    const readGlass = (selector) =>
-      page.locator(selector).evaluate((glass) => getComputedStyle(glass).backdropFilter);
-    await chooseAppearance(page, "Maple");
-    expect(await readGlass(".tab-glass")).toContain("saturate(1)");
-    expect(await readGlass(".tab-pill")).toContain("saturate(1)");
-    await chooseAppearance(page, "Walnut");
-    expect(await readGlass(".tab-glass")).toContain("saturate(1.25)");
-    expect(await readGlass(".tab-pill")).toContain("saturate(1.25)");
+    const readGlass = () =>
+      page.locator(".tab-glass").evaluate((glass) => {
+        const probe = document.createElement("span");
+        probe.style.background = "color-mix(in srgb, var(--raised) 55%, transparent)";
+        probe.style.color = "var(--edge)";
+        document.body.append(probe);
+        const expected = getComputedStyle(probe);
+        const shown = getComputedStyle(glass);
+        const result = {
+          tint: shown.backgroundColor === expected.backgroundColor,
+          edge: shown.boxShadow.includes(expected.color),
+        };
+        probe.remove();
+        return result;
+      });
+    for (const appearance of ["Maple", "Walnut"]) {
+      await chooseAppearance(page, appearance);
+      expect(await readGlass(), appearance).toEqual({ tint: true, edge: true });
+    }
   });
 
   test("in Walnut, the Games pill's track is raised like a game's card, and its thumb is tinted warm, not white", async ({

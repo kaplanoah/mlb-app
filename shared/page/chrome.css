@@ -1,8 +1,8 @@
 /*
- * The chrome every app's page shares: the settings button, the tabs (a floating glass bar on
- * phones), the settings dialog (the whole screen on phones) and the lines at its foot, a sideways
- * bracket's round dots (pinned above the tab bar on phones), the bar and settings box that ask
- * a phone's browser to add the page to the Home Screen, the note a slow load shows, the header's
+ * The chrome every app's page shares: the settings button, the tabs (a floating bar of tinted
+ * glass on phones), the settings dialog (the whole screen on phones) and the lines at its foot, a
+ * sideways bracket's round dots (pinned above the tab bar on phones), the bar and settings box that
+ * ask a phone's browser to add the page to the Home Screen, the note a slow load shows, the header's
  * line while the page catches up and the sweep through its lines once it has, the spokes a pull
  * to refresh shows, and the Diagnostics switch and records at the very end of settings. Apps link
  * it before their own styles.css, which lays out the rest of the page and may refine these rules.
@@ -23,13 +23,10 @@
  *                                              screens; on phones they fill the screen
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
  *                                              the app has one
- *   --tab-bar-ink                              the glass tab bar's icons and labels
- *   --glass-light                              an RGB triple, like 255, 255, 255, that tints the glass
- *   --glass-pill                               the selected tab's frosted pill, like rgba(255, 255, 255, 0.11)
- *   --glass-saturation                         how much the glass boosts the colors behind it, like
- *                                              160%; a light, warm page keeps 100%, or it turns yellow
- *   --glass-solid                              the glass's fill when the viewer turns transparency down
- *   --glass-contrast                           the glass's fill when the viewer asks for more contrast
+ *   --tab-bar-tint                             the color that tints the tab bar's glass, and fills
+ *                                              it when the viewer turns transparency down
+ *   --tab-bar-edge                             the tab bar's edge
+ *   --tab-bar-ink                              the tab bar's icons and labels, and its pill's tint
  *   --catch-up-fade                            the opacity the header's lines fade to as a sweep
  *                                              passes once the page catches up, like 0.75
  * and on phones this sets:
@@ -103,11 +100,6 @@ nav.tabs {
 .tab-icon,
 .edge-fade {
   display: none;
-}
-.svg-defs {
-  position: absolute;
-  width: 0;
-  height: 0;
 }
 /* Only the tabs themselves: the tabs' row can hold other buttons too. */
 .tab-list button {
@@ -859,8 +851,8 @@ body:has(> .home-screen-bar:not([hidden])) {
   }
 
   /*
-   * A floating glass tab bar, sized like iOS's: a 62px capsule 21px in from the sides, a selection
-   * pill 5px inside it, icons over small system-font labels. tab-bar.js drives its motion.
+   * A floating tab bar of tinted glass, sized like iOS's: a 62px capsule 21px in from the sides, a
+   * selection pill 5px inside it, icons over small system-font labels. tab-bar.js places the pill.
    */
   .tab-bar {
     --tab-height: calc(var(--tab-bar-height) - 10px);
@@ -872,9 +864,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     display: block;
     height: var(--tab-bar-height);
   }
-  /* The bar is a capsule in every app, whatever its corners elsewhere, since glass-lens.js bends
-     light as a capsule's rim does. The shadow sits on its own layer: Chrome misplaces an SVG
-     backdrop filter on an element with one. */
+  /* The bar is a capsule in every app, whatever its corners elsewhere, like the phone's own. */
   .tab-bar::before {
     content: "";
     position: absolute;
@@ -887,31 +877,16 @@ body:has(> .home-screen-bar:not([hidden])) {
     display: block;
     position: absolute;
     inset: 0;
-    overflow: hidden;
     border-radius: 999px;
-    background: rgba(var(--glass-light), 0.07);
-    -webkit-backdrop-filter: blur(3px) saturate(var(--glass-saturation)) brightness(1.05);
-    backdrop-filter: blur(3px) saturate(var(--glass-saturation)) brightness(1.05);
-    box-shadow:
-      inset 0 0 0 1px rgba(var(--glass-light), 0.08),
-      inset 0 1px 0 rgba(var(--glass-light), 0.12),
-      inset 0 -1px 0 rgba(var(--glass-light), 0.04);
+    background: color-mix(in srgb, var(--tab-bar-tint) 55%, transparent);
+    -webkit-backdrop-filter: blur(10px) saturate(110%);
+    backdrop-filter: blur(10px) saturate(110%);
+    box-shadow: inset 0 0 0 1px var(--tab-bar-edge);
   }
-  /* Chrome skips filter functions chained before url(), so the lens filter does its own blur. */
-  .tab-glass.bends {
-    backdrop-filter: url(#glassLens) saturate(var(--glass-saturation)) brightness(1.05);
-  }
-  .tab-glow {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(
-      circle 46px at var(--glow-x, 50%) var(--glow-y, 50%),
-      rgba(var(--glass-light), var(--glow-alpha, 0)),
-      transparent
-    );
-  }
+  /* The labels sit over the pill, which follows the tabs so it can rest on one as its anchor. */
   .tab-list {
     position: absolute;
+    z-index: 1;
     inset: 0;
     flex-wrap: nowrap;
     gap: 0;
@@ -920,8 +895,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     user-select: none;
     -webkit-user-select: none;
   }
-  nav.tabs .tab-list button,
-  .tab-copy {
+  nav.tabs .tab-list button {
     flex: 1 1 0;
     min-width: 0;
     height: var(--tab-height);
@@ -962,10 +936,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     height: 23px;
     margin: -1px;
   }
-  /*
-   * The selected tab sits on a frosted pill. --lift runs from 0 to 1 as a touch raises it into a
-   * clear lens, and --platter is its frosted fill, which fades while it lifts.
-   */
+  /* The selected tab sits on a faint pill of the bar's ink, which slides to the next one. */
   .tab-pill {
     display: block;
     position: absolute;
@@ -973,26 +944,18 @@ body:has(> .home-screen-bar:not([hidden])) {
     left: 5px;
     width: var(--pill-width, 25%);
     height: var(--tab-height);
-    overflow: hidden;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--glass-pill) calc(100% * var(--platter, 1)), transparent);
-    -webkit-backdrop-filter: blur(calc(5px * var(--platter, 1))) saturate(var(--glass-saturation))
-      brightness(calc(1 + var(--lift, 0) * 0.06));
-    backdrop-filter: blur(calc(5px * var(--platter, 1))) saturate(var(--glass-saturation))
-      brightness(calc(1 + var(--lift, 0) * 0.06));
-    box-shadow:
-      inset 0 1px 0 rgba(var(--glass-light), calc(var(--lift, 0) * 0.22)),
-      inset 0 0 0 0.5px rgba(var(--glass-light), calc(var(--lift, 0) * 0.16)),
-      inset 0 -1px 1px rgba(var(--glass-light), calc(var(--lift, 0) * 0.08)),
-      0 6px 18px rgba(0, 0, 0, calc(var(--lift, 0) * 0.3));
+    background: color-mix(in srgb, var(--tab-bar-ink) 10%, transparent);
     pointer-events: none;
-    will-change: transform;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .tab-bar.placed:not(.is-dragging, .is-placing) .tab-pill {
+      transition: transform 0.25s ease-out;
+    }
   }
   /*
    * Until tab-bar.js places the pill, it rests on the selected tab, reaching past it by the pill's
-   * overhang as tab-bar.js places it, so the page's first paint shows it where it will stay. Its
-   * frost waits too: without the copy of the tab that tab-bar.js lays over it, it would blur the
-   * label under it.
+   * overhang as tab-bar.js places it, so the page's first paint shows it where it will stay.
    */
   nav.tabs .tab-list button.active {
     anchor-name: --selected-tab;
@@ -1001,21 +964,6 @@ body:has(> .home-screen-bar:not([hidden])) {
     position-anchor: --selected-tab;
     left: calc(anchor(left) - 4px);
     width: calc(anchor-size(width) + 8px);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  /* The pill hides the tab under it, so a keyboard focus ring shows on the pill instead. */
-  body.kbd .tab-list:has(button.active:focus) ~ .tab-pill {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-  .tab-pill-row {
-    position: absolute;
-    top: 0;
-    left: 4px;
-    display: flex;
-    width: var(--row-width, 100%);
-    height: 100%;
   }
   /* The round dots stay just above the tab bar, wherever the bracket ends, over the scroll edge. */
   .round-dots {
@@ -1050,12 +998,12 @@ body:has(> .home-screen-bar:not([hidden])) {
   }
   @media (prefers-reduced-transparency: reduce) {
     .tab-glass {
-      background: var(--glass-solid);
+      background: var(--tab-bar-tint);
     }
   }
   @media (prefers-contrast: more) {
     .tab-glass {
-      background: var(--glass-contrast);
+      background: var(--tab-bar-tint);
       box-shadow: inset 0 0 0 1px var(--tab-bar-ink);
     }
   }

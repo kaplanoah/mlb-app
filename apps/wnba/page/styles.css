@@ -79,8 +79,8 @@
  * Corners are square, like the court's boards and the scoreboard's digits: --radius-card and
  * --radius-chip, then --radius-control on buttons and fields, a little rounder, and on a track of
  * choices the room around what's chosen in it more, so the chosen one takes a button's corners.
- * Dots are round, app icons keep their own shape, and the floating tab bar stays a capsule for its
- * glass.
+ * Dots are round, app icons keep their own shape, and the floating tab bar stays a capsule, like the
+ * phone's own.
  *
  * Surfaces. A card, a track of choices, and an outlined button are --raised off the floor, inside
  * an --edge. A bar held at the top is the floor's own color, with a line under it once the page
@@ -149,12 +149,9 @@
   --accent: var(--action);
   --accent-ink: var(--action-ink);
   --focus-ring: var(--teal);
+  --tab-bar-tint: var(--raised);
+  --tab-bar-edge: var(--edge);
   --tab-bar-ink: var(--ink);
-  --glass-light: 255, 248, 236;
-  --glass-saturation: 100%;
-  --glass-pill: rgba(42, 28, 16, 0.07);
-  --glass-solid: rgba(243, 228, 200, 0.96);
-  --glass-contrast: #ffffff;
   --display: "Barlow", system-ui, sans-serif;
   --numbers: "Barlow Condensed", "Arial Narrow", sans-serif;
   --heading: "Barlow Condensed", "Arial Narrow", sans-serif;
@@ -216,12 +213,6 @@
   --block-side: #261610;
   --dot-shadow: color-mix(in srgb, var(--shadow-ink) 62%, transparent);
   --dot-light: rgba(255, 255, 255, 0.15);
-  --glass-light: 255, 255, 255;
-  /* The lifted pill boosts again what the bar already boosted, so more than this turns it red. */
-  --glass-saturation: 125%;
-  --glass-pill: rgba(255, 255, 255, 0.11);
-  --glass-solid: rgba(42, 31, 24, 0.94);
-  --glass-contrast: #000000;
   --logos-for-light: none;
   --logos-for-dark: inline;
   color-scheme: dark;
@@ -285,7 +276,7 @@ header.top h1 {
   letter-spacing: 0.06em;
 }
 /* On a wide screen, the tabs that aren't open read as buttons, with a firmer outline and darker
-   text than the shared chrome gives them. Phones keep their glass tab bar. */
+   text than the shared chrome gives them. Phones keep their floating tab bar. */
 @media (min-width: 780px) {
   .tab-list button:not(.active) {
     border-color: color-mix(in srgb, var(--card-border), var(--ink) 35%);

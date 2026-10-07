@@ -58,14 +58,13 @@ export const listRootTokens = (path) =>
       .map((declaration) => declaration.property),
   );
 
-// The floating tab bar is a capsule in every app, for its glass, a switch is round like the phone's
-// own, and app icons keep their own shape.
+// The floating tab bar is a capsule in every app and a switch is round, like the phone's own, and
+// app icons keep their own shape.
 const OWN_SHAPES = new Set([
   ".switch",
   ".tab-bar::before",
   "nav.tabs .tab-list button",
   ".tab-glass",
-  ".tab-copy",
   ".tab-pill",
   ".home-screen-icon",
   ".home-screen-tip .home-screen-icon",
