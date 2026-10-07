@@ -65,7 +65,7 @@
 
   <nav class="tabs">
     <div class="tab-bar" id="tabBar">
-      <span class="tab-glass" id="tabGlass" aria-hidden="true"><span class="tab-glow"></span></span>
+      <span class="tab-glass" aria-hidden="true"></span>
       <div class="tab-list" role="tablist" aria-label="Views">
         <button
           type="button"
@@ -116,7 +116,7 @@
           ><span class="tab-label">Standings</span>
         </button>
       </div>
-      <span class="tab-pill" aria-hidden="true"><span class="tab-pill-row"></span></span>
+      <span class="tab-pill" aria-hidden="true"></span>
     </div>
     <span id="banner" class="banner" hidden data-last-drawn></span>
   </nav>
@@ -267,66 +267,6 @@
     showLastDrawn();
     watchSlowLoad();
   </script>
-
-  <svg class="svg-defs" aria-hidden="true">
-    <filter
-      id="glassLens"
-      x="0"
-      y="0"
-      width="348"
-      height="62"
-      filterUnits="userSpaceOnUse"
-      primitiveUnits="userSpaceOnUse"
-      color-interpolation-filters="sRGB"
-    >
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3" edgeMode="duplicate" result="frosted" />
-      <feImage x="0" y="0" width="348" height="62" result="map" preserveAspectRatio="none" />
-      <feDisplacementMap
-        in="frosted"
-        in2="map"
-        scale="-20"
-        xChannelSelector="R"
-        yChannelSelector="G"
-        result="bentRed"
-      />
-      <feDisplacementMap
-        in="frosted"
-        in2="map"
-        scale="-21.2"
-        xChannelSelector="R"
-        yChannelSelector="G"
-        result="bentGreen"
-      />
-      <feDisplacementMap
-        in="frosted"
-        in2="map"
-        scale="-22.4"
-        xChannelSelector="R"
-        yChannelSelector="G"
-        result="bentBlue"
-      />
-      <feColorMatrix
-        in="bentRed"
-        type="matrix"
-        values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
-        result="red"
-      />
-      <feColorMatrix
-        in="bentGreen"
-        type="matrix"
-        values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"
-        result="green"
-      />
-      <feColorMatrix
-        in="bentBlue"
-        type="matrix"
-        values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"
-        result="blue"
-      />
-      <feBlend in="red" in2="green" mode="screen" result="redGreen" />
-      <feBlend in="redGreen" in2="blue" mode="screen" />
-    </filter>
-  </svg>
 
   <script src="js/sortable.min.js"></script>
   <script type="module" src="js/app.js"></script>

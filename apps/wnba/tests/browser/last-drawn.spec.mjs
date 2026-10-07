@@ -108,7 +108,6 @@ test.describe("on a phone", () => {
     const resting = await pill.boundingBox();
     expect(resting.x).toBeCloseTo(placed.x, 0);
     expect(resting.width).toBeCloseTo(placed.width, 0);
-    await expect(pill).toHaveCSS("backdrop-filter", "none");
     release();
   });
 });

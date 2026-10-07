@@ -1880,59 +1880,102 @@ test("on a phone, dragging back to the tab that's showing leaves the page where 
   expect(await page.evaluate(() => scrollY)).toBe(scrolled);
 });
 
-/** How far the tab bar's pill sits from resting on a tab: its center's offset and its extra height. */
-const measurePillFromRest = (page, name) =>
+/** How far the tab bar's pill's center sits from a tab's. */
+const measurePillFromTab = (page, name) =>
   page.evaluate((name) => {
     const pill = document.querySelector(".tab-pill").getBoundingClientRect();
     const tab = [...document.querySelectorAll("[role=tab]")]
       .find((button) => button.textContent.trim() === name)
       .getBoundingClientRect();
-    return {
-      offset: Math.round(pill.left + pill.width / 2 - (tab.left + tab.width / 2)),
-      extraHeight: Math.round(pill.height - tab.height),
-    };
+    return Math.round(pill.left + pill.width / 2 - (tab.left + tab.width / 2));
   }, name);
 
-test("on a phone, leaving the page mid-press puts the tab bar's pill back at rest", async ({
+/** Counts each transition the tab bar's pill starts, from the page's first paint on. */
+const countPillSlides = async (page) => {
+  await page.addInitScript(() => {
+    Object.assign(window, { pillSlides: 0 });
+    document.addEventListener("transitionrun", (event) => {
+      if (event.target instanceof Element && event.target.matches(".tab-pill"))
+        /** @type {any} */ (window).pillSlides += 1;
+    });
+  });
+  return () => page.evaluate(() => /** @type {any} */ (window).pillSlides);
+};
+
+const countPillMotions = (page) =>
+  page.locator(".tab-pill").evaluate((pill) => pill.getAnimations().length);
+
+test("on a phone, the tab bar's pill slides to the tab tapped", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const readSlides = await countPillSlides(page);
+  await openApp(page);
+  await expect(page.locator("#tabBar")).toHaveClass(/\bplaced\b/);
+
+  await page.getByRole("tab", { name: "Standings" }).click();
+
+  await expect.poll(readSlides).toBe(1);
+  await expect.poll(() => measurePillFromTab(page, "Standings")).toBe(0);
+});
+
+test("on a phone, the tab bar's pill takes its place on the last tab without sliding", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
+  await page.addInitScript(() => localStorage.setItem("lastTab", "standings"));
+  const readSlides = await countPillSlides(page);
+  await openApp(page);
+  await expect(page.locator("#tabBar")).toHaveClass(/\bplaced\b/);
+
+  await page.setViewportSize({ width: 375, height: 812 });
+
+  expect(await measurePillFromTab(page, "Standings")).toBe(0);
+  expect(await readSlides()).toBe(0);
+});
+
+test("on a phone, the tab bar's pill follows a drag without easing", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const from = await page.getByRole("tab", { name: "Bracket" }).boundingBox();
+  const to = await page.getByRole("tab", { name: "Games" }).boundingBox();
+  const between = (from.x + from.width / 2 + to.x + to.width / 2) / 2;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+
+  await page.mouse.move(between, from.y + from.height / 2, { steps: 4 });
+
+  expect(await countPillMotions(page)).toBe(0);
+  const pill = await page.locator(".tab-pill").boundingBox();
+  expect(Math.round(pill.x + pill.width / 2)).toBe(Math.round(between));
+  await page.mouse.up();
+});
+
+test("on a phone, with reduced motion, the tab bar's pill moves to the tab tapped at once", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+
+  await page.getByRole("tab", { name: "Standings" }).click();
+
+  expect(await countPillMotions(page)).toBe(0);
+  expect(await measurePillFromTab(page, "Standings")).toBe(0);
+});
+
+test("on a phone, leaving the page mid-press puts the tab bar's pill back on the tab shown", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   const games = await page.getByRole("tab", { name: "Games" }).boundingBox();
   await page.mouse.move(games.x + games.width / 2, games.y + games.height / 2);
   await page.mouse.down();
-  await page.clock.runFor(400);
+  expect(await measurePillFromTab(page, "Games")).toBe(0);
 
   await setHidden(page, true);
 
-  expect(await measurePillFromRest(page, "Bracket")).toEqual({ offset: 0, extraHeight: 0 });
-});
-
-test("on a phone, the tab bar's pill still moves after a motion's frame was lost while away", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  await page.evaluate(() => {
-    const requestFrame = window.requestAnimationFrame;
-    window.requestAnimationFrame = () => 1;
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        window.requestAnimationFrame = requestFrame;
-      },
-      { once: true },
-    );
-  });
-  await page.clock.runFor(100);
-  await setHidden(page, true);
-  await setHidden(page, false);
-
-  await page.getByRole("tab", { name: "Standings" }).click();
-  await page.clock.runFor(2000);
-
-  expect(await measurePillFromRest(page, "Standings")).toEqual({ offset: 0, extraHeight: 0 });
+  expect(await measurePillFromTab(page, "Bracket")).toBe(0);
 });
 
 const readBracketFit = (page) =>
