@@ -1853,26 +1853,35 @@ test.describe("on a phone", () => {
     }
   });
 
-  test("a pill's other names are plain words, and mid-swipe the fill passes from one name to the next", async ({
+  /** The left edge and width of the Games pill's block, and of each name. */
+  const readPill = (page) =>
+    page.locator("#games-bar [role=tablist]").evaluate((tabList) => {
+      const measure = (element) => {
+        const box = element.getBoundingClientRect();
+        return { left: Math.round(box.left), width: Math.round(box.width) };
+      };
+      return {
+        thumb: measure(/** @type {Element} */ (tabList.querySelector(".pager-thumb"))),
+        names: Object.fromEntries(
+          [...tabList.querySelectorAll("[role=tab]")].map((tab) => [
+            tab.textContent.trim(),
+            { ...measure(tab), fill: getComputedStyle(tab).backgroundColor },
+          ]),
+        ),
+      };
+    });
+
+  test("a pill's names are plain words over one orange block, which a swipe carries between two names", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     await page.getByRole("tab", { name: "Games" }).click();
-    const readFills = () =>
-      page.locator("#games-bar [role=tab]").evaluateAll((tabs) =>
-        tabs.map((tab) => {
-          const style = getComputedStyle(tab);
-          const alpha = Number(style.backgroundColor.match(/[\d.]+/g)[3] ?? 1);
-          return { name: tab.textContent.trim(), alpha: Math.round(alpha * 10) / 10 };
-        }),
-      );
-    await expect.poll(readFills).toEqual([
-      { name: "Previous", alpha: 0 },
-      { name: "Today", alpha: 1 },
-      { name: "Next", alpha: 0 },
-    ]);
-    await expect(page.getByRole("tab", { name: "Previous" })).toHaveCSS("border-top-width", "0px");
+    await expect.poll(async () => (await readPill(page)).thumb.left).toBeGreaterThan(0);
+    const resting = await readPill(page);
+    const { Previous: previous, Today: today } = resting.names;
+    expect(resting.thumb).toEqual({ left: today.left, width: today.width });
+    for (const name of Object.values(resting.names)) expect(name.fill).toBe("rgba(0, 0, 0, 0)");
 
     // Snapping would carry a scroll set by hand to the nearest list, which a finger holds off.
     await page.locator("#games-pages").evaluate((pages) => {
@@ -1880,11 +1889,54 @@ test.describe("on a phone", () => {
       pages.scrollTo({ left: pages.clientWidth * 0.5, behavior: "instant" });
     });
 
-    await expect.poll(readFills).toEqual([
-      { name: "Previous", alpha: 0.5 },
-      { name: "Today", alpha: 0.5 },
-      { name: "Next", alpha: 0 },
-    ]);
+    await expect
+      .poll(async () => (await readPill(page)).thumb)
+      .toEqual({
+        left: Math.round((previous.left + today.left) / 2),
+        width: Math.round((previous.width + today.width) / 2),
+      });
+  });
+
+  test("a tap on a name two over slides the pill's block straight there, leaving the name between as it is", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await page.getByRole("tab", { name: "Previous" }).click();
+    await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => {
+      const today = /** @type {Element} */ (document.getElementById("games-tab-today"));
+      const noted = /** @type {number[]} */ ([]);
+      document
+        .getElementById("games-pages")
+        ?.addEventListener("scroll", () =>
+          noted.push(Number(getComputedStyle(today).getPropertyValue("--nearness"))),
+        );
+      Object.assign(window, { todayNearness: noted });
+    });
+
+    await page.getByRole("tab", { name: "Next" }).click();
+
+    expect(
+      await page
+        .locator("#games-bar .pager-thumb")
+        .evaluate((thumb) => thumb.getAnimations().length),
+    ).toBeGreaterThan(0);
+    await expect
+      .poll(() =>
+        page.locator("#games-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth),
+      )
+      .toBe(2);
+    const noted = await page.evaluate(() => /** @type {any} */ (window).todayNearness);
+    expect(noted.length).toBeGreaterThan(0);
+    expect(Math.max(...noted)).toBe(0);
+    const { thumb, names } = await readPill(page);
+    expect(thumb).toEqual({ left: names.Next.left, width: names.Next.width });
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({

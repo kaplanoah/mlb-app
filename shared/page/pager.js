@@ -1,4 +1,5 @@
 import { html, setHtml } from "./html.js";
+import { createPillThumb } from "./pill-thumb.js";
 import { selectTab, wireTabs } from "./tabs.js";
 
 // Lists side by side under a pill, as pager.css lays them out, like the Games view's Previous,
@@ -81,6 +82,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   const renderPager = () =>
     html`<div id="${idPrefix}-bar" class="pager-bar">
         <div class="pager-tabs" role="tablist" aria-label="${label}">
+          <span class="pager-thumb" aria-hidden="true"></span>
           ${lists.map(renderTab)}
         </div>
       </div>
@@ -133,14 +135,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     alignHiddenLists();
   }
 
-  /** @param {number} position runs from 0 at the first list to the last's index, between them mid-swipe */
-  function paintSwipe(position) {
-    for (const [index, button] of findTabs().entries()) {
-      const nearness = Math.max(0, 1 - Math.abs(index - position));
-      button.style.setProperty("--nearness", String(nearness));
-    }
-  }
-
   /** @param {HTMLElement} pages */
   const readSwipePosition = (pages) => pages.scrollLeft / pages.clientWidth;
   /**
@@ -183,10 +177,11 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     if (key !== shownList) markShownList(key);
   }
 
+  // While the lists scroll to one a tap chose, the pill's block is already sliding there.
   function followSwipe() {
     const pages = findPages();
     if (!pages.clientWidth) return;
-    paintSwipe(readSwipePosition(pages));
+    if (!scrollTarget) thumb.moveThumb(readSwipePosition(pages));
     scheduleSettle();
   }
 
@@ -198,6 +193,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     }
     selectTab(findTabs(), key);
     scrollTarget = key;
+    thumb.moveThumb(keys.indexOf(key), { isSliding: true });
     scrollToList(key, chooseScrollBehavior());
   }
 
@@ -205,7 +201,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   function jumpToList(key) {
     scrollTarget = null;
     scrollToList(key, "instant");
-    paintSwipe(keys.indexOf(key));
+    thumb.moveThumb(keys.indexOf(key));
     markShownList(key);
   }
 
@@ -254,9 +250,10 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   root.classList.add("pager");
   setHtml(root, renderPager());
+  const thumb = createPillThumb(/** @type {HTMLElement} */ (root.querySelector("[role=tablist]")));
   wireTabs(findTabs(), showList);
   markShownList(shownList);
-  paintSwipe(keys.indexOf(shownList));
+  thumb.moveThumb(keys.indexOf(shownList));
   wireSwipe();
 
   return {

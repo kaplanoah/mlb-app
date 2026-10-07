@@ -311,6 +311,26 @@ test.describe("in full motion", () => {
     return steps.every((step) => step >= 0) || steps.every((step) => step <= 0);
   };
 
+  test("a tap on Roster slides the pill's block from Team to Roster", async ({ page }) => {
+    await openApp(page);
+    await openLibertySheet(page);
+    const thumb = page.locator("#teamSheet .pager-thumb");
+
+    await page.getByRole("tab", { name: "Roster" }).click();
+
+    expect(await thumb.evaluate((element) => element.getAnimations().length)).toBeGreaterThan(0);
+    await expectShown(page.locator("#rosterSection"));
+    await expect
+      .poll(async () => {
+        const [block, roster] = await Promise.all([
+          thumb.boundingBox(),
+          page.getByRole("tab", { name: "Roster" }).boundingBox(),
+        ]);
+        return Math.round(block.x - roster.x);
+      })
+      .toBe(0);
+  });
+
   test("on a phone, a finger swiping a team's stats left brings in its roster, its pill following, and once it lifts, the roster settles without stepping back, changing nothing but the pills while the finger moves it", async ({
     page,
   }) => {
