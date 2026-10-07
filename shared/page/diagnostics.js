@@ -1,11 +1,11 @@
 // While Diagnostics is on in settings, each open of the page, each return to it, and each tap on
 // Record records what the page draws in its first seconds: what the store sends, and how much
 // each part it draws whole (each `data-last-drawn` element) shows, frame by frame. The last few
-// records stay on this device, for the viewer to copy from settings, after a header that names
-// the release, the device, and the page's state, and before the logs of the viewport's changes
-// (viewport-log.js) and of what each dialog's row of sheets does (sheet-log.js).
-// A record on request ends in a button that shares the report on a phone or tablet, or copies it
-// on a computer. It records nothing while it's off, which it starts as.
+// records stay on this device. Once a record on request ends, its button shares them as a report
+// on a phone or tablet, or copies it on a computer, after a header that names the release, the
+// device, and the page's state, and before the logs of the viewport's changes (viewport-log.js)
+// and of what each dialog's row of sheets does (sheet-log.js). It records nothing while it's off,
+// which it starts as.
 
 import {
   formatClockTime,
@@ -40,8 +40,8 @@ const KEPT_RECORDS = 5;
 // A part whose text shrinks by more than this share dipped, which is what a flicker looks like.
 const DIP_SHARE = 0.25;
 const MINUTE_MS = 60 * 1000;
-// Copy, or the report button, says it copied or shared for this long, then offers it again.
-const COPIED_MS = 2000;
+// The report button says it copied or shared the report for this long, then offers to record again.
+const SENT_MS = 2000;
 const ON_REQUEST = "On request";
 
 /** @typedef {{ ms: number, text: string, isDip?: boolean }} RecordLine */
@@ -71,9 +71,6 @@ let record = null;
 let recordStartedAt = 0;
 /** @type {Map<string, PartSize>} */
 let shownSizes = new Map();
-let isCopied = false;
-/** @type {ReturnType<typeof setTimeout> | undefined} */
-let copiedTimer;
 /** @type {ReportStep | null} */
 let reportStep = null;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -357,7 +354,7 @@ const formatMoment = (date) => `${formatWeekdayAndDate(date)} ${formatClockTimeW
 const countTimes = (count) => (count === 1 ? "1 time" : `${count} times`);
 
 /**
- * The lines that open the copied text, saying which release, on what device, in what state.
+ * The lines that open the report, saying which release, on what device, in what state.
  * @param {PageFacts} facts
  * @returns {string}
  */
@@ -545,15 +542,7 @@ function renderRecords() {
   const sheetLines = readSheetLines().toReversed();
   return html`<div class="diagnostics-head">
       <h3>Recent opens</h3>
-      <div class="diagnostics-actions">
-        ${renderRecordButton()}
-        ${
-          (records.length > 0 || viewportLines.length > 0 || sheetLines.length > 0) &&
-          html`<button type="button" class="diagnostics-button" id="diagnosticsCopy">
-            ${isCopied ? "Copied" : "Copy"}
-          </button>`
-        }
-      </div>
+      <div class="diagnostics-actions">${renderRecordButton()}</div>
     </div>
     ${
       records.length
@@ -576,17 +565,8 @@ function toggleRecording() {
   const isOn = !isRecording();
   saveSwitch(isOn);
   if (!isOn) record = null;
-  isCopied = false;
   reportStep = null;
   drawRecords();
-}
-
-/** @param {boolean} hasCopied */
-function showCopied(hasCopied) {
-  clearTimeout(copiedTimer);
-  isCopied = hasCopied;
-  drawRecords();
-  if (hasCopied) copiedTimer = setTimeout(() => showCopied(false), COPIED_MS);
 }
 
 function writeReport() {
@@ -597,22 +577,13 @@ function writeReport() {
   return [header, records, viewport, sheets].filter(Boolean).join("\n\n");
 }
 
-async function copyRecords() {
-  try {
-    await navigator.clipboard.writeText(writeReport());
-    showCopied(true);
-  } catch {
-    showCopied(false);
-  }
-}
-
 /** @param {ReportStep | null} step */
 function showReportStep(step) {
   clearTimeout(reportTimer);
   reportStep = step;
   drawRecords();
   if (step === "copied" || step === "shared") {
-    reportTimer = setTimeout(() => showReportStep(null), COPIED_MS);
+    reportTimer = setTimeout(() => showReportStep(null), SENT_MS);
   }
 }
 
@@ -654,7 +625,6 @@ async function sendReport() {
 /** @param {Event} event */
 function followSectionClick(event) {
   const target = /** @type {Element} */ (event.target);
-  if (target.closest("#diagnosticsCopy")) copyRecords();
   if (target.closest("#diagnosticsRecord")) followRecordButton();
 }
 

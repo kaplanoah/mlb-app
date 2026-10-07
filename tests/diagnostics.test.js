@@ -117,7 +117,7 @@ const PAGE_FACTS = {
   now: new Date("2026-10-07T12:16:30Z"),
 };
 
-test("the copied text opens with the release, the device, and the page's state", () =>
+test("the report opens with the release, the device, and the page's state", () =>
   checkInTimeZone(EASTERN, () => {
     assert.equal(
       normalizeSpaces(writeHeader(PAGE_FACTS)),
