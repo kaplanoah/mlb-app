@@ -1917,7 +1917,7 @@ async function pressTab(page, name) {
   await page.mouse.down();
 }
 
-test("on a phone, a press lifts the tab bar's pill into glass with a faint rim, which settles on the tab once released", async ({
+test("on a phone, a press lifts the tab bar's pill, thinner, with a faint rim, which settles on the tab once released", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);

@@ -1,6 +1,6 @@
 /*
- * The chrome every app's page shares: the settings button, the tabs (a floating bar of tinted
- * glass on phones), the settings dialog (the whole screen on phones) and the lines at its foot, a
+ * The chrome every app's page shares: the settings button, the tabs (a floating tinted bar on
+ * phones), the settings dialog (the whole screen on phones) and the lines at its foot, a
  * sideways bracket's round dots (pinned above the tab bar on phones), the bar and settings box that
  * ask a phone's browser to add the page to the Home Screen, the note a slow load shows, the header's
  * line while the page catches up and the sweep through its lines once it has, the spokes a pull
@@ -22,8 +22,7 @@
  *                                              phone keeps its own
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
  *                                              the app has one
- *   --tab-bar-tint                             the color that tints the tab bar's glass, and fills
- *                                              it when the viewer turns transparency down
+ *   --tab-bar-tint                             the tab bar's fill
  *   --tab-bar-edge                             the tab bar's edge
  *   --tab-bar-ink                              the tab bar's icons and labels, and the glow under a touch
  *   --tab-bar-pill                             the selected tab's pill
@@ -95,7 +94,7 @@ nav.tabs {
   gap: 8px;
   flex-wrap: wrap;
 }
-.tab-glass,
+.tab-backing,
 .tab-pill,
 .tab-icon,
 .edge-fade {
@@ -849,7 +848,7 @@ body:has(> .home-screen-bar:not([hidden])) {
   }
 
   /*
-   * A floating tab bar of tinted glass, sized like iOS's: a 62px capsule 21px in from the sides, a
+   * A floating tab bar in the app's tint, sized like iOS's: a 62px capsule 21px in from the sides, a
    * selection pill 5px inside it, icons over small system-font labels. tab-bar.js drives its motion.
    */
   .tab-bar {
@@ -871,15 +870,13 @@ body:has(> .home-screen-bar:not([hidden])) {
     box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.55);
     pointer-events: none;
   }
-  .tab-glass {
+  .tab-backing {
     display: block;
     position: absolute;
     inset: 0;
     overflow: hidden;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--tab-bar-tint) 55%, transparent);
-    -webkit-backdrop-filter: blur(10px) saturate(110%);
-    backdrop-filter: blur(10px) saturate(110%);
+    background: var(--tab-bar-tint);
     box-shadow: inset 0 0 0 1px var(--tab-bar-edge);
   }
   .tab-glow {
@@ -946,8 +943,7 @@ body:has(> .home-screen-bar:not([hidden])) {
   }
   /*
    * The selected tab sits on a pill. --lift runs from 0 to 1 as a touch raises it, and its fill
-   * thins about halfway to clear glass then, with a faint warm rim, so the tab under it shows
-   * through.
+   * thins about halfway then, with a faint warm rim, so the tab under it shows through.
    */
   .tab-pill {
     display: block;
@@ -991,7 +987,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     pointer-events: none;
   }
 
-  /* The bottom scroll edge: content dims and softens under the bar but stays readable. */
+  /* The bottom scroll edge: content dims under the bar but stays readable. */
   .edge-fade {
     display: block;
     position: fixed;
@@ -1005,19 +1001,10 @@ body:has(> .home-screen-bar:not([hidden])) {
       transparent,
       color-mix(in srgb, var(--bg) 60%, transparent) 85%
     );
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 70%);
-    mask-image: linear-gradient(to bottom, transparent, #000 70%);
     pointer-events: none;
   }
-  @media (prefers-reduced-transparency: reduce) {
-    .tab-glass {
-      background: var(--tab-bar-tint);
-    }
-  }
   @media (prefers-contrast: more) {
-    .tab-glass {
+    .tab-backing {
       background: var(--tab-bar-tint);
       box-shadow: inset 0 0 0 1px var(--tab-bar-ink);
     }

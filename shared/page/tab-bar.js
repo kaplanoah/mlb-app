@@ -1,6 +1,6 @@
 import { readSelectedTab } from "./tabs.js";
 
-// Matches the phone layout in chrome.css, where the tabs float at the bottom as a tinted glass bar.
+// Matches the phone layout in chrome.css, where the tabs float at the bottom as a tinted bar.
 const FLOATING_QUERY = matchMedia("(max-width: 779px)");
 const REDUCED_MOTION_QUERY = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -13,7 +13,7 @@ const DRAG_THRESHOLD_PX = 6;
 const PRESS_CLICK_WINDOW_MS = 600;
 
 // The iOS 27 selection motion, from frame-by-frame captures of UITabBarController, at a little over
-// half its strength: on touch the pill lifts into glass 10px larger, the tab under it grows
+// half its strength: on touch the pill lifts, thinning, 10px larger, the tab under it grows
 // by a tenth, it travels on a spring with a slight overshoot, stretches ahead of the travel and
 // squashes on arrival, and the whole bar pulses about 5px wider. UIKit also spreads the touch glow
 // across the bar on release; here it only fades where it is, because the spread reads as a flash.
