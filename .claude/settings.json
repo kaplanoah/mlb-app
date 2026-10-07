@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "allow": ["Bash(git push -f origin *:refs/heads/beta)"],
     "deny": [
       "Bash(npm run deploy)",
       "Bash(npm run deploy *)",
