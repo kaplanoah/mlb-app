@@ -7,6 +7,7 @@
 
 import { formatClockTime, formatClockTimeWithSeconds, nameDay } from "./days.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
+import { describeShownPagers } from "./pager-log.js";
 import { watchTimeAway } from "./resume.js";
 import {
   forgetSheetLines,
@@ -170,7 +171,10 @@ function sampleParts() {
   if (!record) return;
   noteChangedParts();
   if (performance.now() - recordStartedAt < RECORD_MS) requestAnimationFrame(sampleParts);
-  else finishRecord();
+  else {
+    for (const line of describeShownPagers()) noteStep(line);
+    finishRecord();
+  }
 }
 
 const PAINT_NAMES = {
