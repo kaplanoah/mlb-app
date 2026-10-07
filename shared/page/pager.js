@@ -18,7 +18,7 @@ import { selectTab, wireTabs } from "./tabs.js";
 
 // Without scrollend, the lists count as at rest once they haven't scrolled for this long.
 const SETTLE_DELAY_MS = 150;
-const HAS_SCROLLEND = "onscrollend" in window;
+const hasScrollend = () => "onscrollend" in window;
 
 const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** @returns {ScrollBehavior} */
@@ -184,7 +184,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     const pages = findPages();
     if (!pages.clientWidth) return;
     if (!scrollTarget) thumb.moveThumb(readSwipePosition(pages));
-    if (!HAS_SCROLLEND) scheduleSettle();
+    if (!hasScrollend()) scheduleSettle();
   }
 
   /** @param {string} key */
