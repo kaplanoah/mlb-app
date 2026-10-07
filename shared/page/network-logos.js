@@ -111,14 +111,12 @@ const renderNetworkLine = (networks) =>
   </div>`;
 
 /**
- * Where to watch a game, as sheet.css lays it out: its channels in one line, logos standing apart
- * by space alone, and a channel without one by its name. A game yet to end whose channels aren't
- * listed yet says to check back, and one that ended without them says nothing.
+ * Where to watch a game yet to end, as sheet.css lays it out: its channels in one line, logos
+ * standing apart by space alone, and a channel without one by its name, or, while none are listed,
+ * a note to check back.
  * @param {string[]} networks
- * @param {{ hasEnded: boolean }} game
  */
-export function renderNetworks(networks, { hasEnded }) {
-  if (networks.length) return renderNetworkLine(networks);
-  if (hasEnded) return html``;
-  return html`<p class="networks networks-pending">Check back for where to watch</p>`;
-}
+export const renderNetworks = (networks) =>
+  networks.length
+    ? renderNetworkLine(networks)
+    : html`<p class="networks networks-pending">Check back for where to watch</p>`;

@@ -7,6 +7,8 @@ import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
 const PHONE = { width: 390, height: 844 };
+// The room between two sections side by side, which the WNBA's --sheet-gap sets.
+const GAP_PX = 15;
 
 /** @param {import("@playwright/test").Page} page */
 async function openLibertySheet(page) {
@@ -98,19 +100,19 @@ test("a team's Roster pill shows its roster beside its stats: each player by las
   await expect(section).toHaveAttribute("inert");
 });
 
-test("a team's still top draws a line under it only while a section is scrolled under it", async ({
+test("a team's still top keeps its band's line as it is while a section scrolls under it", async ({
   page,
 }) => {
   await openApp(page);
   const section = await openLibertyRoster(page);
   const top = page.locator("#teamSheet .sheet-top");
-  await expect(top).toHaveCSS("box-shadow", "none");
+  const readLine = () => top.evaluate((element) => getComputedStyle(element).boxShadow);
+  const line = await readLine();
+  expect(line).not.toBe("none");
 
   await scrollSection(section, { top: 300 });
-  await expect(top).not.toHaveCSS("box-shadow", "none");
-
-  await scrollSection(section, { top: 0 });
-  await expect(top).toHaveCSS("box-shadow", "none");
+  expect(await readLine()).toBe(line);
+  await expect(top).not.toHaveClass(/stuck/);
 });
 
 test("another team's sheet opens on its stats, scrolled to its top", async ({ page }) => {
@@ -432,7 +434,7 @@ test.describe("in full motion", () => {
       const changes = /** @type {string[]} */ ([]);
       const isMoving = (/** @type {MutationRecord} */ record) =>
         record.attributeName === "style" ||
-        (record.attributeName === "class" &&
+        (["class", "data-sliding"].includes(record.attributeName ?? "") &&
           /** @type {Element} */ (record.target).matches(".sheet-sections"));
       new MutationObserver((records) =>
         changes.push(
@@ -476,7 +478,7 @@ test.describe("in full motion", () => {
     const readLefts = await startTrackingRoster(page);
     await release();
     await expectShown(page.locator("#teamSection"));
-    await expect.poll(() => readLeft(section)).toBe(PHONE.width);
+    await expect.poll(() => readLeft(section)).toBe(PHONE.width + GAP_PX);
     const lefts = await readLefts();
 
     expect(lefts.length).toBeGreaterThan(5);

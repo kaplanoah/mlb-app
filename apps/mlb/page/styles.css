@@ -36,6 +36,9 @@
   --card: #132a1f;
   --sheet: var(--card);
   --sheet-shadow: none;
+  --sheet-band: var(--sheet);
+  --sheet-band-line: transparent;
+  --sheet-gap: 0px;
   --card-border: #2a4536;
   --ink: #f1ead4;
   --ink-dim: #7fa88f;

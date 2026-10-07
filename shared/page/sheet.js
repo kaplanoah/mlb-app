@@ -2,11 +2,11 @@
 // modal on wider screens. A sheet is a page in a dialog.
 //
 // The stack: a dialog with a .sheet-row holds several sheets, one over another, like a game's, a
-// team's, and a player's. A sheet opened from another slides in over it from the right, the one
-// under it moving 30% left, with a back arrow in place of its close caret, named after the one
-// under it. The arrow, or a swipe right that the finger drags, slides it away, the one under it
-// coming back in, and it leaves the stack and lets go of what it showed. Only the sheet on top is
-// drawn at rest; the ones under it are hidden and inert. The caret, a click on the backdrop,
+// team's, and a player's. A sheet opened from another slides in from the right beside it, the one
+// under it moving out to the left, the row's gap between them, with a back arrow in place of its
+// close caret, named after the one under it. The arrow, or a swipe right that the finger drags,
+// slides it away, the one under it coming back in, and it leaves the stack and lets go of what it
+// showed. Only the sheet on top is drawn at rest; the ones under it are hidden and inert. The caret, a click on the backdrop,
 // Escape, and on phones a swipe down close the dialog (sheet-swipe.js). A page that loads again
 // shows the sheets it showed before, where they were scrolled (show-last-drawn.js and
 // sheet-reopen.js). The stack and a sheet's sections both move their panels with slide-panels.js.
@@ -42,10 +42,6 @@ import { createSlidePanels } from "./slide-panels.js";
  *   others, or its dialog closes
  */
 /** @typedef {ReturnType<typeof createSlidePanels>} SlidePanels */
-
-// A sheet under the one on top sits this share of its width to the left, as the phone's own do, so
-// it comes in from there as the one on top slides away.
-const UNDER_SHARE = 0.3;
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
@@ -90,15 +86,12 @@ export const listOpenDialogs = () =>
     .map((dialog) => ({ dialog, sheets: listStack(dialog), shown: readShownIndex(dialog) }));
 
 /**
- * Where a sheet sits for the row's position: under the one on top a little way left, on top, or
+ * Where a sheet sits for the row's position: past the left edge, under the one on top, on top, or
  * past the right edge, waiting to come in.
  * @param {number} index
  * @param {number} position
  */
-function placeSheet(index, position) {
-  if (index < position) return -UNDER_SHARE * Math.min(position - index, 1);
-  return Math.min(index - position, 1);
-}
+const placeSheet = (index, position) => Math.max(-1, Math.min(index - position, 1));
 
 /**
  * @param {HTMLElement | undefined} button
@@ -188,7 +181,7 @@ export function restoreStack(dialog, sheets) {
 }
 
 /**
- * Brings a sheet into the open dialog over the shown one, in place of any after it, sliding in
+ * Brings a sheet into the open dialog after the shown one, in place of any after it, sliding in
  * from the right edge, or back to a sheet under the shown one.
  * @param {HTMLDialogElement} dialog
  * @param {HTMLElement} sheet

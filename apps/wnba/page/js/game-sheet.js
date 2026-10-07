@@ -1,5 +1,5 @@
-// The sheet a game's row opens: the two teams across the score, then the game's box score once
-// it has started, or a preview before it does. Phones show it as a sheet from the bottom that a
+// The sheet a game's row opens: the two teams across the score in its top, then the game's box
+// score once it has started, or a preview before it does. Phones show it as a sheet from the bottom that a
 // swipe down closes, wider screens as a modal, like Settings. A team's sheet opens it beside itself
 // from the cards of the team's nearest games.
 
@@ -76,22 +76,39 @@ function describeRecord(team) {
 function renderFaceOffSide(game, place) {
   const side = game[place];
   const isLost = findLoser(game) === place;
-  const bonus = game.state === "live" && side.isInBonus && html`<span class="bonus">Bonus</span>`;
   return html`<div class="faceoff-side ${place}${isLost ? " lost" : ""}">
     ${renderClub(side.team, { seed: side.seed })}
     <span class="faceoff-record tabular">${describeRecord(side.team)}</span>
-    ${bonus}
   </div>`;
 }
 
+/**
+ * @param {Game} game
+ * @param {"away" | "home"} place
+ */
+const renderBonus = (game, place) =>
+  game.state === "live" && game[place].isInBonus && html`<span class="bonus ${place}">Bonus</span>`;
+
+/** @param {Game} game */
+function renderFaceOffStatus(game) {
+  const status = renderStatus(game);
+  return status && html`<span class="faceoff-status">${status}</span>`;
+}
+
+// A game that has ended no longer says where it was on.
+/** @param {Game} game */
+const renderWhereToWatch = (game) => game.state !== "final" && renderNetworks(game.networks ?? []);
+
+// The teams and the score hold one row, whatever shows under them: Bonus under a side that's in it,
+// the game's status under the score, and where to watch.
 /** @param {Game} game */
 const renderFaceOff = (game) =>
   html`<div class="faceoff">
     ${renderFaceOffSide(game, "away")}
-    <div class="faceoff-middle">
-      ${renderHeadline(game)}<span class="faceoff-status">${renderStatus(game)}</span>
-    </div>
-    ${renderFaceOffSide(game, "home")} ${renderNetworks(game.networks ?? [], { hasEnded: game.state === "final" })}
+    <div class="faceoff-score">${renderHeadline(game)}</div>
+    ${renderFaceOffSide(game, "home")}
+    ${renderBonus(game, "away")} ${renderFaceOffStatus(game)} ${renderBonus(game, "home")}
+    ${renderWhereToWatch(game)}
   </div>`;
 
 /** @param {ShownGame} opened */
@@ -119,8 +136,9 @@ function renderSheet() {
   const body = findElement("gameBody");
   findElement("gameTitle").textContent = nameGame(game);
   setHtml(findElement("gameWhen"), renderWhen(game));
+  setHtml(findElement("gameFaceOff"), renderFaceOff(game));
   body.setAttribute("style", formatSheetColors(game.away.team, game.home.team));
-  setHtml(body, html`${renderFaceOff(game)}${renderDetails(shown, game)}`);
+  setHtml(body, renderDetails(shown, game));
   body.setAttribute("aria-busy", String(isLoading(shown)));
 }
 

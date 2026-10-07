@@ -962,8 +962,10 @@ test.describe("on a phone, a team's sheet", () => {
       ),
     );
     const [teamTop, gameTop, sheetColor] = backgrounds;
+    const floor = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     expect(teamTop).toBe(gameTop);
-    expect([sheetColor, "rgba(0, 0, 0, 0)"]).toContain(teamTop);
+    expect(teamTop).toBe(floor);
+    expect(sheetColor).not.toBe(floor);
     const top = await sheet.locator(".sheet-top").boundingBox();
     const cardTitle = await sheet.locator(".game-card .sheet-part-head").first().boundingBox();
     const cards = await sheet.locator(".game-cards").boundingBox();
@@ -974,7 +976,7 @@ test.describe("on a phone, a team's sheet", () => {
     expect(cardTitle.y - (top.y + top.height)).toBeCloseTo(11.5, 0);
     expect(firstPart.y - (cards.y + cards.height)).toBeCloseTo(16, 0);
     await expect(sheet.locator(".sheet-top")).toHaveCSS("border-bottom-width", "0px");
-    await expect(sheet.locator(".sheet-top")).toHaveCSS("box-shadow", "none");
+    await expect(sheet.locator(".sheet-top")).not.toHaveCSS("box-shadow", "none");
   });
 });
 
