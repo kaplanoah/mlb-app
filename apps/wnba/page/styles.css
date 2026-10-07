@@ -81,8 +81,8 @@
  * app icons keep their own shape, and the floating tab bar stays a capsule, like the phone's own.
  *
  * Surfaces. A card and an outlined button are --raised off the floor, inside an --edge. A bar held
- * at the top is the floor's own color, with a line under it once the page scrolls under it, never
- * a fade.
+ * at the top is the color of what it's on, the floor or a sheet, with a line under it only once
+ * something scrolls under it, never a fade.
  *
  * Buttons say what they do in sentence case, as capitals are only for labels and chips. The one
  * that's on, like the list a pill shows, is filled orange, inside a darker edge, and the rest are
@@ -709,35 +709,29 @@ header.top h1 {
 :is(.game-sheet-body, .team-tape) .tape-bar i.lead {
   background: var(--side);
 }
-/* Every sheet bands its top in --tile over a hairline like a bracket card's border, so a new sheet
-   matches the others without naming it. The band's title sits --band-space-top under its top, and
-   under the status bar on a phone, and its bottom has --band-space-bottom of room. A game's band
-   runs on through its teams, whose face-off draws the hairline. */
+/* Every sheet's top is the sheet's own color, with no line under it, so two sheets side by side
+   mid-swipe show no edge that could fail to meet. Its title sits --top-room-above under its top,
+   and under the status bar on a phone, and --top-room-below sets it apart from what follows, or,
+   on a game's sheet, sets its teams apart. */
 .sheet-page {
-  --band-edge: var(--edge);
-  --band-space-top: 12px;
-  --band-space-bottom: 23px;
+  --top-room-above: 12px;
+  --top-room-below: 23px;
 }
 #gameSheet {
-  --band-space-bottom: 15px;
+  --top-room-below: 15px;
 }
 .sheet-page .sheet-top {
-  padding-top: calc(env(safe-area-inset-top) + var(--band-space-top));
-  background: var(--raised);
+  padding-top: calc(env(safe-area-inset-top) + var(--top-room-above));
 }
 .sheet-page:not(#gameSheet) .sheet-top {
-  padding-bottom: var(--band-space-bottom);
-  border-bottom: 1px solid var(--band-edge);
+  padding-bottom: var(--top-room-below);
 }
 .faceoff {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   column-gap: 10px;
-  margin-inline: -18px;
-  padding: 6px 18px var(--band-space-bottom);
-  border-bottom: 1px solid var(--band-edge);
-  background: var(--tile);
+  padding: 6px 0 var(--top-room-below);
 }
 .faceoff-side {
   display: flex;
@@ -782,7 +776,7 @@ header.top h1 {
   white-space: nowrap;
 }
 .faceoff:has(.networks) {
-  padding-bottom: calc(var(--band-space-bottom) - 4px);
+  padding-bottom: calc(var(--top-room-below) - 4px);
 }
 .faceoff .networks {
   grid-column: 1 / -1;
@@ -2384,7 +2378,7 @@ body.kbd .player-open:focus {
 /* A player's sheet: under her name and team, her position, age, height, and first season, each
    under a quiet label, without lines between them. */
 #playerSheet {
-  --band-space-bottom: 21px;
+  --top-room-below: 21px;
 }
 .player-facts {
   display: flex;

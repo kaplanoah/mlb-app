@@ -4,9 +4,9 @@ import { selectTab, wireTabs } from "./tabs.js";
 
 // A sheet's sections side by side under the pills in its top, like a WNBA team's Team and Roster.
 // A tap on a pill or a swipe moves between them as the browser scrolls anything, and each section
-// scrolls up and down on its own while the sheet's top, pills and all, stays still above them. A
-// section that scrolls sideways, like the roster, goes back to the one before with a swipe right
-// from its left edge.
+// scrolls up and down on its own while the sheet's top, pills and all, stays still above them, with
+// a line under it once the shown section has scrolled under it. A section that scrolls sideways,
+// like the roster, goes back to the one before with a swipe right from its left edge.
 
 // The sections have come to rest on one within this many pixels of its edge.
 const SETTLED_PX = 1;
@@ -20,6 +20,7 @@ const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)"
  */
 export function wireSheetSections(sheet) {
   const row = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-sections"));
+  const top = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top"));
   const tabList = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top [role=tablist]"));
   const tabs = /** @type {HTMLButtonElement[]} */ ([...tabList.querySelectorAll("[role=tab]")]);
   const keys = tabs.map((tab) => tab.dataset.tab ?? "");
@@ -42,11 +43,16 @@ export function wireSheetSections(sheet) {
     thumb.moveThumb(row.clientWidth ? row.scrollLeft / row.clientWidth : keys.indexOf(shown));
   }
 
+  function markHeld() {
+    top.classList.toggle("stuck", findSection(shown).scrollTop > 0);
+  }
+
   /** @param {string} key */
   function markShown(key) {
     shown = key;
     selectTab(tabs, key);
     for (const other of keys) findSection(other).inert = other !== key;
+    markHeld();
   }
 
   function settleWhereScrolled() {
@@ -93,6 +99,7 @@ export function wireSheetSections(sheet) {
   row.addEventListener("scroll", paintSwipe, { passive: true });
   row.addEventListener("scroll", settleWhereScrolled, { passive: true });
   row.addEventListener("scrollend", settleWhereScrolled);
+  for (const key of keys) findSection(key).addEventListener("scroll", markHeld, { passive: true });
   new ResizeObserver(realign).observe(row);
   wireTabs(tabs, (key) => showSection(key));
   stepBackOnEdgeSwipe(row, {

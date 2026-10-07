@@ -984,7 +984,7 @@ test.describe("on a phone, a team's sheet", () => {
     contextOptions: { reducedMotion: "reduce" },
   });
 
-  test("sets its name like every team's at 20px, its numbers in Barlow Condensed like a game preview's, its text in medium but None yet a step lighter, and its title in a tinted band like a game's, over a hairline like a bracket card's border, with the titles of its nearest games 11.5px under it and its first part 16px under their cards", async ({
+  test("sets its name like every team's at 20px, its numbers in Barlow Condensed like a game preview's, its text in medium but None yet a step lighter, and its title on the sheet's own color with no line under it, like a game's, with the titles of its nearest games 11.5px under it and its first part 16px under their cards", async ({
     page,
   }) => {
     await openApp(page);
@@ -1019,9 +1019,9 @@ test.describe("on a phone, a team's sheet", () => {
         (selector) => getComputedStyle(document.querySelector(selector)).backgroundColor,
       ),
     );
-    const [band, gameBand, sheetColor] = backgrounds;
-    expect(band).toBe(gameBand);
-    expect(band).not.toBe(sheetColor);
+    const [teamTop, gameTop, sheetColor] = backgrounds;
+    expect(teamTop).toBe(gameTop);
+    expect([sheetColor, "rgba(0, 0, 0, 0)"]).toContain(teamTop);
     const top = await sheet.locator(".sheet-top").boundingBox();
     const cardTitle = await sheet.locator(".game-card .sheet-part-head").first().boundingBox();
     const cards = await sheet.locator(".game-cards").boundingBox();
@@ -1031,15 +1031,8 @@ test.describe("on a phone, a team's sheet", () => {
       .boundingBox();
     expect(cardTitle.y - (top.y + top.height)).toBeCloseTo(11.5, 0);
     expect(firstPart.y - (cards.y + cards.height)).toBeCloseTo(16, 0);
-    const [line, cardBorder] = await page.evaluate(() =>
-      [
-        getComputedStyle(document.querySelector("#teamSheet .sheet-top")),
-        getComputedStyle(document.querySelector(".series")),
-      ].map((style, index) =>
-        index ? style.borderTopColor : `${style.borderBottomWidth} ${style.borderBottomColor}`,
-      ),
-    );
-    expect(line).toBe(`1px ${cardBorder}`);
+    await expect(sheet.locator(".sheet-top")).toHaveCSS("border-bottom-width", "0px");
+    await expect(sheet.locator(".sheet-top")).toHaveCSS("box-shadow", "none");
   });
 });
 

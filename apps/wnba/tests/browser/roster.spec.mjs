@@ -87,6 +87,21 @@ test("a team's Roster pill shows its roster beside its stats: each player by las
   await expect(section).toHaveAttribute("inert");
 });
 
+test("a team's still top draws a line under it only while a section is scrolled under it", async ({
+  page,
+}) => {
+  await openApp(page);
+  const section = await openLibertyRoster(page);
+  const top = page.locator("#teamSheet .sheet-top");
+  await expect(top).toHaveCSS("box-shadow", "none");
+
+  await scrollSection(section, { top: 300 });
+  await expect(top).not.toHaveCSS("box-shadow", "none");
+
+  await scrollSection(section, { top: 0 });
+  await expect(top).toHaveCSS("box-shadow", "none");
+});
+
 test("another team's sheet opens on its stats, scrolled to its top", async ({ page }) => {
   await openApp(page);
   const section = await openLibertyRoster(page);

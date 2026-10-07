@@ -6,7 +6,8 @@
  * the rest, which scrolls with it and never past its top or bottom. A sheet with sections, like a
  * WNBA team's Team and Roster, holds its top still over them instead, with the sections' pills in
  * it, and each section scrolls on its own, as sheet-sections.js wires them. Apps link it after
- * chrome.css, before their own styles.css, and theme it with chrome.css's tokens.
+ * chrome.css, before their own styles.css, and theme it with chrome.css's tokens and pager.css's
+ * --held-bar-line, the line under a still top once a section scrolls under it.
  *
  * Its content falls in titled parts, as sheet-part.js builds them, each with an optional note
  * across from its title, which takes the app's --sheet-part-head color. A short status beside a
@@ -98,6 +99,11 @@
 .sheet-page > .sheet-content:has(+ .sheet-sections) {
   flex: none;
   padding-bottom: 0;
+}
+/* Once the shown section scrolls under the still top, a line sets the top apart, as under a
+   pager's held pill. */
+.sheet-top.stuck {
+  box-shadow: inset 0 -1px 0 var(--held-bar-line);
 }
 .sheet-sections {
   display: flex;
