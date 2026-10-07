@@ -8,7 +8,7 @@ import { renderCardNote, renderMatchupRow } from "../page/js/bracket-view.js";
 import { describeDrought, listRankedOrder } from "../page/js/clubs.js";
 import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
-import { renderGameList } from "../page/js/games-view.js";
+import { renderGameFaceOff, renderGameList } from "../page/js/games-view.js";
 import { html } from "../../../shared/page/html.js";
 import { renderUpdates as renderUpdateBox } from "../../../shared/page/updates.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
@@ -1026,17 +1026,36 @@ test("games list: a game still to play names its starters with their arm, leavin
     /<button type="button" class="game-open" aria-label="([^"]*)" data-game="([^"]*)">/.exec(
       rendered,
     );
-  assert.equal(button[1], "Pitching matchup: Tolle vs Schlittler");
+  assert.equal(button[1], "Game details: Red Sox at Yankees, Tue, Sep 29");
   const details = JSON.parse(button[2].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
-  assert.deepEqual(details, {
-    date: "2026-09-29",
-    start: "2026-09-30T00:08:00Z",
-    state: "pre",
-    away: "BOS",
-    home: "NYY",
-    starters: slate.today.games[0].starters,
-    today: true,
-  });
+  assert.deepEqual(details, { date: "2026-09-29", ...slate.today.games[0], today: true });
+});
+
+test("a game's sheet heads its Game section with the game's row, whose clubs open their sheets, without its starters or the button that opens it", () => {
+  session.state = { teams: {}, standings: { divisions: {} } };
+  const game = {
+    date: "2026-09-24",
+    away: "MIL",
+    home: "PHI",
+    state: "live",
+    start: "2026-09-24T22:05:00Z",
+    score: [4, 1],
+    inning: 9,
+    half: "top",
+    outs: 1,
+    starters: [
+      { id: 1, name: "Peralta", hand: "R" },
+      { id: 2, name: "Wheeler", hand: "R" },
+    ],
+  };
+  const rendered = String(renderGameFaceOff(game));
+  assert.match(rendered, /^<ul class="game-list game-faceoff"><li class="game-row live">/);
+  assert.deepEqual(
+    [...rendered.matchAll(/class="club team-open" data-team="(\w+)"/g)].map(([, team]) => team),
+    ["MIL", "PHI"],
+  );
+  assert.equal(stripTags(rendered).replace(/\s+/g, " ").trim(), "Brewers 4-1Top 9th Phillies");
+  assert.doesNotMatch(rendered, /game-open|game-extra|Peralta/);
 });
 
 test("games list: a starter MLB can't name yet leaves his line out, rather than calling him TBD, and the game still opens", () => {
@@ -1058,7 +1077,10 @@ test("games list: a starter MLB can't name yet leaves his line out, rather than 
   assert.match(rendered, /class="game-row pre"/);
   assert.doesNotMatch(rendered, /class="starter/);
   assert.doesNotMatch(rendered, /class="game-extra/);
-  assert.match(rendered, /class="game-open" aria-label="Pitching matchup: TBD vs TBD"/);
+  assert.match(
+    rendered,
+    /class="game-open" aria-label="Game details: Cubs at Padres, Tue, Sep 29"/,
+  );
 });
 
 test("games list: a club yet to name today's starter says Still TBD, and every game opens", () => {
@@ -1073,11 +1095,14 @@ test("games list: a club yet to name today's starter says Still TBD, and every g
   ]);
   assert.match(
     String(renderGameList(slate, "today")),
-    /class="game-open" aria-label="Pitching matchup: TBD vs TBD"/,
+    /class="game-open" aria-label="Game details: Phillies at Braves, Thu, Oct 1"/,
   );
   const later = String(renderGameList(slate, "next"));
   assert.doesNotMatch(later, /Still TBD/);
-  assert.match(later, /class="game-open" aria-label="Pitching matchup: TBD vs TBD"/);
+  assert.match(
+    later,
+    /class="game-open" aria-label="Game details: Phillies at Braves, Fri, Oct 2"/,
+  );
   assert.match(later, /&quot;today&quot;:false/);
 });
 

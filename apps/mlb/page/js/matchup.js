@@ -1,20 +1,15 @@
-// The matchup sheet every game opens: the two starters face to face, where each ranks among the
+// The Matchup section of a game's sheet: the two starters face to face, where each ranks among the
 // season's qualified starters, what each throws, and their last starts. A club yet to name today's starter
 // shows who started its last games instead, and how rested each would be, and any other starter
 // still to be named is one to check back for. Until each side loads, placeholders hold its shape.
-// Phones show it as a sheet from the bottom that a swipe down closes, wider screens as a modal,
-// like Settings.
 
 import { nameTeam, renderClub, renderClubName } from "./clubs.js";
-import { describeStart, formatGameDay, renderArm } from "./games-view.js";
+import { renderArm } from "./games-view.js";
 import { formatShortDate, readCalendarDate, readEasternDay } from "#shared/days.js";
-import { watchGameOpens } from "#shared/game-row.js";
-import { html, joinWithSeparator, setHtml } from "#shared/html.js";
+import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
-import { session } from "./session.js";
-import { openSheet, wireSheet } from "#shared/sheet.js";
 import { PENDING_TAPE_SIDE, renderTapeRow } from "#shared/tape.js";
 
 const SIDES = ["away", "home"];
@@ -28,18 +23,6 @@ const TAPE = [
   { key: "bb9", label: "BB/9", format: (line) => line.bb9.toFixed(1) },
   { key: "speed", label: "Fastball mph", format: (line) => line.speed.toFixed(1) },
 ];
-
-// Each opening counts, so a sheet reopened on another game ignores the first one's answers.
-let opening = 0;
-/** @type {{ game: MatchupGame, sides: any[] } | null} */
-let shown = null;
-
-const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("matchupSheet"));
-const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
-
-function renderWhen(game) {
-  return joinWithSeparator([formatGameDay(game.date), describeStart(game)]);
-}
 
 const isLoadingPitcher = (side) => Boolean(side.starter?.name) && !side.pitcher && !side.failed;
 
@@ -267,15 +250,8 @@ export function renderMatchupBody(game, sides) {
     ${sides.map((side) => renderScouting(side, game, speedRange))}`;
 }
 
-const isLoadingSide = (side, game) =>
+export const isLoadingSide = (side, game) =>
   isLoadingPitcher(side) || (isAwaitingStarter(side, game) && isLoadingRotation(side));
-
-function renderMatchup(game, sides) {
-  const body = findElement("matchupBody");
-  setHtml(findElement("matchupWhen"), renderWhen(game));
-  setHtml(body, renderMatchupBody(game, sides));
-  body.setAttribute("aria-busy", String(sides.some((side) => isLoadingSide(side, game))));
-}
 
 export const listSides = (game) =>
   SIDES.map((key, index) => ({
@@ -288,7 +264,12 @@ export const listSides = (game) =>
     failed: false,
   }));
 
-async function loadSide(side, game, season) {
+/**
+ * @param {any} side
+ * @param {MatchupGame} game
+ * @param {number} season
+ */
+export async function loadSide(side, game, season) {
   try {
     if (side.starter?.name) side.pitcher = await fetchPitcher(side.starter.id, season);
     else if (isAwaitingStarter(side, game))
@@ -300,60 +281,5 @@ async function loadSide(side, game, season) {
 }
 
 /**
- * @typedef {{ date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters: object[], today: boolean }} MatchupGame
+ * @typedef {{ date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters?: object[], today: boolean }} MatchupGame
  */
-
-/**
- * Draws the matchup, then each side again as it loads.
- * @param {MatchupGame} game
- * @param {any[]} sides
- */
-async function showMatchup(game, sides) {
-  const sequence = ++opening;
-  shown = { game, sides };
-  renderMatchup(game, sides);
-  const season = session.activeYear;
-  await Promise.all(
-    sides.map((side) =>
-      loadSide(side, game, season).then(() => {
-        if (sequence === opening) renderMatchup(game, sides);
-      }),
-    ),
-  );
-}
-
-/** @param {MatchupGame} game */
-function openMatchup(game) {
-  showMatchup(game, listSides(game));
-  openSheet(findSheet());
-}
-
-// What each side showed stays until it loads again.
-/** @param {{ game: MatchupGame, sides: any[] } | null} saved */
-function reopenMatchup(saved) {
-  if (!saved?.game || !Array.isArray(saved.sides)) return false;
-  showMatchup(saved.game, saved.sides);
-  return true;
-}
-
-const readRowGame = (button) => JSON.parse(button.dataset.game);
-
-const openFromRow = (button) => openMatchup(readRowGame(button));
-
-function prepareFromRow(button) {
-  const game = readRowGame(button);
-  for (const side of listSides(game)) loadSide(side, game, session.activeYear);
-}
-
-export function startMatchups() {
-  for (const holder of ["games-pages", "updates"])
-    watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
-  wireSheet(findSheet(), {
-    closeButton: findElement("matchupCloseBtn"),
-    keeper: { read: () => shown, reopen: reopenMatchup },
-    name: "Game",
-    forget: () => {
-      shown = null;
-    },
-  });
-}

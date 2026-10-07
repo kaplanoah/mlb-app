@@ -1878,6 +1878,36 @@ test("a tap shows only the page's own states: no gray flash, and no hover left b
   expect(await listTouchHoverRules(page)).toEqual([]);
 });
 
+/**
+ * Opens a game's sheet from Today's list, and returns a step that shows each of its sections in
+ * turn, the last closing the sheet once it has been checked.
+ * @param {import("@playwright/test").Page} page
+ */
+async function showGameSections(page) {
+  await page.getByRole("tab", { name: "Today" }).click();
+  const sheet = page.locator("#gameSheet");
+  const showSection = async (name) => {
+    await sheet.getByRole("tab", { name }).click();
+    await expect(sheet.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+  };
+  return [
+    async () => {
+      await page
+        .getByRole("button", { name: "Game details: Astros at Athletics, Thu, Sep 24" })
+        .click();
+      await expect(sheet.locator(".starters-open")).toBeVisible();
+    },
+    async () => {
+      await showSection("Matchup");
+      await expect(sheet.locator("#matchupBody .faceoff")).toBeVisible();
+    },
+    async () => {
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
+    },
+  ];
+}
+
 for (const { screen, viewport } of [
   { screen: "a wide screen", viewport: { width: 1280, height: 900 } },
   { screen: "a phone", viewport: { width: 390, height: 844 } },
@@ -1894,6 +1924,11 @@ for (const { screen, viewport } of [
       for (const list of ["Previous", "Today", "Next"]) {
         await page.getByRole("tab", { name: list }).click();
         await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+        expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listStrayPeriods(page)).toEqual([]);
+      }
+      for (const section of await showGameSections(page)) {
+        await section();
         expect(await listOffScaleText(page)).toEqual([]);
         expect(await listStrayPeriods(page)).toEqual([]);
       }
@@ -1921,6 +1956,10 @@ for (const { screen, viewport } of [
       for (const list of ["Previous", "Today", "Next"]) {
         await page.getByRole("tab", { name: list }).click();
         await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+        expect(await listTapsOffButtons(page)).toEqual([]);
+      }
+      for (const section of await showGameSections(page)) {
+        await section();
         expect(await listTapsOffButtons(page)).toEqual([]);
       }
       await page.getByRole("tab", { name: "Standings" }).click();

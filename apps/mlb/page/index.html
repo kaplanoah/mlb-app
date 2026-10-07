@@ -213,13 +213,13 @@
     </div>
   </dialog>
 
-  <dialog id="sheetDialog" class="sheet-panel" aria-labelledby="matchupTitle">
+  <dialog id="sheetDialog" class="sheet-panel" aria-labelledby="gameTitle">
     <div class="sheet-row">
-      <section id="matchupSheet" class="sheet-page" aria-labelledby="matchupTitle" hidden>
-        <div class="sheet-content matchup-sheet">
+      <section id="gameSheet" class="sheet-page" aria-labelledby="gameTitle" hidden>
+        <div class="sheet-content">
           <div class="sheet-top">
             <div class="sheet-head">
-              <button type="button" class="sheet-close" id="matchupCloseBtn">
+              <button type="button" class="sheet-close" id="gameCloseBtn">
                 <!-- Phosphor's caret-down, at its Light weight. -->
                 <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
                   <path
@@ -229,12 +229,49 @@
                 <span class="sheet-close-label">Close</span>
               </button>
               <div class="sheet-title">
-                <h2 id="matchupTitle">Pitching matchup</h2>
-                <p class="sheet-note" id="matchupWhen" data-last-drawn></p>
+                <h2 id="gameTitle" data-last-drawn>Game</h2>
+                <p class="sheet-note" id="gameWhen" data-last-drawn></p>
               </div>
             </div>
+            <div class="pager-tabs" role="tablist" aria-label="Game">
+              <span class="pager-thumb" aria-hidden="true"></span>
+              <button
+                type="button"
+                role="tab"
+                id="gameTabGame"
+                data-tab="game"
+                aria-controls="gameSection"
+                aria-selected="true"
+                class="active"
+              >
+                Game
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="gameTabMatchup"
+                data-tab="matchup"
+                aria-controls="matchupSection"
+                aria-selected="false"
+                tabindex="-1"
+              >
+                Matchup
+              </button>
+            </div>
           </div>
-          <div class="matchup-body" id="matchupBody" data-last-drawn></div>
+        </div>
+        <div class="sheet-sections">
+          <div class="sheet-section" id="gameSection" role="tabpanel" aria-labelledby="gameTabGame">
+            <div class="game-sheet-body" id="gameBody" data-last-drawn></div>
+          </div>
+          <div
+            class="sheet-section"
+            id="matchupSection"
+            role="tabpanel"
+            aria-labelledby="gameTabMatchup"
+          >
+            <div class="matchup-body" id="matchupBody" data-last-drawn></div>
+          </div>
         </div>
       </section>
 
