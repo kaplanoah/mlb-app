@@ -172,19 +172,15 @@ jobs:
       - &install-webkit
         if: steps.webkit.outputs.cache-hit != 'true'
         run: npx playwright install webkit
-      # WebKit's system libraries aren't on the runners, and the cache keeps only the browser. A
-      # stalled mirror fails apt's reads in seconds, and the install tries once more, rather than
-      # hanging the job. Playwright runs apt through sudo, which drops APT_CONFIG, so the timeout
-      # goes in apt's own config.
-      - id: webkit-deps
-        continue-on-error: true
-        timeout-minutes: 4
+      # WebKit's system libraries aren't on the runners, and the cache keeps only the browser. A slow
+      # mirror stops an attempt after four minutes rather than hanging the job, and the second
+      # attempt keeps the packages the first downloaded. Playwright runs apt through sudo, which
+      # drops APT_CONFIG, so apt's timeouts go in its own config, where the second attempt also
+      # waits for the first one's apt to let go of its lock.
+      - timeout-minutes: 9
         run: |
-          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99timeout
-          npx playwright install-deps webkit
-      - if: steps.webkit-deps.outcome == 'failure'
-        timeout-minutes: 4
-        run: npx playwright install-deps webkit
+          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; DPkg::Lock::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99timeout
+          timeout 4m npx playwright install-deps webkit || timeout 4m npx playwright install-deps webkit
       - run: npm run test:browser -- --project '*-webkit'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
