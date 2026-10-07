@@ -667,7 +667,7 @@ test("the Games lists' days, series labels, and statuses are in Barlow, apart fr
   expect(await readFirstFont(page.locator("#gamePager .game-side .club"))).toBe("Barlow Condensed");
 });
 
-test("a Games list's day reads its month, date, and weekday at their sizes, weights, and spacing, 3px and then 4px apart", async ({
+test("a Games list's day reads its month, date, and weekday at their sizes, weights, and spacing, 3px and then 4.5px apart", async ({
   page,
 }) => {
   await openApp(page);
@@ -691,7 +691,7 @@ test("a Games list's day reads its month, date, and weekday at their sizes, weig
     ["13px", "600", "0.78px"],
   ]);
   expect(date.top - month.bottom).toBeCloseTo(3, 1);
-  expect(weekday.top - date.bottom).toBeCloseTo(4, 1);
+  expect(weekday.top - date.bottom).toBeCloseTo(4.5, 1);
 });
 
 test("a game's dots, names, and time center on their capitals, level with each other, the seed on the right half a pixel lower", async ({
@@ -986,7 +986,7 @@ test.describe("on a phone, a team's sheet", () => {
     contextOptions: { reducedMotion: "reduce" },
   });
 
-  test("sets its name like every team's at 20px, its numbers in Barlow Condensed like a game preview's, its text in medium but None yet a step lighter, and its title in a tinted band like a game's, over a hairline like a bracket card's border, with its first part 15px under it", async ({
+  test("sets its name like every team's at 20px, its numbers in Barlow Condensed like a game preview's, its text in medium but None yet a step lighter, and its title in a tinted band like a game's, over a hairline like a bracket card's border, with the titles of its nearest games 11.5px under it and its first part 16px under their cards", async ({
     page,
   }) => {
     await openApp(page);
@@ -1025,8 +1025,14 @@ test.describe("on a phone, a team's sheet", () => {
     expect(band).toBe(gameBand);
     expect(band).not.toBe(sheetColor);
     const top = await sheet.locator(".sheet-top").boundingBox();
-    const firstPart = await sheet.locator(".sheet-part-head").first().boundingBox();
-    expect(Math.round(firstPart.y - (top.y + top.height))).toBe(15);
+    const cardTitle = await sheet.locator(".game-card .sheet-part-head").first().boundingBox();
+    const cards = await sheet.locator(".game-cards").boundingBox();
+    const firstPart = await sheet
+      .locator(".team-sheet-body > .sheet-part .sheet-part-head")
+      .first()
+      .boundingBox();
+    expect(cardTitle.y - (top.y + top.height)).toBeCloseTo(11.5, 0);
+    expect(firstPart.y - (cards.y + cards.height)).toBeCloseTo(16, 0);
     const [line, cardBorder] = await page.evaluate(() =>
       [
         getComputedStyle(document.querySelector("#teamSheet .sheet-top")),

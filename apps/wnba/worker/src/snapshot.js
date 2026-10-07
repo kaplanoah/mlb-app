@@ -149,8 +149,8 @@ export function createSnapshotServer({
     }
   }
 
-  // Each month with a playoff game, and yesterday's and today's, since a late game is still being
-  // played after midnight Eastern, and the schedule may not have answered.
+  // Each month with a playoff game or a team's nearest game, and yesterday's and today's, since a
+  // late game is still being played after midnight Eastern, and the schedule may not have answered.
   function listNetworkMonths(schedule, season) {
     const starts = WNBASnapshot.listScheduledStarts(schedule, season).map(Date.parse);
     const times = [now() - DAY_MS, now(), ...starts].filter(Number.isFinite);
@@ -190,10 +190,27 @@ export function createSnapshotServer({
   async function fetchSnapshot(season, requestedAt) {
     const responses = await fetchResponses(season);
     const snapshot = WNBASnapshot.buildSnapshot(responses, { season, now: requestedAt });
+    const ended = await addGameEnds(snapshot);
+    return {
+      ...ended,
+      meetings: listUpcomingMeetings(responses.schedule, ended),
+    };
+  }
+
+  // A game can be both a playoff game and a team's nearest, and is looked up once.
+  /**
+   * @template {{ games: any[], nearestGames: any[] }} Snapshot
+   * @param {Snapshot} snapshot
+   * @returns {Promise<Snapshot>}
+   */
+  async function addGameEnds(snapshot) {
+    const games = [...new Set([...snapshot.games, ...snapshot.nearestGames])];
+    const endedById = new Map((await gameEnds.addEnds(games)).map((game) => [game.id, game]));
+    const readEnded = (game) => endedById.get(game.id) ?? game;
     return {
       ...snapshot,
-      games: await gameEnds.addEnds(snapshot.games),
-      meetings: listUpcomingMeetings(responses.schedule, snapshot),
+      games: snapshot.games.map(readEnded),
+      nearestGames: snapshot.nearestGames.map(readEnded),
     };
   }
 

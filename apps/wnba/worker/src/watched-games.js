@@ -15,7 +15,7 @@ export function createWatchedGameLoader({ fetchImpl = (input, init) => fetch(inp
    * @param {any} stored the details saved last
    */
   return async function loadWatchedGame(id, snapshot, stored) {
-    const game = snapshot.games.find((each) => each.id === id);
+    const game = [...snapshot.games, ...snapshot.nearestGames].find((each) => each.id === id);
     if (!game || game.state === "pre" || stored?.boxScore?.state === "final") return null;
     const teams = { away: game.away.team, home: game.home.team, start: game.start };
     const [boxScore, lead] = await Promise.all([

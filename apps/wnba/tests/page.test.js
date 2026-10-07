@@ -506,6 +506,112 @@ function readTeam(season, code) {
   return { heading: readText(heading), note: readText(note), body: readText(body) };
 }
 
+// The afternoon, with the whole season's schedule from the next day, its regular season and all.
+const WHOLE_SEASON = buildSnapshot(
+  { ...AFTERNOON.responses, schedule: GAMES.preview.schedule, players: GAMES.preview.players },
+  { season: 2026, now: NOW },
+);
+const SEATTLES_LAST = WHOLE_SEASON.nearestGames.find((game) => game.id === "1022600325");
+
+/**
+ * Seattle's season with a game in Chicago tonight, as `game` has it.
+ * @param {object} game
+ */
+function addSeattleAtChicago(game) {
+  const tonight = {
+    ...SEATTLES_LAST,
+    id: "1022600400",
+    start: "2026-09-30T23:00:00Z",
+    away: { ...SEATTLES_LAST.home, score: null },
+    home: { ...SEATTLES_LAST.away, team: "CHI", score: null },
+    ...game,
+  };
+  return { ...WHOLE_SEASON, nearestGames: [...WHOLE_SEASON.nearestGames, tonight] };
+}
+
+/**
+ * @param {number} own Seattle's points
+ * @param {number} theirs Chicago's
+ * @param {object} [clock]
+ */
+const playSeattleAtChicago = (own, theirs, clock = { period: 3, clock: "4:12" }) =>
+  addSeattleAtChicago({
+    state: "live",
+    ...clock,
+    away: { ...SEATTLES_LAST.home, score: own },
+    home: { ...SEATTLES_LAST.away, team: "CHI", score: theirs },
+  });
+
+/** @param {object} season */
+const readGameCards = (season) => readTeam(season, "SEA").body.replace(/ Regular season .*$/, "");
+
+test("a team's sheet opens on its last game, the one it's playing, and its next, each its team's score first", () =>
+  inEastern(() => {
+    assert.equal(readGameCards(WHOLE_SEASON), "Last game Sep 23 L 91-103 vs Wings");
+    assert.equal(
+      readGameCards(playSeattleAtChicago(61, 58)),
+      "Last game Sep 23 L 91-103 vs Wings Now Q3 4:12 UP 61-58 @ Sky",
+    );
+    assert.equal(
+      readGameCards(addSeattleAtChicago({ state: "pre" })),
+      "Last game Sep 23 L 91-103 vs Wings Next game Sep 30 7:00 PM @ Sky",
+    );
+    assert.match(readTeam(WHOLE_SEASON, "ATL").body, /^Last game Sep 27 W 92-77 vs Mystics /);
+  }));
+
+test("a game being played says whether the team is up, down, or tied, and between periods which break it's in", () =>
+  inEastern(() => {
+    assert.match(readGameCards(playSeattleAtChicago(58, 61)), / Now Q3 4:12 DOWN 58-61 @ Sky$/);
+    assert.match(readGameCards(playSeattleAtChicago(60, 60)), / Now Q3 4:12 TIED 60-60 @ Sky$/);
+    const halftime = { period: 2, clock: "0.0", status: "Half" };
+    assert.match(readGameCards(playSeattleAtChicago(40, 38, halftime)), / Now Half UP 40-38 /);
+  }));
+
+test("a next game whose time isn't set says TBD", () =>
+  inEastern(() => {
+    const unset = addSeattleAtChicago({
+      state: "pre",
+      isTimeSet: false,
+      start: "2026-10-02T04:00:00Z",
+    });
+    assert.match(readGameCards(unset), / Next game Oct 2 TBD @ Sky$/);
+  }));
+
+test("each card opens its game, and shows the other team's dot, never the team's own", () =>
+  inEastern(() => {
+    const { body } = renderTeamSheet(playSeattleAtChicago(61, 58), "SEA", {
+      year: 2026,
+      now: NOW,
+    });
+    const cards = body.text.slice(0, body.text.indexOf("<section"));
+    const buttons = [
+      ...cards.matchAll(
+        /<button\s+type="button"\s+class="game-card-button"\s+data-game="(\d+)"\s+aria-label="([^"]+)"/g,
+      ),
+    ];
+    assert.deepEqual(
+      buttons.map(([, id, label]) => [id, label]),
+      [
+        ["1022600325", "Game details: Wings at Storm, Sep 23"],
+        ["1022600400", "Game details: Storm at Sky, Sep 30"],
+      ],
+    );
+    assert.equal([...cards.matchAll(/class="dot"/g)].length, 2);
+    assert.ok(cards.includes(renderDot("DAL").text) && cards.includes(renderDot("CHI").text));
+    assert.ok(!cards.includes(renderDot("SEA").text));
+    assert.match(cards, /<span class="game-card-result lost">L<\/span>/);
+  }));
+
+test("a season saved before it kept each team's nearest games takes them from its playoff games", () =>
+  inEastern(() => {
+    const { nearestGames, ...saved } = SEASON;
+    assert.ok(nearestGames.length > 0);
+    assert.match(
+      readTeam(saved, "ATL").body,
+      /^Last game Sep 27 W 92-77 vs Mystics Next game Sep 30 7:00 PM @ Mystics Playoffs /,
+    );
+  }));
+
 test("a team's sheet names it over its conference, seed, and record", () => {
   assert.deepEqual(
     [readTeam(SEASON, "MIN").heading, readTeam(SEASON, "MIN").note],
@@ -521,22 +627,23 @@ test("a team's sheet names it over its conference, seed, and record", () => {
 
 test("a team's Playoffs chip names its round, the same on a game day as any other", () =>
   inEastern(() => {
-    assert.match(readTeam(SEASON, "ATL").body, /^Playoffs 1st Rd G1 /);
+    assert.match(readTeam(SEASON, "ATL").body, / Playoffs 1st Rd G1 /);
     assert.match(
       renderTeamSheet(SEASON, "ATL", { year: 2026, now: NOW }).body.text,
       /<span class="status-chip alive">1st Rd<\/span>/,
     );
     assert.match(
       readTeam(ATLANTA_SEASON, "ATL").body,
-      /^Playoffs 1st Rd G1 .* G13 vs Mystics 1st Rd Live /,
+      / Playoffs 1st Rd G1 .* G13 vs Mystics 1st Rd Live /,
     );
   }));
 
-test("a team's sheet shows its playoffs, then its regular season across from the league's with its record by its name, its leading scorers, and its titles", () =>
+test("a team's sheet shows its nearest games, its playoffs, then its regular season across from the league's with its record by its name, its leading scorers, and its titles", () =>
   inEastern(() => {
     assert.equal(
       readTeam(SEASON, "ATL").body,
-      "Playoffs 1st Rd G1 W vs Mystics 1st Rd 92-77 G2 at Mystics 1st Rd Today 7:00 PM " +
+      "Last game Sep 27 W 92-77 vs Mystics Next game Sep 30 7:00 PM @ Mystics " +
+        "Playoffs 1st Rd G1 W vs Mystics 1st Rd 92-77 G2 at Mystics 1st Rd Today 7:00 PM " +
         "Dream 1-0 Playoff field 92.0 PPG 87.7 77.0 Opp PPG 87.7 +15.0 Margin 0.0 " +
         "1-0 Home 5-1 0-0 Road 1-5 " +
         "Regular season Dream 30-14 League 91.3 PPG 87.1 84.5 Opp PPG 87.1 +6.9 Margin 0.0 " +
@@ -547,11 +654,11 @@ test("a team's sheet shows its playoffs, then its regular season across from the
     );
     assert.match(
       readTeam(SEASON, "DAL").body,
-      /^Playoffs 1st Rd .* Titles 3 \| 2008, 2006, 2003 \(as Detroit Shock\)$/,
+      / Playoffs 1st Rd .* Titles 3 \| 2008, 2006, 2003 \(as Detroit Shock\)$/,
     );
     assert.match(
       readTeam(SEASON, "MIN").body,
-      /^Playoffs Out 1st Rd G1 L vs Liberty 1st Rd 75-91 G2 L at Liberty 1st Rd 71-87 Lynx 0-2 Playoff field .* Regular season /,
+      /^Last game Sep 29 L 71-87 @ Liberty Playoffs Out 1st Rd G1 L vs Liberty 1st Rd 75-91 G2 L at Liberty 1st Rd 71-87 Lynx 0-2 Playoff field .* Regular season /,
     );
     assert.match(readTeam(SEASON, "SEA").body, /^Regular season .* Playoffs Missed Titles /);
   }));
@@ -696,7 +803,7 @@ test("a team's next game is in the round it's playing, not one left over from a 
   inEastern(() => {
     assert.match(
       readTeam(SEASON, "NYL").body,
-      /^Playoffs Semis .* G1 at TBD Semis Sun, Oct 4 Liberty 2-0 Playoff field /,
+      / Playoffs Semis .* G1 at TBD Semis Sun, Oct 4 Liberty 2-0 Playoff field /,
     );
   }));
 
@@ -717,9 +824,9 @@ test("a champion counts this season's title, and the team it beat is out in the 
   const dallas = readTeam(season, "DAL");
   assert.match(
     dallas.body,
-    /^Playoffs Champions .* Titles 4 \| 2026, 2008, 2006, 2003 \(as Detroit Shock\)$/,
+    / Playoffs Champions .* Titles 4 \| 2026, 2008, 2006, 2003 \(as Detroit Shock\)$/,
   );
-  assert.match(readTeam(season, "LVA").body, /^Playoffs Out Finals /);
+  assert.match(readTeam(season, "LVA").body, / Playoffs Out Finals /);
 });
 
 test("before the playoffs, a team has no seed or playoff run, and its season shows what it has", () => {

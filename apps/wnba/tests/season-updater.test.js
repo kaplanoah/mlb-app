@@ -37,6 +37,13 @@ function createDocs() {
   };
 }
 
+// The afternoon's scores, with the whole season's schedule from the next day, its regular season
+// and all.
+const WHOLE_SEASON = buildSnapshot(
+  { ...RESPONSES, schedule: GAMES.preview.schedule },
+  { season: 2026, now: NOW },
+);
+
 /** The snapshot as the Worker reads it, with each upcoming game's meetings from the schedule. */
 const SNAPSHOT_WITH_MEETINGS = {
   ...SNAPSHOT,
@@ -115,6 +122,27 @@ test("each upcoming game's meetings are saved for its two teams, only when they 
   assert.equal(docs.writes.at(-1), "meetings/2026-ATL-WAS");
 });
 
+test("a team's next game outside the playoffs has its two teams' meetings listed too", () => {
+  const seattlesLast = WHOLE_SEASON.nearestGames.find((game) => game.id === "1022600325");
+  const nextGame = {
+    ...seattlesLast,
+    id: "1022600400",
+    state: "pre",
+    away: { ...seattlesLast.home, score: null },
+    home: { ...seattlesLast.away, team: "CHI", score: null },
+  };
+  const pairs = listUpcomingMeetings(GAMES.preview.schedule, {
+    season: 2026,
+    games: [],
+    nearestGames: [seattlesLast, nextGame],
+  });
+  assert.deepEqual(
+    pairs.map((pair) => pair.teams),
+    [["CHI", "SEA"]],
+  );
+  assert.ok(pairs[0].meetings.length > 0);
+});
+
 test("a game ends when it's first found final after being seen live, and keeps that end", async () => {
   const docs = createDocs();
   await saveSnapshot(docs, setTonightsState(SNAPSHOT, "live"));
@@ -146,6 +174,46 @@ test("a game found final without being seen live has no end", async () => {
   assert.equal(findTonight(saved).end, undefined);
   const earlier = saved.games.find((game) => game.id === "1042600102");
   assert.equal(earlier.end, undefined);
+});
+
+/**
+ * @param {any} snapshot
+ * @param {string} state
+ */
+const setSeattlesLastState = (snapshot, state) => ({
+  ...snapshot,
+  nearestGames: snapshot.nearestGames.map((game) =>
+    game.id === "1022600325" ? { ...game, state } : game,
+  ),
+});
+
+test("each team's nearest games are saved with the season, and stay as they were unless both the scoreboard and the schedule answered", async () => {
+  const docs = createDocs();
+  const live = setSeattlesLastState(WHOLE_SEASON, "live");
+  await saveSnapshot(docs, live);
+  const saved = await readUpdates(docs, 2026);
+  assert.deepEqual(saved.nearestGames, live.nearestGames);
+
+  for (const feed of ["scoreboard", "schedule"]) {
+    const without = buildSnapshot(
+      { ...RESPONSES, schedule: GAMES.preview.schedule, [feed]: null },
+      { season: 2026, now: NOW },
+    );
+    await saveSnapshot(docs, without);
+  }
+  assert.deepEqual((await readUpdates(docs, 2026)).nearestGames, live.nearestGames);
+  await saveSnapshot(docs, WHOLE_SEASON);
+  const finished = (await readUpdates(docs, 2026)).nearestGames;
+  assert.equal(finished.find((game) => game.id === "1022600325").state, "final");
+});
+
+test("a team's nearest game ends when it's first found final after being seen live", async () => {
+  const docs = createDocs();
+  await saveSnapshot(docs, setSeattlesLastState(WHOLE_SEASON, "live"));
+  await saveSnapshot(docs, { ...WHOLE_SEASON, asOf: "2026-09-24T04:05:00Z" });
+  const saved = await readUpdates(docs, 2026);
+  const seattle = saved.nearestGames.find((game) => game.id === "1022600325");
+  assert.equal(seattle.end, "2026-09-24T04:05:00Z");
 });
 
 test("a feed that didn't answer leaves its saved field as it was", async () => {

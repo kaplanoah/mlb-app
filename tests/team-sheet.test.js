@@ -14,10 +14,15 @@ import {
 import { stripTags } from "./text.js";
 
 // Stand-ins for the page's team sheet, a dialog of its own here, and its parts, on a wide screen
-// without motion.
+// without motion, whose body never changes size.
 function createPage() {
   globalThis.matchMedia = /** @type {any} */ (
     (query) => ({ matches: query.includes("reduced-motion") })
+  );
+  globalThis.ResizeObserver = /** @type {any} */ (
+    class {
+      observe() {}
+    }
   );
   const dialog = Object.assign(new EventTarget(), {
     id: "teamSheet",
@@ -42,11 +47,12 @@ function createPage() {
     teamTitle: { innerHTML: "" },
     teamNote: { innerHTML: "" },
     teamAction: { innerHTML: "" },
-    teamBody: Object.assign(new EventTarget(), { innerHTML: "" }),
+    teamBody: Object.assign(new EventTarget(), { innerHTML: "", querySelector: () => null }),
     teamDoneBtn: new EventTarget(),
   };
   const document = Object.assign(new EventTarget(), {
     activeElement: null,
+    fonts: new EventTarget(),
     getElementById: (id) => elements[id],
   });
   globalThis.document = /** @type {any} */ (document);
