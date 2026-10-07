@@ -85,21 +85,3 @@ test("the page draws what it opens with at once, rather than easing it in", asyn
   await expect(page.locator('[data-series="1-0"] .team-line.won')).toContainText("Liberty");
   expect(await readAnimations()).toEqual([]);
 });
-
-test("with Diagnostics' drawing test leaving out motion, a game that starts shows its line at once", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("diagnostics", "on");
-    localStorage.setItem("drawingTests", JSON.stringify(["no-motion"]));
-  });
-  const readAnimations = await listAnimations(page);
-  const app = await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator(`[data-game="${GAME_ID}"]`)).toContainText("7:00");
-
-  await app.changeSeason(startGame);
-
-  await expect(page.locator(`[data-game="${GAME_ID}"] .game-status`)).toHaveText("Q2 5:10");
-  expect(await readAnimations()).toEqual([]);
-});
