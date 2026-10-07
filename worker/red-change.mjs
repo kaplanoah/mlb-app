@@ -11,6 +11,8 @@ export const PHONE_OK_LABEL = "phone-ok";
 const RED_FILES = new Set(
   [
     "sheet.js",
+    "sheet-reopen.js",
+    "slide-panels.js",
     "sheet.css",
     "sheet-swipe.js",
     "sheet-sections.js",

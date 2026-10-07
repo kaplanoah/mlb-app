@@ -6,7 +6,7 @@
 // back what they showed.
 
 import { keepImages } from "./service-worker.js";
-import { listOpenSheets, reopenSheets } from "./sheet.js";
+import { listOpenSheets, reopenSheets } from "./sheet-reopen.js";
 
 const LAST_SEEN_KEY = "lastSeen";
 const LAST_DRAWN_KEY = "lastDrawn";

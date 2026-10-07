@@ -1,0 +1,74 @@
+import { test, expect, openApp } from "./harness.mjs";
+import { expectWithinBudgets } from "../../../../tests/browser/layer-count.mjs";
+import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
+
+// Each layer a phone keeps takes its memory, and an iPhone short of it leaves parts undrawn. Each
+// budget is the view's count in Chromium once nothing asked for a layer ahead. A change that
+// should add a layer re-records its view's budget from the count this test names, once the owner's
+// phone has drawn it on beta.
+const BUDGETS = {
+  Bracket: 11,
+  Games: 11,
+  Standings: 11,
+  News: 8,
+  "Team sheet, Team": 16,
+  "Team sheet, Roster": 52,
+  "Team sheet over the game's": 15,
+};
+
+test.use({
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+  contextOptions: { reducedMotion: "reduce" },
+});
+
+test("each view, a team's sheet on each section, and a sheet over a sheet keep within their layer budgets", async ({
+  page,
+}) => {
+  await openApp(page);
+  const teamSheet = page.locator("#teamSheet");
+  /** @param {string} name */
+  const showTab = (name) => async () => {
+    await page.getByRole("tab", { name, exact: true }).click();
+    await expect(page.getByRole("tab", { name, exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  };
+  /** @param {string} name */
+  const showSection = (name) => async () => {
+    await teamSheet.getByRole("tab", { name }).click();
+    await expectShown(page.locator(`#${name.toLowerCase()}Section`));
+  };
+
+  await expectWithinBudgets(
+    page,
+    [
+      ...["Bracket", "Games", "Standings", "News"].map((name) => ({
+        view: name,
+        show: showTab(name),
+      })),
+      {
+        view: "Team sheet over the game's",
+        show: async () => {
+          await showTab("Games")();
+          await page.getByRole("tab", { name: "Previous" }).click();
+          await page
+            .locator("#games-previous")
+            .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
+            .click();
+          await expect(page.locator("#gameSheet .line-score")).toBeVisible();
+          await page
+            .locator("#gameSheet .faceoff")
+            .getByRole("button", { name: "Team details: Indiana Fever" })
+            .click();
+          await expectShown(teamSheet);
+        },
+      },
+      { view: "Team sheet, Roster", show: showSection("Roster") },
+      { view: "Team sheet, Team", show: showSection("Team") },
+    ],
+    BUDGETS,
+  );
+});

@@ -51,6 +51,8 @@ test("a moved file is listed under both its paths", () => {
 test("any change to the shared code that moves, layers, or draws the page is red", () => {
   for (const file of [
     "sheet.js",
+    "sheet-reopen.js",
+    "slide-panels.js",
     "sheet.css",
     "sheet-swipe.js",
     "sheet-sections.js",
