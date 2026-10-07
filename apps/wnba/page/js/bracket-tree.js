@@ -20,6 +20,8 @@ const ROUND_DOTS_CLEARANCE = 12;
 let placeOpeningRound = null;
 /** @type {ResizeObserver | null} */
 let resizes = null;
+/** @type {HTMLElement | null} */
+let watchedTree = null;
 
 /**
  * Where the line between a card's two teams meets its edge, in the tree's own scrolling
@@ -166,6 +168,16 @@ export function startBracket() {
   document.fonts.addEventListener("loadingdone", layOutBracket);
 }
 
+// Observing an element reports its size at once, which asks for a frame, so a redraw that keeps
+// the tree leaves the page at rest.
+/** @param {HTMLElement} tree */
+function watchTree(tree) {
+  if (!resizes || tree === watchedTree) return;
+  if (watchedTree) resizes.unobserve(watchedTree);
+  resizes.observe(tree);
+  watchedTree = tree;
+}
+
 /** Where the reader has scrolled the bracket, to keep across a redraw. */
 export const readBracketScroll = () => findTree()?.scrollLeft ?? 0;
 
@@ -182,10 +194,7 @@ export function placeBracket(keptLeft) {
     tree.querySelector(`.round-name[data-round="${round}"]`)
   );
   placeOpeningRound?.({ scroller: tree, target, round, keptLeft });
-  resizes?.disconnect();
-  resizes?.observe(findWrap());
-  resizes?.observe(document.body);
-  resizes?.observe(tree);
+  watchTree(tree);
   layOutBracket();
   markVisibleRound();
 }
