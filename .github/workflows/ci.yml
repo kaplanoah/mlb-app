@@ -42,11 +42,15 @@ jobs:
         run: node worker/find-passed-ci.mjs
 
   # A red change merges only once the owner has used it on the beta app and labeled it phone-ok
-  # (worker/red-change.mjs). The merge commit's first parent is the base branch.
+  # (worker/red-change.mjs), which reads the pull request's events for who added the label. The
+  # merge commit's first parent is the base branch.
   gate:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -56,6 +60,8 @@ jobs:
         shell: bash
         env:
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
         run: git diff --no-renames HEAD^1 HEAD | node worker/red-change.mjs "$LABELS"
 
   # The quick checks share one machine, which leaves more of the account's runners for the browser
