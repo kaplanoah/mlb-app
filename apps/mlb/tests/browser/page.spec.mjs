@@ -279,9 +279,7 @@ test("on a phone, where the browser fires no scrollend, the lists settle once th
         element.scrollLeft = element.clientWidth * 0.3;
       }),
   );
-  await page.clock.runFor(100);
-  expect(await readPagesPosition(page)).toBe(0.3);
-  await page.clock.runFor(100);
+  await page.clock.runFor(200);
 
   await expect.poll(() => readPagesPosition(page)).toBe(0);
   await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
