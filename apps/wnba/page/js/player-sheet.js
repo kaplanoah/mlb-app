@@ -1,6 +1,7 @@
 // The sheet a tap on a player's name opens, beside the sheet it was in: her facts and numbers for
 // the season shown, which the store keeps, read the first time the sheet shows her season and
-// again once they're old. She shows as out only while her team still plays.
+// again once they're old. She shows as out only while her team still plays. The sheet keeps her
+// numbers with her, so a reload draws them again while it reads them again.
 
 import { setHtml } from "#shared/html.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
@@ -118,11 +119,33 @@ function showPlayer(subject) {
 /** @param {unknown} value */
 const isText = (value) => typeof value === "string" && value.length > 0;
 
-/** @param {Partial<PlayerSubject> | null} saved */
+// Her numbers go with her, for the sheet to show again while it reads them again.
+const readShownPlayer = () =>
+  shownPlayer && {
+    ...shownPlayer,
+    year: session.year,
+    player: reads.get(nameRead(shownPlayer, session.year))?.player ?? null,
+  };
+
+/**
+ * Takes back her numbers as the sheet showed them, unless it has read them since.
+ * @param {PlayerSubject} subject
+ * @param {{ year?: unknown, player?: unknown }} saved
+ */
+function keepSavedPlayer(subject, { year, player }) {
+  if (typeof year !== "number" || !player || typeof player !== "object") return;
+  const key = nameRead(subject, year);
+  if (!reads.has(key))
+    reads.set(key, { at: 0, player: /** @type {Player} */ (player), isLoading: false });
+}
+
+/** @param {Partial<PlayerSubject> & { year?: unknown, player?: unknown } | null} saved */
 function reopenPlayer(saved) {
   if (!saved || !isText(saved.id) || !isText(saved.name)) return false;
   if (typeof saved.team !== "string" || !Object.hasOwn(TEAMS, saved.team)) return false;
-  showPlayer(/** @type {PlayerSubject} */ (saved));
+  const subject = { id: saved.id, team: saved.team, name: saved.name };
+  keepSavedPlayer(subject, saved);
+  showPlayer(subject);
   return true;
 }
 
@@ -159,7 +182,7 @@ export function startPlayerSheet() {
   wireSheet(findSheet(), {
     closeButton: findElement("playerCloseBtn"),
     backButton: findElement("playerBackBtn"),
-    keeper: { read: () => shownPlayer, reopen: reopenPlayer },
+    keeper: { read: readShownPlayer, reopen: reopenPlayer },
     name: "Player",
     forget: () => {
       shownPlayer = null;
