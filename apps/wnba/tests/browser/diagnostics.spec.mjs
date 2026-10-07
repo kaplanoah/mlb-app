@@ -310,7 +310,7 @@ test("once it has gone back to Record, the button records and offers the report 
   expect(await readShares(page)).toHaveLength(2);
 });
 
-test("Record records the page as it is, with the sheets open, and its report puts it under a header naming the app and device", async ({
+test("Record records the page as it is, with the sheets open, and its report puts it under a header naming the app, the device, and the store's jobs", async ({
   page,
 }) => {
   await stubShare(page);
@@ -330,6 +330,8 @@ test("Record records the page as it is, with the sheets open, and its report put
   expect(copied).toMatch(/^Reduced motion on$/m);
   expect(copied).toMatch(/^Theme (dark|light)$/m);
   expect(copied).toMatch(/^Back from the background 0 times since$/m);
+  expect(copied).toMatch(/^News job(: no run saved| last ran .*, \d+ requests?)/m);
+  expect(copied).toMatch(/^Players job(: no run saved| last ran .*, \d+ requests?)/m);
   expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
   expect(copied).toMatch(/^\+\d+ Sheet settingsDialog, shown$/m);
   expect(copied).toMatch(/^\+\d+ Shows .*bracketWrap \d+\/\d+px/m);

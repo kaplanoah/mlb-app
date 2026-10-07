@@ -1,5 +1,6 @@
 import { isSameJson } from "#shared/compare.js";
 import { readEasternDay } from "#shared/days.js";
+import { countRequests, describeJobRun } from "../../../../shared/worker/job-status.js";
 import { describeError } from "../../../../shared/worker/responses.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { askClaude } from "./news-claude.js";
@@ -13,7 +14,7 @@ import { readRuleDrop } from "./news-rules.js";
 // it goes under its lead. A story Claude hasn't answered for stays waiting and is asked about again
 // on the next run, so a run that fails loses nothing. The cards go in `news/cards`, newest lead
 // first, where each page picks the stories from the outlets its device reads, and how the runs are
-// going, with Claude's daily token counts, in `news/status`.
+// going, with Claude's daily token counts and each run's requests, in `news/status`.
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -385,12 +386,14 @@ async function readRecentUsage(storage, now) {
   return usage;
 }
 
-async function saveStatus({ docs, storage, now, missing, problem }) {
-  const status = { missing, problem, usage: await readRecentUsage(storage, now) };
+async function saveStatus({ docs, storage, now, endedAt, requests, missing, problem }) {
   const stored = await docs.read(STATUS_KEY);
-  const storedStatus = { missing: stored?.missing, problem: stored?.problem, usage: stored?.usage };
-  if (!isSameJson(storedStatus, status))
-    await docs.write(STATUS_KEY, { ...status, at: new Date(now).toISOString() });
+  await docs.write(STATUS_KEY, {
+    ...describeJobRun({ startedAt: now, endedAt, requests, failure: problem }, stored),
+    missing,
+    problem,
+    usage: await readRecentUsage(storage, now),
+  });
 }
 
 /**
@@ -398,8 +401,11 @@ async function saveStatus({ docs, storage, now, missing, problem }) {
  * @param {import("../../../../shared/worker/season-store.js").JobContext} context
  * @param {typeof readNewsFeeds} readFeeds
  */
-async function updateNews({ docs, storage, env, fetchImpl, now: readNow }, readFeeds) {
+async function updateNews(context, readFeeds) {
+  const { docs, storage, env, now: readNow } = context;
   const now = readNow();
+  const counter = countRequests(context.fetchImpl);
+  const { fetchImpl } = counter;
   const { entries, missing } = await readFeeds(fetchImpl);
   const stories = await readStories(storage);
   await addNewStories(storage, stories, entries, now);
@@ -407,7 +413,15 @@ async function updateNews({ docs, storage, env, fetchImpl, now: readNow }, readF
   await judgeAgainOnNewRules(storage, stories);
   const problem = await curateStories({ storage, stories, env, fetchImpl, now });
   await saveCards(docs, stories, now);
-  await saveStatus({ docs, storage, now, missing, problem });
+  await saveStatus({
+    docs,
+    storage,
+    now,
+    endedAt: readNow(),
+    requests: counter.count,
+    missing,
+    problem,
+  });
 }
 
 /** @returns {import("../../../../shared/worker/season-store.js").BackgroundJob} */

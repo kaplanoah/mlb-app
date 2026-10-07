@@ -10,7 +10,8 @@ import { SEASON_PARAM, fetchWnbaJson, hasTable, isCurrentSeason, readTable } fro
 // of every team's games, and, from every player's totals in the regular season, her averages and
 // where each ranks among the players who meet the WNBA's rule for its leaders. The store keeps each
 // season's numbers (player-updater.js), so a sheet reads the league itself only for a season the
-// store doesn't keep.
+// store doesn't keep, and the store counts each time it does, which shows whether that read is
+// still needed.
 
 const WNBA_STATS = "https://stats.wnba.com/stats";
 export const REGULAR_SEASON = "Regular Season";
@@ -575,10 +576,42 @@ export function createPlayerServer({
   }
 
   /**
+   * Counts a read of the league the store should have spared, which never holds up the sheet.
+   * @param {() => Promise<void>} countLeagueRead
+   */
+  async function noteLeagueRead(countLeagueRead) {
+    try {
+      await countLeagueRead();
+    } catch (error) {
+      console.error(`Counting a player read from the league failed: ${describeError(error)}`);
+    }
+  }
+
+  /**
+   * Her sheet from the store, or from the league for a season the store hasn't saved, counted when
+   * the store could have had it.
+   * @param {{ id: string, team: string, season: number }} asked
+   * @param {ReadDoc} [readDoc]
+   * @param {() => Promise<void>} [countLeagueRead]
+   */
+  async function readPlayer(asked, readDoc, countLeagueRead) {
+    if (!readDoc) return readPlayerFromLeague(asked);
+    const saved = await readPlayerFromStore(asked, readDoc);
+    if (saved !== undefined) return saved;
+    const [player] = await Promise.all([
+      readPlayerFromLeague(asked),
+      countLeagueRead && noteLeagueRead(countLeagueRead),
+    ]);
+    return player;
+  }
+
+  /**
    * @param {URL} url
    * @param {ReadDoc} [readDoc] the store's documents, when the Worker has a store
+   * @param {() => Promise<void>} [countLeagueRead] adds one to the store's count of sheets read
+   *   from the league
    */
-  async function servePlayer(url, readDoc) {
+  async function servePlayer(url, readDoc, countLeagueRead) {
     const id = readId(url.searchParams);
     if (!id) return respondJson({ error: "id must be a player's number in the WNBA's stats" }, 400);
     const team = readTeam(url.searchParams);
@@ -586,9 +619,7 @@ export function createPlayerServer({
     const season = SEASON_PARAM.readSeason(url.searchParams, now());
     if (season == null) return respondJson({ error: SEASON_PARAM.rule }, 400);
     try {
-      const asked = { id, team, season };
-      const saved = readDoc ? await readPlayerFromStore(asked, readDoc) : undefined;
-      const player = saved === undefined ? await readPlayerFromLeague(asked) : saved;
+      const player = await readPlayer({ id, team, season }, readDoc, countLeagueRead);
       if (!player) return respondJson({ error: `The WNBA has no player ${id} in ${season}` }, 404);
       return respondJson(player);
     } catch (error) {

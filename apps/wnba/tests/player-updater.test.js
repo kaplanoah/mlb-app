@@ -50,6 +50,7 @@ const BALOGUN = "1641663";
 const IONESCU = "1629477";
 const STATS_FEEDS = 5;
 const TEAM_COUNT = Object.keys(TEAMS).length;
+const STATUS_KEY = "players/status";
 
 // The current season's feeds carry turnovers, and the past season's are as the fixture recorded
 // them, without.
@@ -252,7 +253,7 @@ test("a team's roster from the store is the one the league's feeds make, with wh
   assert.deepEqual(fromStore.requests, []);
 });
 
-test("a run that finds nothing new reads nothing from the league and saves nothing", async () => {
+test("a run that finds nothing new reads nothing from the league and saves nothing but its status", async () => {
   const { docs, league, runJob, wait } = createRun();
   await runJob();
   await runJob();
@@ -263,7 +264,7 @@ test("a run that finds nothing new reads nothing from the league and saves nothi
   await runJob();
 
   assert.equal(league.requests.length, firstRuns);
-  assert.equal(docs.writes.length, firstWrites);
+  assert.deepEqual(docs.writes.slice(firstWrites), [STATUS_KEY]);
 });
 
 test("a game's end has the next run read the five stats feeds, and once more as the stats settle, and nothing else", async () => {
@@ -291,7 +292,7 @@ test("a game's end has the next run read the five stats feeds, and once more as 
   assert.equal(league.requests.length, beforeFinal + 2 * STATS_FEEDS);
 });
 
-test("a final the feeds answer the same for saves no document", async () => {
+test("a final the feeds answer the same for saves no document but the status", async () => {
   const { docs, runJob, wait, endGames } = createRun();
   await runJob();
   await runJob();
@@ -301,7 +302,7 @@ test("a final the feeds answer the same for saves no document", async () => {
   wait(5);
   await runJob();
 
-  assert.equal(docs.writes.length, writes);
+  assert.deepEqual(docs.writes.slice(writes), [STATUS_KEY]);
 });
 
 test("a past season the store keeps is filled once, after the current one, and never read again", async () => {
@@ -391,7 +392,7 @@ test("a feed that stops answering leaves what the store saved from it", async ()
   wait(5);
   await runJob();
 
-  assert.equal(docs.writes.length, writes);
+  assert.deepEqual(docs.writes.slice(writes), [STATUS_KEY]);
   assert.deepEqual(docs.stored.get(nameRanksKey(2026)), ranks);
 });
 
@@ -405,4 +406,111 @@ test("one job keeps each store it serves whole, however many there are", async (
 
   assert.ok(second.docs.stored.get(nameRanksKey(2026)));
   assert.deepEqual([...second.docs.stored.keys()].sort(), [...first.docs.stored.keys()].sort());
+});
+
+test("each run saves its status: the requests it made by feed, what it saved, and the past season it filled", async () => {
+  const { docs, league, runJob, wait, endGames } = createRun();
+  await runJob();
+
+  const first = docs.stored.get(STATUS_KEY);
+  assert.equal(first.ranAt, new Date(NOW).toISOString());
+  assert.equal(first.requests, league.requests.length);
+  assert.deepEqual(first.feeds, {
+    totals: 2,
+    playerGames: 4,
+    teamGames: 4,
+    roster: 2 * TEAM_COUNT,
+    playerList: 2,
+    out: TEAM_COUNT,
+  });
+  assert.deepEqual(Object.keys(first.saved).sort(), ["players", "ranks", "rosters"]);
+  assert.equal(first.saved.ranks, 2);
+  assert.deepEqual(first.pastSeason, { season: 2025, isWhole: true });
+  assert.equal(first.lastFailure, null);
+  assert.equal(first.leagueReads, 0);
+
+  await endGames(2);
+  wait(5);
+  const beforeFinal = league.requests.length;
+  await runJob();
+
+  const afterFinal = docs.stored.get(STATUS_KEY);
+  assert.equal(afterFinal.requests, league.requests.length - beforeFinal);
+  assert.equal(afterFinal.requests, STATS_FEEDS);
+  assert.deepEqual(afterFinal.feeds, { totals: 1, playerGames: 2, teamGames: 2 });
+  assert.deepEqual(afterFinal.saved, {});
+  assert.equal(afterFinal.pastSeason, null);
+});
+
+test("the status keeps a run's failure, with when it ran, until another run fails", async () => {
+  const answers = listAnswers();
+  const totals = answers[nameTotalsRequest(2026)];
+  delete answers[nameTotalsRequest(2026)];
+  const { docs, runJob, wait, endGames } = createRun({ answers });
+  await runJob();
+
+  const failed = docs.stored.get(STATUS_KEY).lastFailure;
+  assert.equal(failed.at, new Date(NOW).toISOString());
+  assert.match(failed.message, /^Reading 2026's stats failed: /);
+
+  answers[nameTotalsRequest(2026)] = withSeasonColumns(2026, totals);
+  await endGames(2);
+  wait(5);
+  await runJob();
+
+  assert.ok(docs.stored.get(nameRanksKey(2026)));
+  assert.deepEqual(docs.stored.get(STATUS_KEY).lastFailure, failed);
+});
+
+test("the status says how many sheets the store's count saw read from the league", async () => {
+  const { docs, storage, runJob } = createRun();
+  await storage.put("count:leagueReads", 3);
+
+  await runJob();
+
+  assert.equal(docs.stored.get(STATUS_KEY).leagueReads, 3);
+});
+
+test("a sheet read from the league is counted only when the store could have had it", async () => {
+  const { docs, runJob } = createRun();
+  await runJob();
+  let counted = 0;
+  const countLeagueRead = async () => {
+    counted += 1;
+  };
+  const askWithCount = (/** @type {string} */ query) =>
+    createPlayerServer({
+      loadRoster: createRosterServer({ fetchImpl: createLeagueFetch(listAnswers()).fetchImpl })
+        .loadRoster,
+      fetchImpl: createLeagueFetch(listAnswers()).fetchImpl,
+      now: () => NOW,
+    }).servePlayer(
+      new URL(`https://wnba.test/player?${query}`),
+      readFromStore(docs),
+      countLeagueRead,
+    );
+
+  assert.equal((await askWithCount(`id=${STEWART}&team=NYL&season=2026`)).status, 200);
+  assert.equal(counted, 0);
+
+  docs.stored.delete(nameRanksKey(2026));
+  assert.equal((await askWithCount(`id=${STEWART}&team=NYL&season=2026`)).status, 200);
+  assert.equal(counted, 1);
+});
+
+test("a count the store can't take still answers the sheet", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const { docs } = createRun();
+  const response = await createPlayerServer({
+    loadRoster: createRosterServer({ fetchImpl: createLeagueFetch(listAnswers()).fetchImpl })
+      .loadRoster,
+    fetchImpl: createLeagueFetch(listAnswers()).fetchImpl,
+    now: () => NOW,
+  }).servePlayer(
+    new URL(`https://wnba.test/player?id=${STEWART}&team=NYL&season=2026`),
+    readFromStore(docs),
+    () => Promise.reject(new Error("The store answered 500")),
+  );
+
+  assert.equal(response.status, 200);
 });
