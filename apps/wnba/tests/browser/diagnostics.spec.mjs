@@ -230,6 +230,52 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
   );
 });
 
+/** @param {import("@playwright/test").Page} page */
+const findTabBarLog = (page) =>
+  findRecords(page)
+    .locator(".diagnostics-record")
+    .filter({ has: page.locator("summary", { hasText: /^Tab bar$/ }) });
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} name
+ */
+async function tapTab(page, name) {
+  const tab = await page.getByRole("tab", { name }).boundingBox();
+  await page.touchscreen.tap(tab.x + tab.width / 2, tab.y + tab.height / 2);
+  await expect(page.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+}
+
+test("with Diagnostics on, each touch at the tab bar is logged with the tab it left showing", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openApp(page);
+  await turnOnDiagnostics(page);
+
+  await tapTab(page, "Standings");
+  await openSettings(page);
+
+  const log = findTabBarLog(page);
+  await expect(log).toHaveCount(1);
+  await log.locator("summary").click();
+  const lines = await log.locator("li").allInnerTexts();
+  const steps = lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""));
+  expect(steps).toEqual(
+    expect.arrayContaining([
+      expect.stringMatching(/^touchstart at \d+,\d+ on Standings, showing Bracket$/),
+      expect.stringMatching(/^pointerdown at \d+,\d+ on Standings, showing Bracket$/),
+      expect.stringMatching(/^pointerup at \d+,\d+ on #tabBar, showing Standings$/),
+    ]),
+  );
+  await page.getByRole("button", { name: "Copy" }).click();
+  await expect(page.locator("#diagnosticsCopy")).toHaveText("Copied");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const copiedTabBar = copied.slice(copied.indexOf("\nTab bar\n"));
+  expect(copiedTabBar).toMatch(/pointerup at \d+,\d+ on #tabBar, showing Standings$/m);
+});
+
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);
@@ -237,6 +283,10 @@ test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openSettings(page);
   await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(2);
   await expect(findViewportLog(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await tapTab(page, "Standings");
+  await openSettings(page);
+  await expect(findTabBarLog(page)).toHaveCount(1);
 
   await findSwitch(page).click();
   await expect(findRecords(page)).toBeHidden();

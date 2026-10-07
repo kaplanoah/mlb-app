@@ -134,7 +134,9 @@ test.describe("on a phone, in full motion", () => {
     await page.getByRole("button", { name: "Dismiss updates" }).click();
 
     expect((await readAnimations()).filter(isClosing)).toHaveLength(1);
-    await expect(updates).toBeHidden();
+    // Shrunk to nothing, the box looks hidden a frame before it is, and a final in between
+    // would find it still closing.
+    await expect(updates).toHaveAttribute("hidden");
 
     await app.changeSeason(finishDreamAtMystics);
 
