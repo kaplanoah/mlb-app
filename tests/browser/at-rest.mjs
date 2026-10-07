@@ -4,16 +4,41 @@ import { expect } from "@playwright/test";
 /**
  * Keeps each "ResizeObserver loop" error the page reports from then on, which a browser raises
  * when an observer's callback resizes what an observer watches, and returns a way to read them.
+ * Each names the observers that last ran before it, by where the page made them and what they
+ * watch, so a failure says which one looped.
  * @param {import("@playwright/test").Page} page
  * @returns {Promise<() => Promise<string[]>>}
  */
 export async function listResizeLoops(page) {
   await page.addInitScript(() => {
+    const RECENT_CALLBACKS = 6;
     /** @type {string[]} */
     const resizeLoops = [];
+    /** @type {string[]} */
+    const recentCallbacks = [];
     Object.assign(window, { resizeLoops });
+    /** @param {Element} target */
+    const nameTarget = (target) =>
+      target.id ? `#${target.id}` : [target.localName, ...target.classList].join(".");
+    const PageResizeObserver = window.ResizeObserver;
+    window.ResizeObserver = class extends PageResizeObserver {
+      /** @param {ResizeObserverCallback} callback */
+      constructor(callback) {
+        const pageFrames = (new Error().stack ?? "")
+          .split("\n")
+          .filter((line) => line.includes("http"));
+        const madeAt = pageFrames[0]?.trim() ?? "somewhere";
+        super((entries, observer) => {
+          const targets = entries.map((entry) => nameTarget(entry.target)).join(", ");
+          recentCallbacks.push(`${madeAt} on ${targets}`);
+          recentCallbacks.splice(0, recentCallbacks.length - RECENT_CALLBACKS);
+          callback(entries, observer);
+        });
+      }
+    };
     addEventListener("error", (event) => {
-      if (event.message.includes("ResizeObserver loop")) resizeLoops.push(event.message);
+      if (event.message.includes("ResizeObserver loop"))
+        resizeLoops.push(`${event.message} After: ${recentCallbacks.join(" | ")}`);
     });
   });
   return () => page.evaluate(() => /** @type {any} */ (window).resizeLoops);
@@ -41,8 +66,8 @@ export async function expectAtRest(page) {
 }
 
 /**
- * Swipes the lists under `from` on to the next one: with a finger in Chromium, and a sideways
- * wheel in WebKit, which Playwright gives no touches to move.
+ * Swipes the lists under `from` on to the next one: with a finger in Chromium, and in WebKit,
+ * which Playwright gives no touches or wheel to move on a phone, as a smooth scroll of the lists.
  * @param {import("@playwright/test").Page} page
  * @param {string} browserName
  * @param {{ x: number, y: number }} from
@@ -53,6 +78,8 @@ export async function swipeToNextList(page, browserName, from) {
     await lift();
     return;
   }
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.wheel(300, 0);
+  await page.evaluate(({ x, y }) => {
+    const pages = document.elementFromPoint(x, y)?.closest(".pager-pages");
+    pages?.scrollBy({ left: pages.clientWidth, behavior: "smooth" });
+  }, from);
 }

@@ -5,20 +5,7 @@ import {
   swipeToNextList,
 } from "../../../../tests/browser/at-rest.mjs";
 
-// In full motion, every slide ends, and then nothing moves or asks for a frame. The bracket redraws
-// as the body resizes, which loops the observer as the page loads, so only later loops count.
-
-/**
- * @param {import("@playwright/test").Page} page
- * @returns {Promise<() => Promise<string[]>>}
- */
-async function openAndListLaterResizeLoops(page) {
-  const readResizeLoops = await listResizeLoops(page);
-  await openApp(page);
-  await page.clock.runFor(500);
-  const atLoad = (await readResizeLoops()).length;
-  return async () => (await readResizeLoops()).slice(atLoad);
-}
+// In full motion, every slide ends, and then nothing moves or asks for a frame.
 
 test.use(ON_A_PHONE);
 
@@ -26,7 +13,8 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
   page,
   browserName,
 }) => {
-  const readResizeLoops = await openAndListLaterResizeLoops(page);
+  const readResizeLoops = await listResizeLoops(page);
+  await openApp(page);
   await expectAtRest(page);
 
   await page.getByRole("tab", { name: "Games" }).click();
@@ -47,7 +35,8 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
 });
 
 test("a shown list that grows loops no ResizeObserver", async ({ page }) => {
-  const readResizeLoops = await openAndListLaterResizeLoops(page);
+  const readResizeLoops = await listResizeLoops(page);
+  await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#games-today")).toBeInViewport();
 
