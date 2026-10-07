@@ -421,7 +421,7 @@ test("September: the standings table the page draws", () => {
   });
 });
 
-test("September: the day's games, in the shape the stamp reads", () => {
+test("September: the day's games, in the shape the stamp reads, each with MLB's id for it", () => {
   const { slate } = buildSnapshot(EVENING);
   assert.equal(slate.today.date, "2026-09-24");
   assert.equal(slate.today.games.length, 12);
@@ -429,6 +429,7 @@ test("September: the day's games, in the shape the stamp reads", () => {
   assert.deepEqual([...new Set(states)], ["final", "live", "pre"]);
   const [first] = slate.today.games;
   assert.deepEqual(first, {
+    id: "823326",
     away: "STL",
     home: "PIT",
     state: "final",
