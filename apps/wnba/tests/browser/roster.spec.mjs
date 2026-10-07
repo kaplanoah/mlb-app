@@ -336,8 +336,8 @@ test.describe("in full motion", () => {
 
     const release = await drag(page, { x: 330, y: 400 }, { x: -250 }, { durationMs: 1000 });
     const swipe = await page
-      .locator("#teamSheet [role=tablist]")
-      .evaluate((tabs) => Number(getComputedStyle(tabs).getPropertyValue("--swipe")));
+      .locator("#teamTabRoster")
+      .evaluate((tab) => Number(getComputedStyle(tab).getPropertyValue("--nearness")));
     expect(swipe).toBeGreaterThan(0.2);
     expect(swipe).toBeLessThan(0.8);
     expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);

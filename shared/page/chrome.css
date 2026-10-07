@@ -16,9 +16,6 @@
  *   --radius-chip                              a chip's corners, like a status beside a title
  *   --radius-control                           a button's or a field's corners, and the hover square
  *                                              behind an icon button
- *   --radius-track                             the corners of a track that holds choices, like a
- *                                              pager's pill; what sits inside it takes those less
- *                                              the room around it
  *   --radius-sheet                             a sheet's corners, and the settings dialog's, on wide
  *                                              screens; on phones they fill the screen
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
