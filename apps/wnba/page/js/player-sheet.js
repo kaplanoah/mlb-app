@@ -109,14 +109,10 @@ function renderSheet() {
   );
 }
 
-/**
- * Fills the sheet in with a player, ready to open.
- * @param {PlayerSubject} subject
- */
-function preparePlayer(subject) {
+/** @param {PlayerSubject} subject */
+function showPlayer(subject) {
   shownPlayer = subject;
   renderSheet();
-  return findSheet();
 }
 
 /** @param {unknown} value */
@@ -126,7 +122,7 @@ const isText = (value) => typeof value === "string" && value.length > 0;
 function reopenPlayer(saved) {
   if (!saved || !isText(saved.id) || !isText(saved.name)) return false;
   if (typeof saved.team !== "string" || !Object.hasOwn(TEAMS, saved.team)) return false;
-  preparePlayer(/** @type {PlayerSubject} */ (saved));
+  showPlayer(/** @type {PlayerSubject} */ (saved));
   return true;
 }
 
@@ -150,7 +146,10 @@ function openOnTap(event) {
   const button = findPlayerButton(/** @type {Element} */ (event.target));
   const { player: id, playerTeam: team, playerName: name } = button?.dataset ?? {};
   if (!id || !team || !name) return;
-  openSheet(preparePlayer({ id, team, name }));
+  openSheet(findSheet(), {
+    key: `${id}:${team}`,
+    show: () => showPlayer({ id, team, name }),
+  });
 }
 
 /** Redraws the open sheet from what the page shows now. */

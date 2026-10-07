@@ -815,6 +815,34 @@ test("a team's sheet open over a game's opens over it again on a reload, its bac
   await expect(page.locator("#gameSheet .foul-chip")).toBeVisible();
 });
 
+test("a team's sheet open over a game's opened from another team's opens there again on a reload, and back goes to the game, then to the first team", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("button", { name: "Team details: Las Vegas Aces" }).first().click();
+  const teamSheet = page.locator("#teamSheet");
+  await teamSheet.getByRole("button", { name: "Game details: Aces at Fever, Sep 29" }).click();
+  const gameSheet = page.locator("#gameSheet");
+  await gameSheet
+    .locator(".faceoff")
+    .getByRole("button", { name: "Team details: Indiana Fever" })
+    .click();
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
+
+  await page.reload();
+
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
+  await expect(page.locator("#sheetDialog .sheet-page:not([id]) .team-title")).toHaveText(
+    "Las Vegas Aces",
+  );
+  await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
+  await expect(gameSheet.locator(".foul-chip")).toBeVisible();
+  await gameSheet.getByRole("button", { name: "Back to Team", exact: true }).click();
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+  await expect(teamSheet).toBeVisible();
+  await expect(page.locator("#sheetDialog .sheet-page:not([id])")).toHaveCount(0);
+});
+
 test("a sheet whose game the season no longer has closes once the page's code arrives", async ({
   page,
 }) => {
