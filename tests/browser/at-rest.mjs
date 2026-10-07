@@ -56,23 +56,45 @@ export const forgetResizeLoops = (page) =>
   });
 
 /**
+ * Counts the frames the page asks for across a second of its clock.
+ * @param {import("@playwright/test").Page} page
+ */
+async function countFramesAcrossASecond(page) {
+  await page.evaluate(() => {
+    const counted = /** @type {any} */ (window);
+    counted.pageRequestFrame ??= window.requestAnimationFrame;
+    const counter = { frames: 0 };
+    counted.frameCounter = counter;
+    window.requestAnimationFrame = (callback) => {
+      counter.frames += 1;
+      return counted.pageRequestFrame(callback);
+    };
+  });
+  await page.clock.runFor(1000);
+  return page.evaluate(() => /** @type {any} */ (window).frameCounter.frames);
+}
+
+/**
+ * Waits for the page to finish drawing what it loaded. Its first drawing ends the load note, its
+ * store then reads every document it watches again to catch up, which it marks by keeping when it
+ * was current, and each drawing can lay the page out again a frame later. A page quiet while its
+ * reads are on their way, or between those frames, isn't done loading.
+ * @param {import("@playwright/test").Page} page
+ */
+export async function waitForLoadToSettle(page) {
+  await expect(page.locator("#loadNote")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("syncedAt"))).not.toBeNull();
+  await expect.poll(() => countFramesAcrossASecond(page)).toBe(0);
+}
+
+/**
  * Expects the page to be at rest: no animation left on it, and nothing asking for a frame across
  * a second of its clock.
  * @param {import("@playwright/test").Page} page
  */
 export async function expectAtRest(page) {
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
-  await page.evaluate(() => {
-    const requestFrame = window.requestAnimationFrame;
-    const counter = { frames: 0 };
-    Object.assign(window, { frameCounter: counter });
-    window.requestAnimationFrame = (callback) => {
-      counter.frames += 1;
-      return requestFrame(callback);
-    };
-  });
-  await page.clock.runFor(1000);
-  expect(await page.evaluate(() => /** @type {any} */ (window).frameCounter.frames)).toBe(0);
+  expect(await countFramesAcrossASecond(page)).toBe(0);
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 }
 

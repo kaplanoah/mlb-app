@@ -4,6 +4,7 @@ import {
   forgetResizeLoops,
   listResizeLoops,
   swipeToNextList,
+  waitForLoadToSettle,
 } from "../../../../tests/browser/at-rest.mjs";
 
 // In full motion, every slide ends, and then nothing moves or asks for a frame. Each test counts
@@ -17,6 +18,7 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
 }) => {
   const readResizeLoops = await listResizeLoops(page);
   await openApp(page);
+  await waitForLoadToSettle(page);
   await expectAtRest(page);
   await forgetResizeLoops(page);
 
@@ -40,6 +42,7 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
 test("a shown list that grows loops no ResizeObserver", async ({ page }) => {
   const readResizeLoops = await listResizeLoops(page);
   await openApp(page);
+  await waitForLoadToSettle(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#games-today")).toBeInViewport();
   await expectAtRest(page);
