@@ -548,6 +548,47 @@ test.describe("on a phone, the news", () => {
     await expect(page.locator("#view-news")).toBeHidden();
   });
 
+  test("give way to another tab even when the phone hands the tap on it to the page under the bar", async ({
+    page,
+  }) => {
+    await openNewsWithStories(page, createThreeStories);
+    const standingsTab = await page.getByRole("tab", { name: "Standings" }).boundingBox();
+    await page.addStyleTag({ content: "#tabBar, #tabBar * { pointer-events: none !important; }" });
+    await page.evaluate(() =>
+      document.body.addEventListener("click", () => document.body.classList.add("clicked")),
+    );
+
+    await page.touchscreen.tap(
+      standingsTab.x + standingsTab.width / 2,
+      standingsTab.y + standingsTab.height / 2,
+    );
+
+    await expect(page.getByRole("tab", { name: "Standings" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator("#view-standings")).toBeVisible();
+    await expect(page.locator("#view-news")).toBeHidden();
+    await expect(page.locator("body")).not.toHaveClass(/clicked/);
+  });
+
+  test("keep to the open settings a tap lands on where the tab bar sits under them", async ({
+    page,
+  }) => {
+    await openNewsWithStories(page, createThreeStories);
+    const standingsTab = await page.getByRole("tab", { name: "Standings" }).boundingBox();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.locator("#settingsDialog")).toBeVisible();
+
+    await page.touchscreen.tap(
+      standingsTab.x + standingsTab.width / 2,
+      standingsTab.y + standingsTab.height / 2,
+    );
+
+    await expect(page.locator("#settingsDialog")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "News" })).toHaveAttribute("aria-selected", "true");
+  });
+
   test("keeps each card's photo when a story arrives above it", async ({ page }) => {
     const app = await openNewsWithStories(page, createStoriesWithOwnPhotos);
     const photoUrl = new URL("icon-180.png", page.url()).href;

@@ -2,8 +2,10 @@ import { canBendBackdrop, fitLens } from "./glass-lens.js";
 import { readSelectedTab } from "./tabs.js";
 
 // Matches the phone layout in chrome.css, where the tabs float at the bottom as a glass bar.
-const FLOATING_QUERY = matchMedia("(max-width: 779px)");
-const REDUCED_MOTION_QUERY = matchMedia("(prefers-reduced-motion: reduce)");
+const FLOATING_MEDIA = "(max-width: 779px)";
+const REDUCED_MOTION_MEDIA = "(prefers-reduced-motion: reduce)";
+/** @type {Map<string, MediaQueryList>} */
+const mediaQueries = new Map();
 
 const BAR_PADDING_PX = 5;
 const PILL_OVERHANG_PX = 4;
@@ -83,6 +85,8 @@ const press = {
 };
 /** @type {(tab: string) => void} */
 let chooseTab = () => {};
+/** @type {DOMRect | null} */
+let restingBarRect = null;
 
 const findBar = () => /** @type {HTMLElement} */ (document.getElementById("tabBar"));
 const findGlass = () => /** @type {HTMLElement} */ (document.getElementById("tabGlass"));
@@ -93,8 +97,14 @@ const findTabButtons = () =>
   /** @type {HTMLButtonElement[]} */ ([...findList().querySelectorAll("[role=tab]")]);
 const readTabs = () => findTabButtons().map((button) => button.dataset.tab);
 
-const isFloating = () => FLOATING_QUERY.matches;
-const isCalm = () => REDUCED_MOTION_QUERY.matches;
+// Read on first use, so the module can load where there is no screen.
+/** @param {string} media */
+function readMediaQuery(media) {
+  if (!mediaQueries.has(media)) mediaQueries.set(media, matchMedia(media));
+  return /** @type {MediaQueryList} */ (mediaQueries.get(media));
+}
+const isFloating = () => readMediaQuery(FLOATING_MEDIA).matches;
+const isCalm = () => readMediaQuery(REDUCED_MOTION_MEDIA).matches;
 const measureRowWidth = () => findList().clientWidth - ROW_INSET_PX * 2;
 const measureSlotWidth = () => measureRowWidth() / readTabs().length;
 const measurePillWidth = () => measureSlotWidth() + PILL_OVERHANG_PX * 2;
@@ -103,6 +113,31 @@ const clampToRow = (x) => Math.min(Math.max(x, 0), measureSlotWidth() * (readTab
 const findPillX = (tab) => readTabs().indexOf(tab) * measureSlotWidth();
 const measurePointerX = (event) =>
   event.clientX - findList().getBoundingClientRect().left - ROW_INSET_PX;
+
+// A phone can hit-test a touch that stops the page's momentum scroll against where the page has
+// scrolled rather than where the bar still sits, and hand a tap on the bar to the page under it, so
+// a touch is the bar's by where the bar rests on the screen too. Nothing but a dialog sits over it.
+function measureRestingBar() {
+  restingBarRect = findBar().getBoundingClientRect();
+}
+
+/** @param {{ clientX: number, clientY: number }} point */
+const isWithinRestingBar = ({ clientX, clientY }) =>
+  restingBarRect !== null &&
+  clientX >= restingBarRect.left &&
+  clientX <= restingBarRect.right &&
+  clientY >= restingBarRect.top &&
+  clientY <= restingBarRect.bottom;
+
+/**
+ * Whether a touch or click is on the tab bar, or where it rests outside an open dialog.
+ * @param {Event} event
+ * @param {{ clientX: number, clientY: number }} point
+ */
+export function isAtTabBar(event, point) {
+  if (!(event.target instanceof Element) || event.target.closest("dialog[open]")) return false;
+  return findBar().contains(event.target) || isWithinRestingBar(point);
+}
 
 function findTabUnderPill() {
   const tabs = readTabs();
@@ -296,7 +331,7 @@ function moveGlow(event) {
 
 // Like UIKit, the pill lifts and heads for the touched tab on touch-down; the view switches on release.
 function startPress(event) {
-  if (!isFloating() || event.button !== 0) return;
+  if (!isFloating() || event.button !== 0 || !isAtTabBar(event, event)) return;
   Object.assign(press, {
     isActive: true,
     isDragging: false,
@@ -356,7 +391,9 @@ function endPress(event) {
 // Screen readers activate tabs with a bare click, which still goes through.
 function ignorePressClicks(event) {
   const isPressClick = performance.now() - press.choseAt < PRESS_CLICK_WINDOW_MS;
-  if (isFloating() && isPressClick) event.stopPropagation();
+  if (!isFloating() || !isPressClick || !isAtTabBar(event, event)) return;
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function snapPillToSelectedTab() {
@@ -368,6 +405,7 @@ function snapPillToSelectedTab() {
 function fitBar() {
   if (!isFloating()) {
     clearFloatingStyles();
+    measureRestingBar();
     return;
   }
   const bar = findBar();
@@ -382,6 +420,7 @@ function fitBar() {
     );
   if (!motion.frame) snapPillToSelectedTab();
   bar.classList.add("placed");
+  measureRestingBar();
 }
 
 function copyTabsIntoPill() {
@@ -431,15 +470,15 @@ export function startTabBar(onChoose) {
   chooseTab = onChoose;
   copyTabsIntoPill();
   if (canBendBackdrop(navigator.userAgent)) findGlass().classList.add("bends");
-  const bar = findBar();
-  bar.addEventListener("pointerdown", startPress);
-  bar.addEventListener("pointermove", trackPress);
-  bar.addEventListener("pointerup", endPress);
-  bar.addEventListener("pointercancel", endPress);
-  bar.addEventListener("click", ignorePressClicks, true);
+  document.addEventListener("pointerdown", startPress);
+  document.addEventListener("pointermove", trackPress);
+  document.addEventListener("pointerup", endPress);
+  document.addEventListener("pointercancel", endPress);
+  document.addEventListener("click", ignorePressClicks, true);
+  addEventListener("resize", measureRestingBar);
   document.addEventListener("visibilitychange", restPillWhenHidden);
   addEventListener("pagehide", restPill);
-  FLOATING_QUERY.addEventListener("change", fitBar);
+  readMediaQuery(FLOATING_MEDIA).addEventListener("change", fitBar);
   new ResizeObserver(fitBar).observe(findList());
   fitBar();
 }
