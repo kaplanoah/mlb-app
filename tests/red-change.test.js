@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { decideGate, findRedReasons, readDiff } from "../worker/red-change.mjs";
 
 /**
@@ -160,4 +161,18 @@ test("a change that isn't red passes without the label", () => {
     createDiff("apps/mlb/page/js/games-view.js", ["  const label = 'Final';"]) +
     createDiff("tests/sheet.test.js", ["  transform: none;"]);
   assert.deepEqual(decideGate(diff, []), { isHeld: false, message: "Not a red change." });
+});
+
+test("CI's check needs the gate, which a label change runs again without a push", () => {
+  const workflow = readFileSync(`${import.meta.dirname}/../.github/workflows/ci.yml`, "utf8");
+  assert.match(workflow, /types: \[[^\]]*\blabeled, unlabeled\]/);
+  assert.match(workflow, /needs: \[passed, gate, checks, browser, review\]/);
+  assert.match(
+    workflow,
+    /github\.event_name == 'pull_request' && needs\.gate\.result != 'success'/,
+  );
+  assert.match(
+    workflow,
+    /git diff --no-renames HEAD\^1 HEAD \| node worker\/red-change\.mjs "\$LABELS"/,
+  );
 });
