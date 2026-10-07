@@ -105,7 +105,7 @@ export function findUpdateGame(group, slate) {
 function renderUpdateAction(group) {
   const { slate } = session.state;
   const game = findUpdateGame(group, slate);
-  return Boolean(game) && renderGameButton(game, game.date === slate.today.date);
+  return Boolean(game) && renderGameButton(game);
 }
 
 // An update's day is MLB's, as the Games view's are, so it counts from MLB's today too.

@@ -10,9 +10,6 @@ import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
 // The expected times below are what a viewer in Eastern time sees.
 useTimeZone(EASTERN);
 
-const SEPTEMBER_NOON = Date.parse("2026-09-16T16:00:00Z");
-const OCTOBER_NOON = Date.parse("2026-10-08T16:00:00Z");
-
 // A sheet's markup as it reads, its pieces apart, each separator a bar, and runs of space one.
 const readText = (markup) =>
   String(markup)
@@ -70,23 +67,21 @@ const NL_WEST_IN_SEPTEMBER = {
         elim: "-",
         lead: true,
         magic: "7",
-
-        next: { at: "2026-09-16T23:10:00Z", home: true, opp: "SD" },
       }),
       row("SD", 83, 67, { gb: "6.0", elim: "7", wcgb: "+2.0", wce: "-", wcrank: "1" }),
     ],
   },
 };
 
-test("a division leader in September: its division, seed, record, and percentage, its place, lead, and magic number, its next game, and every title", () => {
+test("a division leader in September: its division, seed, record, and percentage, its place, lead, and magic number, and every title", () => {
   session.standings = NL_WEST_IN_SEPTEMBER;
-  const sheet = renderTeamSheet("LAD", { now: SEPTEMBER_NOON });
+  const sheet = renderTeamSheet("LAD");
 
   assert.equal(readText(sheet.heading), "Dodgers #3");
   assert.equal(readText(sheet.note), "NL West | 2 seed | 89-61 | .593");
   assert.deepEqual(listParts(sheet.body), ["Season", "Titles"]);
   assert.deepEqual(readStats(sheet.body), ["NL West 1st", "Lead +6.0", "M# 7"]);
-  assert.match(readPart(sheet.body, "Season"), /^12 left .* Next Today 7:10 vs SD$/);
+  assert.match(readPart(sheet.body, "Season"), /^12 left NL West 1st /);
   assert.equal(readPart(sheet.body, "Titles"), "Defending 9 | 2025, 2024, 2020 and 6 more");
 });
 
@@ -100,7 +95,7 @@ test("a club chasing a wild card has a row for each race, each starting with its
       ],
     },
   };
-  const sheet = renderTeamSheet("SEA", { now: SEPTEMBER_NOON });
+  const sheet = renderTeamSheet("SEA");
 
   assert.equal(readText(sheet.heading), "Mariners");
   assert.equal(readText(sheet.note), "AL West | 81-69 | .540");
@@ -124,8 +119,8 @@ test("a race number shows in copper while it counts down, as a gold dash once cl
       ],
     },
   };
-  const leader = renderTeamSheet("HOU", { now: SEPTEMBER_NOON }).body.text;
-  const chaser = renderTeamSheet("SEA", { now: SEPTEMBER_NOON }).body.text;
+  const leader = renderTeamSheet("HOU").body.text;
+  const chaser = renderTeamSheet("SEA").body.text;
 
   assert.match(leader, /<span class="elim-num clinched">&mdash;<\/span>/);
   assert.match(chaser, /<span class="elim-num">E<\/span>/);
@@ -141,7 +136,7 @@ test("once the season is over, the Season part counts no games left", () => {
       ],
     },
   };
-  const leader = renderTeamSheet("MIL", { now: OCTOBER_NOON }).body;
+  const leader = renderTeamSheet("MIL").body;
 
   assert.deepEqual(readStats(leader), ["NL Central 1st", "Lead +4.0", "M# -"]);
   assert.doesNotMatch(readPart(leader, "Season"), /left/);
@@ -157,7 +152,7 @@ test("once the field is set, a game rained out and never made up counts as none 
       ],
     },
   };
-  const sheet = renderTeamSheet("PHI", { now: OCTOBER_NOON }).body;
+  const sheet = renderTeamSheet("PHI").body;
 
   assert.doesNotMatch(readPart(sheet, "Season"), /left/);
 });
@@ -172,14 +167,12 @@ const NL_CENTRAL_IN_OCTOBER = {
         wcgb: "+2.0",
         wce: "-",
         wcrank: "1",
-
-        next: { at: "2026-10-08T21:08:00Z", home: false, opp: "PHI", postseason: true },
       }),
     ],
   },
 };
 
-test("once the field is set, a club alive in the postseason shows it first, with how each series stands and its next game", () => {
+test("once the field is set, a club alive in the postseason shows it first, with how each series stands", () => {
   session.state = {
     ...session.state,
     projected: false,
@@ -189,25 +182,24 @@ test("once the field is set, a club alive in the postseason shows it first, with
     },
   };
   session.standings = NL_CENTRAL_IN_OCTOBER;
-  const sheet = renderTeamSheet("CHC", { now: OCTOBER_NOON });
+  const sheet = renderTeamSheet("CHC");
 
   assert.deepEqual(listParts(sheet.body), ["Playoffs", "Season", "Titles"]);
   assert.equal(
     readPart(sheet.body, "Playoffs"),
-    "Alive NL WC Padres Won 2-1 NLDS Phillies Lead 2-1 Next Today 5:08 @ PHI",
+    "Alive NL WC Padres Won 2-1 NLDS Phillies Lead 2-1",
   );
-  assert.doesNotMatch(readPart(sheet.body, "Season"), /Next/);
   assert.match(sheet.body.text, /<button type="button" class="club team-open" data-team="SD"/);
 });
 
 test("a club with a bye shows it, and a series still to start shows no games", () => {
   session.state = { ...session.state, projected: false };
-  const playoffs = readPart(renderTeamSheet("LAD", { now: OCTOBER_NOON }).body, "Playoffs");
+  const playoffs = readPart(renderTeamSheet("LAD").body, "Playoffs");
 
   assert.equal(playoffs, "Alive NL WC Bye NLDS TBD 0-0");
 });
 
-test("a club knocked out says how its series ended, with no next game", () => {
+test("a club knocked out says how its series ended", () => {
   session.state = {
     ...session.state,
     projected: false,
@@ -223,13 +215,11 @@ test("a club knocked out says how its series ended, with no next game", () => {
           wcgb: "-",
           wce: "-",
           wcrank: "3",
-
-          next: { at: "2026-10-09T21:08:00Z", home: true, opp: "PHI", postseason: true },
         }),
       ],
     },
   };
-  const playoffs = readPart(renderTeamSheet("NYM", { now: OCTOBER_NOON }).body, "Playoffs");
+  const playoffs = readPart(renderTeamSheet("NYM").body, "Playoffs");
 
   assert.equal(playoffs, "Out NL WC Brewers Lost 1-2");
 });
@@ -243,14 +233,14 @@ test("a series tied or trailing says so, and a club still in a projected field s
       NL_WC2: { winsA: 0, winsB: 1, started: true },
     },
   };
-  assert.match(readText(renderTeamSheet("MIL", { now: OCTOBER_NOON }).body), /NL WC Mets Tied 1-1/);
-  assert.match(readText(renderTeamSheet("SD", { now: OCTOBER_NOON }).body), /NL WC Cubs Trail 0-1/);
+  assert.match(readText(renderTeamSheet("MIL").body), /NL WC Mets Tied 1-1/);
+  assert.match(readText(renderTeamSheet("SD").body), /NL WC Cubs Trail 0-1/);
   session.state.projected = true;
-  assert.deepEqual(listParts(renderTeamSheet("SD", { now: OCTOBER_NOON }).body), ["Titles"]);
+  assert.deepEqual(listParts(renderTeamSheet("SD").body), ["Titles"]);
 });
 
 test("a club the standings don't list yet still shows its league and its titles", () => {
-  const sheet = renderTeamSheet("COL", { now: SEPTEMBER_NOON });
+  const sheet = renderTeamSheet("COL");
 
   assert.equal(readText(sheet.note), "NL");
   assert.deepEqual(listParts(sheet.body), ["Titles"]);
@@ -274,4 +264,143 @@ test("every World Series since the first, but for 1904 and 1994, has one champio
   );
 
   assert.deepEqual(champions, played);
+});
+
+// The Astros' slate the night of Sep 24: a loss at Seattle the night before, after a win there,
+// tonight at the Athletics, then the Athletics again tomorrow, with another club's game on each
+// day. The earlier days come newest first, so the cards can't take their order from the slate.
+const ASTROS_SLATE = {
+  previous: [
+    {
+      date: "2026-09-23",
+      away: "HOU",
+      home: "SEA",
+      state: "final",
+      start: "2026-09-24T02:10:00Z",
+      score: [5, 6],
+    },
+    {
+      date: "2026-09-23",
+      away: "LAA",
+      home: "TEX",
+      state: "final",
+      start: "2026-09-24T00:05:00Z",
+      score: [2, 1],
+    },
+    {
+      date: "2026-09-22",
+      away: "HOU",
+      home: "SEA",
+      state: "final",
+      start: "2026-09-23T02:10:00Z",
+      score: [7, 3],
+    },
+  ],
+  today: {
+    date: "2026-09-24",
+    games: [
+      {
+        away: "HOU",
+        home: "ATH",
+        state: "live",
+        start: "2026-09-25T01:40:00Z",
+        score: [2, 1],
+        inning: 5,
+        half: "top",
+      },
+      { away: "LAA", home: "SEA", state: "pre", start: "2026-09-25T01:40:00Z" },
+    ],
+  },
+  next: [
+    { date: "2026-09-25", away: "HOU", home: "ATH", state: "pre", start: "2026-09-26T01:40:00Z" },
+    { date: "2026-09-26", away: "HOU", home: "ATH", state: "pre", start: "2026-09-26T20:05:00Z" },
+  ],
+};
+
+/** @param {{ text: string }} body */
+const listCards = (body) =>
+  [...body.text.matchAll(/<div class="game-card">([\s\S]*?)<\/button>\s*<\/div>/g)].map(([card]) =>
+    readText(card),
+  );
+
+/** @param {{ text: string }} body */
+const listCardButtons = (body) =>
+  [...body.text.matchAll(/data-game="([^"]*)"\s*aria-label="([^"]*)"/g)].map(([, key, label]) => [
+    key,
+    label,
+  ]);
+
+test("a club's sheet opens on cards of its last game, the one it's playing, and its next, each opening the game", () => {
+  session.state = { ...session.state, slate: ASTROS_SLATE };
+  const { body } = renderTeamSheet("HOU");
+
+  assert.deepEqual(listCards(body), [
+    "Last game Sep 23 L 5-6 @ SEA",
+    "Now Top 5th UP 2-1 @ ATH",
+    "Next game Sep 25 9:40 PM @ ATH",
+  ]);
+  assert.deepEqual(listCardButtons(body), [
+    ["2026-09-23 HOU SEA 1", "Game details: Astros at Mariners, Wed, Sep 23"],
+    ["2026-09-24 HOU ATH 1", "Game details: Astros at Athletics, Thu, Sep 24"],
+    ["2026-09-25 HOU ATH 1", "Game details: Astros at Athletics, Fri, Sep 25"],
+  ]);
+  assert.ok(body.text.indexOf('class="game-cards"') < body.text.indexOf("<h3>"));
+});
+
+test("a club's cards take a doubleheader's games in game order, and skip a postponed game and one whose other club isn't known", () => {
+  session.state = {
+    ...session.state,
+    slate: {
+      today: {
+        date: "2026-09-24",
+        games: [
+          {
+            away: "NYM",
+            home: "PHI",
+            state: "pre",
+            start: "2026-09-24T17:05:00Z",
+            tbd: true,
+            doubleheader: 2,
+          },
+          {
+            away: "NYM",
+            home: "PHI",
+            state: "final",
+            start: "2026-09-24T17:05:00Z",
+            doubleheader: 1,
+            score: [3, 4],
+          },
+        ],
+        postponed: [{ away: "NYM", home: "MIA", state: "off", start: "2026-09-24T22:40:00Z" }],
+      },
+      next: [
+        {
+          date: "2026-09-25",
+          away: "NYM",
+          home: "MIA",
+          state: "off",
+          start: "2026-09-25T22:40:00Z",
+        },
+        { date: "2026-09-30", home: "MIL", state: "pre", start: "2026-09-30T22:40:00Z" },
+        {
+          date: "2026-10-01",
+          away: "NYM",
+          home: "MIL",
+          state: "pre",
+          start: "2026-10-01T22:40:00Z",
+        },
+      ],
+    },
+  };
+
+  assert.deepEqual(listCards(renderTeamSheet("NYM").body), [
+    "Last game Sep 24 L 3-4 @ PHI",
+    "Next game Sep 24 After 1st game @ PHI",
+  ]);
+  assert.deepEqual(listCards(renderTeamSheet("MIL").body), ["Next game Oct 1 6:40 PM vs NYM"]);
+});
+
+test("a club with no games on the slate, as in a past season, shows no cards", () => {
+  session.state = { ...session.state, slate: null };
+  assert.doesNotMatch(renderTeamSheet("HOU").body.text, /game-cards/);
 });

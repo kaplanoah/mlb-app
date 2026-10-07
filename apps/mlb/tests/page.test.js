@@ -1027,8 +1027,7 @@ test("games list: a game still to play names its starters with their arm, leavin
       rendered,
     );
   assert.equal(button[1], "Game details: Red Sox at Yankees, Tue, Sep 29");
-  const details = JSON.parse(button[2].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
-  assert.deepEqual(details, { date: "2026-09-29", ...slate.today.games[0], today: true });
+  assert.equal(button[2], "2026-09-29 BOS NYY 1");
 });
 
 test("a game's sheet heads its Game section with the game's row, whose clubs open their sheets, without its starters or the button that opens it", () => {
@@ -1103,7 +1102,6 @@ test("games list: a club yet to name today's starter says Still TBD, and every g
     later,
     /class="game-open" aria-label="Game details: Phillies at Braves, Fri, Oct 2"/,
   );
-  assert.match(later, /&quot;today&quot;:false/);
 });
 
 test("games list: an empty list says so without a closing period", () => {

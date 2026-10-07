@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="shared/pager.css" />
   <link rel="stylesheet" href="shared/sheet.css" />
   <link rel="stylesheet" href="shared/team-sheet.css" />
+  <link rel="stylesheet" href="shared/game-cards.css" />
   <link rel="stylesheet" href="shared/row-button.css" />
   <link rel="stylesheet" href="shared/updates.css" />
   <link rel="stylesheet" href="styles.css" />
@@ -227,6 +228,15 @@
                   />
                 </svg>
                 <span class="sheet-close-label">Close</span>
+              </button>
+              <button type="button" class="sheet-back" id="gameBackBtn" hidden>
+                <!-- Phosphor's arrow-left, at its Light weight. -->
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M222,128a6,6,0,0,1-6,6H54.49l61.75,61.76a6,6,0,1,1-8.48,8.48l-72-72a6,6,0,0,1,0-8.48l72-72a6,6,0,0,1,8.48,8.48L54.49,122H216A6,6,0,0,1,222,128Z"
+                  />
+                </svg>
+                <span class="sheet-back-label">Back</span>
               </button>
               <div class="sheet-title">
                 <h2 id="gameTitle" data-last-drawn>Game</h2>
