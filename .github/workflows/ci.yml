@@ -1,9 +1,10 @@
 name: CI
 
-# Every pull request is checked, including one stacked on another pull request's branch.
+# Every pull request is checked, including one stacked on another pull request's branch. A label
+# change checks it again, so the phone-ok label lets a red change through without a push.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -39,6 +40,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node worker/find-passed-ci.mjs
+
+  # A red change merges only once the owner has used it on the beta app and labeled it phone-ok
+  # (worker/red-change.mjs). The merge commit's first parent is the base branch.
+  gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+      - *setup-node
+      - name: Hold a red change for the owner's phone
+        shell: bash
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: git diff --no-renames HEAD^1 HEAD | node worker/red-change.mjs "$LABELS"
 
   # The quick checks share one machine, which leaves more of the account's runners for the browser
   # tests.
@@ -183,6 +201,7 @@ jobs:
         id: decision
         env:
           EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
           IS_DRAFT: ${{ github.event.pull_request.draft }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -191,6 +210,8 @@ jobs:
           reason=""
           if [ "$EVENT" != "pull_request" ]; then
             reason="only pull requests are reviewed"
+          elif [ "$ACTION" = "labeled" ] || [ "$ACTION" = "unlabeled" ]; then
+            reason="a label change brings no new code"
           elif [ "$IS_DRAFT" = "true" ]; then
             reason="a draft is reviewed once it's ready for review"
           elif [ "$AUTHOR" = "dependabot[bot]" ]; then
@@ -274,7 +295,7 @@ jobs:
   # skipped required check as passing.
   check:
     if: always()
-    needs: [passed, checks, browser, review]
+    needs: [passed, gate, checks, browser, review]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -282,6 +303,7 @@ jobs:
       - name: Require every job to pass
         if: >-
           contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') ||
+          (github.event_name == 'pull_request' && needs.gate.result != 'success') ||
           (!needs.passed.outputs.run && (needs.checks.result != 'success' ||
           needs.browser.result != 'success' || needs.review.result != 'success'))
         run: exit 1
