@@ -1,15 +1,12 @@
-// Picking the stories each topic's card shows, from the ones this device reads. The lead is the
-// news itself, as plain as it comes, and the second adds the most to it: another kind of story, a
-// deeper one, a named writer, another outlet.
+// Picking the stories this device reads from each card: every story the Worker keeps, but the
+// paywalled outlet's and a team's own beat writers' when the device leaves them out. When it leaves
+// out a card's lead, the first story under it that it reads leads in its place.
 
-const LEAD_ORDER = ["report", "game", "analysis", "feature", "column", "preview"];
-const DEPTH = { analysis: 2, feature: 2, game: 1, column: 1, report: 0, preview: -2 };
-// A card's teams are its lead's, since a second story about the same news can range wider.
-const MAX_CARD_TEAMS = 2;
 const PAYWALLED_SOURCE = "athletic";
+const MAX_MORE = 3;
 
 /**
- * A story as `news/topics` keeps it.
+ * A story as `news/cards` keeps it.
  * @typedef {object} NewsStory
  * @property {string} id
  * @property {string} url
@@ -21,14 +18,12 @@ const PAYWALLED_SOURCE = "athletic";
  * @property {string} [teamFeed] the team whose own outlets alone carry it
  * @property {string} publishedAt
  * @property {{ url: string, credit: string } | null} photo
- * @property {string} kind
  * @property {string[]} teams
  */
 
 /**
- * @typedef {object} NewsTopic
- * @property {string} id
- * @property {NewsStory[]} stories
+ * The story that tells a piece of news best, and the others that add to it.
+ * @typedef {{ lead: NewsStory, more: NewsStory[] }} NewsCard
  */
 
 /**
@@ -49,72 +44,25 @@ const isReadStory = (story, choices) =>
   (choices.paywalled || story.source !== PAYWALLED_SOURCE) &&
   (choices.teamOutlets || !story.teamFeed);
 
-/** @param {NewsStory} story */
-const readLeadRank = (story) => {
-  const rank = LEAD_ORDER.indexOf(story.kind);
-  return rank === -1 ? LEAD_ORDER.length : rank;
-};
-
 /**
- * @param {NewsStory} first
- * @param {NewsStory} second
- */
-const compareLeads = (first, second) =>
-  readLeadRank(first) - readLeadRank(second) ||
-  Number(Boolean(second.photo)) - Number(Boolean(first.photo)) ||
-  Date.parse(first.publishedAt) - Date.parse(second.publishedAt);
-
-/**
- * @param {NewsStory} lead
- * @param {NewsStory} story
- */
-const scoreCompanion = (lead, story) =>
-  (story.kind !== lead.kind ? 4 : 0) +
-  (DEPTH[story.kind] ?? 0) +
-  (story.author ? 1 : 0) +
-  (story.source !== lead.source ? 1 : 0);
-
-/**
- * The lead, then the story that adds the most to it, when there's another.
- * @param {NewsStory[]} stories
- */
-function pickShownStories(stories) {
-  const [lead, ...others] = stories.toSorted(compareLeads);
-  const companion = others.reduce(
-    (best, story) =>
-      !best || scoreCompanion(lead, story) > scoreCompanion(lead, best) ? story : best,
-    /** @type {NewsStory | null} */ (null),
-  );
-  return companion ? [lead, companion] : [lead];
-}
-
-/** @param {NewsStory[]} stories */
-const findLatest = (stories) => Math.max(...stories.map((story) => Date.parse(story.publishedAt)));
-
-/**
- * @param {NewsTopic} topic
+ * @param {NewsCard} card
  * @param {NewsChoices} choices
+ * @returns {NewsCard | null}
  */
-function buildNewsCard(topic, choices) {
-  const read = topic.stories.filter((story) => isReadStory(story, choices));
-  if (!read.length) return null;
-  const stories = pickShownStories(read);
-  return {
-    id: topic.id,
-    teams: stories[0].teams.slice(0, MAX_CARD_TEAMS),
-    stories,
-    latestAt: findLatest(read),
-  };
+function pickReadCard(card, choices) {
+  const [lead, ...more] = [card.lead, ...card.more].filter((story) => isReadStory(story, choices));
+  return lead ? { lead, more: more.slice(0, MAX_MORE) } : null;
 }
 
 /**
- * Each topic's card with a story this device reads, newest first: its teams and the stories it
- * shows.
- * @param {NewsTopic[]} topics
+ * The cards with a story this device reads, newest lead first.
+ * @param {NewsCard[]} cards
  * @param {NewsChoices} choices
  */
-export const buildNewsCards = (topics, choices) =>
-  topics
-    .map((topic) => buildNewsCard(topic, choices))
+export const pickReadCards = (cards, choices) =>
+  cards
+    .map((card) => pickReadCard(card, choices))
     .filter((card) => card !== null)
-    .sort((first, second) => second.latestAt - first.latestAt);
+    .sort(
+      (first, second) => Date.parse(second.lead.publishedAt) - Date.parse(first.lead.publishedAt),
+    );

@@ -2111,33 +2111,53 @@ table.standings tr.playoff-line + tr td {
 }
 .news-title {
   margin: 0;
-  font-weight: 600;
-  text-wrap: pretty;
-}
-h3.news-title {
   font-size: 1.15rem;
+  font-weight: 600;
   line-height: 1.28;
-}
-h4.news-title {
-  font-size: var(--size-read);
-  line-height: 1.35;
+  text-wrap: pretty;
 }
 .news-title a {
   color: inherit;
   text-decoration: none;
 }
-.news-meta,
-.news-credit {
+.news-meta {
   margin: 0;
+  font-size: var(--size-glance);
   color: var(--ink-dim);
 }
-.news-meta {
-  font-size: var(--size-glance);
+/* The stories under a card's lead, quieter than it: a headline and its outlet each. */
+.news-more {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
 }
-/* Close under the writer's line it belongs to, past the grid's gap. */
-.news-credit {
-  margin-top: -3px;
+.news-more-label {
+  margin: 0;
   font-size: var(--size-small);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.news-more-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.news-more-title {
+  margin: 0 0 2px;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+.news-more-title a {
+  color: inherit;
+  text-decoration: none;
 }
 .news-summary {
   margin: 2px 0 0;
@@ -2200,47 +2220,15 @@ h4.news-title {
 }
 @media (hover: hover) {
   .news-title a,
+  .news-more-title a,
   .read-button {
     transition: color 0.15s;
   }
   .news-title a:hover,
+  .news-more-title a:hover,
   .read-button:hover {
     color: var(--ink-hover);
   }
-}
-.news-more {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--divider);
-}
-.news-more-label {
-  margin: 0;
-  font-size: var(--size-small);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-.news-more-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-}
-.news-more-text {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-.news-thumb {
-  display: block;
-  width: 76px;
-  height: 76px;
-  border-radius: var(--radius-card);
-  object-fit: cover;
-  background: var(--tile);
 }
 
 /* On a wide screen, Walnut's selected tab reads a step heavier on its bright orange. Each tab's

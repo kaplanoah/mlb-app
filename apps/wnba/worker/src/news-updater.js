@@ -4,15 +4,16 @@ import { describeError } from "../../../../shared/worker/responses.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { askClaude } from "./news-claude.js";
 import { readNewsFeeds } from "./news-feeds.js";
-import { GROUP_PROMPT, LABEL_PROMPT, STORY_KINDS } from "./news-prompts.js";
+import { LABEL_PROMPT } from "./news-prompts.js";
 import { readRuleDrop } from "./news-rules.js";
 
 // Keeps the news the page shows: each run reads the outlets' feeds, drops what the rules can tell
-// isn't news, has Claude label the rest and group what it keeps into topics, and saves each
-// topic's stories. A story Claude hasn't answered for stays waiting and is asked about again on the
-// next run, so a run that fails loses nothing. The topics go in `news/topics`, where each page picks
-// the stories it shows from the outlets its device reads, and how the runs are going, with
-// Claude's daily token counts, in `news/status`.
+// isn't news, and has Claude judge the rest against the cards the feed has so far. A story with news
+// of its own leads a card, one that tells a card's news better takes it over, and one that adds to
+// it goes under its lead. A story Claude hasn't answered for stays waiting and is asked about again
+// on the next run, so a run that fails loses nothing. The cards go in `news/cards`, newest lead
+// first, where each page picks the stories from the outlets its device reads, and how the runs are
+// going, with Claude's daily token counts, in `news/status`.
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -26,10 +27,12 @@ const DAY_DELAY_MS = 15 * MINUTE_MS;
 const NIGHT_DELAY_MS = 60 * MINUTE_MS;
 const LABEL_BATCH = 12;
 const LABELS_PER_RUN = 24;
-const GROUPS_PER_RUN = 20;
-const MAX_TOPICS = 40;
-const TOPICS_KEY = "news/topics";
+const MAX_CARDS = 60;
+const CARDS_KEY = "news/cards";
+// A document no page reads, removed from any store that still keeps it.
+const OLD_TOPICS_KEY = "news/topics";
 const STATUS_KEY = "news/status";
+const RULES_KEY = "rules";
 
 /**
  * A story the news has seen, as it's kept.
@@ -48,10 +51,9 @@ const STATUS_KEY = "news/status";
  * @property {string} [espnType]
  * @property {"pending" | "kept" | "dropped"} state
  * @property {string} [why]
- * @property {string} [kind]
  * @property {string[]} [teams]
  * @property {string} [reason]
- * @property {string} [topic]
+ * @property {string} [under] the story that leads the card this one is under
  */
 
 /**
@@ -66,10 +68,10 @@ function chooseNewsDelay(now) {
   return Math.min(NIGHT_DELAY_MS, untilMorningMs);
 }
 
-/** @param {string} url */
-async function nameStoryId(url) {
+/** @param {string} text */
+async function hashText(text) {
   const digest = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url)),
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
   );
   return [...digest.subarray(0, 8)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -83,7 +85,17 @@ async function readStories(storage) {
   return new Map([...stored.values()].map((story) => [story.id, story]));
 }
 
-const saveStory = (storage, story) => storage.put(`story:${story.id}`, story);
+/**
+ * @param {import("../../../../shared/worker/season-store.js").JobContext["storage"]} storage
+ * @param {Map<string, NewsStory>} stories
+ * @param {NewsStory[]} changed
+ */
+async function saveStories(storage, stories, changed) {
+  for (const story of changed) {
+    stories.set(story.id, story);
+    await storage.put(`story:${story.id}`, story);
+  }
+}
 
 // A feed edits a story's time when it edits the story, so a story keeps the first time it's seen
 // with, and is never dated ahead of when it's seen.
@@ -120,12 +132,11 @@ function createStory(entry, id, now) {
 
 async function addNewStories(storage, stories, entries, now) {
   for (const entry of entries) {
-    const id = await nameStoryId(entry.url);
+    const id = await hashText(entry.url);
     if (stories.has(id)) continue;
     const story = createStory(entry, id, now);
     if (now - Date.parse(story.publishedAt) > SHOWN_MS) continue;
-    stories.set(id, story);
-    await saveStory(storage, story);
+    await saveStories(storage, stories, [story]);
   }
 }
 
@@ -140,6 +151,8 @@ async function forgetOldStories(storage, stories, now) {
 const isShownAge = (story, now) => now - Date.parse(story.publishedAt) <= SHOWN_MS;
 
 const byNewest = (first, second) => Date.parse(second.publishedAt) - Date.parse(first.publishedAt);
+
+const byOldest = (first, second) => byNewest(second, first);
 
 const describeForClaude = (story, index) => ({
   id: index + 1,
@@ -163,16 +176,38 @@ function applyLabel(story, answer) {
     ...story,
     state: answer.keep ? "kept" : "dropped",
     ...(!answer.keep && { why: String(answer.why || "other") }),
-    kind: STORY_KINDS.includes(answer.kind) ? answer.kind : "report",
     teams: Array.isArray(answer.teams) ? answer.teams.filter(isTeamCode) : [],
     reason: String(answer.reason ?? ""),
   };
 }
 
-/** Each story in `batch` with the answer Claude gave for it by its place in the batch. */
-function matchAnswers(batch, answers) {
+/**
+ * A story as it was before Claude judged it.
+ * @param {NewsStory} story
+ * @returns {NewsStory}
+ */
+const clearJudgment = ({ state, why, teams, reason, under, ...story }) => ({
+  ...story,
+  state: "pending",
+});
+
+// Claude judges every story again when its prompt changes, so the cards follow the rules it's
+// asked by.
+async function judgeAgainOnNewRules(storage, stories) {
+  const rules = await hashText(LABEL_PROMPT);
+  if ((await storage.get(RULES_KEY)) === rules) return;
+  const judged = [...stories.values()].filter((story) => story.reason !== undefined);
+  await saveStories(storage, stories, judged.map(clearJudgment));
+  await storage.put(RULES_KEY, rules);
+}
+
+/**
+ * Each story in `batch` with the answer Claude gave for it by its number, which comes after the
+ * cards' numbers.
+ */
+function matchAnswers(batch, answers, cardCount) {
   const byId = new Map(answers.map((answer) => [Number(answer?.id), answer]));
-  return batch.map((story, index) => [story, byId.get(index + 1)]);
+  return batch.map((story, index) => [story, byId.get(cardCount + index + 1)]);
 }
 
 function splitIntoBatches(stories, size) {
@@ -182,55 +217,100 @@ function splitIntoBatches(stories, size) {
   return batches;
 }
 
+const listShownStories = (stories, now) =>
+  [...stories.values()].filter((story) => story.state === "kept" && isShownAge(story, now));
+
+/**
+ * The cards the feed shows, oldest lead first: each lead with the stories under it, newest first.
+ * A story whose lead is no longer shown leads in its place.
+ * @param {Map<string, NewsStory>} stories
+ * @param {number} now
+ */
+function listCards(stories, now) {
+  /** @type {Map<string, NewsStory[]>} */
+  const byLead = new Map();
+  for (const story of listShownStories(stories, now).sort(byNewest)) {
+    const leadId = story.under ?? story.id;
+    byLead.set(leadId, [...(byLead.get(leadId) ?? []), story]);
+  }
+  return [...byLead]
+    .map(([leadId, group]) => {
+      const lead = group.find((story) => story.id === leadId) ?? group[0];
+      return { lead, more: group.filter((story) => story !== lead) };
+    })
+    .sort((first, second) => byOldest(first.lead, second.lead));
+}
+
+const describeToldStory = (story) => ({ title: story.title, outlet: story.outlet });
+
+const describeCard = ({ lead, more }, index) => ({
+  id: index + 1,
+  ...describeToldStory(lead),
+  more: more.map(describeToldStory),
+});
+
+/** What Claude reads for a batch: the cards the feed has so far, then the new stories. */
+const describeBatch = (cards, batch) =>
+  `Cards so far:\n${JSON.stringify(cards.map(describeCard))}\n\nNew stories:\n${JSON.stringify(batch.map((story, index) => describeForClaude(story, cards.length + index)))}`;
+
+/**
+ * The kept story Claude's `same` names, by its number among the cards' leads and the new stories,
+ * or null when it names none.
+ * @param {Map<string, NewsStory>} stories
+ * @param {NewsStory[]} numbered
+ * @param {NewsStory} story
+ * @param {unknown} same
+ */
+function findSameStory(stories, numbered, story, same) {
+  const named = numbered[Number(same) - 1];
+  const current = named && named.id !== story.id ? stories.get(named.id) : null;
+  return current?.state === "kept" ? current : null;
+}
+
+/**
+ * The stories a kept story changes as it joins the card whose news it tells: itself under the
+ * card's lead, or, when it leads, the card's lead and every story under it, under it.
+ * @param {Map<string, NewsStory>} stories
+ * @param {NewsStory} story
+ * @param {NewsStory} same
+ * @param {boolean} leads
+ */
+function joinCard(stories, story, same, leads) {
+  const leadId = same.under ?? same.id;
+  if (!leads) return [{ ...story, under: leadId }];
+  const demoted = [...stories.values()]
+    .filter((other) => other.id === leadId || other.under === leadId)
+    .map((other) => ({ ...other, under: story.id }));
+  return [story, ...demoted];
+}
+
+/**
+ * @param {Map<string, NewsStory>} stories
+ * @param {NewsStory[]} numbered
+ * @param {NewsStory} story
+ * @param {any} answer
+ */
+function placeStory(stories, numbered, story, answer) {
+  const labeled = applyLabel(story, answer);
+  if (!labeled) return [];
+  const same = labeled.state === "kept" && findSameStory(stories, numbered, story, answer.same);
+  return same ? joinCard(stories, labeled, same, answer.lead === true) : [labeled];
+}
+
+// The newest stories are asked about first, and in the order they came out, so a story that tells
+// news an earlier one told can lead only by telling it better.
 async function labelWaitingStories({ storage, stories, ask, now }) {
   const waiting = [...stories.values()]
     .filter((story) => story.state === "pending" && isShownAge(story, now))
     .sort(byNewest)
-    .slice(0, LABELS_PER_RUN);
+    .slice(0, LABELS_PER_RUN)
+    .sort(byOldest);
   for (const batch of splitIntoBatches(waiting, LABEL_BATCH)) {
-    const content = `Stories:\n${JSON.stringify(batch.map(describeForClaude))}`;
-    const answers = await ask(LABEL_PROMPT, content);
-    for (const [story, answer] of matchAnswers(batch, answers)) {
-      const labeled = applyLabel(story, answer);
-      if (!labeled) continue;
-      stories.set(story.id, labeled);
-      await saveStory(storage, labeled);
-    }
-  }
-}
-
-/** @param {unknown} topic */
-const cleanTopic = (topic) =>
-  String(topic ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-
-function listTopicsSoFar(stories, now) {
-  const titles = new Map();
-  for (const story of stories.values()) {
-    if (story.state !== "kept" || !story.topic || !isShownAge(story, now)) continue;
-    titles.set(story.topic, [...(titles.get(story.topic) ?? []), story.title]);
-  }
-  return [...titles].map(([topic, topicTitles]) => ({ topic, titles: topicTitles }));
-}
-
-// Stories go to topics oldest first, so a topic starts where its news did.
-async function groupKeptStories({ storage, stories, ask, now }) {
-  const ungrouped = [...stories.values()]
-    .filter((story) => story.state === "kept" && !story.topic && isShownAge(story, now))
-    .sort((first, second) => byNewest(second, first))
-    .slice(0, GROUPS_PER_RUN);
-  if (!ungrouped.length) return;
-  const content = `Topics so far:\n${JSON.stringify(listTopicsSoFar(stories, now))}\n\nNew stories:\n${JSON.stringify(ungrouped.map(describeForClaude))}`;
-  const answers = await ask(GROUP_PROMPT, content);
-  for (const [story, answer] of matchAnswers(ungrouped, answers)) {
-    const topic = cleanTopic(answer?.topic);
-    if (!topic) continue;
-    const grouped = { ...story, topic };
-    stories.set(story.id, grouped);
-    await saveStory(storage, grouped);
+    const cards = listCards(stories, now);
+    const numbered = [...cards.map((card) => card.lead), ...batch];
+    const answers = await ask(LABEL_PROMPT, describeBatch(cards, batch));
+    for (const [story, answer] of matchAnswers(batch, answers, cards.length))
+      await saveStories(storage, stories, placeStory(stories, numbered, story, answer));
   }
 }
 
@@ -264,7 +344,6 @@ async function curateStories(context) {
   const ask = createClaudeAsker(context);
   try {
     await labelWaitingStories({ ...context, ask });
-    await groupKeptStories({ ...context, ask });
     return "";
   } catch (error) {
     return describeError(error);
@@ -282,37 +361,20 @@ const describeShownStory = (story) => ({
   ...(story.teamFeed && { teamFeed: story.teamFeed }),
   publishedAt: story.publishedAt,
   photo: story.photo,
-  kind: story.kind,
   teams: story.teams ?? [],
 });
 
-const compareNewestFirst = (first, second) =>
-  Date.parse(second.publishedAt) - Date.parse(first.publishedAt);
-
-/**
- * Each topic with its stories, newest first, and the newest topics first.
- * @param {NewsStory[]} stories
- */
-function groupTopics(stories) {
-  /** @type {Map<string, NewsStory[]>} */
-  const byTopic = new Map();
-  for (const story of stories)
-    byTopic.set(story.topic, [...(byTopic.get(story.topic) ?? []), story]);
-  return [...byTopic]
-    .map(([id, topicStories]) => {
-      const sorted = topicStories.toSorted(compareNewestFirst);
-      return { id, latestAt: sorted[0].publishedAt, stories: sorted.map(describeShownStory) };
-    })
-    .sort((first, second) => Date.parse(second.latestAt) - Date.parse(first.latestAt));
-}
-
-async function saveTopics(docs, stories, now) {
-  const shown = [...stories.values()].filter(
-    (story) => story.state === "kept" && story.topic && isShownAge(story, now),
-  );
-  const topics = groupTopics(shown).slice(0, MAX_TOPICS);
-  const stored = await docs.read(TOPICS_KEY);
-  if (!isSameJson(stored?.topics, topics)) await docs.write(TOPICS_KEY, { topics });
+async function saveCards(docs, stories, now) {
+  const cards = listCards(stories, now)
+    .reverse()
+    .slice(0, MAX_CARDS)
+    .map(({ lead, more }) => ({
+      lead: describeShownStory(lead),
+      more: more.map(describeShownStory),
+    }));
+  const stored = await docs.read(CARDS_KEY);
+  if (!isSameJson(stored?.cards, cards)) await docs.write(CARDS_KEY, { cards });
+  if (await docs.read(OLD_TOPICS_KEY)) await docs.remove(OLD_TOPICS_KEY);
 }
 
 async function readRecentUsage(storage, now) {
@@ -344,8 +406,9 @@ async function updateNews({ docs, storage, env, fetchImpl, now: readNow }, readF
   const stories = await readStories(storage);
   await addNewStories(storage, stories, entries, now);
   await forgetOldStories(storage, stories, now);
+  await judgeAgainOnNewRules(storage, stories);
   const problem = await curateStories({ storage, stories, env, fetchImpl, now });
-  await saveTopics(docs, stories, now);
+  await saveCards(docs, stories, now);
   await saveStatus({ docs, storage, now, missing, problem });
 }
 

@@ -3,8 +3,6 @@ import { TEAMS } from "../../page/js/teams.js";
 // What the news asks Claude. The labeling prompt and its examples were tuned against a week of
 // stories the app's editor sorted by hand; change them only by checking a fresh week against it.
 
-export const STORY_KINDS = ["report", "analysis", "feature", "game", "column", "preview"];
-
 const TEAM_LIST = Object.entries(TEAMS)
   .map(([code, team]) => `${code} (${team.city} ${team.name})`)
   .join(", ");
@@ -63,28 +61,24 @@ Drop, with its reason:
 - back-and-forth: an owner's or executive's boast, or a reply in a public dispute, that adds no news.
 - off-the-court: culture or naming disputes away from basketball.
 - novelty: an odd or viral angle with no basketball news.
+- retold: news a card already tells, without enough to go under it.
 
-Two stories can cover the same news; keep both if each is worth reading. The app picks the best two per piece of news later.
+The feed shows each piece of news as one card: the story that tells it best, with a few others under it as More on this. You get the cards so far, each with its number, its lead, and the stories under it, then the new stories, numbered after them, in the order they came out.
 
-For each story, give:
+When a new story tells news a card already tells, or an earlier new story does, give that number as same. Then:
+- If it tells the news better than the card's lead, set lead to true. It leads the card, and the old lead goes under it. Reward quality, not speed: a deeper, better-reported, or better-written story should lead, whenever it came out.
+- Otherwise keep it only if it earns a place under the card, and the bar rises with each story the card has. Under a lead alone, it needs something the lead lacks: new facts, the why, or the people's own words. Under a lead with one story under it, it must add something real that neither has. With two or more under the lead, it must be exceptional. Otherwise drop it as retold.
+A new development in a card's story, like an injured player ruled out of the next game, leads that card: give its number as same and set lead to true, so the latest news leads and what came before goes under it.
+
+For each new story, give:
 - keep: true or false.
 - why: when keep is false, one of the drop reasons above, or other.
-- kind: report (news of what happened), analysis (why it happened), feature (a story about a person or team), game (a standout game told as a story), column (opinion), or preview.
+- same: the number of the card or new story whose news it tells, only when it tells news one already does.
+- lead: true when it should lead that card.
 - teams: the codes of the WNBA teams the story is about, most central first, from: ${TEAM_LIST}.
 - reason: one short sentence.
 
-Answer with only a JSON array, one object per story, in the stories' order: {"id": 1, "keep": true, "kind": "report", "teams": ["NYL"], "reason": "..."}. No other text.
+Answer with only a JSON array, one object per new story, in their order: {"id": 14, "keep": true, "same": 3, "lead": false, "teams": ["NYL"], "reason": "..."}. No other text.
 
 Examples of how the app's editor decided:
 ${EDITOR_EXAMPLES.map(([verdict, story]) => `- ${verdict}: ${story}`).join("\n")}`;
-
-export const GROUP_PROMPT = `You group a WNBA news feed's stories into topics. Each topic becomes one card that shows at most two of its stories, so a topic should be what one card is about:
-- one game or result, with the stories told about that game (a recap with a standout player, the analysis of that game);
-- the whole of a series only for the series-ending game and stories that look back on how the series was won or lost;
-- one announcement: an award, an injury or health scare, discipline, a signing, a front-office move, with the profile of the person it names;
-- one person's week: features and news about the same player, coach, or executive go together, even when they're set in a series;
-- a team's look ahead after it was eliminated is its own topic, apart from the game that ended its season;
-- a preview or analysis of a coming series is one topic for that series.
-A story fits one topic. Prefer an existing topic when the story is about the same moment or person; start a new one otherwise.
-
-You get the topics so far, each with its stories' titles, and the new stories. Answer with only a JSON array, one object per new story: {"id": 12, "topic": "short-slug", "reason": "one short sentence"}. No other text.`;
