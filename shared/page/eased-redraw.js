@@ -1,3 +1,4 @@
+import { isMotionLeftOut } from "./drawing-test.js";
 import { logPatches } from "./html.js";
 
 // New data that changes what the page shows eases in: a part that grows or shrinks moves to its
@@ -13,7 +14,7 @@ const resizes = new WeakMap();
 
 const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const canEase = () => !document.hidden && !prefersReducedMotion();
+const canEase = () => !document.hidden && !prefersReducedMotion() && !isMotionLeftOut();
 
 /** @param {Element} element */
 const readHeight = (element) => element.getBoundingClientRect().height;

@@ -17,7 +17,7 @@ export const DRAWING_TESTS = [
   { key: "no-shadows", name: "No shadows or glows", note: "Drop shadows, glows, and box shadows" },
   { key: "no-textures", name: "No textures or clipping", note: "Grain, masks, and clipped shapes" },
   { key: "no-pictures", name: "No pictures", note: "Photos and logos" },
-  { key: "no-motion", name: "No motion", note: "Slides, fades, and springs" },
+  { key: "no-motion", name: "No motion", note: "Slides, fades, springs, and eased redraws" },
 ];
 
 /** @returns {string[]} */
@@ -51,6 +51,12 @@ export function toggleDrawingTest(key) {
 export function forgetDrawingTests() {
   saveDrawingTests([]);
 }
+
+/** Whether this page opened leaving out motion, as its eased redraws do too. */
+export const isMotionLeftOut = () =>
+  ["drawing-plain", "drawing-no-motion"].some((name) =>
+    document.documentElement.classList.contains(name),
+  );
 
 /** Puts this device's choices on the page's root, as the page opens. */
 export function applyDrawingTests() {

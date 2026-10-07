@@ -99,11 +99,12 @@ test("a record ends with where the shown pager's lists are and what a tap on eac
   const record = findRecords(page).locator(".diagnostics-record").first();
   await expect(record).toContainText(/games-pages scrolled \d+ of \d+, 390 wide/);
   await expect(record).toContainText(
-    /games-today at -?\d+,\d+ \d+x\d+, opacity 1, visible, transform none, first item at .*, a tap there lands on /,
+    /games-today at -?\d+,\d+ \d+x\d+, opacity 1, visible, transform none, first item at .*, opacity 1, a tap there lands on /,
   );
   await expect(record).toContainText(
     /games-previous at .*, inert, first item at .*, off the screen/,
   );
+  await expect(record).toContainText(/Animations: /);
   await expect(record).not.toContainText("standings-pages");
 });
 

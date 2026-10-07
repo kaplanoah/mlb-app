@@ -15,7 +15,7 @@ import {
   toggleDrawingTest,
 } from "./drawing-test.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
-import { describeShownPagers } from "./pager-log.js";
+import { describeAnimations, describeShownPagers } from "./pager-log.js";
 import { watchTimeAway } from "./resume.js";
 import {
   forgetSheetLines,
@@ -182,6 +182,7 @@ function sampleParts() {
   if (performance.now() - recordStartedAt < RECORD_MS) requestAnimationFrame(sampleParts);
   else {
     for (const line of describeShownPagers()) noteStep(line);
+    noteStep(describeAnimations());
     finishRecord();
   }
 }
