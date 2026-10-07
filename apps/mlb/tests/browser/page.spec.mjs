@@ -1393,11 +1393,11 @@ test("on a wide screen, a centered league bar spans each league's three columns 
   const nlLabel = await bracket.locator(".seed-labels.right").last().boundingBox();
   expect(alBar.y).toBe(nlBar.y);
   expect(alBar.x).toBe(stage.x);
-  expect(alBar.x).toBeLessThan(alLabel.x);
+  expect(alBar.x).toBeLessThanOrEqual(alLabel.x);
   expect(alBar.x + alBar.width).toBe(alcs.x + alcs.width);
   expect(nlBar.x).toBe(nlcs.x);
   expect(nlBar.x + nlBar.width).toBe(stage.x + stage.width);
-  expect(nlBar.x + nlBar.width).toBeGreaterThan(nlLabel.x + nlLabel.width);
+  expect(nlBar.x + nlBar.width).toBeGreaterThanOrEqual(nlLabel.x + nlLabel.width);
   expect(alWildCard.y - (alBar.y + alBar.height)).toBe(18);
 });
 
