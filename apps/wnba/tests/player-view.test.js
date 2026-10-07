@@ -162,6 +162,15 @@ test("her turnovers follow her defense on a line of their own, and rank from the
   assert.doesNotMatch(plain, /Turnovers/);
 });
 
+test("an unranked player's turnovers show her number alone, without the note on how they rank", () => {
+  const player = createPlayer();
+  player.regularSeason.games = 9;
+  player.regularSeason.stats.push(describeStat({ key: "turnovers", value: 1, rank: null }));
+  const text = renderBody(player);
+  assert.match(text, /TO 1\.0 /);
+  assert.doesNotMatch(text, /ranked by fewest/);
+});
+
 test("the turnovers curve runs from the most to the fewest, so her mark sits further right the fewer she has", () => {
   const values = [0.5, 1.2, 2.6, 4];
   const most = drawSpread(values, 2.6);
