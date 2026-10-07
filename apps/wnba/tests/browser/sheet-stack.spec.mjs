@@ -551,7 +551,9 @@ test("on a phone, a tap on back slides the two sheets as one, the gap taking the
   await page.setViewportSize(PHONE);
   await openApp(page);
   const gameSheet = await openGame(page);
-  await gameSheet.locator(".players .player-open").first().click();
+  // A click scrolls the player's name into view first, which, once the box score has loaded,
+  // scrolls the game's band off its sheet and leaves no band to join.
+  await gameSheet.locator(".players .player-open").first().dispatchEvent("click");
   const playerSheet = page.locator("#playerSheet");
   await expectShown(playerSheet);
   const line = await readTokenColor(page, "--edge");
