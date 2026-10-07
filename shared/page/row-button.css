@@ -1,0 +1,23 @@
+/*
+ * A table's row that a tap anywhere opens, through the one button in it, like a team's row in the
+ * standings. An iPhone hands the page a tap only when it lands on a button or a link, whatever
+ * listens for it, so the button reaches over the whole row. Safari never lets a table's row hold
+ * what reaches over it, so the cell around the button does: the button reaches past both sides of
+ * its .row-button-cell, and the .row-button-clip around the table, as wide as the table, cuts it
+ * off at the table's sides. Apps link it after team-sheet.css, before their own styles.css.
+ */
+
+.row-button-clip {
+  min-width: max-content;
+  overflow-x: clip;
+}
+.row-button-cell {
+  position: relative;
+}
+.row-button-cell button::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  inset-inline: -100vw;
+}

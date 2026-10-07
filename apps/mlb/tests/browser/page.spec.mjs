@@ -16,7 +16,11 @@ import { listAnimations } from "../../../../tests/browser/animations.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
-import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
+import {
+  listTapFlashes,
+  listTapsOffButtons,
+  listTouchHoverRules,
+} from "../../../../tests/browser/tap-states.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
@@ -1907,6 +1911,29 @@ for (const { screen, viewport } of [
       await expect(page.locator("#settingsDialog")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
+    });
+
+    test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
+      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+      await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+      await page.getByRole("tab", { name: "Games" }).click();
+      for (const list of ["Previous", "Today", "Next"]) {
+        await page.getByRole("tab", { name: list }).click();
+        await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+        expect(await listTapsOffButtons(page)).toEqual([]);
+      }
+      await page.getByRole("tab", { name: "Standings" }).click();
+      await expect(page.locator("table.st tbody tr").first()).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+      await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
+      await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#teamSheet")).toBeHidden();
+      await openSettings(page);
+      await expect(page.locator("#settingsDialog")).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
     });
   });
 }

@@ -72,10 +72,12 @@ function reopenTeamSheet(shown) {
 /** Redraws the open sheet from what the page shows now. */
 export const refreshTeamSheet = () => renderSheet();
 
+// Only a tap on the button opens the sheet, as on an iPhone, which hands the page no tap beside
+// it; a row that opens wherever it's tapped has its button reach over it (row-button.css).
 /** @param {Event} event */
 function openFromTap(event) {
   const button = /** @type {HTMLElement | null} */ (
-    /** @type {Element} */ (event.target).closest("[data-team]")
+    /** @type {Element} */ (event.target).closest(".team-open")
   );
   if (button?.dataset.team) openTeamSheet(button.dataset.team);
 }
