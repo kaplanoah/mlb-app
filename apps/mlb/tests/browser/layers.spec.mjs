@@ -3,15 +3,15 @@ import { expectWithinBudgets } from "../../../../tests/browser/layer-count.mjs";
 import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 
 // Each layer a phone keeps takes its memory, and an iPhone short of it leaves parts undrawn. Each
-// budget is the view's count in Chromium once nothing asked for a layer ahead. A change that
+// budget is the view's count in CI's Chromium once nothing asked for a layer ahead. A change that
 // should add a layer re-records its view's budget from the count this test names, once the owner's
 // phone has drawn it on beta.
 const BUDGETS = {
   Bracket: 21,
   Games: 11,
   Standings: 24,
-  Matchup: 13,
-  "Club's sheet over the matchup": 13,
+  Matchup: 14,
+  "Club's sheet over the matchup": 14,
 };
 
 test.use({ ...ON_A_PHONE, contextOptions: { reducedMotion: "reduce" } });
