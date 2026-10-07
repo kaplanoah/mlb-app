@@ -1,22 +1,23 @@
-// While Diagnostics is on in settings, each open of the page, and each return to it, records what
-// the page draws in its first seconds: what the store sends, and how much each part it draws whole
-// (each `data-last-drawn` element) shows, frame by frame. The last few records stay on this device,
-// for the viewer to copy from settings, under the logs of the viewport's changes (viewport-log.js)
-// and of what each dialog's row of sheets does (sheet-log.js).
+// While Diagnostics is on in settings, each open of the page, each return to it, and each tap on
+// Record now records what the page draws in its first seconds: what the store sends, and how much
+// each part it draws whole (each `data-last-drawn` element) shows, frame by frame. The last few
+// records stay on this device, for the viewer to copy from settings, after a header that names
+// the release, the device, and the page's state, and before the logs of the viewport's changes
+// (viewport-log.js) and of what each dialog's row of sheets does (sheet-log.js).
 // It records nothing while it's off, which it starts as.
 
-import { formatClockTime, formatClockTimeWithSeconds, nameDay } from "./days.js";
 import {
-  applyDrawingTests,
-  describeDrawingTests,
-  forgetDrawingTests,
-  readDrawingTests,
-  renderDrawingTests,
-  toggleDrawingTest,
-} from "./drawing-test.js";
+  formatClockTime,
+  formatClockTimeWithSeconds,
+  formatWeekdayAndDate,
+  nameDay,
+} from "./days.js";
+import { isOnHomeScreen } from "./device.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { describeAnimations, describeShownPagers } from "./pager-log.js";
+import { loadRelease } from "./release.js";
 import { watchTimeAway } from "./resume.js";
+import { listSheetsInOpenDialogs } from "./sheet.js";
 import {
   forgetSheetLines,
   readSheetLines,
@@ -39,10 +40,28 @@ const DIP_SHARE = 0.25;
 const MINUTE_MS = 60 * 1000;
 // Copy says it copied for this long, then offers to copy again.
 const COPIED_MS = 2000;
+const ON_REQUEST = "On request";
 
 /** @typedef {{ ms: number, text: string, isDip?: boolean }} RecordLine */
 /** @typedef {{ at: number, how: string, tab: string, lines: RecordLine[] }} OpenRecord */
 /** @typedef {{ text: number, height: number }} PartSize */
+/**
+ * @typedef {{
+ *   appName: string,
+ *   release: import("./release.js").Release | null,
+ *   userAgent: string,
+ *   isOnHomeScreen: boolean,
+ *   width: number,
+ *   height: number,
+ *   pixelRatio: number,
+ *   prefersReducedMotion: boolean,
+ *   theme: string | undefined,
+ *   timeZone: string,
+ *   openedAt: number,
+ *   returns: number,
+ *   now: Date,
+ * }} PageFacts
+ */
 
 /** @type {OpenRecord | null} */
 let record = null;
@@ -52,6 +71,10 @@ let shownSizes = new Map();
 let isCopied = false;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let copiedTimer;
+const openedAt = Date.now();
+let returns = 0;
+/** @type {import("./release.js").Release | null} */
+let release = null;
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -93,7 +116,6 @@ function saveSwitch(isOn) {
       localStorage.removeItem(RECORDS_KEY);
       forgetViewportLines();
       forgetSheetLines();
-      forgetDrawingTests();
     }
   } catch {
     /* the switch stays as it was */
@@ -168,13 +190,24 @@ function noteChangedParts() {
 }
 
 // Steps the browser reports late, like the first paint, go back among the others by when they happened.
+/** @param {OpenRecord} openRecord */
+const sortLines = (openRecord) => ({
+  ...openRecord,
+  lines: openRecord.lines.toSorted((first, second) => first.ms - second.ms),
+});
+
 function finishRecord() {
   if (!record) return;
-  record.lines.sort((first, second) => first.ms - second.ms);
-  saveRecords([...readRecords(), record]);
+  saveRecords([...readRecords(), sortLines(record)]);
   record = null;
   drawRecords();
 }
+
+/**
+ * The records kept, and the one under way, newest first.
+ * @returns {OpenRecord[]}
+ */
+const listRecords = () => [...readRecords(), ...(record ? [sortLines(record)] : [])].toReversed();
 
 function sampleParts() {
   if (!record) return;
@@ -221,6 +254,16 @@ function watchTimings() {
 const readShownTab = () =>
   document.querySelector("nav.tabs [role=tab][aria-selected=true]")?.textContent?.trim() ?? "";
 
+/**
+ * A line for each sheet in an open dialog's row, saying which one its dialog shows.
+ * @param {{ id: string, isShown: boolean }[]} sheets
+ * @returns {string[]}
+ */
+export const describeOpenSheets = (sheets) =>
+  sheets.length
+    ? sheets.map(({ id, isShown }) => `Sheet ${id}${isShown ? ", shown" : ""}`)
+    : ["No sheets open"];
+
 /** @param {string} how */
 function startRecord(how) {
   finishRecord();
@@ -228,22 +271,102 @@ function startRecord(how) {
   record = { at: Date.now(), how, tab: readShownTab(), lines: [] };
   recordStartedAt = performance.now();
   shownSizes = readPartSizes();
-  const drawingTests = describeDrawingTests(readDrawingTests());
-  if (drawingTests) noteStep(drawingTests);
+  if (how === ON_REQUEST) {
+    for (const line of describeOpenSheets(listSheetsInOpenDialogs())) noteStep(line);
+  }
   noteStep(`Shows ${describeSizes(shownSizes)}`);
   requestAnimationFrame(sampleParts);
+}
+
+/**
+ * @param {number} ms
+ * @returns {string}
+ */
+function formatDuration(ms) {
+  const minutes = Math.round(ms / MINUTE_MS);
+  if (minutes < 1) return "less than a minute";
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
 /**
  * @param {number} awayMs
  * @returns {string}
  */
-export function describeTimeAway(awayMs) {
-  const minutes = Math.round(awayMs / MINUTE_MS);
-  if (minutes < 1) return "Back after less than a minute";
-  if (minutes < 60) return `Back after ${minutes} min`;
-  return `Back after ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+export const describeTimeAway = (awayMs) => `Back after ${formatDuration(awayMs)}`;
+
+/**
+ * The device and browser a user agent names: an iPhone's or iPad's model, iOS version, Safari
+ * version, and WebKit build, or the user agent itself for any other.
+ * @param {string} userAgent
+ * @returns {string}
+ */
+export function describeDevice(userAgent) {
+  const ios = /(iPhone|iPad|iPod).*? OS (\d+(?:_\d+)*)/.exec(userAgent);
+  if (!ios) return userAgent;
+  const safari = /Version\/([\d.]+)/.exec(userAgent);
+  const webKit = /AppleWebKit\/([\d.]+)/.exec(userAgent);
+  return [
+    `${ios[1]}, iOS ${ios[2].replaceAll("_", ".")}`,
+    safari && `Safari ${safari[1]}`,
+    webKit && `WebKit ${webKit[1]}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
+
+/** @param {{ appName: string, release: import("./release.js").Release | null }} facts */
+function describeRelease({ appName, release: shown }) {
+  if (!shown) return `${appName}, release unknown`;
+  return [appName, shown.version && `v${shown.version}`, `commit ${shown.commit}`]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** @param {Date} date */
+const formatMoment = (date) => `${formatWeekdayAndDate(date)} ${formatClockTimeWithSeconds(date)}`;
+
+/** @param {number} count */
+const countTimes = (count) => (count === 1 ? "1 time" : `${count} times`);
+
+/**
+ * The lines that open the copied text, saying which release, on what device, in what state.
+ * @param {PageFacts} facts
+ * @returns {string}
+ */
+export const writeHeader = (facts) =>
+  [
+    describeRelease(facts),
+    `Device: ${describeDevice(facts.userAgent)}`,
+    facts.isOnHomeScreen ? "Runs from the Home Screen" : "Runs in the browser",
+    `Viewport ${facts.width}x${facts.height} at ${facts.pixelRatio}x`,
+    `Reduced motion ${facts.prefersReducedMotion ? "on" : "off"}`,
+    facts.theme && `Theme ${facts.theme}`,
+    `Opened ${formatMoment(new Date(facts.openedAt))}, ${formatDuration(facts.now.getTime() - facts.openedAt)} ago`,
+    `Back from the background ${countTimes(facts.returns)} since`,
+    `Now ${formatMoment(facts.now)}, ${facts.timeZone}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+/** @returns {PageFacts} */
+const readPageFacts = () => ({
+  appName:
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content") ??
+    document.title,
+  release,
+  userAgent: navigator.userAgent,
+  isOnHomeScreen: isOnHomeScreen(),
+  width: innerWidth,
+  height: innerHeight,
+  pixelRatio: devicePixelRatio,
+  prefersReducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+  theme: document.documentElement.dataset.theme,
+  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  openedAt,
+  returns,
+  now: new Date(),
+});
 
 /**
  * @param {string | undefined} navigationType a PerformanceNavigationTiming's type
@@ -363,17 +486,28 @@ const renderViewport = (lines) => {
 };
 
 function renderRecords() {
-  const records = readRecords().toReversed();
+  const records = listRecords();
   const viewportLines = readViewportLines().toReversed();
   const sheetLines = readSheetLines().toReversed();
+  const isRecordingOnRequest = record?.how === ON_REQUEST;
   return html`<div class="diagnostics-head">
       <h3>Recent opens</h3>
-      ${
-        (records.length > 0 || viewportLines.length > 0 || sheetLines.length > 0) &&
-        html`<button type="button" class="diagnostics-copy" id="diagnosticsCopy">
-        ${isCopied ? "Copied" : "Copy"}
-      </button>`
-      }
+      <div class="diagnostics-actions">
+        <button
+          type="button"
+          class="diagnostics-button"
+          id="diagnosticsRecord"
+          ${isRecordingOnRequest ? "disabled" : ""}
+        >
+          ${isRecordingOnRequest ? "Recording" : "Record now"}
+        </button>
+        ${
+          (records.length > 0 || viewportLines.length > 0 || sheetLines.length > 0) &&
+          html`<button type="button" class="diagnostics-button" id="diagnosticsCopy">
+            ${isCopied ? "Copied" : "Copy"}
+          </button>`
+        }
+      </div>
     </div>
     ${
       records.length
@@ -381,8 +515,7 @@ function renderRecords() {
         : html`<p class="diagnostics-empty">Nothing yet. Each open from now on shows here.</p>`
     }
     ${viewportLines.length > 0 && renderViewport(viewportLines)}
-    ${sheetLines.length > 0 && renderSheets(sheetLines)}
-    ${renderDrawingTests(readDrawingTests())}`;
+    ${sheetLines.length > 0 && renderSheets(sheetLines)}`;
 }
 
 function drawRecords() {
@@ -411,10 +544,13 @@ function showCopied(hasCopied) {
 
 async function copyRecords() {
   try {
-    const records = writeRecordsAsText(readRecords().toReversed(), new Date());
+    const header = writeHeader(readPageFacts());
+    const records = writeRecordsAsText(listRecords(), new Date());
     const viewport = writeViewportAsText(readViewportLines().toReversed());
     const sheets = writeSheetLinesAsText(readSheetLines().toReversed());
-    await navigator.clipboard.writeText([records, viewport, sheets].filter(Boolean).join("\n\n"));
+    await navigator.clipboard.writeText(
+      [header, records, viewport, sheets].filter(Boolean).join("\n\n"),
+    );
     showCopied(true);
   } catch {
     showCopied(false);
@@ -425,30 +561,41 @@ async function copyRecords() {
 function followSectionClick(event) {
   const target = /** @type {Element} */ (event.target);
   if (target.closest("#diagnosticsCopy")) copyRecords();
-  const drawingTest = /** @type {HTMLElement | null} */ (target.closest("[data-drawing-test]"));
-  if (drawingTest?.dataset.drawingTest) {
-    toggleDrawingTest(drawingTest.dataset.drawingTest);
-    drawRecords();
-  }
+  if (target.closest("#diagnosticsRecord")) recordOnRequest();
+}
+
+function recordOnRequest() {
+  startRecord(ON_REQUEST);
+  drawRecords();
+}
+
+/** @param {number} awayMs */
+function noteReturn(awayMs) {
+  returns += 1;
+  startRecord(describeTimeAway(awayMs));
 }
 
 /**
- * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), with the
- * drawing tests after them (drawing-test.js), and, while the switch is on, leaves out the kinds of
- * drawing this device chose to, and records this load, each return to the page, each change to
- * the viewport, and each step of a dialog's row of sheets. A page that leaves the screen keeps
+ * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), and,
+ * while the switch is on, records this load, each return to the page, each change to the
+ * viewport, and each step of a dialog's row of sheets. A page that leaves the screen keeps
  * what it recorded so far, as when it reloads for a new release or the phone drops it. The page
  * starts it before drawing anything, so a load's first reading is what show-last-drawn.js put
  * back.
  */
 export function startDiagnostics() {
-  if (isRecording()) applyDrawingTests();
   findElement("diagnosticsSwitch").addEventListener("click", toggleRecording);
   findElement("diagnostics").addEventListener("click", followSectionClick);
   drawRecords();
   startRecord(describeLoad(readNavigationType()));
   watchTimings();
-  watchTimeAway((awayMs) => startRecord(describeTimeAway(awayMs)));
+  watchTimeAway(noteReturn);
+  loadRelease().then(
+    (loaded) => {
+      release = loaded;
+    },
+    () => {},
+  );
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) finishRecord();
   });
