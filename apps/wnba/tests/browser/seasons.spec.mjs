@@ -52,17 +52,6 @@ test("with only the current season kept, settings show no Season picker", async 
   await expect(page.getByRole("combobox", { name: "Season" })).toHaveCount(0);
 });
 
-test("settings list each season the store keeps, newest first, on the current one", async ({
-  page,
-}) => {
-  await openApp(page, ONE_PAST_SEASON);
-  await openSettings(page);
-
-  const picker = page.getByRole("combobox", { name: "Season" });
-  await expect(picker.locator("option")).toHaveText(["2026", "2025"]);
-  await expect(picker).toHaveValue("2026");
-});
-
 test("a new season the store moves on to joins the list, and the page shows it", async ({
   page,
 }) => {

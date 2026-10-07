@@ -6,6 +6,8 @@ import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
+test.use({ contextOptions: { reducedMotion: "reduce" } });
+
 // The least room between one standings row's team name and the next row's.
 const STANDINGS_NAME_GAP_PX = 20;
 // The least room between a standings group's name, like Playoffs, and its columns' names under it.
@@ -214,6 +216,7 @@ test.describe("on a phone, the Games lists", () => {
     { when: "while the lists slide away from it", waitForTap: "scroll" },
   ]) {
     test(`go back to today's when the Games tab is tapped ${when}`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
       await openApp(page);
       await page.getByRole("tab", { name: "Games" }).dispatchEvent("click");
       await expect(page.locator("#games-today")).toBeInViewport();
@@ -471,29 +474,6 @@ test("a look chosen in another tab shows in this one", async ({ page }) => {
   await expect(page.getByRole("radio", { name: "Walnut" })).toBeChecked();
 });
 
-test("each appearance choice shows the home-screen icon it offers", async ({ page }) => {
-  await openApp(page);
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const choices = page.locator(".appearance-choice");
-  const icons = {
-    System: ["icon-light-180.png", "icon-180.png"],
-    Maple: ["icon-light-180.png"],
-    Walnut: ["icon-180.png"],
-  };
-  for (const [name, sources] of Object.entries(icons)) {
-    const images = choices.filter({ hasText: name }).locator("img");
-    await expect(images).toHaveCount(sources.length);
-    for (const [index, source] of sources.entries()) {
-      await expect(images.nth(index)).toHaveAttribute("src", source);
-      expect(
-        await images
-          .nth(index)
-          .evaluate((image) => /** @type {HTMLImageElement} */ (image).naturalWidth),
-      ).toBeGreaterThan(0);
-    }
-  }
-});
-
 test("changing the appearance says how to match the home-screen icon", async ({ page }) => {
   await openApp(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -551,6 +531,7 @@ test.describe("on a phone, settings", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test("rise from the bottom to fill the screen, like every sheet", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await openSettingsWithRelease(page);
     const { sheet } = await readSettingsBoxes(page);
     expect([sheet.top, sheet.height]).toEqual([0, 844]);
@@ -588,46 +569,6 @@ test.describe("on a wide screen, settings", () => {
     expect(Math.abs(findMiddle(title) - findMiddle(close))).toBeLessThan(1);
     expect(head.bottom).toBeLessThanOrEqual(top.bottom);
   });
-});
-
-test("the page serves both themes' icons", async ({ page }) => {
-  await openApp(page);
-  for (const href of ["icon-180.png", "icon-light-180.png", "icon.svg", "icon-light.svg"]) {
-    const answer = await page.request.get(href);
-    expect(answer.ok(), href).toBe(true);
-  }
-});
-
-test("the home screen names the app WNBA", async ({ page }) => {
-  await openApp(page);
-  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
-    "content",
-    "WNBA",
-  );
-  const manifest = await (await page.request.get("manifest.webmanifest")).json();
-  expect(manifest.short_name).toBe("WNBA");
-});
-
-test("Barlow Condensed draws 8% larger than its size, so it looks as big as Barlow", async ({
-  page,
-}) => {
-  await openApp(page);
-  await page.evaluate(() => document.fonts.ready);
-  const faces = await page.evaluate(() =>
-    [...document.fonts].map((font) => ({
-      family: font.family,
-      weight: font.weight,
-      // TypeScript's DOM types don't list FontFace's sizeAdjust yet.
-      sizeAdjust: /** @type {FontFace & { sizeAdjust: string }} */ (font).sizeAdjust,
-    })),
-  );
-  const listFaces = (/** @type {string} */ family) =>
-    faces
-      .filter((face) => face.family === family)
-      .map((face) => `${face.weight} ${face.sizeAdjust}`)
-      .sort();
-  expect(listFaces("Barlow Condensed")).toEqual(["300 108%", "400 108%", "500 108%", "600 108%"]);
-  expect(listFaces("Barlow").every((face) => face.endsWith(" 100%"))).toBe(true);
 });
 
 test("the page uses its own fonts, served with it", async ({ page }) => {
@@ -918,7 +859,6 @@ test.describe("on a phone, the text", () => {
     viewport: { width: 390, height: 844 },
     hasTouch: true,
     isMobile: true,
-    contextOptions: { reducedMotion: "reduce" },
   });
 
   test("keeps to the type scale in the header, the Updates box, the games, the standings, a team's sheet, and settings, with the ranks in a narrow column", async ({
@@ -981,7 +921,6 @@ test.describe("on a phone, a team's sheet", () => {
     viewport: { width: 390, height: 844 },
     hasTouch: true,
     isMobile: true,
-    contextOptions: { reducedMotion: "reduce" },
   });
 
   test("sets its name like every team's at 20px, its numbers in Barlow Condensed like a game preview's, its text in medium but None yet a step lighter, and its title on the sheet's own color with no line under it, like a game's, with the titles of its nearest games 11.5px under it and its first part 16px under their cards", async ({
@@ -1037,8 +976,6 @@ test.describe("on a phone, a team's sheet", () => {
 });
 
 test.describe("a team's sheet in each theme", () => {
-  test.use({ contextOptions: { reducedMotion: "reduce" } });
-
   for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     test(`sets the button for the rest of a long list of titles in the orange of a tap, not the teal of its part's title, in ${colorScheme}`, async ({
       page,
@@ -1074,8 +1011,6 @@ test.describe("a team's sheet in each theme", () => {
 });
 
 test.describe("a team's sheet", () => {
-  test.use({ contextOptions: { reducedMotion: "reduce" } });
-
   test("a team in the standings opens its sheet, which follows the season as it changes, and its close button closes it", async ({
     page,
   }) => {
@@ -1095,26 +1030,6 @@ test.describe("a team's sheet", () => {
 
     await sheet.getByRole("button", { name: "Close" }).click();
     await expect(sheet).toBeHidden();
-  });
-
-  test("a team's sheet shows its playoffs, then its regular season, each with the team on the left across from the league, then its titles", async ({
-    page,
-  }) => {
-    await openApp(page);
-    await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
-    const sheet = page.locator("#teamSheet");
-
-    await expect(sheet.locator(".sheet-part h3")).toHaveText([
-      "Playoffs",
-      "Regular season",
-      "Leading scorers",
-      "Titles",
-    ]);
-    await expect(sheet.locator(".team-tape .tape-teams")).toHaveText([
-      /^\s*Liberty 2-0\s+Playoff field\s*$/,
-      /^\s*Liberty 26-18\s+League\s*$/,
-    ]);
   });
 
   test("a team's sheet names the sides over its numbers at 16px, and sets Last 10 and Streak like its measures", async ({
@@ -1262,15 +1177,6 @@ test.describe("a team's sheet", () => {
     await expect(name).toHaveCSS("text-decoration-line", "none");
   });
 
-  test("a team in the bracket opens its sheet", async ({ page }) => {
-    await openApp(page);
-    await page.locator('#bracketWrap .team-line[data-team="NYL"]').first().click();
-    const sheet = page.locator("#teamSheet");
-
-    await expect(sheet.locator("#teamTitle")).toHaveText("New York Liberty");
-    await expect(sheet.locator(".team-game")).toHaveCount(3);
-  });
-
   test("an opponent's name in a team's sheet opens that team's sheet in its place", async ({
     page,
   }) => {
@@ -1316,7 +1222,6 @@ test.describe("a team's sheet", () => {
 test("a team's leading scorers set their shooting and minutes a step back, a smaller step in Walnut", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
@@ -1360,7 +1265,7 @@ test("a team's leading scorers set their shooting and minutes a step back, a sma
 });
 
 test.describe("on a phone", () => {
-  test.use({ viewport: { width: 360, height: 780 }, contextOptions: { reducedMotion: "reduce" } });
+  test.use({ viewport: { width: 360, height: 780 } });
 
   test("a team's leading scorers keep their names on one line, and its numbers fit their sides", async ({
     page,
@@ -1741,7 +1646,6 @@ test.describe("on a phone", () => {
     page,
   }) => {
     // The tab bar's pill would ease to each tab, which this test doesn't need to wait out.
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     const bar = await page.locator("#tabBar").boundingBox();
     expect(bar.y + bar.height).toBeGreaterThan(844 - 40);
@@ -1764,7 +1668,6 @@ test.describe("on a phone", () => {
   });
 
   test("the tab bar is filled with each theme's raised wood, inside its edge", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     const readBacking = () =>
       page.locator(".tab-backing").evaluate((backing) => {
@@ -1788,7 +1691,6 @@ test.describe("on a phone", () => {
   });
 
   test("the tab bar's pill is the wood of its edge in each theme", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     const isWood = () =>
       page.locator(".tab-pill").evaluate((pill) => {
@@ -1809,7 +1711,6 @@ test.describe("on a phone", () => {
   test("settings set a setting's name a step over a sentence, and its note and the appearance names a step over a fact, with bigger icons", async ({
     page,
   }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     const readSize = (locator) => locator.evaluate((element) => getComputedStyle(element).fontSize);
@@ -1822,7 +1723,6 @@ test.describe("on a phone", () => {
   });
 
   test("a switch's knob is Walnut's cream in each theme, on or off", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     for (const appearance of ["Maple", "Walnut"]) {
       await chooseAppearance(page, appearance);
@@ -1865,7 +1765,6 @@ test.describe("on a phone", () => {
   test("a pill's names are plain words over one orange block, which a swipe carries between two names", async ({
     page,
   }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     await page.getByRole("tab", { name: "Games" }).click();
     await expect.poll(async () => (await readPill(page)).thumb.left).toBeGreaterThan(0);

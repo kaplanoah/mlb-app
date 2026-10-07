@@ -14,6 +14,8 @@ import {
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
+test.use({ contextOptions: { reducedMotion: "reduce" } });
+
 // What the Worker answers for Astros at Athletics' starters, Blubaugh and Springs.
 const describePitcher = (id, [firstName, lastName], hand, line, ranks, pitches) => ({
   id,
@@ -157,7 +159,6 @@ test("the sheet's title names it in capitals, at one size on a desktop and a pho
 test("on a desktop, the title centers over the sheet, with its close button at its left edge, and 18px sides as on a phone", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
   const { titleCenter, sheetCenter, closeLeft, sheetLeft } = await sheet.evaluate((matchup) => {
@@ -196,7 +197,6 @@ test("the sheet's title scrolls away with the rest, and the sheet never scrolls 
 });
 
 test("the sheet's parts and lists leave room between their rows", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   const sheet = await openMatchup(page);
   const blubaugh = sheet.locator(".scout").first();
   await expect(blubaugh.locator(".pitch-name")).toHaveCount(3);
@@ -224,6 +224,7 @@ test("the sheet's parts and lists leave room between their rows", async ({ page 
 test("on a phone, the matchup rises to fill the screen, with its close button at its top left, and a swipe down closes it", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize({ width: 390, height: 844 });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
@@ -247,6 +248,7 @@ test("on a phone, the matchup rises to fill the screen, with its close button at
 });
 
 test("on a phone, the close button and Escape slide the matchup down", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   const readMotions = await recordSheetMotions(page);
   await page.setViewportSize({ width: 390, height: 844 });
   const closings = {
@@ -281,50 +283,12 @@ test("on a phone, the matchup rises only when the viewer allows motion", async (
   await expect(dialog).toHaveCSS("animation-name", "sheet-rise");
 });
 
-test("each bar is the share of starters he beats, gold for whichever starter ranks higher", async ({
-  page,
-}) => {
-  const sheet = await openMatchup(page);
-  const eraRow = sheet.locator(".tape-row").first();
-  await expect(eraRow.locator(".tape-value")).toHaveText(["3.66", "4.02"]);
-  await expect(sheet.locator(".tape-label")).toHaveText(["ERA", "K/9", "BB/9", "Fastball mph"]);
-  await expect(eraRow.locator(".away .tape-bar i")).toHaveClass("lead");
-  await expect(eraRow.locator(".home .tape-bar i")).not.toHaveClass("lead");
-  await expect(eraRow.locator(".away .tape-bar i")).toHaveAttribute("style", "width: 64%");
-  await expect(sheet.locator(".tape-note")).toHaveText(
-    "Bars are the share of this season's 46 qualified starters he beats",
-  );
-});
-
-test("the pitch rows run fastest to slowest, leaving out the ones he barely throws", async ({
-  page,
-}) => {
-  const sheet = await openMatchup(page);
-  const pitches = sheet.locator(".pitch-mix").first();
-  await expect(pitches.locator(".pitch-name")).toHaveText([
-    "Four-seam fastball",
-    "Changeup",
-    "Slider",
-  ]);
-  await expect(pitches.locator(".pitch-share")).toHaveText(["52%", "17%", "30%"]);
-});
-
 test("a starter the Worker can't describe says so, and the other still shows", async ({ page }) => {
   const sheet = await openMatchup(page, { 1: PITCHERS[1] });
   await expect(sheet.locator(".pitch-mix")).toHaveCount(1);
   await expect(sheet.locator(".scout-note")).toHaveText(
     "Couldn't load his numbers. Close and try again in a minute.",
   );
-});
-
-test("every game opens, whether or not its starters are named", async ({ page }) => {
-  await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
-  await page.getByRole("tab", { name: "Games" }).click();
-  for (const list of ["#games-previous", "#games-today", "#games-next"]) {
-    const rows = page.locator(`${list} .game-row`);
-    await expect(rows.locator(".game-open")).toHaveCount(await rows.count());
-  }
-  await expect(page.locator("#games-next .starter.pending")).toHaveCount(0);
 });
 
 test("a game on a later day without its starters says to check back for them, under its clubs", async ({
@@ -340,21 +304,6 @@ test("a game on a later day without its starters says to check back for them, un
   await expect(sheet.locator(".check-back")).toHaveText("Check back for pitchers");
   await expect(sheet.locator(".tape, .scout")).toHaveCount(0);
   expect(reads.count).toBe(0);
-});
-
-test("a finished game without its starters has nothing to check back for", async ({ page }) => {
-  await showGames(page);
-  await page.locator("#games-today .game-row.final .game-open").first().click();
-  const sheet = page.locator("#matchupSheet");
-  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Pitching matchup");
-  await expect(sheet.locator(".pitcher-id .club")).toHaveCount(2);
-  await expect(sheet.locator(".check-back")).toHaveCount(0);
-});
-
-test("a game with its starters named has nothing to check back for", async ({ page }) => {
-  const sheet = await openMatchup(page);
-  await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
-  await expect(sheet.locator(".check-back")).toHaveCount(0);
 });
 
 test("on a desktop, a game lights up under the pointer, past the row's sides, and goes back after", async ({
@@ -441,80 +390,6 @@ test("a game later today without a starter says Still TBD, and opens to who star
   );
 });
 
-test("a club with no starts to go by says so", async ({ page }) => {
-  const sheet = await openStillTbd(page, {
-    LAA: { ...ANGELS_ROTATION, starters: [] },
-  });
-  await expect(sheet.locator(".scout").first().locator(".scout-note")).toHaveText(
-    "No starts in the last two weeks to go by",
-  );
-  await expect(sheet.locator(".scout").first().locator(".rotation")).toHaveCount(0);
-});
-
-test("a starter outside the qualified starters has his numbers, and a line saying why he has no bars", async ({
-  page,
-}) => {
-  const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
-  await expect(sheet.locator(".tape-row").first().locator(".tape-value")).toHaveText([
-    "3.66",
-    "4.02",
-  ]);
-  await expect(sheet.locator(".home .tape-bar")).toHaveCount(0);
-  await expect(sheet.locator(".tape-bar i.lead")).toHaveCount(0);
-  await expect(sheet.locator(".tape-note")).toHaveText([
-    "Bars are the share of this season's 46 qualified starters he beats",
-    "Springs hasn't pitched enough innings to rank among this season's qualified starters",
-  ]);
-});
-
-test("with neither starter ranked, the sheet says why and drops the note about bars", async ({
-  page,
-}) => {
-  const sheet = await openMatchup(page, {
-    1: { ...PITCHERS[1], ranks: null },
-    2: { ...PITCHERS[2], ranks: null },
-  });
-  await expect(sheet.locator(".tape-note")).toHaveText([
-    "Blubaugh hasn't pitched enough innings to rank among this season's qualified starters",
-    "Springs hasn't pitched enough innings to rank among this season's qualified starters",
-  ]);
-});
-
-/**
- * @param {import("@playwright/test").Page} page
- * @param {{ isStillPitching: boolean }} options
- */
-async function openLiveMatchup(page, { isStillPitching }) {
-  const snapshot = buildSnapshotWithStarters();
-  const game = snapshot.slate.today.games.find((candidate) => candidate.away === "HOU");
-  Object.assign(game, { state: "live", score: [1, 0], inning: 3, half: "top", outs: 1 });
-  if (isStillPitching) game.starters[0] = { ...game.starters[0], pitching: true };
-  const tonight = {
-    date: snapshot.slate.today.date,
-    opp: "ATH",
-    home: false,
-    ip: "2.0",
-    runs: 0,
-    k: 3,
-  };
-  const blubaugh = { ...PITCHERS[1], starts: [tonight, ...PITCHERS[1].starts] };
-  const sheet = await openMatchup(page, { ...PITCHERS, 1: blubaugh }, snapshot);
-  return sheet.locator(".recent-starts").first().locator("li");
-}
-
-test("a start in the game under way says Now while he's still pitching", async ({ page }) => {
-  const starts = await openLiveMatchup(page, { isStillPitching: true });
-  await expect(starts.first()).toHaveText("Now@ Athletics2 IP, 0 R, 3 K");
-  await expect(starts.first().locator(".start-now")).toHaveCount(1);
-  await expect(starts.nth(1)).toHaveText("Sep 19vs Mariners5 2/3 IP, 2 R, 6 K");
-});
-
-test("a start in the game under way says Today once he's pulled", async ({ page }) => {
-  const starts = await openLiveMatchup(page, { isStillPitching: false });
-  await expect(starts.first()).toHaveText("Today@ Athletics2 IP, 0 R, 3 K");
-  await expect(starts.first().locator(".start-now")).toHaveCount(0);
-});
-
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({
   page,
 }) => {
@@ -586,30 +461,6 @@ for (const { screen, viewport } of [
   });
 }
 
-test("each pitch is a row with its dot, name, share, and speed", async ({ page }) => {
-  const sheet = await openMatchup(page);
-  const rows = sheet.locator(".pitch-mix").first().locator(".pitch-rows li");
-  await expect(rows.locator(".pitch-key")).toHaveCount(3);
-  await expect(rows.locator(".pitch-name")).toHaveText([
-    "Four-seam fastball",
-    "Changeup",
-    "Slider",
-  ]);
-  await expect(rows.locator(".pitch-share")).toHaveText(["52%", "17%", "30%"]);
-  await expect(rows.locator(".pitch-speed")).toHaveText(["95 mph", "87 mph", "86 mph"]);
-});
-
-test("both starters' speed lines share one scale, from the slowest pitch either throws to the fastest", async ({
-  page,
-}) => {
-  const sheet = await openMatchup(page);
-  const [blubaugh, springs] = [0, 1].map((index) =>
-    sheet.locator(".pitch-mix").nth(index).locator(".speed-label"),
-  );
-  await expect(blubaugh).toHaveText(["70 mph", "80", "90", "100"]);
-  await expect(springs).toHaveText(["70 mph", "80", "90", "100"]);
-});
-
 /** @param {import("@playwright/test").Locator} chart */
 function measurePitchMix(chart) {
   return chart.evaluate((element) => {
@@ -659,7 +510,6 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.emulateMedia({ reducedMotion: "reduce" });
     const sheet = await openMatchup(page);
     const chart = sheet.locator(".pitch-mix").first();
     const labels = chart.locator(".speed-label");

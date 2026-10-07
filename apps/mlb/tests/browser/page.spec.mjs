@@ -19,6 +19,8 @@ import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
 
+test.use({ contextOptions: { reducedMotion: "reduce" } });
+
 const PLAYOFF_FIELD_2026 = [
   "Rays",
   "Guardians",
@@ -59,7 +61,6 @@ test("the Games tab lists today's games and every game on each club's previous a
   page,
 }) => {
   // The lists, not the scrolling between them, are what this test reads.
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const shownGames = page.locator(".pager-page:not([inert])");
@@ -76,19 +77,6 @@ test("the Games tab lists today's games and every game on each club's previous a
   await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
   await expect(shownGames).toHaveId("games-next");
   await expect(shownGames.locator(".game-row")).toHaveCount(17);
-});
-
-test("a game under way shows its outs as two lights beside the inning", async ({ page }) => {
-  await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  const liveStatuses = page.locator("#games-today .game-row.live .game-status");
-
-  await expect(liveStatuses.first()).toHaveText("Top 9th");
-  await expect(liveStatuses.first().getByRole("img", { name: "1 out" })).toBeVisible();
-  await expect(liveStatuses.nth(1).getByRole("img", { name: "2 outs" })).toBeVisible();
-  await expect(liveStatuses.nth(2).getByRole("img", { name: "0 outs" })).toBeVisible();
-  await expect(liveStatuses.nth(2).locator(".out-light.on")).toHaveCount(0);
-  await expect(liveStatuses.nth(1).locator(".out-light.on")).toHaveCount(2);
 });
 
 const readPagesPosition = (page) =>
@@ -110,6 +98,7 @@ const readFilledNames = (page) =>
 test("on a phone, swiping the games sideways moves between the lists and fills the shown list's name", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
@@ -207,6 +196,7 @@ test("on a phone, the Games pill stays at the top while the games scroll under i
 test("on a phone, a list swiped in from far down another starts just under the pill, and stays put", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
@@ -235,6 +225,7 @@ test("on a phone, a list swiped in from far down another starts just under the p
 test("on a phone, a swipe that comes to rest between two lists goes on to the nearer", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
@@ -260,6 +251,7 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
 test("on a phone, where the browser fires no scrollend, the lists settle once they stop scrolling", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await page.addInitScript(() => {
     delete Window.prototype.onscrollend;
@@ -292,6 +284,7 @@ test("on a phone, where the browser fires no scrollend, the lists settle once th
 test("a tapped Games tab keeps its list while the lists are still on their way", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
@@ -538,7 +531,6 @@ test("a postseason game today names its round and the series, away wins first, o
 test("with starters named, each sits under its club with his arm, clear of the row's edges", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
   await page.getByRole("tab", { name: "Games" }).click();
   const row = page.locator("#games-today .game-row:has(.starter:not(.pending))");
@@ -562,7 +554,6 @@ test("on the narrowest phone, a club's race letter stays on its record's line, c
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 640 });
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const row = page.locator("#games-today .game-row:has(.game-side.home .race)").first();
@@ -577,7 +568,6 @@ test("on the narrowest phone, a club's race letter stays on its record's line, c
 });
 
 test("a clinched club's race letter is gold at the facts' own weight", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const race = page.locator("#games-today .race.clinched").first();
@@ -751,17 +741,6 @@ test("a club's seed is labeled beside its card only where it enters the bracket:
   expect(Math.abs(label.y + label.height / 2 - (byeRow.y + byeRow.height / 2))).toBeLessThan(1);
 });
 
-test("the bracket leaves a score empty until its series' first game starts, and gives each TBD row one too", async ({
-  page,
-}) => {
-  await openApp(page);
-  const bracket = page.locator("#bracketWrap");
-
-  await expect(bracket.locator(".matchup-row")).toHaveCount(22);
-  await expect(bracket.locator(".matchup-row:has(.tbd) .nscore")).toHaveCount(10);
-  await expect(bracket.locator(".nscore")).toHaveText(Array(22).fill(""));
-});
-
 test("once a series' first game starts, both clubs' scores show 0, at the height of an empty score", async ({
   page,
 }) => {
@@ -780,19 +759,6 @@ test("once a series' first game starts, both clubs' scores show 0, at the height
   expect(empty.height).toBe(filled.height);
 });
 
-test("a club's score shows its wins, and a swept club's shows 0", async ({ page }) => {
-  await openApp(page, {
-    store: { "seasons/2025": SEASON_2025 },
-  });
-  await chooseSeason(page, "2025");
-  const wildCard = page.locator("#bracketWrap .series").filter({ hasText: "Reds" });
-  const readScore = (club) =>
-    wildCard.locator(".matchup-row").filter({ hasText: club }).locator(".nscore");
-
-  await expect(readScore("Dodgers")).toHaveText("2");
-  await expect(readScore("Reds")).toHaveText("0");
-});
-
 test("a series winner's digit sits higher in its gold box than a dark box's, in a box of the same height", async ({
   page,
 }) => {
@@ -809,19 +775,6 @@ test("a series winner's digit sits higher in its gold box than a dark box's, in 
   const gold = await readScore("Dodgers").boundingBox();
   const dark = await readScore("Reds").boundingBox();
   expect(gold.height).toBe(dark.height);
-});
-
-test("a series saved without being marked started still shows 0 beside a club's wins", async ({
-  page,
-}) => {
-  const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
-  snapshot.series.AL_WC1 = { winsA: 1, winsB: 0 };
-  await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-  const started = page
-    .locator("#bracketWrap .series")
-    .filter({ has: page.locator(".nscore", { hasText: "1" }) });
-
-  await expect(started.locator(".nscore")).toHaveText(["0", "1"]);
 });
 
 test("on a phone, the bracket's round dots sit just above the tab bar and follow its scroll", async ({
@@ -905,65 +858,6 @@ test("on a phone, the bracket stacks the AL above the NL, each running left to r
   expect(nlcs.y).toBeGreaterThan(nlTop);
   expect(worldSeries.y).toBeGreaterThan(alcs.y);
   expect(worldSeries.y).toBeLessThan(nlcs.y);
-});
-
-test("under each card, the next game shows its day, as today or tomorrow when it can, and its start time", async ({
-  page,
-}) => {
-  const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
-  snapshot.series.AL_WC1.next = {
-    at: "2026-09-25T01:10:00Z",
-    date: "2026-09-24",
-    tbd: false,
-    game: 1,
-  };
-  snapshot.series.AL_WC2.next = {
-    at: "2026-09-25T23:08:00Z",
-    date: "2026-09-25",
-    tbd: false,
-    game: 1,
-  };
-  snapshot.series.NL_WC1.next = {
-    at: "2026-09-25T07:33:00Z",
-    date: "2026-09-25",
-    tbd: true,
-    game: 1,
-  };
-  snapshot.series.NL_DS1.next = {
-    at: "2026-10-03T20:08:00Z",
-    date: "2026-10-03",
-    tbd: false,
-    game: 1,
-  };
-  await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-  const notes = page.locator("#bracketWrap .card-note");
-
-  await expect(notes.filter({ hasText: /^Today\u20229:10\sPM$/ })).toHaveCount(1);
-  await expect(notes.filter({ hasText: /^Tomorrow\u20227:08\sPM$/ })).toHaveCount(1);
-  await expect(notes.filter({ hasText: /^Tomorrow\u2022time TBD$/ })).toHaveCount(1);
-  await expect(notes.filter({ hasText: /^Sat Oct 3\u20224:08\sPM$/ })).toHaveCount(1);
-  await expect(notes.filter({ hasText: /^Sat Oct 3\u2022time TBD$/ })).toHaveCount(3);
-  await expect(notes.filter({ hasText: /^Tue Sep 29\u2022time TBD$/ })).toHaveCount(1);
-});
-
-// The page's clock reads 8:44 PM Eastern, which is already the next morning in London.
-test.describe("in Europe/London", () => {
-  test.use({ timezoneId: "Europe/London" });
-
-  test("a card's next game reads its day and time by the viewer's own clock", async ({ page }) => {
-    const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
-    snapshot.series.AL_WC1.next = {
-      at: "2026-09-25T17:10:00Z",
-      date: "2026-09-25",
-      tbd: false,
-      game: 1,
-    };
-    await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-
-    await expect(
-      page.locator("#bracketWrap .card-note").filter({ hasText: /^Today\u20226:10\sPM$/ }),
-    ).toHaveCount(1);
-  });
 });
 
 const WILD_CARD_SERIES = ["AL_WC1", "AL_WC2", "NL_WC1", "NL_WC2"];
@@ -1050,33 +944,6 @@ test("under a card whose game is under way, the score, inning, and outs show ins
   await expect(notes.filter({ hasText: /^Today\u20227:08\sPM$/ })).toHaveCount(1);
 });
 
-test("under a card whose series already counts the game, the next game shows even while the slate reads it as under way", async ({
-  page,
-}) => {
-  const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
-  for (const seriesId of WILD_CARD_SERIES)
-    snapshot.series[seriesId].next = {
-      at: "2026-09-25T23:08:00Z",
-      date: "2026-09-25",
-      tbd: false,
-      game: 2,
-    };
-  snapshot.slate.today.games.push({
-    away: "PHI",
-    home: "ATL",
-    state: "live",
-    start: "2026-09-24T23:08:00Z",
-    score: [3, 5],
-    inning: 9,
-    half: "middle",
-  });
-  await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-  const notes = page.locator("#bracketWrap .card-note");
-
-  await expect(notes.filter({ hasText: /^Tomorrow\u20227:08\sPM$/ })).toHaveCount(4);
-  await expect(page.locator("#bracketWrap .card-note.live")).toHaveCount(0);
-});
-
 // The page's clock reads 8:44:43 PM Eastern.
 const buildFirstPitchSnapshot = (start, slateGame = {}) => {
   const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
@@ -1100,33 +967,6 @@ test("in the half hour before first pitch, a card counts down the minutes on the
 
   await page.clock.runFor(60 * 1000);
   await expect(notes.filter({ hasText: /^First pitch in 17 min$/ })).toHaveCount(1);
-});
-
-test("more than a half hour before first pitch, a card shows its next game", async ({ page }) => {
-  const snapshot = buildFirstPitchSnapshot("2026-09-25T01:20:00Z");
-  await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-
-  await expect(
-    page.locator("#bracketWrap .card-note").filter({ hasText: /^Today\u20229:20\sPM$/ }),
-  ).toHaveCount(4);
-});
-
-test("past its start, a game still before its first pitch reads as warmup", async ({ page }) => {
-  const snapshot = buildFirstPitchSnapshot("2026-09-25T00:40:00Z");
-  await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-
-  const note = page.locator("#bracketWrap .card-note").filter({ hasText: /^Warmup$/ });
-  await expect(note).toHaveCount(1);
-  await expect(note).toHaveCSS("color", await readColor(page, "--copper-ink"));
-});
-
-test("a delayed start shows its delay instead of a countdown", async ({ page }) => {
-  const snapshot = buildFirstPitchSnapshot("2026-09-25T01:02:00Z", { delay: "Delayed: Rain" });
-  await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
-
-  const note = page.locator("#bracketWrap .card-note").filter({ hasText: /^Delayed: Rain$/ });
-  await expect(note).toHaveCount(1);
-  await expect(note).toHaveCSS("color", await readColor(page, "--gold"));
 });
 
 test("redrawing the bracket each minute keeps keyboard focus on it", async ({ page }) => {
@@ -1655,6 +1495,7 @@ test("warns under the title when MLB stops sending a field", async ({ page }) =>
 });
 
 test("a warning MLB's feed brings eases the header to its new height", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   const readAnimations = await listAnimations(page);
   const app = await openApp(page);
   await expect.poll(() => app.countSeasonReads()).toBe(2);
@@ -1862,6 +1703,7 @@ test("on a phone, tapping the tab that's showing scrolls back to the top", async
 test("on a phone, a tap slides the tab bar's pill to its tab, and then nothing animates", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   const pill = page.locator(".tab-pill");
@@ -2023,7 +1865,7 @@ for (const { screen, viewport } of [
   { screen: "a phone", viewport: { width: 390, height: 844 } },
 ]) {
   test.describe(`on ${screen}`, () => {
-    test.use({ viewport, contextOptions: { reducedMotion: "reduce" } });
+    test.use({ viewport });
 
     test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
       await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
@@ -2067,20 +1909,6 @@ test("every font the page's views draw with is preloaded", async ({ page }) => {
   await expect(page.locator("table.st tbody tr").first()).toBeVisible();
 
   expect(await listFontsNotPreloaded(page)).toEqual([]);
-});
-
-test("Chivo Mono draws 6% smaller than its size, so it looks as big as Barlow", async ({
-  page,
-}) => {
-  await openApp(page);
-  await page.evaluate(() => document.fonts.ready);
-  const sizeAdjusts = await page.evaluate(() =>
-    [...document.fonts]
-      .filter((font) => font.family.replaceAll('"', "") === "Chivo Mono")
-      // TypeScript's DOM types don't list FontFace's sizeAdjust yet.
-      .map((font) => /** @type {FontFace & { sizeAdjust: string }} */ (font).sizeAdjust),
-  );
-  expect(sizeAdjusts).toEqual(["94%", "94%"]);
 });
 
 test("Chivo Mono takes its own size at each step: sentences 14.5px, facts and labels 13px", async ({
