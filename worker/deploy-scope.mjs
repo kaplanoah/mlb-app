@@ -19,6 +19,7 @@ const SKIPPED_FILES = new Set([
   "types/globals.d.ts",
   "worker/check-pr-title.mjs",
   "worker/find-passed-ci.mjs",
+  "worker/rollback.mjs",
   "worker/set-access-code.mjs",
   "worker/set-app-key.mjs",
   "worker/worker-secrets.mjs",

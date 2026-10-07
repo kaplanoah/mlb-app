@@ -5,26 +5,46 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { findAppRoot, listAppsOrExit } from "./apps.mjs";
 import { buildWorker } from "./build.mjs";
+import { findChannel, readCommandLine } from "./channels.mjs";
 import { decideDeploy, listChangedFiles } from "./deploy-scope.mjs";
 
 const API = "https://api.cloudflare.com/client/v4";
 const root = new URL("../", import.meta.url);
 
-/** @param {string} toml */
-export function readWorkerConfig(toml) {
-  const readSetting = (key) => (toml.match(new RegExp(`^${key}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
-  const name = readSetting("name");
-  const compatibilityDate = readSetting("compatibility_date");
+// A channel's environment names its own Worker, which keeps the top level's other settings.
+/**
+ * @param {string} toml
+ * @param {string} [channel]
+ */
+export function readWorkerConfig(toml, channel = "production") {
+  const { environment } = findChannel(channel);
+  const [topLevel, ...sections] = toml.split(/^(?=\[)/m);
+  const readSetting = (text, key) =>
+    (text.match(new RegExp(`^${key}\\s*=\\s*"([^"]+)"`, "m")) || [])[1];
+  const section = environment
+    ? (sections.find((text) => text.startsWith(`[env.${environment}]\n`)) ?? "")
+    : topLevel;
+  const name = readSetting(section, "name");
+  const compatibilityDate = readSetting(topLevel, "compatibility_date");
   if (!name || !compatibilityDate)
-    throw new Error("wrangler.toml needs name and compatibility_date");
+    throw new Error(
+      environment
+        ? `wrangler.toml needs compatibility_date, and an [env.${environment}] with a name`
+        : "wrangler.toml needs name and compatibility_date",
+    );
   return { name, compatibilityDate };
 }
 
-/** @param {string} app */
-export const readAppWorkerConfig = (app) =>
-  readWorkerConfig(readFileSync(new URL("worker/wrangler.toml", findAppRoot(app)), "utf8"));
+/**
+ * @param {string} app
+ * @param {string} [channel]
+ */
+export const readAppWorkerConfig = (app, channel) =>
+  readWorkerConfig(
+    readFileSync(new URL("worker/wrangler.toml", findAppRoot(app)), "utf8"),
+    channel,
+  );
 
-const RELEASE_BRANCH = "main";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 
 function isAncestor(git, commit, of) {
@@ -36,22 +56,28 @@ function isAncestor(git, commit, of) {
   }
 }
 
-// A merged commit that main has since moved past isn't deployed: the newer one's deploy covers
-// it, and deploying it would put older code live.
-/** @returns {{ commit: string, newerMain: string | null }} */
+// A commit its channel's branch has since moved past isn't deployed: the newer one's deploy
+// covers it, and deploying it would put older code live.
+/**
+ * @param {(args: string[]) => string} [git]
+ * @param {string} [channel]
+ * @returns {{ commit: string, newer: string | null }}
+ */
 export function checkRelease(
   git = (args) => execFileSync("git", args, { cwd: fileURLToPath(root), encoding: "utf8" }).trim(),
+  channel = "production",
 ) {
+  const { branch, howToShip } = findChannel(channel);
   if (git(["status", "--porcelain"]))
-    throw new Error("There are uncommitted changes. Deploy only what has been merged.");
-  git(["fetch", "--quiet", "origin", RELEASE_BRANCH]);
+    throw new Error(`There are uncommitted changes. Deploy only what is on ${branch}.`);
+  git(["fetch", "--quiet", "origin", branch]);
   const local = git(["rev-parse", "HEAD"]);
-  const remote = git(["rev-parse", `origin/${RELEASE_BRANCH}`]);
-  if (local === remote) return { commit: local, newerMain: null };
-  if (isAncestor(git, local, remote)) return { commit: local, newerMain: remote };
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const remote = git(["rev-parse", `origin/${branch}`]);
+  if (local === remote) return { commit: local, newer: null };
+  if (isAncestor(git, local, remote)) return { commit: local, newer: remote };
+  const checkout = git(["rev-parse", "--abbrev-ref", "HEAD"]);
   throw new Error(
-    `This checkout (${branch} at ${local.slice(0, 7)}) isn't ${RELEASE_BRANCH} as GitHub has it (${remote.slice(0, 7)}). Merge through a pull request, or check out origin/${RELEASE_BRANCH}, and try again.`,
+    `This checkout (${checkout} at ${local.slice(0, 7)}) isn't ${branch} as GitHub has it (${remote.slice(0, 7)}). ${howToShip}, or check out origin/${branch}, and try again.`,
   );
 }
 
@@ -138,9 +164,68 @@ export function createCloudflareCaller({ fetchImpl, env, log }) {
   };
 }
 
+// The version with the most traffic, which is all of it outside a rollout.
+/** @param {{ version_id: string, percentage: number }[]} versions */
+export const findMainVersion = (versions) =>
+  [...versions].sort((first, second) => second.percentage - first.percentage)[0];
+
+/** @param {{ created_on: string }} first @param {{ created_on: string }} second */
+const compareNewestFirst = (first, second) =>
+  Number(first.created_on < second.created_on) - Number(first.created_on > second.created_on);
+
+/**
+ * A Worker's deployments, the commit each version records, and putting versions live.
+ * @param {{ base: string, name: string, callCloudflare: ReturnType<typeof createCloudflareCaller> }} options
+ */
+export function createDeploymentsClient({ base, name, callCloudflare }) {
+  const deploymentsUrl = `${base}/scripts/${name}/deployments`;
+  return {
+    /**
+     * Each deployment's versions, newest first, and none for a Worker never deployed.
+     * @returns {Promise<{ version_id: string, percentage: number }[][]>}
+     */
+    async listDeployments() {
+      const result = await callCloudflare(
+        "live version",
+        deploymentsUrl,
+        { method: "GET" },
+        { isMissingAllowed: true },
+      );
+      return [...(result?.deployments || [])]
+        .sort(compareNewestFirst)
+        .map(({ versions }) =>
+          versions.map(({ version_id, percentage }) => ({ version_id, percentage })),
+        );
+    },
+    /**
+     * @param {{ version_id: string, percentage: number }[]} versions
+     * @param {string} what
+     * @returns {Promise<string | null>}
+     */
+    async readCommit(versions, what) {
+      const version = await callCloudflare(
+        what,
+        `${base}/scripts/${name}/versions/${findMainVersion(versions).version_id}`,
+        { method: "GET" },
+      );
+      const recorded = version?.annotations?.["workers/message"];
+      return COMMIT_PATTERN.test(recorded || "") ? recorded : null;
+    },
+    /** @param {{ version_id: string, percentage: number }[]} versions */
+    async putLive(versions) {
+      await callCloudflare("rollback", deploymentsUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ strategy: "percentage", versions }),
+      });
+    },
+  };
+}
+
 /**
  * @param {object} options
  * @param {string} options.app The app whose Worker this is.
+ * @param {string} [options.channel] The channel whose Worker this is.
  * @param {string} options.script The bundled Worker to upload.
  * @param {string} [options.commit] The commit the bundle was built from, recorded on the version.
  * @param {(since: string) => string[] | null} [options.findChanges] Files changed since a commit.
@@ -152,6 +237,7 @@ export function createCloudflareCaller({ fetchImpl, env, log }) {
  */
 export async function deploy({
   app,
+  channel = "production",
   script,
   commit,
   findChanges = listChangedFiles,
@@ -161,40 +247,20 @@ export async function deploy({
   pause = waitFor,
 }) {
   const account = readAccount(env);
-  const { name, compatibilityDate } = readAppWorkerConfig(app);
+  const { name, compatibilityDate } = readAppWorkerConfig(app, channel);
   const base = findWorkersApi(account);
   const callCloudflare = createCloudflareCaller({ fetchImpl, env, log });
+  const deployments = createDeploymentsClient({ base, name, callCloudflare });
 
   async function findLiveVersions() {
-    const result = await callCloudflare(
-      "live version",
-      `${base}/scripts/${name}/deployments`,
-      { method: "GET" },
-      { isMissingAllowed: true },
-    );
-    const deployments = result?.deployments || [];
-    if (!deployments.length) return null;
-    const newest = deployments.reduce((latest, deployment) =>
-      deployment.created_on > latest.created_on ? deployment : latest,
-    );
-    return newest.versions.map(({ version_id, percentage }) => ({ version_id, percentage }));
-  }
-
-  // The version with the most traffic, which is all of it outside a rollout.
-  async function readLiveCommit(versions) {
-    const [live] = [...versions].sort((first, second) => second.percentage - first.percentage);
-    const version = await callCloudflare(
-      "live commit",
-      `${base}/scripts/${name}/versions/${live.version_id}`,
-      { method: "GET" },
-    );
-    const recorded = version?.annotations?.["workers/message"];
-    return COMMIT_PATTERN.test(recorded || "") ? recorded : null;
+    const [newest] = await deployments.listDeployments();
+    return newest ?? null;
   }
 
   // Without a recorded commit, there's nothing to compare with, so it deploys.
   async function isDeployNeeded(previousVersions) {
-    const liveCommit = previousVersions && (await readLiveCommit(previousVersions));
+    const liveCommit =
+      previousVersions && (await deployments.readCommit(previousVersions, "live commit"));
     if (!liveCommit) return true;
     const { isNeeded, reason } = decideDeploy(findChanges(liveCommit), app);
     log(isNeeded ? reason : `::notice::${reason}`);
@@ -248,20 +314,12 @@ export async function deploy({
     return `https://${name}.${subdomain}.workers.dev/`;
   }
 
-  async function rollBack(versions) {
-    await callCloudflare("rollback", `${base}/scripts/${name}/deployments`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ strategy: "percentage", versions }),
-    });
-  }
-
   // The upload makes the new version live, so anything that goes wrong after it puts the
   // earlier one back.
   /** @returns {Promise<never>} */
   async function restoreAfter(problem, previousVersions) {
     if (!previousVersions) throw new Error(`${problem}, and no earlier version exists.`);
-    await rollBack(previousVersions).catch((error) => {
+    await deployments.putLive(previousVersions).catch((error) => {
       throw new Error(`${problem}, and the new version is still live: ${error.message}`);
     });
     throw new Error(`${problem}, so the earlier version is live again.`);
@@ -359,27 +417,46 @@ export async function deployApps(apps, deployApp, logError = console.error) {
   return results.every((result) => result.status === "fulfilled");
 }
 
-function readReleaseOrExit() {
+/** @param {string} channel */
+function readReleaseOrExit(channel) {
   try {
-    return checkRelease();
+    return checkRelease(undefined, channel);
   } catch (error) {
     console.error(`Not deploying: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
 }
 
+/** @param {string[]} args */
+function readCommandLineOrExit(args) {
+  try {
+    return readCommandLine(args);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const apps = listAppsOrExit(process.argv[2]);
-  const { commit, newerMain } = readReleaseOrExit();
-  if (newerMain) {
+  const { positionals, channel } = readCommandLineOrExit(process.argv.slice(2));
+  const apps = listAppsOrExit(positionals[0]);
+  const { branch } = findChannel(channel);
+  const { commit, newer } = readReleaseOrExit(channel);
+  if (newer) {
     console.log(
-      `::notice::${RELEASE_BRANCH} has moved on to ${newerMain.slice(0, 7)}, whose deploy covers ${commit.slice(0, 7)}, so nothing was deployed.`,
+      `::notice::${branch} has moved on to ${newer.slice(0, 7)}, whose deploy covers ${commit.slice(0, 7)}, so nothing was deployed.`,
     );
     process.exit(0);
   }
-  console.log(`Deploying ${RELEASE_BRANCH} at ${commit.slice(0, 7)}`);
+  console.log(`Deploying ${branch} at ${commit.slice(0, 7)} to ${channel}`);
   const isDeployed = await deployApps(apps, async (app) =>
-    deploy({ app, script: await buildWorker(app), commit, log: createAppLog(app) }),
+    deploy({
+      app,
+      channel,
+      script: await buildWorker(app, { channel }),
+      commit,
+      log: createAppLog(app),
+    }),
   );
   if (!isDeployed) process.exit(1);
 }

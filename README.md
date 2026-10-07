@@ -265,8 +265,8 @@ GitHub can deploy each app's Worker, page included, after each merge: at once
 when the pull request's checks passed on exactly the code `main` now has, which
 is when it was up to date with `main` as it merged, and otherwise once the
 checks pass on `main`. In the repo's **Settings > Environments**, create an
-environment named `production`, limit its deployment branches to `main`, and
-add:
+environment named `production`, limit its deployment branches to `main` and
+`beta` (see "Trying a change on the phone" below), and add:
 
 - a secret `CLOUDFLARE_API_TOKEN`: a Cloudflare token made from the **Edit
   Cloudflare Workers** template, with no IP filtering and a long expiry;
@@ -278,7 +278,32 @@ since its live version's commit, since its Worker would be the same;
 `worker/deploy-scope.mjs` lists those files. A merge that main has already moved past skips too, since
 the newer merge's deploy covers it. Without the token, merges deploy nothing.
 Redeploy by hand with `npm run deploy:api`, or `npm run deploy:api -- <app>` for
-one app.
+one app. `npm run rollback -- <app>` puts the app's previous version back at all
+of its traffic and prints which commit was live and which is now; it refuses
+when there's no earlier version. A rollback keeps the Worker's secrets as they
+are.
+
+### Trying a change on the phone
+
+Each app also has a beta Worker, `<app>-app-beta`, named in the `[env.beta]` of
+its `wrangler.toml`, with its own store, key, and address. Its page names itself
+"beta" on the Home Screen and in its settings' version line, so it can sit beside
+the real one. To use a pull request's change on the phone before it merges:
+
+1. Reset `beta` to the pull request's branch and push it:
+   `git push -f origin <branch>:beta`.
+2. Wait for the Deploy run for that push to finish. It deploys the beta Workers
+   at once, with the same checks and rollback as `main`'s deploy.
+3. Open the beta app from the Home Screen and use the change.
+
+Before the first beta deploy, allow the `beta` branch in the `production`
+environment's deployment branches. After the first one, give each beta Worker
+its key with `npm run set-app-key -- <app> --channel beta`, which prints its
+address, and, if the real page asks for a code, set one with
+`npm run set-access-code -- <app> <code> --channel beta`. Add the page to the
+Home Screen from that address. `npm run deploy:api -- <app> --channel beta`
+deploys beta by hand, from a checkout of `origin/beta`, and
+`npm run rollback -- <app> --channel beta` rolls it back.
 
 ## License
 

@@ -4,6 +4,7 @@
 import { fileURLToPath } from "node:url";
 import { normalizeCode } from "../shared/worker/access-gate.js";
 import { checkAppName } from "./apps.mjs";
+import { readCommandLine } from "./channels.mjs";
 import { createKey } from "./set-app-key.mjs";
 import { createSecretsClient } from "./worker-secrets.mjs";
 
@@ -22,6 +23,7 @@ function checkCode(code) {
 /**
  * @param {object} options
  * @param {string} options.app The app whose page asks for the code.
+ * @param {string} [options.channel] The channel whose page asks for it.
  * @param {string} [options.code]
  * @param {boolean} [options.isRemoving]
  * @param {typeof fetch} [options.fetchImpl]
@@ -31,6 +33,7 @@ function checkCode(code) {
  */
 export async function setAccessCode({
   app,
+  channel = "production",
   code,
   isRemoving = false,
   fetchImpl = fetch,
@@ -38,7 +41,7 @@ export async function setAccessCode({
   log = console.log,
   makeSigningKey = createKey,
 }) {
-  const secrets = createSecretsClient({ app, fetchImpl, env, log });
+  const secrets = createSecretsClient({ app, channel, fetchImpl, env, log });
   if (isRemoving) {
     const names = await secrets.listSecretNames();
     if (!names.includes(CODE_SECRET)) {
@@ -57,15 +60,14 @@ export async function setAccessCode({
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [named, code] = process.argv.slice(2).filter((argument) => !argument.startsWith("--"));
   Promise.resolve()
-    .then(() =>
-      setAccessCode({
-        app: checkAppName(named),
-        code,
-        isRemoving: process.argv.includes("--remove"),
-      }),
-    )
+    .then(() => {
+      const { positionals, flags, channel } = readCommandLine(process.argv.slice(2), {
+        remove: { type: "boolean" },
+      });
+      const [named, code] = positionals;
+      return setAccessCode({ app: checkAppName(named), channel, code, isRemoving: !!flags.remove });
+    })
     .catch((error) => {
       console.error(error.message);
       process.exit(1);
