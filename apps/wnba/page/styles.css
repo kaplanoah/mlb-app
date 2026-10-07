@@ -718,42 +718,88 @@ header.top h1 {
 :is(.game-sheet-body, .team-tape) .tape-bar i.lead {
   background: var(--side);
 }
-/* Every sheet's top is a band as tall as what it holds, as shared/sheet.css draws it. Its title
-   sits --band-room-above under its top, and under the status bar on a phone, the same on every
-   sheet, so titles line up as sheets slide. What goes with the title, like a game's teams, a
-   team's Team and Roster, or a player's facts, starts --band-under-title under it, and the band
-   ends --band-room-below under its last line, or --band-pills-room under a team's pills. */
+/* Every sheet's top is a band as tall as what it holds, as shared/sheet.css draws it, its spacing
+   set by what it holds, never by which sheet it is. Its title sits --band-room-above under its top,
+   and under the status bar on a phone, a little lower when it's a team's or a player's name. What
+   goes with the title starts --band-under-title under it: a game's teams, a team's Team and
+   Roster, or a player's facts. The band ends --band-room-below under its last line: a player's
+   facts, a finished game's status, or a game's channels, or --band-pills-room under Team and
+   Roster. */
 .sheet-page {
   --band-room-above: 18px;
   --band-under-title: 14px;
-  --band-room-below: 16px;
-  --band-pills-room: 12px;
+  --band-room-below: 15px;
+  --band-pills-room: 9px;
+  --band-button-top: 10px;
+}
+.sheet-page:has(.sheet-head .team-title) {
+  --band-room-above: 23px;
 }
 .sheet-page .sheet-top {
+  position: relative;
   min-height: 0;
   padding-top: calc(env(safe-area-inset-top) + var(--band-room-above));
   padding-bottom: var(--band-room-below);
 }
 .sheet-page .sheet-top:has(> .pager-tabs) {
+  --band-under-title: 15px;
   padding-bottom: var(--band-pills-room);
+}
+.sheet-page .sheet-top:has(> .player-facts-slot) {
+  --band-under-title: 19px;
+}
+.sheet-page .sheet-top:has(.faceoff) {
+  --band-room-below: 12px;
+}
+.sheet-page .sheet-top:has(.faceoff .networks) {
+  --band-room-below: 10px;
 }
 .sheet-page .sheet-top > .sheet-head + * {
   margin-top: var(--band-under-title);
 }
-/* The teams and the score hold one row, so it sits the same under every game's title, and what
-   shows under them, Bonus under a side, the status under the score, and where to watch, only adds
-   rows below it. */
+/* The close and back buttons hold one spot, --band-button-top under the band's top, on every
+   sheet, level with a name's line, whatever room the title takes. */
+.sheet-page .sheet-head {
+  position: static;
+}
+.sheet-page .sheet-top :is(.sheet-close, .sheet-back) {
+  top: calc(env(safe-area-inset-top) + var(--band-button-top));
+  left: 6px;
+  margin-top: 0;
+}
+/* The teams and the score hold one row, so they sit the same under every game's title, each team
+   --faceoff-teams-drop lower than the score's middle, and what shows under them only adds rows:
+   the status --faceoff-status-gap under the score, and where to watch --faceoff-watch-gap under
+   that. Bonus hangs --faceoff-bonus-gap under its own team's record, taking no room of its own. */
 .faceoff {
+  --faceoff-teams-drop: 4px;
+  --faceoff-status-gap: 2px;
+  --faceoff-watch-gap: 12px;
+  --faceoff-bonus-gap: 4px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   grid-template-areas:
     "away score home"
-    "away-note status home-note"
+    ". status ."
     "watch watch watch";
   align-items: center;
   column-gap: 10px;
 }
+.faceoff:has(.score) {
+  --faceoff-teams-drop: 3px;
+}
+.faceoff:has(.time) {
+  --faceoff-status-gap: -3px;
+}
+.faceoff:has(.faceoff-status :is(.clock, .break)) {
+  --faceoff-watch-gap: 11px;
+}
+.faceoff:has(.if-needed) {
+  --faceoff-watch-gap: 19px;
+}
 .faceoff-side {
+  position: relative;
+  top: var(--faceoff-teams-drop);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -799,24 +845,27 @@ header.top h1 {
   font-size: 1.3rem;
   white-space: nowrap;
 }
-.faceoff .bonus.away {
-  grid-area: away-note;
-  justify-self: start;
+.faceoff-side .bonus {
+  position: absolute;
+  top: calc(100% + var(--faceoff-bonus-gap));
 }
-.faceoff .bonus.home {
-  grid-area: home-note;
-  justify-self: end;
+.faceoff-side.away .bonus {
+  left: 0;
+}
+.faceoff-side.home .bonus {
+  right: 0;
 }
 .faceoff .networks {
   grid-area: watch;
-  margin-top: 8px;
+  margin-top: var(--faceoff-watch-gap);
 }
-.faceoff :is(.faceoff-status, .bonus) {
-  margin-top: 2px;
+.faceoff .if-needed {
+  color: var(--ink-dim);
 }
 .faceoff-status {
   grid-area: status;
   justify-self: center;
+  margin-top: var(--faceoff-status-gap);
   font-family: var(--display);
   font-size: var(--size-small);
   font-weight: 600;
@@ -1793,10 +1842,10 @@ table.standings .place {
 }
 /* The rows' content sits in from the card's sides, and the last column's name over it. */
 table.standings td:last-child {
-  padding-right: 8px;
+  padding-right: 10px;
 }
 table.standings th:last-child {
-  padding-right: 9px;
+  padding-right: 11px;
 }
 table.standings .pair-end {
   padding-left: 16px;

@@ -31,6 +31,13 @@ const SMALLEST_TEXT_PX = 13;
 // The room between the band's line and the first part's title, above each later title, below each
 // title, below By quarter's, and between a tape's rows.
 const FIRST_TITLE_SPACE_PX = 20;
+// How far a game's teams sit under the middle of its score or its time, how far its band ends under
+// Final or under its channels, and how far Bonus hangs under its team's record.
+const SCORE_TEAMS_DROP_PX = 3;
+const TIME_TEAMS_DROP_PX = 4;
+const ROOM_BELOW_FINAL_PX = 12;
+const ROOM_BELOW_CHANNELS_PX = 10;
+const BONUS_GAP_PX = 4;
 const TITLE_SPACE_ABOVE_PX = 24;
 const TITLE_SPACE_BELOW_PX = 14;
 const QUARTER_TITLE_SPACE_BELOW_PX = 6;
@@ -279,7 +286,7 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   for (const space of layout.rowSpaces) expect(space).toBeCloseTo(TAPE_ROW_SPACE_PX, 0);
 });
 
-test("on a phone, a game's teams and score sit at the same height under its title whether it's over, live with a side in the bonus, or yet to play, and its band ends the same room under its last line", async ({
+test("on a phone, a game's teams sit at one height under its title whether it's over or live with a side in the bonus, a little under the score's middle, and a step lower beside a start time, and its band ends a little lower under Final than under its channels", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -296,15 +303,15 @@ test("on a phone, a game's teams and score sit at the same height under its titl
         line.getBoundingClientRect(),
       );
       const bandTop = top.getBoundingClientRect().top;
+      const club = measure(".faceoff-side.away .club");
+      const record = measure(".faceoff-side.away .faceoff-record");
+      const score = measure(".faceoff-score");
       return {
         title: measure("h2").top - bandTop,
-        teams: measure(".faceoff-side.away .club").top - bandTop,
-        scoreMiddle: (measure(".faceoff-score").top + measure(".faceoff-score").bottom) / 2,
+        teams: club.top - bandTop,
+        teamsDrop: (club.top + record.bottom) / 2 - (score.top + score.bottom) / 2,
         roomBelow:
           top.getBoundingClientRect().bottom - Math.max(...lines.map((line) => line.bottom)),
-        clubMiddle:
-          (measure(".faceoff-side .club").top + measure(".faceoff-side .faceoff-record").bottom) /
-          2,
       };
     });
     await page.keyboard.press("Escape");
@@ -314,13 +321,35 @@ test("on a phone, a game's teams and score sit at the same height under its titl
   const final = await measureBand(ACES_AT_FEVER);
   const live = await measureBand(VALKYRIES_AT_WINGS);
   const upcoming = await measureBand(FEVER_AT_ACES);
-  for (const band of [live, upcoming]) {
-    expect(band.title).toBeCloseTo(final.title, 0);
-    expect(band.teams).toBeCloseTo(final.teams, 0);
-    expect(band.roomBelow).toBeCloseTo(final.roomBelow, 0);
-  }
-  for (const band of [final, live, upcoming])
-    expect(band.scoreMiddle).toBeCloseTo(band.clubMiddle, 0);
+  for (const band of [live, upcoming]) expect(band.title).toBeCloseTo(final.title, 0);
+  expect(live.teams).toBeCloseTo(final.teams, 0);
+  expect(upcoming.teams - final.teams).toBeCloseTo(TIME_TEAMS_DROP_PX - SCORE_TEAMS_DROP_PX, 0);
+  expect(final.teamsDrop).toBeCloseTo(SCORE_TEAMS_DROP_PX, 0);
+  expect(live.teamsDrop).toBeCloseTo(SCORE_TEAMS_DROP_PX, 0);
+  expect(upcoming.teamsDrop).toBeCloseTo(TIME_TEAMS_DROP_PX, 0);
+  expect(final.roomBelow).toBeCloseTo(ROOM_BELOW_FINAL_PX, 0);
+  expect(live.roomBelow).toBeCloseTo(ROOM_BELOW_CHANNELS_PX, 0);
+  expect(upcoming.roomBelow).toBeCloseTo(ROOM_BELOW_CHANNELS_PX, 0);
+});
+
+test("on a phone, Bonus hangs under its own team's record, at its side's edge", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const app = await openApp(page);
+  await app.changeSeason(startValkyriesAtWings);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
+  const side = sheet.locator(".faceoff-side.home");
+  await expect(side.locator(".bonus")).toHaveText("Bonus");
+  const [record, bonus, sideBox] = await Promise.all([
+    side.locator(".faceoff-record").boundingBox(),
+    side.locator(".bonus").boundingBox(),
+    side.boundingBox(),
+  ]);
+
+  expect(bonus.y - (record.y + record.height)).toBeCloseTo(BONUS_GAP_PX, 0);
+  expect(bonus.x + bonus.width).toBeCloseTo(sideBox.x + sideBox.width, 0);
+  await expect(sheet.locator(".faceoff-side.away .bonus")).toHaveCount(0);
 });
 
 test("a box score's and a preview's two teams line their numbers up column for column, as wide as they can be", async ({
@@ -571,7 +600,7 @@ test("a live game's sheet shows its game as it goes, and stops watching it once 
   const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
 
   await expect(sheet.locator(".faceoff .clock")).toHaveText("Q3 4:32");
-  await expect(sheet.locator(".faceoff .bonus.home")).toHaveText("Bonus");
+  await expect(sheet.locator(".faceoff-side.home .bonus")).toHaveText("Bonus");
   await expect(sheet.locator(".line-score th.now")).toHaveText("3");
   await expect(sheet.locator(".sheet-part-head", { hasText: "Team stats" })).toContainText(
     "So far",

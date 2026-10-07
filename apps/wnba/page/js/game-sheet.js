@@ -73,21 +73,22 @@ function describeRecord(team) {
  * @param {Game} game
  * @param {"away" | "home"} place
  */
+const renderBonus = (game, place) =>
+  game.state === "live" && game[place].isInBonus && html`<span class="bonus">Bonus</span>`;
+
+/**
+ * @param {Game} game
+ * @param {"away" | "home"} place
+ */
 function renderFaceOffSide(game, place) {
   const side = game[place];
   const isLost = findLoser(game) === place;
   return html`<div class="faceoff-side ${place}${isLost ? " lost" : ""}">
     ${renderClub(side.team, { seed: side.seed })}
     <span class="faceoff-record tabular">${describeRecord(side.team)}</span>
+    ${renderBonus(game, place)}
   </div>`;
 }
-
-/**
- * @param {Game} game
- * @param {"away" | "home"} place
- */
-const renderBonus = (game, place) =>
-  game.state === "live" && game[place].isInBonus && html`<span class="bonus ${place}">Bonus</span>`;
 
 /** @param {Game} game */
 function renderFaceOffStatus(game) {
@@ -99,16 +100,14 @@ function renderFaceOffStatus(game) {
 /** @param {Game} game */
 const renderWhereToWatch = (game) => game.state !== "final" && renderNetworks(game.networks ?? []);
 
-// The teams and the score hold one row, whatever shows under them: Bonus under a side that's in it,
-// the game's status under the score, and where to watch.
+// The teams and the score hold one row, whatever shows under them: the game's status under the
+// score, and where to watch.
 /** @param {Game} game */
 const renderFaceOff = (game) =>
   html`<div class="faceoff">
     ${renderFaceOffSide(game, "away")}
     <div class="faceoff-score">${renderHeadline(game)}</div>
-    ${renderFaceOffSide(game, "home")}
-    ${renderBonus(game, "away")} ${renderFaceOffStatus(game)} ${renderBonus(game, "home")}
-    ${renderWhereToWatch(game)}
+    ${renderFaceOffSide(game, "home")} ${renderFaceOffStatus(game)} ${renderWhereToWatch(game)}
   </div>`;
 
 /** @param {ShownGame} opened */

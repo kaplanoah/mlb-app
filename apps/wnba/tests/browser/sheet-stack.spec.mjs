@@ -6,6 +6,8 @@ import { drag } from "../../../../tests/browser/touch.mjs";
 const PHONE = { width: 390, height: 844 };
 // The room between two sheets side by side, which the WNBA's --sheet-gap sets.
 const GAP_PX = 15;
+// How far under a band's top every sheet's close or back button sits.
+const BUTTON_TOP_PX = 10;
 const ACES_AT_FEVER = "Game details: Aces at Fever, First Round Game 2";
 
 /**
@@ -133,7 +135,7 @@ function hasStopOnTheWay(lefts) {
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-  test("every sheet's top is a band of the floor's color over the card's, ending in a line and edged on no other side at rest, and a game's band holds its teams", async ({
+  test("every sheet's top is a band of the floor's color over the card's, ending in a line and edged on no other side at rest, with its close or back button in one spot, and a game's band holds its teams", async ({
     page,
   }) => {
     await openApp(page);
@@ -149,6 +151,11 @@ test.describe("with reduced motion", () => {
       pages.map((sheet) => {
         const top = /** @type {Element} */ (sheet.querySelector(".sheet-top"));
         const style = getComputedStyle(top);
+        const button = /** @type {Element} */ (
+          [...top.querySelectorAll(".sheet-close, .sheet-back")].find(
+            (element) => getComputedStyle(element).display !== "none",
+          )
+        );
         return {
           id: sheet.id,
           sheet: getComputedStyle(sheet).backgroundColor,
@@ -156,6 +163,9 @@ test.describe("with reduced motion", () => {
           border: style.borderBottomWidth,
           shadow: style.boxShadow,
           hasTeams: !!top.querySelector(".faceoff"),
+          buttonTop: Math.round(
+            button.getBoundingClientRect().top - top.getBoundingClientRect().top,
+          ),
         };
       }),
     );
@@ -169,6 +179,7 @@ test.describe("with reduced motion", () => {
         border: "0px",
         shadow: `${line} 0px -1px 0px 0px inset`,
         hasTeams: sheet.id === "gameSheet",
+        buttonTop: BUTTON_TOP_PX,
       });
   });
 

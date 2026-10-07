@@ -1631,6 +1631,26 @@ test("the standings' teams sit on one raised card inside its edge, with their co
   expect(rows).toBeGreaterThan(3);
 });
 
+test("the standings' widest value in the last column ends 10px in from the card's right edge", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  const table = page.locator("#standings-league table.standings");
+  await expect(table.locator("tbody tr").first()).toBeVisible();
+  const rooms = await table.locator("tbody td:last-child").evaluateAll((cells) =>
+    cells.map((cell) => {
+      const text = document.createRange();
+      text.selectNodeContents(cell);
+      const edge =
+        cell.getBoundingClientRect().right - parseFloat(getComputedStyle(cell).borderRightWidth);
+      return edge - text.getBoundingClientRect().right;
+    }),
+  );
+
+  expect(Math.min(...rooms)).toBeCloseTo(10, 0);
+});
+
 test("the standings' ranks sit 10px in from the card's edge and 6px before the names, which all start in one place", async ({
   page,
 }) => {
