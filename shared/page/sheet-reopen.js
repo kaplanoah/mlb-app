@@ -2,23 +2,39 @@
 // page puts them back open before its first paint (show-last-drawn.js), and once its modules
 // load, each sheet's code shows again what it showed, beside the one it was opened from.
 
-import { listOpenDialogs, readSheetParts, restoreStack } from "./sheet.js";
+import {
+  copySheet,
+  findBackButton,
+  findOriginal,
+  listOpenDialogs,
+  nameSheet,
+  readSheetParts,
+  readSubject,
+  restoreStack,
+} from "./sheet.js";
 
-/** @typedef {{ id: string, scrollTop: number, subject: unknown, backLabel: string | null }} OpenSheet */
-/** @typedef {{ sheet: HTMLElement, subject: unknown }} SavedSheet */
+/**
+ * A sheet showing, or a copy of one, by its sheet's id, and the key it was opened with.
+ * @typedef {{ id: string, scrollTop: number, subject: unknown, showing: string | null, backLabel: string | null }} OpenSheet
+ */
+/** @typedef {{ sheet: HTMLElement, subject: unknown, showing: unknown, scrollTop: unknown }} SavedSheet */
 
 /** @param {HTMLElement} sheet */
 function readBackLabel(sheet) {
-  const backButton = readSheetParts(sheet)?.backButton;
+  const backButton = findBackButton(sheet);
   if (!backButton || backButton.hidden) return null;
   return backButton.querySelector(".sheet-back-label")?.textContent ?? null;
 }
 
-/** @param {HTMLElement} sheet */
+/**
+ * @param {HTMLElement} sheet
+ * @returns {OpenSheet}
+ */
 const describeOpenSheet = (sheet) => ({
-  id: sheet.id,
+  id: findOriginal(sheet).id,
   scrollTop: sheet.scrollTop,
-  subject: readSheetParts(sheet)?.keeper?.read() ?? null,
+  subject: readSubject(sheet),
+  showing: sheet.getAttribute("data-showing"),
   backLabel: readBackLabel(sheet),
 });
 
@@ -41,7 +57,7 @@ export const listOpenSheets = () =>
 export const listSheetsInOpenDialogs = () =>
   listOpenDialogs().flatMap(({ dialog, sheets, shown }) =>
     sheets.length
-      ? sheets.map((sheet, index) => ({ id: sheet.id, isShown: index === shown }))
+      ? sheets.map((sheet, index) => ({ id: nameSheet(sheet), isShown: index === shown }))
       : [{ id: dialog.id, isShown: true }],
   );
 
@@ -58,12 +74,33 @@ function reopenSheet({ sheet, subject }) {
 }
 
 /**
- * The sheets that show again what they showed, up to the first that can't.
+ * Has the sheet show again what it showed, opened with the key it was, scrolled where it was.
+ * @param {SavedSheet} saved
+ */
+function showAgain(saved) {
+  const { sheet, showing, scrollTop } = saved;
+  if (!reopenSheet(saved)) return false;
+  if (typeof showing === "string") sheet.setAttribute("data-showing", showing);
+  else sheet.removeAttribute("data-showing");
+  sheet.scrollTop = Number(scrollTop) || 0;
+  return true;
+}
+
+/**
+ * The sheets that show again what they showed, up to the first that can't, each sheet the stack
+ * held more than once leaving a copy wherever it was before.
  * @param {SavedSheet[]} saved
  */
 function listReopened(saved) {
-  const failed = saved.findIndex((each) => !reopenSheet(each));
-  return saved.slice(0, failed < 0 ? saved.length : failed).map(({ sheet }) => sheet);
+  /** @type {HTMLElement[]} */
+  const reopened = [];
+  for (const each of saved) {
+    const index = reopened.indexOf(each.sheet);
+    if (index >= 0) reopened[index] = copySheet(each.sheet);
+    if (!showAgain(each)) break;
+    reopened.push(each.sheet);
+  }
+  return reopened;
 }
 
 /**
@@ -86,13 +123,13 @@ function groupByDialog(saved) {
   const isTaken = new Set(listOpenDialogs().map(({ dialog }) => dialog));
   /** @type {Map<HTMLDialogElement, SavedSheet[]>} */
   const groups = new Map();
-  for (const { id, subject } of /** @type {OpenSheet[]} */ (
+  for (const { id, subject, showing, scrollTop } of /** @type {OpenSheet[]} */ (
     Array.isArray(saved) ? saved.filter(isOpenSheet) : []
   )) {
     const sheet = document.getElementById(id);
     const dialog = sheet?.closest("dialog");
     if (!sheet || !dialog?.open || isTaken.has(dialog)) continue;
-    groups.set(dialog, [...(groups.get(dialog) ?? []), { sheet, subject }]);
+    groups.set(dialog, [...(groups.get(dialog) ?? []), { sheet, subject, showing, scrollTop }]);
   }
   return groups;
 }

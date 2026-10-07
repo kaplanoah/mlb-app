@@ -1,6 +1,6 @@
 // The sheet a team's name or dot opens wherever it shows. Phones show it over the whole screen,
-// wider screens as a modal, like a game's sheet, beside a sheet it opens from, and in place of
-// another team's. Each league hands it which teams it knows and what a team's sheet shows, like
+// wider screens as a modal, like a game's sheet, over the sheet it opens from, even another
+// team's. Each league hands it which teams it knows and what a team's sheet shows, like
 // the cards of its nearest games (game-cards.js), and builds the buttons that open it with
 // renderTeamSheetButton. A league whose team sheet holds sections, like the WNBA's Team and
 // Roster, names them with pills in its markup and fills the ones after the first itself.
@@ -47,13 +47,17 @@ function renderSheet() {
 }
 
 /** @param {string} team */
-function openTeamSheet(team) {
-  if (!league?.isTeam(team)) return;
+function showTeam(team) {
   shownTeam = team;
   areAllTitlesShown = false;
   renderSheet();
   sections?.showFirstSection();
-  openSheet(findSheet());
+}
+
+/** @param {string} team */
+function openTeamSheet(team) {
+  if (!league?.isTeam(team)) return;
+  openSheet(findSheet(), { key: team, show: () => showTeam(team) });
 }
 
 const readShownTeam = () =>

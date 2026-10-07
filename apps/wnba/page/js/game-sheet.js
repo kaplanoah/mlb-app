@@ -279,8 +279,7 @@ function reopenGameSheet(saved) {
 /** @param {string} id */
 function openGameSheet(id) {
   if (!findGame(id)) return;
-  showGame(id);
-  openSheet(findSheet());
+  openSheet(findSheet(), { key: id, show: () => showGame(id) });
 }
 
 /**

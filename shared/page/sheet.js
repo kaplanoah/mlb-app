@@ -6,10 +6,15 @@
 // under it moving out to the left, the row's gap between them, with a back arrow in place of its
 // close caret, named after the one under it. The arrow, or a swipe right that the finger drags,
 // slides it away, the one under it coming back in, and it leaves the stack and lets go of what it
-// showed. Only the sheet on top is drawn at rest; the ones under it are hidden and inert. The caret, a click on the backdrop,
-// Escape, and on phones a swipe down close the dialog (sheet-swipe.js). A page that loads again
-// shows the sheets it showed before, where they were scrolled (show-last-drawn.js and
-// sheet-reopen.js). The stack and a sheet's sections both move their panels with slide-panels.js.
+// showed. Only the sheet on top is drawn at rest; the ones under it are hidden and inert. A sheet
+// opened to show something new always comes in after the shown one, even when the stack already
+// holds it: it leaves a copy in its place, a still picture of what it showed, and once the stack
+// comes back to rest on the copy, the sheet takes back what the copy showed, scrolled where it was,
+// and the copy goes. Only a tap on what the sheet under the shown one shows goes back to it. The
+// caret, a click on the backdrop, Escape, and on phones a swipe down close the dialog
+// (sheet-swipe.js). A page that loads again shows the sheets it showed before, where they were
+// scrolled (show-last-drawn.js and sheet-reopen.js). The stack and a sheet's sections both move
+// their panels with slide-panels.js.
 //
 // Three rules hold for every motion here, and for the tab bar and pager too:
 // - Nothing asks for a layer ahead of time: the only will-change is on [data-dragged], which a
@@ -41,7 +46,19 @@ import { createSlidePanels } from "./slide-panels.js";
  * @property {() => void} [forget] lets go of what the sheet showed once it's no longer beside the
  *   others, or its dialog closes
  */
+/**
+ * What a sheet opens to show.
+ * @typedef {object} SheetOpening
+ * @property {string} key names it, like a team's code, so a tap on what the sheet under the shown
+ *   one shows goes back there
+ * @property {() => void} show draws it in the sheet
+ */
 /** @typedef {ReturnType<typeof createSlidePanels>} SlidePanels */
+/** @typedef {{ path: number[], top: number, left: number }} ScrollSpot */
+/**
+ * A copy's sheet, what that showed as it was copied, and where it and each part of it were scrolled.
+ * @typedef {{ sheet: HTMLElement, subject: unknown, scrolls: ScrollSpot[] }} SheetCopy
+ */
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
@@ -53,6 +70,8 @@ const panelsByDialog = new WeakMap();
 // In the order they opened.
 /** @type {Set<HTMLDialogElement>} */
 const openDialogs = new Set();
+/** @type {WeakMap<HTMLElement, SheetCopy>} */
+const copies = new WeakMap();
 
 /** @param {HTMLElement} sheet */
 const findDialog = (sheet) => /** @type {HTMLDialogElement} */ (sheet.closest("dialog"));
@@ -70,11 +89,41 @@ const readShownIndex = (dialog) => panelsByDialog.get(dialog)?.readShown() ?? 0;
 /** @param {HTMLElement} sheet */
 export const readSheetParts = (sheet) => sheetParts.get(sheet);
 
+/**
+ * The sheet a copy was made from, or the sheet itself.
+ * @param {HTMLElement} sheet
+ */
+export const findOriginal = (sheet) => copies.get(sheet)?.sheet ?? sheet;
+
+/**
+ * What a sheet shows, as its keeper tells it, or what its copy held.
+ * @param {HTMLElement} sheet
+ */
+export const readSubject = (sheet) =>
+  copies.has(sheet) ? copies.get(sheet)?.subject : (sheetParts.get(sheet)?.keeper?.read() ?? null);
+
+/**
+ * A copy's own back button, which it holds as the sheet's was when it was copied.
+ * @param {HTMLElement} sheet
+ * @returns {HTMLElement | undefined}
+ */
+export const findBackButton = (sheet) =>
+  copies.has(sheet)
+    ? /** @type {HTMLElement} */ (sheet.querySelector(".sheet-back"))
+    : sheetParts.get(sheet)?.backButton;
+
+/**
+ * The sheet's id, or its sheet's for a copy.
+ * @param {HTMLElement} sheet
+ */
+export const nameSheet = (sheet) =>
+  copies.has(sheet) ? `${findOriginal(sheet).id} copy` : sheet.id;
+
 /** @param {HTMLDialogElement} dialog */
 const findShownSheet = (dialog) => listStack(dialog)[readShownIndex(dialog)] ?? dialog;
 
 /** @param {HTMLElement[]} sheets */
-const listIds = (sheets) => sheets.map((sheet) => sheet.id).join(", ");
+const listIds = (sheets) => sheets.map(nameSheet).join(", ");
 
 /**
  * Each dialog that's open, with its sheets in the order they opened and the one it shows.
@@ -101,7 +150,7 @@ function labelBackButton(button, before) {
   if (!button) return;
   button.hidden = !before;
   if (!before) return;
-  const name = sheetParts.get(before)?.name ?? "Back";
+  const name = sheetParts.get(findOriginal(before))?.name ?? "Back";
   const label = button.querySelector(".sheet-back-label");
   if (label) label.textContent = name;
   button.setAttribute("aria-label", `Back to ${name}`);
@@ -116,12 +165,105 @@ function placeRow(dialog) {
     const index = sheets.indexOf(sheet);
     sheet.hidden = index < 0;
     sheet.style.zIndex = index < 0 ? "" : String(index);
-    labelBackButton(sheetParts.get(sheet)?.backButton, sheets[index - 1]);
+    labelBackButton(findBackButton(sheet), sheets[index - 1]);
   }
 }
 
 /** @param {HTMLElement} sheet */
 const forgetSheet = (sheet) => sheetParts.get(sheet)?.forget?.();
+
+/**
+ * Takes a sheet out of the row's stack, or a copy out of the row.
+ * @param {HTMLElement} sheet
+ */
+function letGoOf(sheet) {
+  if (copies.has(sheet)) return sheet.remove();
+  sheet.hidden = true;
+  sheet.style.transform = "";
+  forgetSheet(sheet);
+}
+
+/**
+ * Where `element` sits under `ancestor`, by child indexes.
+ * @param {Element} ancestor
+ * @param {Element} element
+ */
+function findPath(ancestor, element) {
+  /** @type {number[]} */
+  const path = [];
+  for (let child = element; child !== ancestor && child.parentElement;) {
+    path.unshift([...child.parentElement.children].indexOf(child));
+    child = child.parentElement;
+  }
+  return path;
+}
+
+/**
+ * Where the sheet, and each part of it that scrolls, is scrolled.
+ * @param {HTMLElement} sheet
+ * @returns {ScrollSpot[]}
+ */
+const listScrolls = (sheet) =>
+  [sheet, ...sheet.querySelectorAll("*")]
+    .filter((element) => element.scrollTop || element.scrollLeft)
+    .map((element) => ({
+      path: findPath(sheet, element),
+      top: element.scrollTop,
+      left: element.scrollLeft,
+    }));
+
+/**
+ * @param {HTMLElement} sheet
+ * @param {ScrollSpot[]} scrolls
+ */
+function restoreScrolls(sheet, scrolls) {
+  for (const { path, top, left } of scrolls) {
+    /** @type {Element | undefined} */
+    const element = path.reduce(
+      (/** @type {Element | undefined} */ parent, index) => parent?.children[index],
+      sheet,
+    );
+    if (element) Object.assign(element, { scrollTop: top, scrollLeft: left });
+  }
+}
+
+/**
+ * Puts a copy of the sheet beside it in the row: a still picture of what it shows, scrolled where
+ * it is. A copy keeps none of the sheet's ids, which stay the sheet's own, and isn't a part the page
+ * draws whole.
+ * @param {HTMLElement} sheet
+ */
+export function copySheet(sheet) {
+  const copy = /** @type {HTMLElement} */ (sheet.cloneNode(true));
+  for (const element of [copy, ...copy.querySelectorAll("[id], [data-last-drawn]")]) {
+    element.removeAttribute("id");
+    element.removeAttribute("data-last-drawn");
+  }
+  const scrolls = listScrolls(sheet);
+  sheet.before(copy);
+  restoreScrolls(copy, scrolls);
+  copies.set(copy, { sheet, subject: readSubject(sheet), scrolls });
+  return copy;
+}
+
+// What a copy showed may be gone, like a game from a season the page no longer shows; the copy then
+// stays as it is.
+/** @param {HTMLDialogElement} dialog */
+function takeBackFromCopy(dialog) {
+  const sheets = listStack(dialog);
+  const index = readShownIndex(dialog);
+  const copy = sheets[index];
+  const held = copies.get(copy);
+  if (!held || !sheetParts.get(held.sheet)?.keeper?.reopen(held.subject)) return;
+  const { sheet } = held;
+  sheets[index] = sheet;
+  copyShowing(copy, sheet);
+  sheet.hidden = false;
+  sheet.inert = false;
+  restoreScrolls(sheet, held.scrolls);
+  copy.remove();
+  noteSheetStep(`take back ${sheet.id} from its copy`);
+}
 
 /**
  * Takes every sheet after the shown one out of the stack, but `kept`.
@@ -132,11 +274,7 @@ function dropSheetsAhead(dialog, kept) {
   const sheets = listStack(dialog);
   const dropped = sheets.splice(readShownIndex(dialog) + 1).filter((sheet) => sheet !== kept);
   if (!dropped.length) return;
-  for (const sheet of dropped) {
-    sheet.hidden = true;
-    sheet.style.transform = "";
-    forgetSheet(sheet);
-  }
+  for (const sheet of dropped) letGoOf(sheet);
   noteSheetStep(`let go of ${listIds(dropped)}`);
 }
 
@@ -154,9 +292,10 @@ function focusShownSheet(dialog) {
 function settleOnShown(dialog) {
   if (!dialog.open) return;
   dropSheetsAhead(dialog);
+  takeBackFromCopy(dialog);
   placeRow(dialog);
   focusShownSheet(dialog);
-  noteSheetStep(`settle on ${findShownSheet(dialog).id}`);
+  noteSheetStep(`settle on ${nameSheet(findShownSheet(dialog))}`);
 }
 
 /**
@@ -164,7 +303,7 @@ function settleOnShown(dialog) {
  * @param {number} index
  */
 function slideToSheet(dialog, index) {
-  noteSheetStep(`slide to ${listStack(dialog)[index].id}`);
+  noteSheetStep(`slide to ${nameSheet(listStack(dialog)[index])}`);
   panelsByDialog.get(dialog)?.slideTo(index);
 }
 
@@ -181,18 +320,55 @@ export function restoreStack(dialog, sheets) {
 }
 
 /**
+ * @param {HTMLElement} from
+ * @param {HTMLElement} to
+ */
+function copyShowing(from, to) {
+  const key = from.getAttribute("data-showing");
+  if (key === null) to.removeAttribute("data-showing");
+  else to.setAttribute("data-showing", key);
+}
+
+/**
+ * Whether a sheet in the stack, or a copy, shows what an opening would.
+ * @param {HTMLElement | undefined} shown
+ * @param {HTMLElement} sheet
+ * @param {SheetOpening} [opening]
+ */
+const isShowing = (shown, sheet, opening) =>
+  !!shown &&
+  findOriginal(shown) === sheet &&
+  shown.getAttribute("data-showing") === (opening?.key ?? null);
+
+/**
+ * @param {HTMLElement} sheet
+ * @param {SheetOpening} [opening]
+ */
+function showIn(sheet, opening) {
+  if (!opening) return;
+  opening.show();
+  sheet.setAttribute("data-showing", opening.key);
+}
+
+/**
  * Brings a sheet into the open dialog after the shown one, in place of any after it, sliding in
- * from the right edge, or back to a sheet under the shown one.
+ * from the right edge, or from where it was as it slid away, leaving a copy wherever the stack
+ * still holds it, or slides back to the sheet under the shown one when that shows the same.
  * @param {HTMLDialogElement} dialog
  * @param {HTMLElement} sheet
+ * @param {SheetOpening} [opening]
  */
-function showOver(dialog, sheet) {
+function showOver(dialog, sheet, opening) {
   const sheets = listStack(dialog);
-  const index = sheets.indexOf(sheet);
-  if (index >= 0 && index < readShownIndex(dialog)) return slideToSheet(dialog, index);
+  const shown = readShownIndex(dialog);
+  if (isShowing(sheets[shown - 1], sheet, opening)) return slideToSheet(dialog, shown - 1);
   panelsByDialog.get(dialog)?.hold();
+  const index = sheets.indexOf(sheet);
   dropSheetsAhead(dialog, sheet);
-  if (index < 0) sheet.style.transform = "translateX(100%)";
+  if (index >= 0 && index <= shown) sheets[index] = copySheet(sheet);
+  if (index <= shown) sheet.style.transform = "translateX(100%)";
+  showIn(sheet, opening);
+  sheet.scrollTop = 0;
   sheets.push(sheet);
   placeRow(dialog);
   slideToSheet(dialog, sheets.length - 1);
@@ -200,17 +376,23 @@ function showOver(dialog, sheet) {
 
 /**
  * Shows a sheet, opening its dialog or over the dialog's shown sheet, or keeps it showing,
- * scrolled back to its top.
+ * scrolled back to its top, when it already shows the same or is its dialog.
  * @param {HTMLElement} sheet
+ * @param {SheetOpening} [opening] what to show, unless the sheet shows one thing, like settings
  */
-export function openSheet(sheet) {
+export function openSheet(sheet, opening) {
   const dialog = findDialog(sheet);
   if (sheet !== dialog)
-    noteSheetStep(`open ${sheet.id} over ${dialog.open ? findShownSheet(dialog).id : "the page"}`);
+    noteSheetStep(
+      `open ${sheet.id} over ${dialog.open ? nameSheet(findShownSheet(dialog)) : "the page"}`,
+    );
+  if (dialog.open && sheet !== dialog && !isShowing(findShownSheet(dialog), sheet, opening))
+    return showOver(dialog, sheet, opening);
+  showIn(sheet, opening);
   if (!dialog.open) {
     dialog.showModal();
     restoreStack(dialog, sheet === dialog ? [] : [sheet]);
-  } else if (findShownSheet(dialog) !== sheet) showOver(dialog, sheet);
+  }
   sheet.scrollTop = 0;
 }
 
@@ -228,9 +410,8 @@ function forgetDialog(dialog) {
   stacks.delete(dialog);
   openDialogs.delete(dialog);
   dialog.removeAttribute("data-reopened");
-  for (const sheet of sheets) forgetSheet(sheet);
+  for (const sheet of sheets) letGoOf(sheet);
   if (sheets.length === 0) forgetSheet(dialog);
-  for (const sheet of sheets) sheet.style.transform = "";
   placeRow(dialog);
 }
 

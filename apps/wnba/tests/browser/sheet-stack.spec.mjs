@@ -42,24 +42,53 @@ async function openFeverFromGame(page) {
 }
 
 /**
- * Notes where a sheet is on each frame it's in the row, until the returned function stops and
- * reads the notes.
+ * Opens the Aces' sheet, then the sheet of their game at the Fever from its card, then the Fever's
+ * from the game's.
  * @param {import("@playwright/test").Page} page
- * @param {string} id
  */
-async function startTrackingLeft(page, id) {
-  await page.evaluate((sheetId) => {
-    const sheet = /** @type {HTMLElement} */ (document.getElementById(sheetId));
-    const row = /** @type {Element} */ (sheet.closest(".sheet-row"));
-    const lefts = /** @type {number[]} */ ([]);
-    const note = () => {
-      if (!sheet.hidden)
-        lefts.push(Math.round(sheet.getBoundingClientRect().x - row.getBoundingClientRect().x));
-      if (!(/** @type {any} */ (window).isTrackingDone)) requestAnimationFrame(note);
-    };
-    Object.assign(window, { trackedLefts: lefts, isTrackingDone: false });
-    requestAnimationFrame(note);
-  }, id);
+async function openFeverFromAcesGame(page) {
+  await page.getByRole("button", { name: "Team details: Las Vegas Aces" }).first().click();
+  const teamSheet = page.locator("#teamSheet");
+  await expectShown(teamSheet);
+  await teamSheet.getByRole("button", { name: "Game details: Aces at Fever, Sep 29" }).click();
+  const gameSheet = page.locator("#gameSheet");
+  await expect(gameSheet.locator(".line-score")).toBeVisible();
+  await expectShown(gameSheet);
+  return { teamSheet, gameSheet };
+}
+
+const FEVER_IN_GAME = '#gameSheet .faceoff [aria-label="Team details: Indiana Fever"]';
+
+/**
+ * Notes where a sheet is on each frame it's in the row, until the returned function stops and
+ * reads the notes. A sheet named by its title is whichever one shows it, a copy or the sheet
+ * itself. With `tap`, the first note is the first frame after a click on what it names.
+ * @param {import("@playwright/test").Page} page
+ * @param {{ id?: string, title?: string, tap?: string }} sheet
+ */
+async function startTrackingLeft(page, { id, title, tap }) {
+  await page.evaluate(
+    ([sheetId, sheetTitle, tapped]) => {
+      const row = /** @type {Element} */ (document.querySelector("#sheetDialog .sheet-row"));
+      const findSheet = () =>
+        sheetId
+          ? /** @type {HTMLElement} */ (document.getElementById(sheetId))
+          : [...row.querySelectorAll(":scope > .sheet-page")].find(
+              (sheet) => sheet.querySelector(".team-title")?.textContent === sheetTitle,
+            );
+      const lefts = /** @type {number[]} */ ([]);
+      const note = () => {
+        const sheet = findSheet();
+        if (sheet && !(/** @type {HTMLElement} */ (sheet).hidden))
+          lefts.push(Math.round(sheet.getBoundingClientRect().x - row.getBoundingClientRect().x));
+        if (!(/** @type {any} */ (window).isTrackingDone)) requestAnimationFrame(note);
+      };
+      Object.assign(window, { trackedLefts: lefts, isTrackingDone: false });
+      if (tapped) /** @type {HTMLElement} */ (document.querySelector(tapped)).click();
+      requestAnimationFrame(note);
+    },
+    [id, title, tap],
+  );
   return () =>
     page.evaluate(() => {
       Object.assign(window, { isTrackingDone: true });
@@ -313,6 +342,61 @@ test.describe("with reduced motion", () => {
 
     await expectShown(teamSheet);
   });
+
+  test("a tap on a team in a game's sheet, opened from another team's, brings that team's sheet in beside the game's, and back goes to the game, then to the first team where it was", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    await page.getByRole("button", { name: "Team details: Las Vegas Aces" }).first().click();
+    const teamSection = page.locator("#teamSection");
+    await teamSection.evaluate((section) => (section.scrollTop = 30));
+    await page
+      .locator("#teamSheet")
+      .getByRole("button", { name: "Game details: Aces at Fever, Sep 29" })
+      .click();
+    const gameSheet = page.locator("#gameSheet");
+    await expectShown(gameSheet);
+
+    await page.locator(FEVER_IN_GAME).click();
+
+    const teamSheet = page.locator("#teamSheet");
+    await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
+    await expectShown(teamSheet);
+    expect(await readLeft(gameSheet)).toBeCloseTo(-(PHONE.width + GAP_PX), 0);
+    const copy = page.locator("#sheetDialog .sheet-page:not([id])");
+    await expect(copy.locator(".team-title")).toHaveText("Las Vegas Aces");
+    await expect(copy.locator("[id], [data-last-drawn]")).toHaveCount(0);
+    expect(await readLeft(copy)).toBeCloseTo(-(PHONE.width + GAP_PX), 0);
+
+    await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
+    await expectShown(gameSheet);
+    await gameSheet.getByRole("button", { name: "Back to Team", exact: true }).click();
+
+    await expectShown(teamSheet);
+    await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+    await expect(copy).toHaveCount(0);
+    await expect(gameSheet).toBeHidden();
+    expect(await teamSection.evaluate((section) => section.scrollTop)).toBe(30);
+  });
+
+  test("a tap on the team a game's sheet was opened from goes back to its sheet", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page);
+    const { teamSheet, gameSheet } = await openFeverFromAcesGame(page);
+
+    await gameSheet
+      .locator(".faceoff")
+      .getByRole("button", { name: "Team details: Las Vegas Aces" })
+      .click();
+
+    await expectShown(teamSheet);
+    await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+    await expect(gameSheet).toBeHidden();
+    await expect(page.locator("#sheetDialog .sheet-page")).toHaveCount(3);
+  });
 });
 
 test("a team's sheet slides in from the right beside the game's, which waits a gap past the left edge, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
@@ -323,7 +407,7 @@ test("a team's sheet slides in from the right beside the game's, which waits a g
   const { gameSheet, teamSheet } = await openFeverFromGame(page);
   expect(await readLeft(gameSheet)).toBeCloseTo(-(PHONE.width + GAP_PX), 0);
 
-  const readLefts = await startTrackingLeft(page, "teamSheet");
+  const readLefts = await startTrackingLeft(page, { id: "teamSheet" });
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
   await expectShown(gameSheet);
   await expect(teamSheet).toBeHidden();
@@ -331,6 +415,36 @@ test("a team's sheet slides in from the right beside the game's, which waits a g
   expect(hasStopOnTheWay(lefts)).toBe(true);
   expect(isMonotonic(lefts)).toBe(true);
   expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
+});
+
+test("a team's sheet opened from a game's opened from another team's slides in from the right a frame at a time, and back to the first team slides it in from the left with nothing moving once it's there", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const { teamSheet, gameSheet } = await openFeverFromAcesGame(page);
+
+  const readFeverLefts = await startTrackingLeft(page, { id: "teamSheet", tap: FEVER_IN_GAME });
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
+  await expectShown(teamSheet);
+  const feverLefts = await readFeverLefts();
+  expect(hasStopOnTheWay(feverLefts)).toBe(true);
+  expect(isMonotonic(feverLefts)).toBe(true);
+  expect(feverLefts[0]).toBeGreaterThan(feverLefts.at(-1) ?? 0);
+
+  await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
+  await expectShown(gameSheet);
+  const readAcesLefts = await startTrackingLeft(page, { title: "Las Vegas Aces" });
+  await gameSheet.getByRole("button", { name: "Back to Team", exact: true }).click();
+  await expectShown(teamSheet);
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  const acesLefts = await readAcesLefts();
+  expect(hasStopOnTheWay(acesLefts)).toBe(true);
+  expect(isMonotonic(acesLefts)).toBe(true);
+  expect(acesLefts[0]).toBeLessThan(0);
+  expect(acesLefts.at(-1)).toBe(0);
 });
 
 test("on a phone, a finger moving a player's sheet brings the game's in from under it, the page changing nothing but where the sheets are, and the sheets settle without stepping back or running an opening motion", async ({
@@ -369,7 +483,7 @@ test("on a phone, a finger moving a player's sheet brings the game's in from und
   expect(gameLeft).toBeCloseTo(playerLeft - PHONE.width - GAP_PX, 0);
   expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
 
-  const readLefts = await startTrackingLeft(page, "playerSheet");
+  const readLefts = await startTrackingLeft(page, { id: "playerSheet" });
   await release();
   await expectShown(gameSheet);
   await expect(page.locator("#playerSheet")).toBeHidden();

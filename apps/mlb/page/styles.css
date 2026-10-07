@@ -1709,22 +1709,22 @@ body.kbd .rank-item .grip:focus {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
 }
-#teamTitle {
+.sheet-head h2.team-title {
   font-size: 1.15rem;
   font-weight: 550;
   letter-spacing: 0.02em;
 }
-#teamTitle .rank-slot {
+.sheet-head .team-title .rank-slot {
   width: auto;
   margin: 0;
 }
-#teamNote {
+.sheet-head .team-note {
   font-weight: 450;
 }
-#teamNote .NL {
+.sheet-head .team-note .NL {
   color: var(--nl);
 }
-#teamNote .AL {
+.sheet-head .team-note .AL {
   color: var(--al);
 }
 .sheet-part-head h3,

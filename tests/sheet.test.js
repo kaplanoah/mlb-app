@@ -69,6 +69,7 @@ class FakeElement extends EventTarget {
     this.inert = false;
     this.tabIndex = 0;
     this.scrollTop = 0;
+    this.scrollLeft = 0;
     this.offsetWidth = 390;
     this.textContent = "";
     this.style = { zIndex: "", transform: "", visibility: "" };
@@ -116,6 +117,7 @@ class FakeElement extends EventTarget {
 
   /** @param {string} name */
   removeAttribute(name) {
+    if (name === "id") this.id = "";
     this.attributes.delete(name);
   }
 
@@ -126,6 +128,54 @@ class FakeElement extends EventTarget {
   toggleAttribute(name, isOn) {
     if (isOn) this.attributes.set(name, "");
     else this.attributes.delete(name);
+  }
+
+  /** @param {FakeElement} sibling */
+  before(sibling) {
+    const parent = /** @type {FakeElement} */ (this.parentElement);
+    sibling.parentElement = parent;
+    parent.children.splice(parent.children.indexOf(this), 0, sibling);
+  }
+
+  remove() {
+    const parent = this.parentElement;
+    if (parent) parent.children.splice(parent.children.indexOf(this), 1);
+    this.parentElement = null;
+  }
+
+  /**
+   * A copy as a browser makes one: everything but where it's scrolled, what it's listening for,
+   * and what it's animating.
+   * @param {boolean} isDeep
+   * @returns {FakeElement}
+   */
+  cloneNode(isDeep) {
+    const copy = new FakeElement({ id: this.id, tag: this.tag, className: this.className });
+    copy.attributes = new Map(this.attributes);
+    Object.assign(copy, { hidden: this.hidden, inert: this.inert, textContent: this.textContent });
+    copy.style = { ...this.style };
+    copy.classes = new Set(this.classes);
+    if (isDeep) for (const child of this.children) copy.append(child.cloneNode(true));
+    return copy;
+  }
+
+  /** @param {string} selector "*", or attributes as "[id], [data-x]" */
+  querySelectorAll(selector) {
+    const names = selector === "*" ? null : selector.split(", ").map((each) => each.slice(1, -1));
+    /** @param {FakeElement} element */
+    const isWanted = (element) =>
+      !names || names.some((name) => (name === "id" ? !!element.id : element.hasAttribute(name)));
+    /** @type {FakeElement[]} */
+    const found = [];
+    /** @param {FakeElement} element */
+    const visit = (element) => {
+      for (const child of element.children) {
+        if (isWanted(child)) found.push(child);
+        visit(child);
+      }
+    };
+    visit(this);
+    return found;
   }
 
   /** @param {string} selector "dialog" or one class */
@@ -194,7 +244,7 @@ class FakeDialog extends FakeElement {
 }
 
 function createBackButton() {
-  const button = new FakeElement();
+  const button = new FakeElement({ className: "sheet-back" });
   button.append(new FakeElement({ className: "sheet-back-label" }));
   return button;
 }
@@ -247,20 +297,19 @@ function createRowDialog(ids, partsById = {}, { isMoving = false } = {}) {
   );
   const row = dialog.append(new FakeElement({ className: "sheet-row" }));
   row.cssVariables["--panel-gap"] = GAP;
-  /** @typedef {{ sheet: FakeElement, closeButton: FakeElement, backButton: FakeElement }} FakeSheet */
+  /** @typedef {{ sheet: FakeElement, body: FakeElement, closeButton: FakeElement, backButton: FakeElement }} FakeSheet */
   const sheets = /** @type {Record<string, FakeSheet>} */ (
     Object.fromEntries(
       ids.map((id) => {
         const sheet = row.append(new FakeElement({ id, tag: "section", className: "sheet-page" }));
         sheet.hidden = true;
         sheet.setAttribute("aria-labelledby", `${id}Title`);
-        const parts = {
-          closeButton: new FakeElement(),
-          backButton: createBackButton(),
-          ...partsById[id],
-        };
+        const backButton = sheet.append(createBackButton());
+        const body = sheet.append(new FakeElement({ id: `${id}Body` }));
+        body.setAttribute("data-last-drawn", "");
+        const parts = { closeButton: new FakeElement(), backButton, ...partsById[id] };
         wireSheet(/** @type {any} */ (sheet), /** @type {any} */ (parts));
-        return [id, { sheet, ...parts }];
+        return [id, { sheet, body, ...parts }];
       }),
     )
   );
@@ -270,18 +319,33 @@ function createRowDialog(ids, partsById = {}, { isMoving = false } = {}) {
 /** @param {EventTarget} target */
 const click = (target) => target.dispatchEvent(new Event("click"));
 
-/** @param {FakeElement} row */
-const listInRow = (row) => row.children.filter((sheet) => !sheet.hidden).map((sheet) => sheet.id);
+/**
+ * A sheet's id, or "copy" for a copy of one, which has none.
+ * @param {FakeElement} sheet
+ */
+const nameFake = (sheet) => sheet.id || "copy";
 
 /** @param {FakeElement} row */
-const findReachable = (row) => row.children.find((sheet) => !sheet.hidden && !sheet.inert)?.id;
+const listInRow = (row) => row.children.filter((sheet) => !sheet.hidden).map(nameFake);
+
+/** @param {FakeElement} row */
+const findReachable = (row) => {
+  const reachable = row.children.find((sheet) => !sheet.hidden && !sheet.inert);
+  return reachable && nameFake(reachable);
+};
+
+/** @param {FakeElement} row */
+const findCopy = (row) => /** @type {FakeElement} */ (row.children.find((sheet) => !sheet.id));
 
 /** @param {FakeElement} row */
 const readPlaces = (row) =>
   Object.fromEntries(
     row.children
       .filter((sheet) => !sheet.hidden)
-      .map((sheet) => [sheet.id, { zIndex: sheet.style.zIndex, transform: sheet.style.transform }]),
+      .map((sheet) => [
+        nameFake(sheet),
+        { zIndex: sheet.style.zIndex, transform: sheet.style.transform },
+      ]),
   );
 
 /**
@@ -293,6 +357,73 @@ const keepShown = (shown, reopen = () => true) => ({ read: () => shown, reopen }
 
 /** @param {FakeElement} sheet */
 const open = (sheet) => openSheet(/** @type {any} */ (sheet));
+
+/**
+ * A sheet's code that shows what it's opened to show, as `{ key }`, and lists each opening it
+ * draws and each subject it shows again.
+ */
+function createShowing() {
+  /** @type {unknown} */
+  let shown = null;
+  /** @type {string[]} */
+  const drawn = [];
+  /** @type {unknown[]} */
+  const reopened = [];
+  /** @type {SheetKeeper} */
+  const keeper = {
+    read: () => shown,
+    reopen: (subject) => {
+      shown = subject;
+      reopened.push(subject);
+      return true;
+    },
+  };
+  /**
+   * @param {FakeElement} sheet
+   * @param {string} key
+   */
+  const openShowing = (sheet, key) =>
+    openSheet(/** @type {any} */ (sheet), {
+      key,
+      show: () => {
+        shown = { key };
+        drawn.push(key);
+      },
+    });
+  return { keeper, drawn, reopened, open: openShowing };
+}
+
+/**
+ * A row of a game's sheet and a team's, each showing what it's opened to show.
+ * @param {{ isMoving?: boolean }} [options]
+ */
+function createShowingRow(options) {
+  const game = createShowing();
+  const team = createShowing();
+  /** @type {string[]} */
+  const forgotten = [];
+  const { dialog, row, sheets } = createRowDialog(
+    ["gameSheet", "teamSheet"],
+    {
+      gameSheet: { keeper: game.keeper, name: "Game", forget: () => forgotten.push("game") },
+      teamSheet: { keeper: team.keeper, name: "Team", forget: () => forgotten.push("team") },
+    },
+    options,
+  );
+  return {
+    dialog,
+    row,
+    sheets,
+    forgotten,
+    game,
+    team,
+    openGame: (/** @type {string} */ key) => game.open(sheets.gameSheet.sheet, key),
+    openTeam: (/** @type {string} */ key) => team.open(sheets.teamSheet.sheet, key),
+  };
+}
+
+const listShowings = () =>
+  listOpenSheets().map(({ id, subject, showing }) => ({ id, subject, showing }));
 
 /** @param {any} slide */
 const readSlideEnds = (slide) =>
@@ -463,6 +594,143 @@ test("with motion, a slide whose animations are cancelled still settles", async 
   dialog.close();
 });
 
+test("a sheet the stack holds, opened to show something else, comes in over the shown one and leaves a copy of what it showed in its place", () => {
+  const { dialog, row, sheets, openGame, openTeam } = createShowingRow();
+  openTeam("NYL");
+  openGame("game-1");
+  openTeam("LVA");
+
+  assert.deepEqual(readPlaces(row), {
+    copy: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
+    gameSheet: { zIndex: "1", transform: "translateX(calc(-100% - 15px))" },
+    teamSheet: { zIndex: "2", transform: "" },
+  });
+  assert.equal(findReachable(row), "teamSheet");
+  assert.deepEqual(readBackLabel(sheets.teamSheet.backButton), {
+    text: "Game",
+    ariaLabel: "Back to Game",
+  });
+  assert.equal(readBackLabel(sheets.gameSheet.backButton)?.text, "Team");
+  assert.deepEqual(listShowings(), [
+    { id: "teamSheet", subject: { key: "NYL" }, showing: "NYL" },
+    { id: "gameSheet", subject: { key: "game-1" }, showing: "game-1" },
+    { id: "teamSheet", subject: { key: "LVA" }, showing: "LVA" },
+  ]);
+  dialog.close();
+});
+
+test("a copy holds none of its sheet's ids, nor any part the page draws whole, and is scrolled where its sheet was", () => {
+  const { dialog, row, sheets, openGame, openTeam } = createShowingRow();
+  openTeam("NYL");
+  sheets.teamSheet.sheet.scrollTop = 120;
+  sheets.teamSheet.body.scrollLeft = 40;
+  openGame("game-1");
+  openTeam("LVA");
+
+  const copy = findCopy(row);
+  assert.deepEqual(copy.querySelectorAll("[id], [data-last-drawn]"), []);
+  assert.equal(copy.scrollTop, 120);
+  assert.equal(copy.children[1].scrollLeft, 40);
+  assert.equal(readBackLabel(copy.children[0]), null);
+  assert.equal(sheets.teamSheet.sheet.scrollTop, 0);
+  assert.equal(globalThis.document.getElementById("teamSheetBody"), sheets.teamSheet.body);
+  dialog.close();
+});
+
+test("back to a copy has its sheet show again what the copy showed, scrolled where it was, and lets the copy go", () => {
+  const { dialog, row, sheets, forgotten, team, openGame, openTeam } = createShowingRow();
+  openTeam("NYL");
+  sheets.teamSheet.sheet.scrollTop = 120;
+  sheets.teamSheet.body.scrollLeft = 40;
+  openGame("game-1");
+  openTeam("LVA");
+
+  click(sheets.teamSheet.backButton);
+  assert.deepEqual(listInRow(row), ["gameSheet", "copy"]);
+  click(sheets.gameSheet.backButton);
+
+  assert.deepEqual(forgotten, ["team", "game"]);
+  assert.deepEqual(team.reopened, [{ key: "NYL" }]);
+  assert.equal(row.children.length, 2);
+  assert.deepEqual(readPlaces(row), { teamSheet: { zIndex: "0", transform: "" } });
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(focused, sheets.teamSheet.sheet);
+  assert.equal(readBackLabel(sheets.teamSheet.backButton), null);
+  assert.equal(sheets.teamSheet.sheet.scrollTop, 120);
+  assert.equal(sheets.teamSheet.body.scrollLeft, 40);
+  assert.deepEqual(listShowings(), [{ id: "teamSheet", subject: { key: "NYL" }, showing: "NYL" }]);
+  dialog.close();
+});
+
+test("a tap on what the sheet under the shown one shows goes back to it, as it was", () => {
+  const { dialog, row, sheets, team, openGame, openTeam } = createShowingRow();
+  openTeam("NYL");
+  sheets.teamSheet.sheet.scrollTop = 120;
+  openGame("game-1");
+  openTeam("NYL");
+
+  assert.deepEqual(team.drawn, ["NYL"]);
+  assert.equal(row.children.length, 2);
+  assert.deepEqual(listInRow(row), ["teamSheet"]);
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(sheets.teamSheet.sheet.scrollTop, 120);
+  dialog.close();
+});
+
+test("a sheet opened again from itself to show something else comes in over itself, and back shows what it showed", () => {
+  const { dialog, row, sheets, team, openTeam } = createShowingRow();
+  openTeam("NYL");
+  openTeam("NYL");
+  assert.equal(row.children.length, 2);
+
+  openTeam("LVA");
+  assert.deepEqual(readPlaces(row), {
+    copy: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
+    teamSheet: { zIndex: "1", transform: "" },
+  });
+  assert.equal(readBackLabel(sheets.teamSheet.backButton)?.text, "Team");
+
+  click(sheets.teamSheet.backButton);
+  assert.deepEqual(team.drawn, ["NYL", "NYL", "LVA"]);
+  assert.deepEqual(team.reopened, [{ key: "NYL" }]);
+  assert.deepEqual(listInRow(row), ["teamSheet"]);
+  dialog.close();
+});
+
+test("closing the dialog takes every copy out of the row", () => {
+  const { dialog, row, openGame, openTeam } = createShowingRow();
+  openTeam("NYL");
+  openGame("game-1");
+  openTeam("LVA");
+  openGame("game-2");
+
+  dialog.close();
+  assert.deepEqual(row.children.map(nameFake), ["gameSheet", "teamSheet"]);
+  assert.deepEqual(listInRow(row), []);
+});
+
+test("with motion, a sheet that leaves a copy slides in from the right edge, and its copy waits past the left edge with the one under it", async () => {
+  const { dialog, row, sheets, openGame, openTeam } = createShowingRow({ isMoving: true });
+  openTeam("NYL");
+  openGame("game-1");
+  await endSlides();
+
+  openTeam("LVA");
+  assert.deepEqual(
+    [findCopy(row), sheets.gameSheet.sheet, sheets.teamSheet.sheet].map((sheet) =>
+      [...sheet.animations].map(readSlideEnds),
+    ),
+    [
+      [["translateX(calc(-100% - 15px))", "translateX(calc(-100% - 15px))"]],
+      [["none", "translateX(calc(-100% - 15px))"]],
+      [["translateX(calc(100% + 15px))", "none"]],
+    ],
+  );
+  await endSlides();
+  assert.equal(findReachable(row), "teamSheet");
+  dialog.close();
+});
+
 // A stand-in for settings on a phone, a dialog that is its own sheet, which a swipe down moves and
 // closes, with any of `parts` beside its close button.
 /** @param {Partial<SheetParts>} [parts] */
@@ -558,8 +826,8 @@ test("the sheets showing are listed up to the shown one, with where each is scro
   sheets.gameSheet.sheet.scrollTop = 240;
 
   assert.deepEqual(listOpenSheets(), [
-    { id: "gameSheet", scrollTop: 240, subject: { id: "game-1" }, backLabel: null },
-    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" }, backLabel: "Game" },
+    { id: "gameSheet", scrollTop: 240, subject: { id: "game-1" }, showing: null, backLabel: null },
+    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" }, showing: null, backLabel: "Game" },
   ]);
 
   dialog.close();
@@ -619,6 +887,37 @@ test("a page that loads again puts back a sheet over the one it was opened from,
   });
   assert.equal(findReachable(row), "teamSheet");
   assert.equal(readBackLabel(sheets.teamSheet.backButton)?.text, "Game");
+  dialog.close();
+});
+
+test("a page that loads again puts back a sheet the stack held twice, with a copy of what it showed first, and a tap on that goes back to it", () => {
+  const { dialog, row, sheets, team, openTeam } = createShowingRow();
+  dialog.open = true;
+  const saved = [
+    { id: "teamSheet", scrollTop: 120, subject: { key: "NYL" }, showing: "NYL" },
+    { id: "gameSheet", scrollTop: 0, subject: { key: "game-1" }, showing: "game-1" },
+    { id: "teamSheet", scrollTop: 30, subject: { key: "LVA" }, showing: "LVA" },
+  ];
+
+  reopenSheets(saved);
+  assert.deepEqual(team.reopened, [{ key: "NYL" }, { key: "LVA" }]);
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(readBackLabel(findCopy(row).children[0]), null);
+  assert.deepEqual(
+    listOpenSheets().map(({ id, scrollTop, subject, showing }) => ({
+      id,
+      scrollTop,
+      subject,
+      showing,
+    })),
+    saved,
+  );
+
+  click(sheets.teamSheet.backButton);
+  openTeam("NYL");
+  assert.deepEqual(team.reopened, [{ key: "NYL" }, { key: "LVA" }, { key: "NYL" }]);
+  assert.deepEqual(listInRow(row), ["teamSheet"]);
+  assert.equal(sheets.teamSheet.sheet.scrollTop, 120);
   dialog.close();
 });
 
