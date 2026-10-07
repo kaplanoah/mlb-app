@@ -1,11 +1,13 @@
 import { test, expect, openApp } from "./harness.mjs";
 import {
   expectAtRest,
+  forgetResizeLoops,
   listResizeLoops,
   swipeToNextList,
 } from "../../../../tests/browser/at-rest.mjs";
 
-// In full motion, every slide ends, and then nothing moves or asks for a frame.
+// In full motion, every slide ends, and then nothing moves or asks for a frame. Each test counts
+// ResizeObserver loops from its first gesture, since what the page does as it loads isn't theirs.
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -16,6 +18,7 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
   const readResizeLoops = await listResizeLoops(page);
   await openApp(page);
   await expectAtRest(page);
+  await forgetResizeLoops(page);
 
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#games-today")).toBeInViewport();
@@ -39,6 +42,8 @@ test("a shown list that grows loops no ResizeObserver", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#games-today")).toBeInViewport();
+  await expectAtRest(page);
+  await forgetResizeLoops(page);
 
   await page.locator("#games-today").evaluate((list) => {
     const filler = document.createElement("div");

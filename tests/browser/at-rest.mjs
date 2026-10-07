@@ -36,13 +36,24 @@ export async function listResizeLoops(page) {
         });
       }
     };
+    // The list reports each loop, so WebKit doesn't also raise it as an uncaught error.
     addEventListener("error", (event) => {
-      if (event.message.includes("ResizeObserver loop"))
-        resizeLoops.push(`${event.message} After: ${recentCallbacks.join(" | ")}`);
+      if (!event.message.includes("ResizeObserver loop")) return;
+      event.preventDefault();
+      resizeLoops.push(`${event.message} After: ${recentCallbacks.join(" | ")}`);
     });
   });
   return () => page.evaluate(() => /** @type {any} */ (window).resizeLoops);
 }
+
+/**
+ * Empties the list of ResizeObserver loops, so it counts only from here on.
+ * @param {import("@playwright/test").Page} page
+ */
+export const forgetResizeLoops = (page) =>
+  page.evaluate(() => {
+    /** @type {any} */ (window).resizeLoops.length = 0;
+  });
 
 /**
  * Expects the page to be at rest: no animation left on it, and nothing asking for a frame across
