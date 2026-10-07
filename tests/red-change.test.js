@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { decideGate, findRedReasons, readDiff } from "../worker/red-change.mjs";
+import {
+  decideGate,
+  findLabeler,
+  findRedReasons,
+  readDiff,
+  readIssueEvents,
+} from "../worker/red-change.mjs";
 
 /**
  * A diff that adds `added` to `path` at line 10, after a line it keeps.
@@ -137,11 +143,27 @@ test("tests, docs, and the Worker's code are never red", () => {
     assert.deepEqual(findReasons(path, ["  transform: none;", "position: fixed;"]), [], path);
 });
 
+const RED_DIFF =
+  createDiff("shared/page/pager.js", ["export const x = 1;"]) +
+  createDiff("apps/wnba/page/styles.css", ["  will-change: transform;"]);
+
+/**
+ * An issue event of `type` for `label`, by `login`, at `at`.
+ * @param {string} type
+ * @param {string} label
+ * @param {string} login
+ * @param {string} at
+ */
+const createEvent = (type, label, login, at) => ({
+  event: type,
+  created_at: at,
+  label: { name: label },
+  actor: { login },
+});
+
 test("a red change is held until it has the phone-ok label, and says why", () => {
-  const diff =
-    createDiff("shared/page/pager.js", ["export const x = 1;"]) +
-    createDiff("apps/wnba/page/styles.css", ["  will-change: transform;"]);
-  const held = decideGate(diff, ["bug"]);
+  const diff = RED_DIFF;
+  const held = decideGate(diff, { labels: ["bug"] });
   assert.equal(held.isHeld, true);
   assert.match(held.message, /shared\/page\/pager\.js is shared code/);
   assert.match(
@@ -151,16 +173,95 @@ test("a red change is held until it has the phone-ok label, and says why", () =>
   assert.match(held.message, /git push -f origin <branch>:beta/);
   assert.match(held.message, /owner adds the phone-ok label after using it on the beta app/);
 
-  const labeled = decideGate(diff, ["phone-ok"]);
+  const labeled = decideGate(diff, { labels: ["phone-ok"], labeler: "owner", owner: "owner" });
   assert.equal(labeled.isHeld, false);
   assert.match(labeled.message, /labeled phone-ok/);
+});
+
+test("a red change labeled phone-ok by anyone but the owner is held, and says the label has to come from the owner", () => {
+  const held = decideGate(RED_DIFF, { labels: ["phone-ok"], labeler: "helper", owner: "owner" });
+  assert.equal(held.isHeld, true);
+  assert.match(held.message, /labeled phone-ok by helper/);
+  assert.match(held.message, /has to come from the repository's owner, owner/);
+
+  const unnamed = decideGate(RED_DIFF, { labels: ["phone-ok"], labeler: null, owner: "owner" });
+  assert.equal(unnamed.isHeld, true);
+  assert.equal(decideGate(RED_DIFF, { labels: ["phone-ok"], labeler: "", owner: "" }).isHeld, true);
+});
+
+test("the phone-ok label's adder is whoever added it last, whatever else was labeled", () => {
+  const events = [
+    createEvent("labeled", "phone-ok", "owner", "2026-10-07T10:00:00Z"),
+    createEvent("unlabeled", "phone-ok", "owner", "2026-10-07T11:00:00Z"),
+    createEvent("labeled", "phone-ok", "helper", "2026-10-07T12:00:00Z"),
+    createEvent("labeled", "bug", "owner", "2026-10-07T13:00:00Z"),
+    {
+      event: "head_ref_force_pushed",
+      created_at: "2026-10-07T14:00:00Z",
+      actor: { login: "owner" },
+    },
+  ];
+  assert.equal(findLabeler(events, "phone-ok"), "helper");
+  assert.equal(findLabeler(events.toReversed(), "phone-ok"), "helper");
+  assert.equal(findLabeler(events.slice(3), "phone-ok"), null);
+});
+
+test("a pull request's events are read page by page, with the token, until a short page", async () => {
+  const pages = [
+    Array.from({ length: 100 }, (_, index) =>
+      createEvent(
+        "labeled",
+        "bug",
+        "owner",
+        `2026-10-07T10:00:${String(index % 60).padStart(2, "0")}Z`,
+      ),
+    ),
+    [createEvent("labeled", "phone-ok", "owner", "2026-10-07T12:00:00Z")],
+  ];
+  /** @type {{ url: string, authorization: string }[]} */
+  const requests = [];
+  /** @type {typeof fetch} */
+  const fetchImpl = async (url, init) => {
+    const headers = /** @type {Record<string, string>} */ (init?.headers);
+    requests.push({ url: String(url), authorization: headers.authorization });
+    return Response.json(pages[requests.length - 1]);
+  };
+
+  const events = await readIssueEvents({
+    repository: "owner/repo",
+    pullNumber: "408",
+    token: "token",
+    fetchImpl,
+  });
+
+  assert.equal(events.length, 101);
+  assert.deepEqual(
+    requests.map(({ url }) => url),
+    [
+      "https://api.github.com/repos/owner/repo/issues/408/events?per_page=100&page=1",
+      "https://api.github.com/repos/owner/repo/issues/408/events?per_page=100&page=2",
+    ],
+  );
+  assert.ok(requests.every(({ authorization }) => authorization === "Bearer token"));
+});
+
+test("events GitHub won't give fail the gate's read", async () => {
+  /** @type {typeof fetch} */
+  const fetchImpl = async () => new Response("", { status: 403 });
+  await assert.rejects(
+    readIssueEvents({ repository: "owner/repo", pullNumber: "408", token: "token", fetchImpl }),
+    /GitHub answered 403 for the events of #408/,
+  );
 });
 
 test("a change that isn't red passes without the label", () => {
   const diff =
     createDiff("apps/mlb/page/js/games-view.js", ["  const label = 'Final';"]) +
     createDiff("tests/sheet.test.js", ["  transform: none;"]);
-  assert.deepEqual(decideGate(diff, []), { isHeld: false, message: "Not a red change." });
+  assert.deepEqual(decideGate(diff, { labels: [] }), {
+    isHeld: false,
+    message: "Not a red change.",
+  });
 });
 
 test("CI's check needs the gate, which a label change runs again without a push", () => {
@@ -174,5 +275,9 @@ test("CI's check needs the gate, which a label change runs again without a push"
   assert.match(
     workflow,
     /git diff --no-renames HEAD\^1 HEAD \| node worker\/red-change\.mjs "\$LABELS"/,
+  );
+  assert.match(
+    workflow,
+    /gate:[\s\S]*?pull-requests: read[\s\S]*?PR: \$\{\{ github\.event\.pull_request\.number \}\}/,
   );
 });
