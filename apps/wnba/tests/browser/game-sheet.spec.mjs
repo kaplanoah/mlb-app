@@ -28,9 +28,16 @@ const POLL_LIVE_MS = 15 * 1000;
 const NUMBER_COLUMN_PX = 52;
 // The type scale's smallest size, which the lead chart's words show at with no room above or below.
 const SMALLEST_TEXT_PX = 13;
-// The room between the teams' last line and the first part's title, above each later title, below
-// each title, below By quarter's, and between a tape's rows.
-const FIRST_TITLE_SPACE_PX = 38;
+// The room between the band's line and the first part's title, above each later title, below each
+// title, below By quarter's, and between a tape's rows.
+const FIRST_TITLE_SPACE_PX = 20;
+// How far a game's teams sit under the middle of its score or its time, how far its band ends under
+// Final or under its channels, and how far Bonus hangs under its team's record.
+const SCORE_TEAMS_DROP_PX = 3;
+const TIME_TEAMS_DROP_PX = 4;
+const ROOM_BELOW_FINAL_PX = 12;
+const ROOM_BELOW_CHANNELS_PX = 10;
+const BONUS_GAP_PX = 7;
 const TITLE_SPACE_ABOVE_PX = 24;
 const TITLE_SPACE_BELOW_PX = 14;
 const QUARTER_TITLE_SPACE_BELOW_PX = 6;
@@ -247,8 +254,9 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   await expect(sheet.locator(".lead-peak-label")).toHaveCount(2);
   const layout = await sheet.locator(".game-sheet-body").evaluate((body) => {
     const measure = (/** @type {Element} */ element) => element.getBoundingClientRect();
-    const faceoffLines = [.../** @type {Element} */ (body.querySelector(".faceoff")).children];
-    const faceoffBottom = Math.max(...faceoffLines.map((line) => measure(line).bottom));
+    const bandBottom = measure(
+      /** @type {Element} */ (body.closest(".sheet-page")?.querySelector(".sheet-top")),
+    ).bottom;
     const parts = [...body.querySelectorAll(":scope > .sheet-part")].map((part) => {
       const head = measure(/** @type {Element} */ (part.querySelector(".sheet-part-head")));
       const content = measure(/** @type {Element} */ (part.children[1]));
@@ -261,7 +269,7 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
     });
     const rows = [...body.querySelectorAll(".tape-row")].map(measure);
     return {
-      firstSpace: parts[0].top - faceoffBottom,
+      firstSpace: parts[0].top - bandBottom,
       parts,
       rowSpaces: rows.slice(1).map((row, index) => row.top - rows[index].bottom),
     };
@@ -278,26 +286,70 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   for (const space of layout.rowSpaces) expect(space).toBeCloseTo(TAPE_ROW_SPACE_PX, 0);
 });
 
-test("on a phone, a sheet's title and teams sit on the sheet's own color, with no line under them", async ({
+test("on a phone, a game's teams sit at one height under its title whether it's over or live with a side in the bonus, a little under the score's middle, and a step lower beside a start time, and its band ends a little lower under Final than under its channels", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openApp(page);
-  const sheet = await openGameSheet(page, ACES_AT_FEVER);
-  await expect(sheet.locator(".faceoff .score")).toHaveText(/89\s*99/);
-  const top = await sheet.evaluate((dialog) => {
-    const read = (/** @type {string} */ selector) =>
-      getComputedStyle(/** @type {Element} */ (dialog.querySelector(selector)));
-    const sheetColor = getComputedStyle(dialog).backgroundColor;
-    const isSheetColor = (/** @type {string} */ color) =>
-      color === sheetColor || color === "rgba(0, 0, 0, 0)";
-    return {
-      isTitleOnSheet: isSheetColor(read(".sheet-top").backgroundColor),
-      areTeamsOnSheet: isSheetColor(read(".faceoff").backgroundColor),
-      lines: [read(".sheet-top").borderBottomWidth, read(".faceoff").borderBottomWidth],
-    };
-  });
-  expect(top).toEqual({ isTitleOnSheet: true, areTeamsOnSheet: true, lines: ["0px", "0px"] });
+  const app = await openApp(page);
+  await app.changeSeason(startValkyriesAtWings);
+  /** @param {string} name */
+  const measureBand = async (name) => {
+    const sheet = await openGameSheet(page, name);
+    await expect(sheet.locator(".faceoff-score")).toBeVisible();
+    const band = await sheet.locator(".sheet-top").evaluate((top) => {
+      const measure = (/** @type {string} */ selector) =>
+        /** @type {Element} */ (top.querySelector(selector)).getBoundingClientRect();
+      const lines = [...top.querySelectorAll(".faceoff > *")].map((line) =>
+        line.getBoundingClientRect(),
+      );
+      const bandTop = top.getBoundingClientRect().top;
+      const club = measure(".faceoff-side.away .club");
+      const record = measure(".faceoff-side.away .faceoff-record");
+      const score = measure(".faceoff-score");
+      return {
+        title: measure("h2").top - bandTop,
+        teams: club.top - bandTop,
+        teamsDrop: (club.top + record.bottom) / 2 - (score.top + score.bottom) / 2,
+        roomBelow:
+          top.getBoundingClientRect().bottom - Math.max(...lines.map((line) => line.bottom)),
+      };
+    });
+    await page.keyboard.press("Escape");
+    return band;
+  };
+
+  const final = await measureBand(ACES_AT_FEVER);
+  const live = await measureBand(VALKYRIES_AT_WINGS);
+  const upcoming = await measureBand(FEVER_AT_ACES);
+  for (const band of [live, upcoming]) expect(band.title).toBeCloseTo(final.title, 0);
+  expect(live.teams).toBeCloseTo(final.teams, 0);
+  expect(upcoming.teams - final.teams).toBeCloseTo(TIME_TEAMS_DROP_PX - SCORE_TEAMS_DROP_PX, 0);
+  expect(final.teamsDrop).toBeCloseTo(SCORE_TEAMS_DROP_PX, 0);
+  expect(live.teamsDrop).toBeCloseTo(SCORE_TEAMS_DROP_PX, 0);
+  expect(upcoming.teamsDrop).toBeCloseTo(TIME_TEAMS_DROP_PX, 0);
+  expect(final.roomBelow).toBeCloseTo(ROOM_BELOW_FINAL_PX, 0);
+  expect(live.roomBelow).toBeCloseTo(ROOM_BELOW_CHANNELS_PX, 0);
+  expect(upcoming.roomBelow).toBeCloseTo(ROOM_BELOW_CHANNELS_PX, 0);
+});
+
+test("on a phone, Bonus hangs under its own team's record, at its side's edge", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const app = await openApp(page);
+  await app.changeSeason(startValkyriesAtWings);
+  const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
+  const side = sheet.locator(".faceoff-side.home");
+  await expect(side.locator(".bonus")).toHaveText("Bonus");
+  const [record, bonus, sideBox] = await Promise.all([
+    side.locator(".faceoff-record").boundingBox(),
+    side.locator(".bonus").boundingBox(),
+    side.boundingBox(),
+  ]);
+
+  expect(bonus.y - (record.y + record.height)).toBeCloseTo(BONUS_GAP_PX, 0);
+  expect(bonus.x + bonus.width).toBeCloseTo(sideBox.x + sideBox.width, 0);
+  await expect(sheet.locator(".faceoff-side.away .bonus")).toHaveCount(0);
 });
 
 test("a box score's and a preview's two teams line their numbers up column for column, as wide as they can be", async ({
@@ -1120,7 +1172,7 @@ async function openWashingtonSheet(page) {
   return page.locator("#gameSheet");
 }
 
-test("a game's sheet says where to watch it, still once it's over, and its row doesn't", async ({
+test("a game's sheet says where to watch it while it's yet to end, under its time, and not once it's over, and its row doesn't", async ({
   page,
 }) => {
   const app = await openApp(page);
@@ -1129,12 +1181,9 @@ test("a game's sheet says where to watch it, still once it's over, and its row d
   await expect(networks.getByRole("img")).toHaveAttribute("alt", "ESPN");
   await expect(networks.getByRole("img")).toBeVisible();
   await expect(page.locator("#gamePager .network-logo")).toHaveCount(0);
-  const faceOff = await sheet.locator(".faceoff-middle").boundingBox();
+  const faceOff = await sheet.locator(".faceoff-score").boundingBox();
   const logo = await networks.getByRole("img").boundingBox();
   expect(logo.y).toBeGreaterThan(faceOff.y + faceOff.height);
-  const readRoomBelow = () =>
-    sheet.locator(".faceoff").evaluate((element) => getComputedStyle(element).paddingBottom);
-  const roomBelowLogos = await readRoomBelow();
 
   await app.changeSeason((season) => {
     const game = season.games.find((each) => each.id === "1042600132");
@@ -1144,15 +1193,8 @@ test("a game's sheet says where to watch it, still once it's over, and its row d
     return season;
   });
   await expect(sheet.locator(".faceoff-status")).toHaveText("Final");
-  await expect(networks.getByRole("img")).toHaveAttribute("alt", "ESPN");
-
-  await app.changeSeason((season) => {
-    season.games.find((each) => each.id === "1042600132").networks = [];
-    return season;
-  });
   await expect(networks).toHaveCount(0);
   await expect(sheet.locator(".networks")).toHaveCount(0);
-  expect(parseFloat(await readRoomBelow())).toBeGreaterThan(parseFloat(roomBelowLogos));
 });
 
 test("a game yet to end whose channels aren't listed yet says to check back, under its time", async ({
@@ -1166,7 +1208,7 @@ test("a game yet to end whose channels aren't listed yet says to check back, und
   const sheet = await openWashingtonSheet(page);
   const note = sheet.locator(".faceoff .networks-pending");
   await expect(note).toHaveText("Check back for where to watch");
-  const faceOff = await sheet.locator(".faceoff-middle").boundingBox();
+  const faceOff = await sheet.locator(".faceoff-score").boundingBox();
   expect((await note.boundingBox()).y).toBeGreaterThan(faceOff.y + faceOff.height);
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);

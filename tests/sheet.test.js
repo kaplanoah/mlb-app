@@ -72,7 +72,22 @@ class FakeElement extends EventTarget {
     this.scrollLeft = 0;
     this.offsetWidth = 390;
     this.textContent = "";
-    this.style = { zIndex: "", transform: "", visibility: "" };
+    this.style = {
+      zIndex: "",
+      transform: "",
+      visibility: "",
+      /** @type {Record<string, string>} */
+      variables: {},
+      /**
+       * @param {string} name
+       * @param {string} value
+       */
+      setProperty(name, value) {
+        this.variables[name] = value;
+      },
+    };
+    /** @type {Record<string, string>} */
+    this.cssVariables = {};
     /** @type {Set<unknown>} */
     this.animations = new Set();
     /** @type {Set<string>} */
@@ -207,6 +222,11 @@ class FakeElement extends EventTarget {
     focused = this;
   }
 
+  // A fake draws nothing, so everything sits at the top left.
+  getBoundingClientRect() {
+    return { top: 0, bottom: 0, left: 0, right: 0 };
+  }
+
   /** @param {Keyframe[]} keyframes */
   animate(keyframes) {
     return createFakeSlide(this, keyframes);
@@ -258,6 +278,9 @@ function findById(root, id) {
   return null;
 }
 
+// The row of sheets leaves this gap between two side by side, as an app's --sheet-gap does.
+const GAP = "15px";
+
 /**
  * A dialog with a row of sheets, each with a close and a back button, on a wide screen, where a
  * dialog closes at once instead of sliding down, and sheets settle at once unless `isMoving`.
@@ -276,7 +299,13 @@ function createRowDialog(ids, partsById = {}, { isMoving = false } = {}) {
     },
     getElementById: (/** @type {string} */ id) => findById(dialog, id),
   });
+  globalThis.getComputedStyle = /** @type {any} */ (
+    (/** @type {FakeElement} */ element) => ({
+      getPropertyValue: (/** @type {string} */ name) => element.cssVariables[name] ?? "",
+    })
+  );
   const row = dialog.append(new FakeElement({ className: "sheet-row" }));
+  row.cssVariables["--panel-gap"] = GAP;
   /** @typedef {{ sheet: FakeElement, body: FakeElement, closeButton: FakeElement, backButton: FakeElement }} FakeSheet */
   const sheets = /** @type {Record<string, FakeSheet>} */ (
     Object.fromEntries(
@@ -436,7 +465,7 @@ test("the close button and a click on the backdrop close the dialog, and its she
   assert.equal(dialog.open, false);
 });
 
-test("a sheet opened from another comes in over it, with a back button that names it, and only the one shown can be reached", () => {
+test("a sheet opened from another comes in beside it, the row's gap between them, with a back button that names it, and only the one shown can be reached", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
     gameSheet: { name: "Game" },
   });
@@ -446,7 +475,7 @@ test("a sheet opened from another comes in over it, with a back button that name
 
   assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
   assert.deepEqual(readPlaces(row), {
-    gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
+    gameSheet: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
     teamSheet: { zIndex: "1", transform: "" },
   });
   assert.equal(findReachable(row), "teamSheet");
@@ -477,7 +506,7 @@ test("back goes to the sheet before and takes the one it left out of the row, wh
   dialog.close();
 });
 
-test("with motion, a sheet opened from another slides in from the right edge over it, the one under it going a little way left, and is the one shown once the slide ends, with nothing left moving", async () => {
+test("with motion, a sheet opened from another slides in from the right edge beside it, the one under it going out to the left, the row's gap between them, the row marked as sliding for a tap until the sheet is the one shown and nothing is left moving", async () => {
   const { dialog, row, sheets } = createRowDialog(
     ["gameSheet", "teamSheet"],
     {},
@@ -489,17 +518,20 @@ test("with motion, a sheet opened from another slides in from the right edge ove
   const { gameSheet, teamSheet } = sheets;
   assert.deepEqual(
     [gameSheet, teamSheet].map(({ sheet }) => [...sheet.animations].map(readSlideEnds)),
-    [[["none", "translateX(-30%)"]], [["translateX(100%)", "none"]]],
+    [[["none", "translateX(calc(-100% - 15px))"]], [["translateX(calc(100% + 15px))", "none"]]],
   );
   assert.deepEqual(readPlaces(row), {
-    gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
+    gameSheet: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
     teamSheet: { zIndex: "1", transform: "" },
   });
   assert.equal(gameSheet.sheet.style.visibility, "visible");
+  assert.equal(row.getAttribute("data-sliding"), "tap");
+  assert.equal(row.style.variables["--sheet-band-joined"], "0px");
 
   await endSlides();
   assert.equal(findReachable(row), "teamSheet");
   assert.equal(gameSheet.sheet.style.visibility, "");
+  assert.equal(row.getAttribute("data-sliding"), null);
   assert.equal(gameSheet.sheet.animations.size + teamSheet.sheet.animations.size, 0);
   dialog.close();
 });
@@ -542,7 +574,7 @@ test("with motion, a sheet opened again while it slides away stays, and slides b
   click(sheets.teamSheet.backButton);
   open(sheets.teamSheet.sheet);
   assert.deepEqual([...sheets.teamSheet.sheet.animations].map(readSlideEnds), [
-    ["translateX(50%)", "none"],
+    ["translateX(calc(50% + 7.5px))", "none"],
   ]);
   await endSlides();
 
@@ -579,8 +611,8 @@ test("a sheet the stack holds, opened to show something else, comes in over the 
   openTeam("LVA");
 
   assert.deepEqual(readPlaces(row), {
-    copy: { zIndex: "0", transform: "translateX(-30%)" },
-    gameSheet: { zIndex: "1", transform: "translateX(-30%)" },
+    copy: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
+    gameSheet: { zIndex: "1", transform: "translateX(calc(-100% - 15px))" },
     teamSheet: { zIndex: "2", transform: "" },
   });
   assert.equal(findReachable(row), "teamSheet");
@@ -663,7 +695,7 @@ test("a sheet opened again from itself to show something else comes in over itse
 
   openTeam("LVA");
   assert.deepEqual(readPlaces(row), {
-    copy: { zIndex: "0", transform: "translateX(-30%)" },
+    copy: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
     teamSheet: { zIndex: "1", transform: "" },
   });
   assert.equal(readBackLabel(sheets.teamSheet.backButton)?.text, "Team");
@@ -687,7 +719,7 @@ test("closing the dialog takes every copy out of the row", () => {
   assert.deepEqual(listInRow(row), []);
 });
 
-test("with motion, a sheet that leaves a copy slides in from the right edge, and its copy a little way left with the one under it", async () => {
+test("with motion, a sheet that leaves a copy slides in from the right edge, and its copy waits past the left edge with the one under it", async () => {
   const { dialog, row, sheets, openGame, openTeam } = createShowingRow({ isMoving: true });
   openTeam("NYL");
   openGame("game-1");
@@ -699,9 +731,9 @@ test("with motion, a sheet that leaves a copy slides in from the right edge, and
       [...sheet.animations].map(readSlideEnds),
     ),
     [
-      [["translateX(-30%)", "translateX(-30%)"]],
-      [["none", "translateX(-30%)"]],
-      [["translateX(100%)", "none"]],
+      [["translateX(calc(-100% - 15px))", "translateX(calc(-100% - 15px))"]],
+      [["none", "translateX(calc(-100% - 15px))"]],
+      [["translateX(calc(100% + 15px))", "none"]],
     ],
   );
   await endSlides();
@@ -860,7 +892,7 @@ test("a page that loads again puts back a sheet over the one it was opened from,
   ]);
 
   assert.deepEqual(readPlaces(row), {
-    gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
+    gameSheet: { zIndex: "0", transform: "translateX(calc(-100% - 15px))" },
     teamSheet: { zIndex: "1", transform: "" },
   });
   assert.equal(findReachable(row), "teamSheet");

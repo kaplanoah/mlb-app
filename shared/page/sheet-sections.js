@@ -5,7 +5,7 @@ import { selectTab, wireTabs } from "./tabs.js";
 // A sheet's sections under the pills in its top, like a WNBA team's Team and Roster, one shown at a
 // time, side by side, as slide-panels.js moves them: a tap on a pill slides to its section, and a
 // swipe drags the shown section with its neighbor beside it. Each section scrolls up and down on
-// its own under the sheet's still top, which gets a line once the shown section scrolls under it.
+// its own under the sheet's still top.
 
 /**
  * Wires a sheet's pills to its sections, which it shows from the first.
@@ -15,7 +15,6 @@ import { selectTab, wireTabs } from "./tabs.js";
 export function wireSheetSections(sheet) {
   const row = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-sections"));
   const tabList = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top [role=tablist]"));
-  const top = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top"));
   const tabs = /** @type {HTMLButtonElement[]} */ ([...tabList.querySelectorAll("[role=tab]")]);
   const keys = tabs.map((tab) => tab.dataset.tab ?? "");
   const sections = tabs.map(
@@ -25,7 +24,6 @@ export function wireSheetSections(sheet) {
   const thumb = createPillThumb(tabList);
 
   const findShownSection = () => sections[panels.readShown()];
-  const markHeld = () => top.classList.toggle("stuck", findShownSection().scrollTop > 0);
 
   const panels = createSlidePanels(row, {
     listPanels: () => sections,
@@ -35,7 +33,6 @@ export function wireSheetSections(sheet) {
       selectTab(tabs, keys[index]);
       thumb.moveThumb(index, { isSliding });
     },
-    onSettle: markHeld,
     onDrag: (position) => thumb.moveThumb(position),
   });
 
@@ -57,7 +54,6 @@ export function wireSheetSections(sheet) {
     showSection(keys[0], true);
   }
 
-  for (const section of sections) section.addEventListener("scroll", markHeld, { passive: true });
   wireTabs(tabs, (key) => showSection(key));
   showSection(keys[0], true);
 
