@@ -35,6 +35,9 @@ jobs:
         run: bash probe/serve.sh head "$GITHUB_SHA" 8703
       - name: Screenshot each version opened on Games
         run: |
+          # Safari's first page shows a tip over its toolbar, which a page opened later doesn't.
+          xcrun simctl openurl "$PHONE_UDID" http://127.0.0.1:8703/robots.txt
+          sleep 15
           bash probe/shoot.sh broken-open http://127.0.0.1:8701/probe/ 45
           bash probe/shoot.sh fixed-open http://127.0.0.1:8702/probe/ 45
           bash probe/shoot.sh head-open http://127.0.0.1:8703/probe/ 45

@@ -12,6 +12,7 @@ echo "$label is $(git log -1 --format='%h %s')"
 grep -n 'will-change' shared/page/pager.css || echo "$label: pager.css has no will-change"
 npm ci --no-audit --no-fund --loglevel=error
 node "$GITHUB_WORKSPACE/probe/inject.mjs" apps/wnba/page/index.html
+bash "$GITHUB_WORKSPACE/probe/use-fixtures.sh" "$GITHUB_WORKSPACE" .
 npm run build -- wnba
 cd apps/wnba/worker
 nohup wrangler dev --ip 127.0.0.1 --port "$port" --var APP_KEY:probe \

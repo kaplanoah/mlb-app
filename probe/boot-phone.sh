@@ -14,7 +14,9 @@ runtime=$(node -e '
 device_type=$(node -e '
   const { runtimes } = JSON.parse(process.argv[1]);
   const runtime = runtimes.find((r) => r.identifier === process.argv[2]);
-  const phones = runtime.supportedDeviceTypes.filter((t) => /^iPhone \d+ Pro$/.test(t.name));
+  const number = (t) => Number(/^iPhone (\d+) Pro$/.exec(t.name)?.[1] ?? 0);
+  const phones = runtime.supportedDeviceTypes.filter((t) => number(t) > 0);
+  phones.sort((a, b) => number(a) - number(b));
   const pick = phones.at(-1) ?? runtime.supportedDeviceTypes.filter((t) => t.productFamily === "iPhone").at(-1);
   console.log(pick.identifier);
 ' "$runtimes" "$runtime")

@@ -5,7 +5,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 const script = `<script>
 (function () {
   var click = location.search.indexOf("probe=click") >= 0;
-  try { localStorage.setItem("lastTab", click ? "bracket" : "games"); } catch (error) {}
+  try {
+    localStorage.setItem("lastTab", click ? "bracket" : "games");
+    localStorage.setItem("updatesSeenAt", JSON.stringify(Date.now()));
+    localStorage.setItem("homeScreenBarClosed", "closed");
+  } catch (error) {}
   function report(stage) {
     var pages = document.querySelector("#view-games .pager-pages");
     var rect = pages ? pages.getBoundingClientRect() : null;
