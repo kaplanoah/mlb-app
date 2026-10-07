@@ -2219,28 +2219,28 @@ table.standings tr.playoff-line + tr td {
 }
 
 /* On a wide screen, Walnut's selected tab reads a step heavier on its bright orange. Each tab's
-   label keeps room for itself at both weights, in hidden copies under it, so choosing a tab never
-   changes its width. */
+   label keeps room for itself at both weights, in hidden copies under it, in both themes, so
+   choosing a tab never changes its width and the tabs lay out the same in each. */
 @media (min-width: 780px) {
   :root[data-theme="dark"] .tab-list button.active {
     font-weight: 500;
   }
   /* Its hidden copies come first and last, so the label lines up by its top, not their baselines. */
-  :root[data-theme="dark"] .tab-label {
+  .tab-label {
     display: inline-grid;
     vertical-align: top;
   }
-  :root[data-theme="dark"] .tab-label::before,
-  :root[data-theme="dark"] .tab-label::after {
+  .tab-label::before,
+  .tab-label::after {
     content: attr(data-label);
     height: 0;
     overflow: hidden;
     visibility: hidden;
   }
-  :root[data-theme="dark"] .tab-label::before {
+  .tab-label::before {
     font-weight: 400;
   }
-  :root[data-theme="dark"] .tab-label::after {
+  .tab-label::after {
     font-weight: 500;
   }
 }

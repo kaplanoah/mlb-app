@@ -1859,6 +1859,8 @@ test("on a wide screen, Walnut's selected tab reads heavier, Maple's doesn't, an
       }),
     );
   const games = page.getByRole("tab", { name: "Games" });
+  // A weight's face that arrives between the readings would widen only the later one.
+  await page.evaluate(() => document.fonts.ready);
   const mapleBoxes = await readBoxes();
 
   await page.emulateMedia({ colorScheme: "dark" });

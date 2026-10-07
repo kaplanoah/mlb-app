@@ -1,8 +1,9 @@
 // While Diagnostics is on in settings, each open of the page, and each return to it, records what
 // the page draws in its first seconds: what the store sends, and how much each part it draws whole
 // (each `data-last-drawn` element) shows, frame by frame. The last few records stay on this device,
-// for the viewer to copy from settings, under the logs of the viewport's changes (viewport-log.js)
-// and of what each dialog's row of sheets does (sheet-log.js).
+// for the viewer to copy from settings, under the logs of the viewport's changes (viewport-log.js),
+// of what each dialog's row of sheets does (sheet-log.js), and of each touch at the tab bar
+// (tab-bar-log.js).
 // It records nothing while it's off, which it starts as.
 
 import { formatClockTime, formatClockTimeWithSeconds, nameDay } from "./days.js";
@@ -14,6 +15,12 @@ import {
   watchSheets,
   writeSheetLinesAsText,
 } from "./sheet-log.js";
+import {
+  forgetTabBarLines,
+  readTabBarLines,
+  watchTabBar,
+  writeTabBarLinesAsText,
+} from "./tab-bar-log.js";
 import {
   forgetViewportLines,
   readViewportLines,
@@ -80,6 +87,7 @@ function saveSwitch(isOn) {
       localStorage.removeItem(RECORDS_KEY);
       forgetViewportLines();
       forgetSheetLines();
+      forgetTabBarLines();
     }
   } catch {
     /* the switch stays as it was */
@@ -312,19 +320,22 @@ const renderViewportLine = (line) =>
     ><span>${line.text}</span>
   </li>`;
 
-/** @param {import("./sheet-log.js").SheetLine} line */
-const renderSheetLine = (line) =>
+/** @param {import("./line-log.js").LogLine} line */
+const renderLogLine = (line) =>
   html`<li>
     <span class="diagnostics-ms">${formatClockTimeWithSeconds(new Date(line.at))}</span
     ><span>${line.text}</span>
   </li>`;
 
-/** @param {import("./sheet-log.js").SheetLine[]} lines newest first */
-const renderSheets = (lines) =>
+/**
+ * @param {string} heading
+ * @param {import("./line-log.js").LogLine[]} lines newest first
+ */
+const renderLog = (heading, lines) =>
   html`<details class="diagnostics-record">
-    <summary><span class="diagnostics-when">Sheets</span></summary>
+    <summary><span class="diagnostics-when">${heading}</span></summary>
     <ol class="diagnostics-lines diagnostics-viewport">
-      ${lines.map(renderSheetLine)}
+      ${lines.map(renderLogLine)}
     </ol>
   </details>`;
 
@@ -346,10 +357,14 @@ function renderRecords() {
   const records = readRecords().toReversed();
   const viewportLines = readViewportLines().toReversed();
   const sheetLines = readSheetLines().toReversed();
+  const tabBarLines = readTabBarLines().toReversed();
+  const hasAnything = [records, viewportLines, sheetLines, tabBarLines].some(
+    (lines) => lines.length > 0,
+  );
   return html`<div class="diagnostics-head">
       <h3>Recent opens</h3>
       ${
-        (records.length > 0 || viewportLines.length > 0 || sheetLines.length > 0) &&
+        hasAnything &&
         html`<button type="button" class="diagnostics-copy" id="diagnosticsCopy">
         ${isCopied ? "Copied" : "Copy"}
       </button>`
@@ -361,7 +376,8 @@ function renderRecords() {
         : html`<p class="diagnostics-empty">Nothing yet. Each open from now on shows here.</p>`
     }
     ${viewportLines.length > 0 && renderViewport(viewportLines)}
-    ${sheetLines.length > 0 && renderSheets(sheetLines)}`;
+    ${sheetLines.length > 0 && renderLog("Sheets", sheetLines)}
+    ${tabBarLines.length > 0 && renderLog("Tab bar", tabBarLines)}`;
 }
 
 function drawRecords() {
@@ -385,7 +401,10 @@ async function copyRecords() {
     const records = writeRecordsAsText(readRecords().toReversed(), new Date());
     const viewport = writeViewportAsText(readViewportLines().toReversed());
     const sheets = writeSheetLinesAsText(readSheetLines().toReversed());
-    await navigator.clipboard.writeText([records, viewport, sheets].filter(Boolean).join("\n\n"));
+    const tabBar = writeTabBarLinesAsText(readTabBarLines().toReversed());
+    await navigator.clipboard.writeText(
+      [records, viewport, sheets, tabBar].filter(Boolean).join("\n\n"),
+    );
     isCopied = true;
   } catch {
     isCopied = false;
@@ -401,7 +420,7 @@ function followSectionClick(event) {
 /**
  * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), and,
  * while the switch is on, records this load, each return to the page, each change to the
- * viewport, and each step of a dialog's row of sheets. A page that leaves the screen keeps what it recorded so far, as when it reloads for a
+ * viewport, each step of a dialog's row of sheets, and each touch at the tab bar. A page that leaves the screen keeps what it recorded so far, as when it reloads for a
  * new release or the phone drops it. The page starts it before drawing anything, so a load's first
  * reading is what show-last-drawn.js put back.
  */
@@ -418,4 +437,5 @@ export function startDiagnostics() {
   addEventListener("pagehide", finishRecord);
   watchViewport(isRecording, drawRecords);
   watchSheets(isRecording, drawRecords);
+  watchTabBar(isRecording, drawRecords);
 }

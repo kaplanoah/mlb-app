@@ -466,7 +466,7 @@ test("a round's Best of, in the text face, sits half a pixel above its name's ba
           return { baseline, font };
         }),
       );
-  await expect.poll(async () => (await readParts())[1].font).toBe("Barlow");
+  await expect.poll(async () => (await readParts())[1]?.font).toBe("Barlow");
   const [name, bestOf] = await readParts();
   expect(name.baseline - bestOf.baseline).toBeCloseTo(0.5, 1);
 });
