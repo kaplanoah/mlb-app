@@ -28,9 +28,9 @@ const POLL_LIVE_MS = 15 * 1000;
 const NUMBER_COLUMN_PX = 52;
 // The type scale's smallest size, which the lead chart's words show at with no room above or below.
 const SMALLEST_TEXT_PX = 13;
-// The room between the line under the teams and the first part's title, above each later title,
-// below each title, below By quarter's, and between a tape's rows.
-const FIRST_TITLE_SPACE_PX = 15;
+// The room between the teams' last line and the first part's title, above each later title, below
+// each title, below By quarter's, and between a tape's rows.
+const FIRST_TITLE_SPACE_PX = 38;
 const TITLE_SPACE_ABOVE_PX = 24;
 const TITLE_SPACE_BELOW_PX = 14;
 const QUARTER_TITLE_SPACE_BELOW_PX = 6;
@@ -247,7 +247,8 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   await expect(sheet.locator(".lead-peak-label")).toHaveCount(2);
   const layout = await sheet.locator(".game-sheet-body").evaluate((body) => {
     const measure = (/** @type {Element} */ element) => element.getBoundingClientRect();
-    const faceoff = measure(/** @type {Element} */ (body.querySelector(".faceoff")));
+    const faceoffLines = [.../** @type {Element} */ (body.querySelector(".faceoff")).children];
+    const faceoffBottom = Math.max(...faceoffLines.map((line) => measure(line).bottom));
     const parts = [...body.querySelectorAll(":scope > .sheet-part")].map((part) => {
       const head = measure(/** @type {Element} */ (part.querySelector(".sheet-part-head")));
       const content = measure(/** @type {Element} */ (part.children[1]));
@@ -260,7 +261,7 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
     });
     const rows = [...body.querySelectorAll(".tape-row")].map(measure);
     return {
-      firstSpace: parts[0].top - faceoff.bottom,
+      firstSpace: parts[0].top - faceoffBottom,
       parts,
       rowSpaces: rows.slice(1).map((row, index) => row.top - rows[index].bottom),
     };

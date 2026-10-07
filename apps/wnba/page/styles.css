@@ -725,7 +725,7 @@ header.top h1 {
   --top-room-below: 23px;
 }
 #gameSheet {
-  --top-room-below: 15px;
+  --top-room-below: 27px;
 }
 .sheet-page .sheet-top {
   padding-top: calc(env(safe-area-inset-top) + var(--top-room-above));
