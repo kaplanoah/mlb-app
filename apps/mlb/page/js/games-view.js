@@ -1,5 +1,5 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
-import { renderPlainClub } from "./clubs.js";
+import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
 import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
 import { fillGameLists } from "#shared/game-pager.js";
 import { html } from "#shared/html.js";
@@ -102,9 +102,9 @@ function renderStarterLine(starter, place, isPending) {
   return isPending && renderPendingStarter(place);
 }
 
-function describeSide(id, place, starter, hasWon, isPending) {
+function describeSide(id, place, starter, hasWon, isPending, renderClubLine) {
   return {
-    lines: html`${renderSideClub(id)}${renderFacts(id)}`,
+    lines: html`${id ? renderClubLine(id) : renderSideClub(id)}${renderFacts(id)}`,
     classes: [hasWon && "won", isOut(id) && "out"],
     extra: renderStarterLine(starter, place, isPending),
   };
@@ -148,24 +148,18 @@ function renderStatus(game) {
   return Boolean(status) && html`${status}${renderOutLights(game)}`;
 }
 
-// The whole row, or an update about the game, opens the matchup sheet, which needs only what the
-// row shows, and whether the game is today's, when a club yet to name its starter shows who it
+const nameSide = (id) => (id ? nameTeam(id) : "TBD");
+
+/** @param {{ away?: string, home?: string }} game */
+export const nameGame = (game) => `${nameSide(game.away)} @ ${nameSide(game.home)}`;
+
+// The whole row, or an update about the game, opens the game's sheet, which carries the game as
+// the row shows it, and whether it's today's, when a club yet to name its starter shows who it
 // might be.
-export function renderMatchupButton(game, isToday) {
-  const { date, start, state, tbd, doubleheader, away, home, starters = [] } = game;
-  const names = [starters[0], starters[1]].map((starter) => starter?.name || "TBD");
-  const details = JSON.stringify({
-    date,
-    start,
-    state,
-    tbd,
-    doubleheader,
-    away,
-    home,
-    starters,
-    today: isToday,
-  });
-  return html`<button type="button" class="game-open" aria-label="Pitching matchup: ${names.join(" vs ")}" data-game="${details}"></button>`;
+export function renderGameButton(game, isToday) {
+  const label = `Game details: ${nameSide(game.away)} at ${nameSide(game.home)}, ${formatGameDay(game.date)}`;
+  const details = JSON.stringify({ ...game, today: isToday });
+  return html`<button type="button" class="game-open" aria-label="${label}" data-game="${details}"></button>`;
 }
 
 const isAwaitingStarter = (game, id, starter, isToday) =>
@@ -174,8 +168,9 @@ const isAwaitingStarter = (game, id, starter, isToday) =>
 /**
  * @param {object | null} series the postseason series the game belongs to, when it's labeled
  * @param {boolean} isToday
+ * @param {(id: string) => any} renderClubLine
  */
-function renderGame(game, series, isToday) {
+function describeGameRow(game, series, isToday, renderClubLine) {
   const [awayScore, homeScore] = game.score || [];
   const isFinal = game.state === "final";
   const awayLost = isFinal && awayScore < homeScore;
@@ -183,15 +178,28 @@ function renderGame(game, series, isToday) {
   const [awayStarter, homeStarter] = game.starters || [];
   const isAwayPending = isAwaitingStarter(game, game.away, awayStarter, isToday);
   const isHomePending = isAwaitingStarter(game, game.home, homeStarter, isToday);
-  return renderGameRow({
+  return {
     classes: [game.state, game.delay && "delayed"],
-    away: describeSide(game.away, "away", awayStarter, homeLost, isAwayPending),
-    home: describeSide(game.home, "home", homeStarter, awayLost, isHomePending),
+    away: describeSide(game.away, "away", awayStarter, homeLost, isAwayPending, renderClubLine),
+    home: describeSide(game.home, "home", homeStarter, awayLost, isHomePending, renderClubLine),
     label: Boolean(series) && renderSeriesLabel(game, series),
     headline: renderHeadline(game, awayLost, homeLost),
     status: renderStatus(game),
-    action: renderMatchupButton(game, isToday),
+  };
+}
+
+function renderGame(game, series, isToday) {
+  return renderGameRow({
+    ...describeGameRow(game, series, isToday, renderSideClub),
+    action: renderGameButton(game, isToday),
   });
+}
+
+// A game's sheet heads its Game section with the game's row, whose clubs each open their own
+// sheet, and leaves its starters to the line under it.
+export function renderGameFaceOff(game) {
+  const row = describeGameRow({ ...game, starters: [] }, findGameSeries(game), false, renderClub);
+  return html`<ul class="game-list game-faceoff">${renderGameRow(row)}</ul>`;
 }
 
 // A doubleheader's games sit together in game order, since MLB can list game 2 with the earlier start.
@@ -233,6 +241,10 @@ function describeMissingSlate() {
   if (session.activeYear !== session.currentSeason) return "Games show for the current season only";
   return "Games appear here as soon as the page can reach MLB";
 }
+
+/** Every game the slate lists, each with its day. */
+export const listSlateGames = (slate) =>
+  ["previous", "today", "next"].flatMap((list) => listGames(slate, list));
 
 export function renderGameList(slate, list) {
   if (!slate) return html`<p class="stand-empty">${describeMissingSlate()}</p>`;

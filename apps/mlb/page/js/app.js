@@ -12,7 +12,7 @@ import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
 import { startPageTabs } from "#shared/page-tabs.js";
-import { startMatchups } from "./matchup.js";
+import { startGameSheet } from "./game-sheet.js";
 import { REORDER_EVENT } from "./ranking.js";
 import { renderAll } from "./render.js";
 import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
@@ -80,7 +80,7 @@ function showChoicesFromOtherTabs() {
 function wireControls() {
   startPageTabs();
   startGamePager();
-  startMatchups();
+  startGameSheet();
   startTeamSheet({
     isTeam: (id) => id in TEAMS,
     renderSheet: (id) => renderTeamSheet(id),
