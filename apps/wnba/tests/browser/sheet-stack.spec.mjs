@@ -524,6 +524,8 @@ test("on a phone, while a finger moves a player's sheet, the game's stays a gap 
     playerSheet.locator(".sheet-top").evaluate((top) => getComputedStyle(top).boxShadow);
 
   const release = await drag(page, { x: 60, y: 400 }, { x: 160 }, { durationMs: 600 });
+  await expect(row).toHaveAttribute("data-sliding", "finger");
+  await expect(row).toHaveCSS("background-image", "none");
   expect(await readBandShadow()).toBe(
     `${line} 0px -1px 0px 0px inset, ${line} 1px 0px 0px 0px inset, ${line} -1px 0px 0px 0px inset`,
   );
@@ -541,4 +543,58 @@ test("on a phone, while a finger moves a player's sheet, the game's stays a gap 
     "box-shadow",
     `${line} 0px -1px 0px 0px inset`,
   );
+});
+
+test("on a phone, a tap on back slides the two sheets as one, the gap taking the band's color down to where the shorter band ends, with no line down the bands' sides", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const gameSheet = await openGame(page);
+  await gameSheet.locator(".players .player-open").first().click();
+  const playerSheet = page.locator("#playerSheet");
+  await expectShown(playerSheet);
+  const line = await readTokenColor(page, "--edge");
+  const sharedBand = await page.evaluate(() => {
+    const row = /** @type {Element} */ (document.querySelector("#sheetDialog .sheet-row"));
+    const readBottom = (/** @type {string} */ id) =>
+      /** @type {Element} */ (document.querySelector(`#${id} .sheet-top`)).getBoundingClientRect()
+        .bottom - row.getBoundingClientRect().top;
+    return Math.min(readBottom("gameSheet"), readBottom("playerSheet"));
+  });
+  await page.evaluate(() => {
+    const row = /** @type {Element} */ (document.querySelector("#sheetDialog .sheet-row"));
+    const top = /** @type {Element} */ (document.querySelector("#playerSheet .sheet-top"));
+    const frames = /** @type {object[]} */ ([]);
+    const note = () => {
+      const style = getComputedStyle(row);
+      if (row.getAttribute("data-sliding"))
+        frames.push({
+          sliding: row.getAttribute("data-sliding"),
+          joined: parseFloat(style.getPropertyValue("--sheet-band-joined")),
+          isFilled: style.backgroundImage.startsWith("linear-gradient"),
+          sides: getComputedStyle(top).boxShadow,
+        });
+      if (!(/** @type {any} */ (window).isTrackingDone)) requestAnimationFrame(note);
+    };
+    Object.assign(window, { trackedFrames: frames, isTrackingDone: false });
+    requestAnimationFrame(note);
+  });
+
+  await playerSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
+  await expectShown(gameSheet);
+  const frames = await page.evaluate(() => {
+    Object.assign(window, { isTrackingDone: true });
+    return /** @type {any[]} */ (/** @type {any} */ (window).trackedFrames);
+  });
+
+  expect(frames.length).toBeGreaterThan(2);
+  for (const frame of frames)
+    expect(frame).toEqual({
+      sliding: "tap",
+      joined: expect.closeTo(sharedBand, 0),
+      isFilled: true,
+      sides: `${line} 0px -1px 0px 0px inset`,
+    });
+  await expect(page.locator("#sheetDialog .sheet-row")).toHaveCSS("background-image", "none");
 });

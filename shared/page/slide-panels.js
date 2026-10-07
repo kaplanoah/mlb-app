@@ -3,7 +3,8 @@
 // panels slide to rest on one. Where the panels are is one number, the position, which runs from
 // 0 at the first panel to the last's index; each caller says where a panel sits for a position.
 // Panels a whole width apart sit the row's --panel-gap apart too, so the row's own color shows
-// between them while they move, and the row carries data-sliding until they rest.
+// between them while they move, and the row carries data-sliding until they rest: "finger" while
+// a finger drags them and as they settle from its swipe, and "tap" for a slide a tap asked for.
 // A slide is an animation with no fill, so the end state goes into the panels' style as it starts,
 // and once it ends, or is cancelled, the panels settle: all but the shown one hidden and inert,
 // with nothing left animating.
@@ -86,16 +87,17 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
     placePanels(at);
   }
 
-  /** @param {boolean} isMoving */
-  function revealPanels(isMoving) {
-    row.toggleAttribute("data-sliding", isMoving);
-    for (const panel of listPanels()) panel.style.visibility = isMoving ? "visible" : "";
+  /** @param {"finger" | "tap" | null} cause what moves the panels, or null once they rest */
+  function revealPanels(cause) {
+    if (cause) row.setAttribute("data-sliding", cause);
+    else row.removeAttribute("data-sliding");
+    for (const panel of listPanels()) panel.style.visibility = cause ? "visible" : "";
   }
 
   function rest() {
     position = shown;
     placePanels(shown);
-    revealPanels(false);
+    revealPanels(null);
     listPanels().forEach((panel, index) => {
       panel.inert = index !== shown;
     });
@@ -117,14 +119,15 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
    * Slides the panels from wherever they are to rest on the one at `index`, which counts as shown
    * from the start.
    * @param {number} index
+   * @param {"finger" | "tap"} [cause] a finger's swipe the slide finishes, or a tap
    */
-  function slideTo(index) {
+  function slideTo(index, cause = "tap") {
     hold();
     const from = position;
     shown = index;
     onShow?.(index, true);
     if (from === index || prefersReducedMotion()) return rest();
-    revealPanels(true);
+    revealPanels(cause);
     position = index;
     const gap = readGap(row);
     const animations = listPanels().map((panel, panelIndex) => {
@@ -157,7 +160,7 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
     hold();
     const width = row.clientWidth || 1;
     position = shown + direction * share * (width / (width + readGap(row)));
-    revealPanels(true);
+    revealPanels("finger");
     placePanels(position);
     onDrag?.(position);
   }
@@ -165,7 +168,7 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
   followSideSwipes(row, {
     canGo,
     follow: drag,
-    settle: (direction, isGoing) => slideTo(isGoing ? shown + direction : shown),
+    settle: (direction, isGoing) => slideTo(isGoing ? shown + direction : shown, "finger"),
   });
 
   return { hold, jumpTo, slideTo, readShown: () => shown };

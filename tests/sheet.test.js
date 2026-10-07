@@ -72,7 +72,20 @@ class FakeElement extends EventTarget {
     this.scrollLeft = 0;
     this.offsetWidth = 390;
     this.textContent = "";
-    this.style = { zIndex: "", transform: "", visibility: "" };
+    this.style = {
+      zIndex: "",
+      transform: "",
+      visibility: "",
+      /** @type {Record<string, string>} */
+      variables: {},
+      /**
+       * @param {string} name
+       * @param {string} value
+       */
+      setProperty(name, value) {
+        this.variables[name] = value;
+      },
+    };
     /** @type {Record<string, string>} */
     this.cssVariables = {};
     /** @type {Set<unknown>} */
@@ -119,15 +132,6 @@ class FakeElement extends EventTarget {
   removeAttribute(name) {
     if (name === "id") this.id = "";
     this.attributes.delete(name);
-  }
-
-  /**
-   * @param {string} name
-   * @param {boolean} isOn
-   */
-  toggleAttribute(name, isOn) {
-    if (isOn) this.attributes.set(name, "");
-    else this.attributes.delete(name);
   }
 
   /** @param {FakeElement} sibling */
@@ -216,6 +220,11 @@ class FakeElement extends EventTarget {
 
   focus() {
     focused = this;
+  }
+
+  // A fake draws nothing, so everything sits at the top left.
+  getBoundingClientRect() {
+    return { top: 0, bottom: 0, left: 0, right: 0 };
   }
 
   /** @param {Keyframe[]} keyframes */
@@ -497,7 +506,7 @@ test("back goes to the sheet before and takes the one it left out of the row, wh
   dialog.close();
 });
 
-test("with motion, a sheet opened from another slides in from the right edge beside it, the one under it going out to the left, the row's gap between them, the row marked sliding until the sheet is the one shown and nothing is left moving", async () => {
+test("with motion, a sheet opened from another slides in from the right edge beside it, the one under it going out to the left, the row's gap between them, the row marked as sliding for a tap until the sheet is the one shown and nothing is left moving", async () => {
   const { dialog, row, sheets } = createRowDialog(
     ["gameSheet", "teamSheet"],
     {},
@@ -516,12 +525,13 @@ test("with motion, a sheet opened from another slides in from the right edge bes
     teamSheet: { zIndex: "1", transform: "" },
   });
   assert.equal(gameSheet.sheet.style.visibility, "visible");
-  assert.equal(row.hasAttribute("data-sliding"), true);
+  assert.equal(row.getAttribute("data-sliding"), "tap");
+  assert.equal(row.style.variables["--sheet-band-joined"], "0px");
 
   await endSlides();
   assert.equal(findReachable(row), "teamSheet");
   assert.equal(gameSheet.sheet.style.visibility, "");
-  assert.equal(row.hasAttribute("data-sliding"), false);
+  assert.equal(row.getAttribute("data-sliding"), null);
   assert.equal(gameSheet.sheet.animations.size + teamSheet.sheet.animations.size, 0);
   dialog.close();
 });

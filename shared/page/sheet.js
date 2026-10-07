@@ -299,11 +299,38 @@ function settleOnShown(dialog) {
 }
 
 /**
+ * How far down the row two sheets' bands both reach, as far as each still shows.
+ * @param {HTMLElement} row
+ * @param {(HTMLElement | undefined)[]} sheets
+ */
+function measureSharedBand(row, sheets) {
+  const rowTop = row.getBoundingClientRect().top;
+  const reaches = sheets.map((sheet) => {
+    const top = sheet?.querySelector(".sheet-top");
+    return top ? top.getBoundingClientRect().bottom - rowTop : 0;
+  });
+  return Math.max(0, Math.min(...reaches));
+}
+
+// A slide a tap starts carries two sheets as one, so the row fills the gap between their bands down
+// to where the shorter one ends, as sheet.css draws it from --sheet-band-joined.
+/**
+ * @param {HTMLDialogElement} dialog
+ * @param {(HTMLElement | undefined)[]} sheets
+ */
+function joinBands(dialog, sheets) {
+  const row = findRow(dialog);
+  if (row) row.style.setProperty("--sheet-band-joined", `${measureSharedBand(row, sheets)}px`);
+}
+
+/**
  * @param {HTMLDialogElement} dialog
  * @param {number} index
  */
 function slideToSheet(dialog, index) {
-  noteSheetStep(`slide to ${nameSheet(listStack(dialog)[index])}`);
+  const sheets = listStack(dialog);
+  noteSheetStep(`slide to ${nameSheet(sheets[index])}`);
+  joinBands(dialog, [sheets[readShownIndex(dialog)], sheets[index]]);
   panelsByDialog.get(dialog)?.slideTo(index);
 }
 
