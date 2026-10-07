@@ -149,6 +149,33 @@ test.describe("with reduced motion", () => {
         expect(top, sheet.id).toEqual({ isSheetColor: true, border: "0px", shadow: "none" });
   });
 
+  for (const theme of ["light", "dark"])
+    test(`in ${theme}, every sheet, its roster's pinned cells, and settings are the page's own color, so the cards in them are raised as on the page`, async ({
+      page,
+    }) => {
+      await openApp(page);
+      await page.evaluate((name) => (document.documentElement.dataset.theme = name), theme);
+      const { teamSheet } = await openFeverFromGame(page);
+      await teamSheet.getByRole("tab", { name: "Roster" }).click();
+      const roster = page.locator("#rosterSection");
+      await roster.getByRole("button", { name: "Aliyah Boston" }).click();
+      await expect(page.locator("#playerSheet .player-facts")).toBeVisible();
+      const floor = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+      const sheetColors = await page
+        .locator(".sheet-page")
+        .evaluateAll((sheets) => sheets.map((sheet) => getComputedStyle(sheet).backgroundColor));
+      const pinnedColors = await roster
+        .locator("table.roster :is(thead, .roster-player)")
+        .evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell).backgroundColor));
+      expect(sheetColors).toEqual([floor, floor, floor]);
+      expect(new Set(pinnedColors)).toEqual(new Set([floor]));
+
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await expect(page.locator(".settings-panel")).toHaveCSS("background-color", floor);
+    });
+
   test("on a phone, every sheet fills the screen, whatever it holds", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await openApp(page);

@@ -87,7 +87,7 @@
   overscroll-behavior-y: none;
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  background: var(--card);
+  background: var(--sheet);
 }
 /* A sheet with sections holds its top still and scrolls each section on its own, side by side
    under it. They stop at the first and last as the row of sheets does, and sheet-edge-swipe.js

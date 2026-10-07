@@ -34,6 +34,7 @@
   --size-setting-note: 0.875rem;
   --bg: #0d1f16;
   --card: #132a1f;
+  --sheet: var(--card);
   --card-border: #2a4536;
   --ink: #f1ead4;
   --ink-dim: #7fa88f;
