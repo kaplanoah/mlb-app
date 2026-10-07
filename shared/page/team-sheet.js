@@ -1,9 +1,11 @@
 // The sheet a team's name or dot opens wherever it shows. Phones show it as a sheet from the
 // bottom, wider screens as a modal, like a game's sheet, beside a sheet it opens from, and in place
-// of another team's. Each league hands it which teams it knows and what a team's sheet shows, and
-// builds the buttons that open it with renderTeamSheetButton. A league may put an action across
-// from the title, like the WNBA's Roster, and name the sheet that waits beside it for a swipe left.
+// of another team's. Each league hands it which teams it knows and what a team's sheet shows, like
+// the cards of its nearest games (game-cards.js), and builds the buttons that open it with
+// renderTeamSheetButton. A league may put an action across from the title, like the WNBA's Roster,
+// and name the sheet that waits beside it for a swipe left.
 
+import { fitGameCards, watchGameCards } from "./game-cards.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { renderSheetPart } from "./sheet-part.js";
 import { openSheet, wireSheet } from "./sheet.js";
@@ -39,6 +41,7 @@ function renderSheet() {
   const actionSlot = document.getElementById("teamAction");
   if (actionSlot) setHtml(actionSlot, action || "");
   setHtml(findElement("teamBody"), body);
+  fitGameCards(findElement("teamBody"));
 }
 
 /** @param {string} team */
@@ -93,6 +96,7 @@ export function startTeamSheet(teams) {
     },
   });
   findElement("teamBody").addEventListener("click", showAllTitlesOnTap);
+  watchGameCards(findElement("teamBody"));
   document.addEventListener("click", openFromTap);
 }
 

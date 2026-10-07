@@ -1,10 +1,13 @@
-import { countDaysBetween, formatClockTime } from "#shared/days.js";
+import { countDaysBetween, formatClockTime, formatShortDate } from "#shared/days.js";
+import { renderGameCards } from "#shared/game-cards.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderTapeRow } from "#shared/tape.js";
 import { renderTitles } from "#shared/team-sheet.js";
 import { renderDot, renderTeamName } from "./clubs.js";
 import { describeDay, readGameDay } from "./days.js";
+import { describeLiveClock, describeStartTime } from "./games-view.js";
+import { findNearestGames } from "./nearest-games.js";
 import { nameTeam, readPlayoffRuns } from "./series.js";
 import { formatTeamColors } from "./sheet-colors.js";
 import { describeNumbers, describeRecords, renderPlayerTable } from "./sheet-parts.js";
@@ -19,7 +22,7 @@ import { TEAMS } from "./teams.js";
 /** @typedef {{ seed: number | null, round: number, isOut: boolean, isChampion: boolean }} Run */
 /** @typedef {{ team: string, id: number, firstName: string, lastName: string, games: number, minutes?: number, points: number, rebounds: number, assists: number, fieldGoalShare?: number | null }} Leader */
 /** @typedef {{ label: string, title: string, read: (leader: Leader) => string, isQuiet?: boolean }} LeaderColumn */
-/** @typedef {{ series?: Series[], standings?: StandingsRow[], games?: Game[], leaders?: Leader[] }} Season */
+/** @typedef {{ series?: Series[], standings?: StandingsRow[], games?: Game[], nearestGames?: Game[], leaders?: Leader[] }} Season */
 /** @typedef {{ record: string | null, pointsFor: number | null, pointsAgainst: number | null, margin: number | null, home: string | null, road: string | null }} PhaseStats */
 
 /**
@@ -483,6 +486,61 @@ function renderPlayoffs(team, { finished, next }, chip, { isPlaying, field, now 
 }
 
 /**
+ * A team's nearest games: its last, the one it's playing, and its next, from every game of the
+ * season, or from its playoff games for a season saved before it kept the others.
+ * @param {Season} season
+ * @param {string} team
+ */
+function readNearestGames(season, team) {
+  const decided = new Set(
+    (season.series ?? []).filter((series) => series.winner).map((series) => series.id),
+  );
+  return findNearestGames(season.nearestGames ?? season.games ?? [], team, decided);
+}
+
+/** @param {Game} game */
+function describeCardDay(game) {
+  const day = readGameDay(game);
+  return day ? formatShortDate(day) : "";
+}
+
+/**
+ * @param {Game} game
+ * @param {string} team
+ * @returns {import("#shared/game-cards.js").GameCard}
+ */
+function describeGameCard(game, team) {
+  const place = findPlace(game, team) ?? "home";
+  const other = game[OTHER_PLACE[place]];
+  const own = game[place].score;
+  const day = describeCardDay(game);
+  return {
+    id: game.id,
+    label: `${nameTeam(game.away.team)} at ${nameTeam(game.home.team)}, ${day}`,
+    state: /** @type {"final" | "live" | "pre"} */ (game.state),
+    when:
+      game.state === "live"
+        ? html`<span class="game-card-clock">${describeLiveClock(game)}</span>`
+        : day,
+    score: own == null || other.score == null ? null : { own, theirs: other.score },
+    time: describeStartTime(game),
+    isHome: place === "home",
+    dot: renderDot(other.team),
+    opponent: nameTeam(other.team),
+  };
+}
+
+/**
+ * @param {Season} season
+ * @param {string} team
+ */
+function renderNearestGames(season, team) {
+  const { last, now, next } = readNearestGames(season, team);
+  const games = [last, now, next].filter((game) => game !== null);
+  return renderGameCards(games.map((game) => describeGameCard(game, team)));
+}
+
+/**
  * @param {StandingsRow | undefined} row
  * @param {Run | undefined} run
  */
@@ -499,9 +557,9 @@ const renderTeamHeading = (code) =>
   html`${renderDot(code)}<span>${TEAMS[code].city} ${TEAMS[code].name}</span>`;
 
 /**
- * The sheet a team opens: its name, its conference, seed, and record, then its regular season with
- * its leading scorers and its playoffs, the playoffs first for a team that made them, then its
- * titles.
+ * The sheet a team opens: its name, its conference, seed, and record, then its nearest games, its
+ * regular season with its leading scorers and its playoffs, the playoffs first for a team that made
+ * them, then its titles.
  * @param {Season | null} season
  * @param {string} code
  * @param {{ year: number, now: number }} options
@@ -520,7 +578,8 @@ export function renderTeamSheet(season, code, { year, now }) {
   return {
     heading: renderTeamHeading(code),
     note: joinWithSeparator(listFacts(row, run)),
-    body: html`${run ? html`${playoffs}${regularSeason}` : html`${regularSeason}${playoffs}`}
+    body: html`${renderNearestGames(season ?? {}, code)}
+    ${run ? html`${playoffs}${regularSeason}` : html`${regularSeason}${playoffs}`}
     ${renderTitles(listTitleYears(code, titles))}`,
   };
 }

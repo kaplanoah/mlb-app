@@ -6,9 +6,9 @@ import { nameGameDetailsKey } from "./store-docs.js";
 // Keeps each finished game's box score and lead, so a sheet opened on a final reads only the
 // store. A game is read as the store finds it final, and again until a read comes long enough
 // after its end for the league and ESPN to have caught up, and then never again, since a finished
-// game doesn't change. Each run reads a few games, newest first: the current season's, then each
-// season's the store keeps from before. A game still being played is left to the pages watching it
-// (watched-games.js).
+// game doesn't change. Each run reads a few games, newest first: the current season's playoff games
+// and each team's last, then each season's the store keeps from before. A game still being played
+// is left to the pages watching it (watched-games.js).
 
 const MINUTE_MS = 60 * 1000;
 const RUN_DELAY_MS = 2 * MINUTE_MS;
@@ -35,9 +35,22 @@ const listSeasonsNewestFirst = async (docs) =>
     .filter((/** @type {any} */ season) => Array.isArray(season?.games))
     .sort((/** @type {any} */ first, /** @type {any} */ second) => second.year - first.year);
 
+/**
+ * A season's games that a sheet opens, each once: its playoff games and each team's nearest.
+ * @param {any} season
+ */
+const listSeasonGames = (season) => [
+  ...new Map(
+    [...season.games, ...(season.nearestGames ?? [])].map((/** @type {any} */ game) => [
+      game.id,
+      game,
+    ]),
+  ).values(),
+];
+
 /** @param {any} season */
 const listFinalsNewestFirst = (season) =>
-  season.games
+  listSeasonGames(season)
     .filter((/** @type {any} */ game) => game.state === "final")
     .sort(
       (/** @type {any} */ first, /** @type {any} */ second) =>

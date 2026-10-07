@@ -1,6 +1,7 @@
 // The sheet a game's row opens: the two teams across the score, then the game's box score once
 // it has started, or a preview before it does. Phones show it as a sheet from the bottom that a
-// swipe down closes, wider screens as a modal, like Settings.
+// swipe down closes, wider screens as a modal, like Settings. A team's sheet opens it beside itself
+// from the cards of the team's nearest games.
 
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { watchGameOpens } from "#shared/game-row.js";
@@ -36,8 +37,13 @@ let unwatchDetails = null;
 const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gameSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
+// A team's nearest game may be a playoff game or one of its regular season's, which only the
+// nearest games hold.
 /** @param {string} id */
-const findGame = (id) => session.season?.games?.find((game) => game.id === id) ?? null;
+const findGame = (id) =>
+  [...(session.season?.games ?? []), ...(session.season?.nearestGames ?? [])].find(
+    (game) => game.id === id,
+  ) ?? null;
 
 /** @param {Game} game */
 const chooseKind = (game) => (game.state === "pre" ? "preview" : "box");
@@ -290,10 +296,11 @@ function forgetGame() {
 }
 
 export function startGameSheet() {
-  for (const holder of ["gamePager", "updates"])
+  for (const holder of ["gamePager", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
     doneButton: findElement("gameDoneBtn"),
+    backButton: findElement("gameBackBtn"),
     keeper: { read: readShownGame, reopen: reopenGameSheet },
     name: "Game",
     forget: forgetGame,

@@ -1,0 +1,122 @@
+/*
+ * A team's nearest games across the top of its sheet, as game-cards.js builds them: a row of cards,
+ * each under a title like a sheet part's, centered over it. Each card holds the game's day, or its
+ * clock while it's on, over one line of its score and the other team, or the score over the team
+ * when the row .is-stacked. fitGameCards sets every card's --game-card-width and the row's
+ * --game-cards-gap from what it measures, each piece of a line being as wide as its own text;
+ * until then each card is as wide as what it holds. Apps link it after sheet.css, before their own
+ * styles.css, which places the row among the sheet's parts and sizes the other team's dot.
+ *
+ * Beside chrome.css's --ink, --ink-dim, --focus-ring, and --radius-card, and sheet.css's
+ * --sheet-part-head, an app's :root defines these tokens:
+ *   --game-card-edge         a card's border
+ *   --game-card-live         the clock of a game being played
+ *   --game-card-won          a win's W
+ *   --game-card-team-font    the other team's name, in the face team names take
+ */
+
+.game-cards {
+  --game-cards-gap-least: 14px;
+  --game-cards-gap-most: 21.5px;
+  --game-card-padding-least: 6px;
+  --game-card-padding-most: 8.5px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--game-card-width, max-content);
+  justify-content: center;
+  column-gap: var(--game-cards-gap, var(--game-cards-gap-least));
+  /* The row is as wide as what holds it, however wide its cards are while they're measured. */
+  min-width: 0;
+}
+.game-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 2.5px;
+  min-width: 0;
+}
+.game-card .sheet-part-head {
+  justify-content: center;
+}
+.game-card .sheet-part-head h3 {
+  white-space: nowrap;
+}
+.game-card-button {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 8.5px var(--game-card-padding-most) 7.5px;
+  border: 1px solid var(--game-card-edge);
+  border-radius: var(--radius-card);
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .game-card-button:hover {
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+  }
+}
+.game-card-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.game-card-when {
+  font-size: var(--size-small);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-dim);
+}
+.game-card-clock {
+  color: var(--game-card-live);
+}
+.game-card-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.game-cards.is-stacked .game-card-line {
+  flex-direction: column;
+  row-gap: 6.5px;
+}
+.game-card-score {
+  font-size: var(--size-glance);
+  font-weight: 600;
+}
+.game-card-result,
+.game-card-margin {
+  font-weight: 500;
+}
+.game-card-result.won {
+  color: var(--game-card-won);
+}
+.game-card-opponent {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--size-glance);
+  font-weight: 400;
+}
+.game-card-at {
+  color: var(--ink-dim);
+}
+.game-card-name {
+  font-family: var(--game-card-team-font);
+  letter-spacing: 0.02em;
+}
+/* Each line's space is its letters' own, from the tops of its capitals to its baseline. */
+.game-card-when,
+.game-card-score,
+.game-card-at,
+.game-card-name {
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}

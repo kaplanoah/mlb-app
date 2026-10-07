@@ -46,6 +46,81 @@ test("a new year's snapshot leaves out the last season's games, which the feeds 
   assert.equal(buildAfternoon().games.length, 28);
 });
 
+// The afternoon's scores, with the whole season's schedule from the next day, its regular season
+// and all.
+/** @param {object} [responses] */
+const buildWithWholeSeason = (responses = {}) =>
+  buildAfternoon({ ...RESPONSES, schedule: GAMES.preview.schedule, ...responses });
+
+/**
+ * @param {any[]} games
+ * @param {string} team
+ */
+const listTeamIds = (games, team) =>
+  games.filter((game) => game.away.team === team || game.home.team === team).map((game) => game.id);
+
+/** @param {(game: any) => boolean} isKept */
+const keepScheduledGames = (isKept) => ({
+  leagueSchedule: {
+    ...GAMES.preview.schedule.leagueSchedule,
+    gameDates: GAMES.preview.schedule.leagueSchedule.gameDates.map((day) => ({
+      ...day,
+      games: day.games.filter(isKept),
+    })),
+  },
+});
+
+// Tonight's game in Chicago, as the scoreboard has it in the third quarter.
+const SEATTLE_AT_CHICAGO = {
+  ...AFTERNOON.responses.scoreboard.scoreboard.games[0],
+  gameId: "1022600400",
+  gameStatus: 2,
+  gameStatusText: "Q3 4:12",
+  period: 3,
+  gameClock: "PT04M12.00S",
+  awayTeam: { teamTricode: "SEA", score: 61 },
+  homeTeam: { teamTricode: "CHI", score: 58 },
+};
+
+/** @param {any} game */
+const addToScoreboard = (game) => {
+  const { scoreboard } = AFTERNOON.responses;
+  const games = [...scoreboard.scoreboard.games, game];
+  return { scoreboard: { ...scoreboard, scoreboard: { ...scoreboard.scoreboard, games } } };
+};
+
+test("each team's nearest games come from its whole season, while the games are only the playoffs'", () => {
+  const { games, nearestGames } = buildWithWholeSeason();
+  assert.ok(games.every((game) => game.round));
+  assert.deepEqual(listTeamIds(nearestGames, "SEA"), ["1022600325"]);
+  assert.deepEqual(listTeamIds(nearestGames, "ATL"), ["1042600131", "1042600132", "1042600201"]);
+  assert.ok(
+    nearestGames.every((game, index) => index === 0 || game.start >= nearestGames[index - 1].start),
+  );
+  const seattle = nearestGames.find((game) => game.id === "1022600325");
+  assert.deepEqual(
+    [seattle.state, seattle.round, seattle.away.team, seattle.away.score, seattle.home.score],
+    ["final", null, "DAL", 103, 91],
+  );
+});
+
+test("the Commissioner's Cup final counts among a team's games, and the preseason and the All-Star Game don't", () => {
+  const { nearestGames } = buildWithWholeSeason({
+    schedule: keepScheduledGames((game) => /^10[135]/.test(game.gameId)),
+  });
+  assert.deepEqual(listTeamIds(nearestGames, "LVA"), ["1052600001"]);
+  assert.ok(nearestGames.every((game) => !/^10[13]/.test(game.id)));
+});
+
+test("a regular-season game on the scoreboard is a team's game now, with its clock", () => {
+  const { nearestGames } = buildWithWholeSeason(addToScoreboard(SEATTLE_AT_CHICAGO));
+  const live = nearestGames.find((game) => game.id === "1022600400");
+  assert.deepEqual(
+    [live.state, live.period, live.clock, live.away.score, live.home.score],
+    ["live", 3, "4:12", 61, 58],
+  );
+});
+
 test("the clock reads as minutes and seconds, and tenths in the last minute", () => {
   assert.equal(WNBASnapshot.readClock("PT04M32.00S"), "4:32");
   assert.equal(WNBASnapshot.readClock("PT10M00.00S"), "10:00");
@@ -343,6 +418,20 @@ test("polling waits until 15 minutes before the next set start, and runs every 1
     ),
   };
   assert.equal(WNBASnapshot.choosePollDelay(live, now), 15 * 1000);
+});
+
+test("polling follows a team's game now as closely as a playoff game", () => {
+  const now = Date.parse(AFTERNOON.now);
+  const snapshot = buildWithWholeSeason(addToScoreboard(SEATTLE_AT_CHICAGO));
+  assert.ok(snapshot.games.every((game) => game.state !== "live"));
+  assert.equal(WNBASnapshot.choosePollDelay(snapshot, now), 15 * 1000);
+});
+
+test("the scheduled starts take in each team's nearest games as well as the playoffs'", () => {
+  const starts = WNBASnapshot.listScheduledStarts(GAMES.preview.schedule, 2026);
+  const seattle = buildWithWholeSeason().nearestGames.find((game) => game.id === "1022600325");
+  assert.ok(starts.includes(seattle.start));
+  assert.ok(buildWithWholeSeason().games.every((game) => starts.includes(game.start)));
 });
 
 test("a game that hasn't started is followed closely at first, then less, and then let go", () => {

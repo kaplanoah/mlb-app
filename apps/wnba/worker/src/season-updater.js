@@ -12,7 +12,7 @@ import { nameMeetingsKey } from "./preview.js";
 // open, and says which finished games and series are news. `docs` reads and writes the store's
 // documents: read(key), list(collection), write(key, doc), and remove(key).
 
-const SAVED_FIELDS = ["version", "games", "series", "standings", "leaders"];
+const SAVED_FIELDS = ["version", "games", "nearestGames", "series", "standings", "leaders"];
 // A game or series found finished long after it ended, as after a gap in updates, isn't news.
 const RECENT_MS = 12 * 60 * 60 * 1000;
 
@@ -57,6 +57,17 @@ function addEndTimes(savedGames, games, asOf) {
   });
 }
 
+/**
+ * A list of games as the season saves it, from the list saved before and the snapshot's.
+ * @param {any[] | undefined} savedGames
+ * @param {any[]} games
+ * @param {{ isStandIn: boolean, asOf: string }} update
+ */
+function prepareGames(savedGames, games, { isStandIn, asOf }) {
+  const kept = isStandIn ? keepFurtherGames(savedGames, games) : games;
+  return addEndTimes(savedGames, kept, asOf);
+}
+
 // A feed that didn't answer leaves what it feeds as it was.
 export async function saveSnapshot(docs, snapshot) {
   await saveSeason(docs, snapshot);
@@ -93,11 +104,16 @@ async function saveSeason(docs, snapshot) {
   const missing = new Set(snapshot.missing);
   const isStandIn = missing.has("scoreboard") && !!snapshot.standIn;
   const hasGames = (!missing.has("scoreboard") || isStandIn) && !missing.has("schedule");
-  const games = isStandIn ? keepFurtherGames(doc.games, snapshot.games) : snapshot.games;
-  const saving = { ...snapshot, games: addEndTimes(doc.games, games, snapshot.asOf) };
+  const update = { isStandIn, asOf: snapshot.asOf };
+  const saving = {
+    ...snapshot,
+    games: prepareGames(doc.games, snapshot.games, update),
+    nearestGames: prepareGames(doc.nearestGames, snapshot.nearestGames, update),
+  };
   const answered = {
     version: true,
     games: hasGames,
+    nearestGames: hasGames,
     series: !missing.has("bracket") || (hasGames && !isStandIn),
     standings: !missing.has("standings"),
     leaders: !missing.has("players"),
