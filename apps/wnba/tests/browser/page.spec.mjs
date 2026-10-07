@@ -1917,16 +1917,17 @@ test.describe("on a phone", () => {
         ?.addEventListener("scroll", () =>
           noted.push(Number(getComputedStyle(today).getPropertyValue("--nearness"))),
         );
-      Object.assign(window, { todayNearness: noted });
+      document.querySelector("#games-bar .pager-thumb")?.addEventListener("transitionrun", () => {
+        /** @type {any} */ (window).thumbSlides += 1;
+      });
+      Object.assign(window, { todayNearness: noted, thumbSlides: 0 });
     });
 
     await page.getByRole("tab", { name: "Next" }).click();
 
-    expect(
-      await page
-        .locator("#games-bar .pager-thumb")
-        .evaluate((thumb) => thumb.getAnimations().length),
-    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => page.evaluate(() => /** @type {any} */ (window).thumbSlides))
+      .toBeGreaterThan(0);
     await expect
       .poll(() =>
         page.locator("#games-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth),

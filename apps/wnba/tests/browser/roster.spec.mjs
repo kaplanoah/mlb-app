@@ -315,10 +315,18 @@ test.describe("in full motion", () => {
     await openApp(page);
     await openLibertySheet(page);
     const thumb = page.locator("#teamSheet .pager-thumb");
+    await thumb.evaluate((element) => {
+      Object.assign(window, { thumbSlides: 0 });
+      element.addEventListener("transitionrun", () => {
+        /** @type {any} */ (window).thumbSlides += 1;
+      });
+    });
 
     await page.getByRole("tab", { name: "Roster" }).click();
 
-    expect(await thumb.evaluate((element) => element.getAnimations().length)).toBeGreaterThan(0);
+    await expect
+      .poll(() => page.evaluate(() => /** @type {any} */ (window).thumbSlides))
+      .toBeGreaterThan(0);
     await expectShown(page.locator("#rosterSection"));
     await expect
       .poll(async () => {
