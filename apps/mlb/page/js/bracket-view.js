@@ -524,8 +524,11 @@ export function watchBracketSpace() {
   addEventListener("resize", redrawIfResized);
   wrap.addEventListener("scroll", markRoundScrolledTo, { capture: true, passive: true });
   new ResizeObserver(markRoundScrolledTo).observe(wrap);
-  // A redraw resizes the body, so it waits a frame rather than loop the observer.
-  new ResizeObserver(() => requestAnimationFrame(redrawIfResized)).observe(document.body);
+  // A redraw resizes the body, so it waits a frame rather than loop the observer, and only while
+  // the bracket shows.
+  new ResizeObserver(() => {
+    if (isShown(wrap)) requestAnimationFrame(redrawIfResized);
+  }).observe(document.body);
 }
 
 function renderBannerTeam(label, id) {
