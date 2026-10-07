@@ -179,6 +179,10 @@
   --held-bar-line: var(--divider);
   --updates-head: var(--structure);
   --sheet-part-head: var(--structure);
+  --game-card-edge: var(--edge);
+  --game-card-live: var(--now);
+  --game-card-won: var(--result);
+  --game-card-team-font: var(--team-name);
   --game-row-height: 90px;
   --game-side-offset: 9px;
   --game-label-offset: -32px;
@@ -464,7 +468,7 @@ header.top h1 {
   line-height: 0.8;
 }
 .day-name {
-  margin-top: 4px;
+  margin-top: 4.5px;
   font-family: var(--text);
   font-size: var(--size-small);
   font-weight: 600;
@@ -1871,6 +1875,18 @@ table.standings tr.playoff-line + tr td {
 }
 .team-sheet-body > .sheet-part {
   gap: var(--part-space-below);
+}
+/* The cards of the team's nearest games sit 11.5px under the band, 16px over the first part's
+   title, and reach nearer the sheet's sides than its text, so three fit on a small phone. */
+.team-sheet-body > .game-cards {
+  margin: calc(11.5px - var(--part-space-first)) -13.5px 0;
+}
+.team-sheet-body > .game-cards + .sheet-part {
+  margin-top: calc(16px - var(--part-space-above));
+}
+.game-card-opponent .dot {
+  width: 9.5px;
+  height: 9.5px;
 }
 .status-chip.alive {
   background: color-mix(in srgb, var(--ink) 15%, transparent);

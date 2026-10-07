@@ -53,16 +53,18 @@ const renderSide = (side, place) =>
 const renderExtra = (side, place) =>
   side.extra ? html`<span class="game-extra ${place}">${side.extra}</span>` : html``;
 
+// A game's row's button, or a game's card on a team's sheet (game-cards.js).
 /** @param {Event} event */
 const findOpenButton = (event) =>
   /** @type {HTMLElement | null} */ (
-    /** @type {HTMLElement} */ (event.target).closest(".game-open")
+    /** @type {HTMLElement} */ (event.target).closest(".game-open, .game-card-button")
   );
 
 /**
- * Opens a game when its row's button is tapped, and starts loading what it shows as soon as a
- * finger or pointer comes down on the button, so the wait for it is shorter by the tap's length.
- * @param {HTMLElement} lists the element that holds the game rows
+ * Opens a game when its row's button, or its card, is tapped, and starts loading what it shows as
+ * soon as a finger or pointer comes down on the button, so the wait for it is shorter by the tap's
+ * length.
+ * @param {HTMLElement} lists the element that holds the game rows or cards
  * @param {{ open: (button: HTMLElement) => void, prepare: (button: HTMLElement) => void }} actions
  */
 export function watchGameOpens(lists, { open, prepare }) {

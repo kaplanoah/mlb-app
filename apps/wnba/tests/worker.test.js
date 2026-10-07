@@ -369,7 +369,7 @@ test("a game that ends has the slow feeds read again at once, and once more ten 
   assert.deepEqual(countSlowReads(league), [3, 3, 3, 3]);
 });
 
-test("a game seen live and then final ends when ESPN logged its last play", async () => {
+test("a game seen live and then final ends when ESPN logged its last play, as each team's last game too, looked up once", async () => {
   const live = structuredClone(AFTERNOON.responses.scoreboard);
   Object.assign(live.scoreboard.games[0], { gameStatus: 2, gameStatusText: "Q4 0:30" });
   const start = live.scoreboard.games[0].gameTimeUTC;
@@ -395,6 +395,9 @@ test("a game seen live and then final ends when ESPN logged its last play", asyn
 
   const ended = snapshot.games.find((game) => game.id === "1042600132");
   assert.equal(ended.end, "2026-10-01T01:11:27Z");
+  const last = snapshot.nearestGames.find((game) => game.id === "1042600132");
+  assert.equal(last.end, "2026-10-01T01:11:27Z");
+  assert.equal(league.countReads("espn"), 2);
 });
 
 test("a scoreboard that misses a read doesn't look like a game ending once it's back", async () => {

@@ -17,9 +17,16 @@ const liveBoxScore = structuredClone(GAMES.boxScores[ID]);
 Object.assign(liveBoxScore.game, { gameStatus: 2, period: 3 });
 
 /** @param {string} state */
-const createSnapshot = (state) => ({
-  games: [{ id: ID, state, away: { team: "GSV" }, home: { team: "DAL" }, start: LEAD.game.start }],
+const createGame = (state) => ({
+  id: ID,
+  state,
+  away: { team: "GSV" },
+  home: { team: "DAL" },
+  start: LEAD.game.start,
 });
+
+/** @param {string} state */
+const createSnapshot = (state) => ({ games: [createGame(state)], nearestGames: [] });
 
 /** @param {{ refuse?: boolean }} [options] */
 function createLoader({ refuse = false } = {}) {
@@ -42,6 +49,13 @@ test("a live game's details are its box score and its lead", async () => {
   const details = await loadWatchedGame(ID, createSnapshot("live"), null);
   assert.deepEqual(details.boxScore, describeBoxScore(liveBoxScore));
   assert.equal(details.lead.periods, 5);
+});
+
+test("a team's nearest game is watched like a playoff game", async () => {
+  const { loadWatchedGame } = createLoader();
+  const snapshot = { games: [], nearestGames: [createGame("live")] };
+  const details = await loadWatchedGame(ID, snapshot, null);
+  assert.deepEqual(details.boxScore, describeBoxScore(liveBoxScore));
 });
 
 test("a game that hasn't started, or whose final box score is saved, needs no reads", async () => {

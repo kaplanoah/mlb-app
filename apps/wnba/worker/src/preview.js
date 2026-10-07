@@ -67,13 +67,14 @@ export const nameMeetingsKey = (season, teams) =>
   `meetings/${season}-${[...teams].sort().join("-")}`;
 
 /**
- * The meetings of the two teams of each game in the snapshot that hasn't started, once for each
- * pair, or none when the schedule didn't answer or holds another season.
+ * The meetings of the two teams of each game in the snapshot that hasn't started, a playoff game or
+ * a team's next, once for each pair, or none when the schedule didn't answer or holds another
+ * season.
  * @param {any} schedule
- * @param {{ season: number, games: any[] }} snapshot
+ * @param {{ season: number, games: any[], nearestGames?: any[] }} snapshot
  */
-export function listUpcomingMeetings(schedule, { season, games }) {
-  const pairs = games
+export function listUpcomingMeetings(schedule, { season, games, nearestGames = [] }) {
+  const pairs = [...games, ...nearestGames]
     .filter((game) => game.state === "pre" && game.away.team && game.home.team)
     .map((game) => [game.away.team, game.home.team].sort());
   const uniquePairs = [...new Map(pairs.map((teams) => [teams.join(), teams])).values()];

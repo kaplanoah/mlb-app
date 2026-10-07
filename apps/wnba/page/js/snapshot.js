@@ -8,6 +8,7 @@
 import { readEasternDay } from "#shared/days.js";
 import * as PollSchedule from "#shared/poll-schedule.js";
 import { findTeamCode, findTeamCodeByEspnId, TEAMS } from "./teams.js";
+import { findNearestGames } from "./nearest-games.js";
 
 // The shape of a snapshot, and of the season record saved from it, which a page reads only when it
 // knows it.
@@ -108,6 +109,17 @@ export function readPlayoffGameId(id) {
   };
 }
 
+// The games of a season that count: its regular season's, the Commissioner's Cup final, which has
+// a number of its own, and its playoffs'. The ID's 102, 105, or 104 comes before the season's last
+// two digits.
+const SEASON_GAME_ID = /^10[245](\d{2})\d{5}$/;
+
+/** @param {string} id */
+function readGameSeason(id) {
+  const [, season] = String(id).match(SEASON_GAME_ID) ?? [];
+  return season ? 2000 + Number(season) : null;
+}
+
 const nameSeries = (round, series) => `${round}-${series}`;
 
 const GAME_STATES = { 1: "pre", 2: "live", 3: "final" };
@@ -134,7 +146,8 @@ const readSide = (team) => ({
   timeouts: team.timeoutsRemaining ?? null,
 });
 
-// A playoff game from the scoreboard or the schedule, which name their fields alike.
+// A game from the scoreboard or the schedule, which name their fields alike. Only a playoff game
+// has a round, a series, and a number in it.
 function normalizeGame(game) {
   const place = readPlayoffGameId(game.gameId);
   const state = readGameState(game.gameStatus);
@@ -271,19 +284,21 @@ const listAverages = (players) =>
     .filter((player) => player.team);
 
 // The schedule and the scoreboard hold the last season's games until the league starts the next.
-const listPlayoffGames = (games, season) =>
-  games.filter((game) => readPlayoffGameId(game.gameId)?.season === season);
+const listSeasonGames = (games, season) =>
+  games.filter((game) => readGameSeason(game.gameId) === season);
+
+const isPlayoffGame = (game) => game.round !== null;
 
 const sortByStart = (games) =>
   games.sort((first, second) => Date.parse(first.start) - Date.parse(second.start));
 
 // The scoreboard is the freshest word on today's games, so it replaces the schedule's copy.
 function mergeGames(schedule, scoreboard, season) {
-  const scheduled = listPlayoffGames(
+  const scheduled = listSeasonGames(
     (schedule?.leagueSchedule?.gameDates ?? []).flatMap((day) => day.games),
     season,
   ).map(normalizeGame);
-  const today = listPlayoffGames(scoreboard?.scoreboard?.games ?? [], season).map(normalizeGame);
+  const today = listSeasonGames(scoreboard?.scoreboard?.games ?? [], season).map(normalizeGame);
   const byId = new Map(scheduled.map((game) => [game.id, game]));
   for (const game of today) byId.set(game.id, game);
   return sortByStart([...byId.values()]);
@@ -480,15 +495,34 @@ function addEspnListings(games, networkGames) {
 }
 
 /**
- * When each of the season's playoff games starts, as the league's schedule has it.
+ * Each team's nearest games, each game once, in order of start: its last, the one it's playing,
+ * and its next. A game left over in a series that's already decided won't be played.
+ * @param {any[]} games the season's games, in order of start
+ * @param {any[]} series
+ */
+function listNearestGames(games, series) {
+  const decided = new Set(series.filter((each) => each.winner).map((each) => each.id));
+  const nearest = new Set(
+    Object.keys(TEAMS).flatMap((team) =>
+      Object.values(findNearestGames(games, team, decided)).filter(Boolean),
+    ),
+  );
+  return games.filter((game) => nearest.has(game));
+}
+
+/**
+ * When each of the season's playoff games and each team's nearest games start, as the league's
+ * schedule has them.
  * @param {any} schedule
  * @param {number} season
  * @returns {string[]}
  */
-export const listScheduledStarts = (schedule, season) =>
-  mergeGames(schedule, null, season)
-    .map((game) => game.start)
-    .filter(Boolean);
+export function listScheduledStarts(schedule, season) {
+  const games = mergeGames(schedule, null, season);
+  const playoffs = games.filter(isPlayoffGame);
+  const nearest = listNearestGames(games, countSeriesFromGames(playoffs));
+  return [...new Set([...playoffs, ...nearest])].map((game) => game.start).filter(Boolean);
+}
 
 /**
  * @param {{ scoreboard?: any, schedule?: any, bracket?: any, standings?: any, players?: any, backup?: { games: any[] } | null, networks?: any[] | null }} responses
@@ -499,12 +533,13 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     !responses.scoreboard && responses.backup ? responses.backup.games.map(readBackupGame) : [];
   const leagueGames = mergeGames(responses.schedule, responses.scoreboard, season);
   const standIns = matchBackupGames(leagueGames, backupGames);
-  const games = addEspnListings(
+  const seasonGames = addEspnListings(
     leagueGames.map((game) =>
       standIns.has(game.id) ? applyBackupGame(game, standIns.get(game.id)) : game,
     ),
     (responses.networks ?? []).flatMap((answer) => answer.events ?? []).map(readNetworkGame),
   );
+  const games = seasonGames.filter(isPlayoffGame);
   const bracket = responses.bracket?.bracket?.playoffBracketSeries;
   const countedSeries = countSeriesFromGames(games);
   const series = bracket
@@ -515,6 +550,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     season,
     asOf: new Date(now).toISOString(),
     games,
+    nearestGames: listNearestGames(seasonGames, series),
     series,
     standings: readStandingsRows(responses.standings),
     leaders: listLeaders(responses.players),
@@ -526,8 +562,9 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
 
 const POLL_LIVE_MS = 15 * 1000;
 
+// A live game on a team's sheet is followed as closely as a playoff game.
 export function choosePollDelay(snapshot, now = Date.now()) {
-  const games = snapshot?.games ?? [];
+  const games = [...(snapshot?.games ?? []), ...(snapshot?.nearestGames ?? [])];
   return PollSchedule.choosePollDelay({
     isLive: games.some((game) => game.state === "live"),
     starts: games

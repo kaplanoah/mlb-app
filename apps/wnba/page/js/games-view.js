@@ -42,12 +42,17 @@ export function describePeriod(period) {
 /** @param {Game} game */
 const isClockRunning = (game) => !!(game.clock && game.clock !== "0.0" && game.period);
 
+/**
+ * When a game that hasn't started starts, or TBD while its time isn't set.
+ * @param {Game} game
+ */
+export const describeStartTime = (game) =>
+  game.isTimeSet && game.start ? formatClockTime(new Date(game.start)) : "TBD";
+
 /** @param {Game} game */
 export function renderHeadline(game) {
-  if (game.state === "pre") {
-    const time = game.isTimeSet && game.start ? formatClockTime(new Date(game.start)) : "TBD";
-    return html`<span class="time tabular">${time}</span>`;
-  }
+  if (game.state === "pre")
+    return html`<span class="time tabular">${describeStartTime(game)}</span>`;
   const loser = findLoser(game);
   return html`<span class="score"
     >${renderScoreboard(game.away.score, { isLoser: loser === "away" })}${renderScoreboard(
@@ -57,10 +62,17 @@ export function renderHeadline(game) {
   >`;
 }
 
+/**
+ * A live game's period and clock, or which break it's in while the clock stops between periods.
+ * @param {Game} game
+ */
+export const describeLiveClock = (game) =>
+  isClockRunning(game) ? `${describePeriod(game.period ?? 0)} ${game.clock}` : game.status;
+
 /** @param {Game} game */
 export function renderStatus(game) {
   if (game.state === "live" && isClockRunning(game))
-    return html`<span class="clock tabular">${describePeriod(game.period ?? 0)} ${game.clock}</span>`;
+    return html`<span class="clock tabular">${describeLiveClock(game)}</span>`;
   if (game.state === "live") return html`<span class="break">${game.status}</span>`;
   if (game.state === "final") return html`${game.status || "Final"}`;
   return game.isIfNeeded && html`<span class="if-needed">If needed</span>`;

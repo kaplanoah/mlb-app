@@ -97,12 +97,13 @@ function createDocs(initial) {
 }
 
 /**
- * A store whose current season is 2026, keeping `seasons`, and the job that keeps its finals' details,
- * run as the store runs it.
- * @param {{ seasons?: Record<number, any[]>, answer?: (url: string) => any }} [options]
+ * A store whose current season is 2026, keeping `seasons`, with each season's playoff games and any
+ * nearest games, and the job that keeps its finals' details, run as the store runs it.
+ * @param {{ seasons?: Record<number, any[]>, nearest?: Record<number, any[]>, answer?: (url: string) => any }} [options]
  */
 function createRun({
   seasons = { 2026: [{ ...VALKYRIES_AT_WINGS, end: new Date(END).toISOString() }, ACES_AT_FEVER] },
+  nearest = {},
   answer = (url) => listAnswers()[url],
 } = {}) {
   const docs = createDocs({
@@ -110,7 +111,7 @@ function createRun({
     ...Object.fromEntries(
       Object.entries(seasons).map(([year, games]) => [
         `seasons/${year}`,
-        { year: Number(year), games },
+        { year: Number(year), games, ...(nearest[year] && { nearestGames: nearest[year] }) },
       ]),
     ),
   });
@@ -285,6 +286,31 @@ test("finals fill a few a run, newest first, the current season's and then each 
     ["1025000000"],
     [],
   ]);
+});
+
+test("each team's last game is kept too, from the regular season as from the playoffs, and a game in both is read once", async () => {
+  const seattlesLast = {
+    ...ACES_AT_FEVER,
+    id: "1022600325",
+    start: "2026-09-24T02:00:00Z",
+    away: { team: "DAL" },
+    home: { team: "SEA" },
+  };
+  const { docs, runJob, takeRequests } = createRun({
+    seasons: { 2026: [ACES_AT_FEVER] },
+    nearest: { 2026: [seattlesLast, ACES_AT_FEVER] },
+    answer: (url) =>
+      url.includes("/boxscore/") ? GAMES.boxScores[ACES_AT_FEVER.id] : { events: [] },
+  });
+
+  await runJob();
+
+  const boxScores = takeRequests().filter((url) => url.includes("/boxscore/"));
+  assert.deepEqual(boxScores, [
+    nameBoxScoreRequest(ACES_AT_FEVER.id),
+    nameBoxScoreRequest(seattlesLast.id),
+  ]);
+  assert.ok(docs.stored.has(`games/${seattlesLast.id}`));
 });
 
 test("a read that fails keeps what was saved, and is tried again every ten minutes for two hours", async () => {
