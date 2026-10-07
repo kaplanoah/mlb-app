@@ -23,7 +23,9 @@ const LAYER_PROPERTIES = new Set(["backdrop-filter", "-webkit-backdrop-filter", 
 /** @param {string} path */
 const listLayeredRules = (path) =>
   readDeclarations(path)
-    .filter(({ property, value }) => LAYER_PROPERTIES.has(property) && value !== "none")
+    .filter(
+      ({ property, value }) => LAYER_PROPERTIES.has(property) && !/^(none|auto)\b/.test(value),
+    )
     .map(readRule);
 
 test("nothing filters what's behind it, and only a dragged sheet and a pager's lists ask for layers of their own", () => {

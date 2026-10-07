@@ -496,6 +496,38 @@ section.view.active {
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
+.drawing-tests {
+  display: grid;
+  margin-top: 8px;
+}
+.drawing-tests h3 {
+  margin: 0;
+  font-size: var(--size-read);
+  font-weight: 500;
+}
+/* The kinds of drawing a device chose to leave out, from Diagnostics' drawing tests
+   (drawing-test.js), whatever any rule asks for. */
+:root:is(.drawing-plain, .drawing-no-layers) * {
+  will-change: auto !important;
+}
+:root:is(.drawing-plain, .drawing-no-shadows) :is(*, *::before, *::after) {
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+:root:is(.drawing-plain, .drawing-no-textures) :is(*, *::before, *::after) {
+  background-image: none !important;
+  clip-path: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+:root:is(.drawing-plain, .drawing-no-pictures) img {
+  visibility: hidden !important;
+}
+:root:is(.drawing-plain, .drawing-no-motion) :is(*, *::before, *::after) {
+  transition: none !important;
+  animation: none !important;
+}
 /* A sheet's close button, a caret down, or its back button, an arrow, in place of it on a sheet
    opened from another: just the icon, in --accent, its words only for screen readers. */
 .sheet-close,

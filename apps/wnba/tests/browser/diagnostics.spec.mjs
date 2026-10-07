@@ -251,6 +251,30 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
   );
 });
 
+test("a drawing test chosen in Diagnostics leaves its kind of drawing out once the page opens again, and each record names it", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await openSettings(page);
+  const plain = page.getByRole("switch", { name: "Draw plainly" });
+
+  await plain.click();
+  await expect(plain).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("html")).not.toHaveClass(/drawing-plain/);
+  await reloadAndRecord(page);
+
+  await expect(page.locator("html")).toHaveClass(/drawing-plain/);
+  await expect(page.locator(".team-line .wins").first()).toHaveCSS("filter", "none");
+  await expect(page.locator("#settingsDialog")).toBeVisible();
+  await expect(findRecords(page).locator(".diagnostics-record").first()).toContainText(
+    "Drawing test: plain",
+  );
+  await findSwitch(page).click();
+  await page.reload();
+  await expect(page.locator("html")).not.toHaveClass(/drawing-plain/);
+});
+
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);

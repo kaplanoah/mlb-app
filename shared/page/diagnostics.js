@@ -6,6 +6,14 @@
 // It records nothing while it's off, which it starts as.
 
 import { formatClockTime, formatClockTimeWithSeconds, nameDay } from "./days.js";
+import {
+  applyDrawingTests,
+  describeDrawingTests,
+  forgetDrawingTests,
+  readDrawingTests,
+  renderDrawingTests,
+  toggleDrawingTest,
+} from "./drawing-test.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { describeShownPagers } from "./pager-log.js";
 import { watchTimeAway } from "./resume.js";
@@ -85,6 +93,7 @@ function saveSwitch(isOn) {
       localStorage.removeItem(RECORDS_KEY);
       forgetViewportLines();
       forgetSheetLines();
+      forgetDrawingTests();
     }
   } catch {
     /* the switch stays as it was */
@@ -218,6 +227,8 @@ function startRecord(how) {
   record = { at: Date.now(), how, tab: readShownTab(), lines: [] };
   recordStartedAt = performance.now();
   shownSizes = readPartSizes();
+  const drawingTests = describeDrawingTests(readDrawingTests());
+  if (drawingTests) noteStep(drawingTests);
   noteStep(`Shows ${describeSizes(shownSizes)}`);
   requestAnimationFrame(sampleParts);
 }
@@ -369,7 +380,8 @@ function renderRecords() {
         : html`<p class="diagnostics-empty">Nothing yet. Each open from now on shows here.</p>`
     }
     ${viewportLines.length > 0 && renderViewport(viewportLines)}
-    ${sheetLines.length > 0 && renderSheets(sheetLines)}`;
+    ${sheetLines.length > 0 && renderSheets(sheetLines)}
+    ${renderDrawingTests(readDrawingTests())}`;
 }
 
 function drawRecords() {
@@ -410,17 +422,26 @@ async function copyRecords() {
 
 /** @param {Event} event */
 function followSectionClick(event) {
-  if (/** @type {Element} */ (event.target).closest("#diagnosticsCopy")) copyRecords();
+  const target = /** @type {Element} */ (event.target);
+  if (target.closest("#diagnosticsCopy")) copyRecords();
+  const drawingTest = /** @type {HTMLElement | null} */ (target.closest("[data-drawing-test]"));
+  if (drawingTest?.dataset.drawingTest) {
+    toggleDrawingTest(drawingTest.dataset.drawingTest);
+    drawRecords();
+  }
 }
 
 /**
- * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), and,
- * while the switch is on, records this load, each return to the page, each change to the
- * viewport, and each step of a dialog's row of sheets. A page that leaves the screen keeps what it recorded so far, as when it reloads for a
- * new release or the phone drops it. The page starts it before drawing anything, so a load's first
- * reading is what show-last-drawn.js put back.
+ * Wires the settings switch (#diagnosticsSwitch) and the records under it (#diagnostics), with the
+ * drawing tests after them (drawing-test.js), and, while the switch is on, leaves out the kinds of
+ * drawing this device chose to, and records this load, each return to the page, each change to
+ * the viewport, and each step of a dialog's row of sheets. A page that leaves the screen keeps
+ * what it recorded so far, as when it reloads for a new release or the phone drops it. The page
+ * starts it before drawing anything, so a load's first reading is what show-last-drawn.js put
+ * back.
  */
 export function startDiagnostics() {
+  if (isRecording()) applyDrawingTests();
   findElement("diagnosticsSwitch").addEventListener("click", toggleRecording);
   findElement("diagnostics").addEventListener("click", followSectionClick);
   drawRecords();
