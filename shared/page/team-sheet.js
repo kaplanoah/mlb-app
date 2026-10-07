@@ -3,7 +3,9 @@
 // team's. Each league hands it which teams it knows and what a team's sheet shows, like
 // the cards of its nearest games (game-cards.js), and builds the buttons that open it with
 // renderTeamSheetButton. A league whose team sheet holds sections, like the WNBA's Team and
-// Roster, names them with pills in its markup and fills the ones after the first itself.
+// Roster, names them with pills in its markup and fills the ones after the first itself, and can
+// hand the sheet what they read, which it keeps with the team it shows, so a reload draws them
+// again from that rather than from nothing while they read again.
 
 import { fitGameCards, watchGameCards } from "./game-cards.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
@@ -19,6 +21,8 @@ import { openSheet, wireSheet } from "./sheet.js";
  * @property {(team: string) => TeamSheet} renderSheet
  * @property {(team: string) => void} [fillSections] fills the sections after the first, which
  *   `body` fills, for the team shown
+ * @property {{ read: () => unknown, reopen: (saved: unknown) => void }} [sectionsKeeper] what
+ *   the sections after the first read, and takes it back before they're filled again
  */
 
 /** @type {League | null} */
@@ -61,13 +65,21 @@ function openTeamSheet(team) {
 }
 
 const readShownTeam = () =>
-  shownTeam && { team: shownTeam, areAllTitlesShown, section: sections?.readShown() ?? null };
+  shownTeam && {
+    team: shownTeam,
+    areAllTitlesShown,
+    section: sections?.readShown() ?? null,
+    sectionsRead: league?.sectionsKeeper?.read() ?? null,
+  };
 
-/** @param {{ team: string, areAllTitlesShown: boolean, section?: unknown } | null} shown */
+/**
+ * @param {{ team: string, areAllTitlesShown: boolean, section?: unknown, sectionsRead?: unknown } | null} shown
+ */
 function reopenTeamSheet(shown) {
   if (!shown || !league?.isTeam(shown.team)) return false;
   shownTeam = shown.team;
   areAllTitlesShown = shown.areAllTitlesShown === true;
+  league.sectionsKeeper?.reopen(shown.sectionsRead ?? null);
   renderSheet();
   if (typeof shown.section === "string") sections?.showSection(shown.section, true);
   return true;

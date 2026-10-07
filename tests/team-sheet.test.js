@@ -79,11 +79,16 @@ function renderSheet(team) {
 
 /** @type {string[]} */
 const filledSections = [];
+let sectionsRead = "nothing read";
 
 startTeamSheet({
   isTeam: (team) => ["NYY", "BOS", "NYM"].includes(team),
   renderSheet,
   fillSections: (team) => filledSections.push(team),
+  sectionsKeeper: {
+    read: () => sectionsRead,
+    reopen: (saved) => filledSections.push(`took back ${saved}`),
+  },
 });
 
 // A tap on the titles' button for the rest, or on something else in the sheet's body.
@@ -211,6 +216,20 @@ test("a sheet a reload put back open shows its team again, with every title if t
   page.dialog.open = true;
   reopenSheets([{ id: "teamSheet", scrollTop: 0, subject: { team: "XYZ" } }]);
   assert.equal(page.dialog.open, false);
+});
+
+test("a sheet a reload put back open hands the league's sections what they read, before filling them again", () => {
+  tapTeam(page.document, "NYM");
+  sectionsRead = "the Mets' roster";
+  const saved = listOpenSheets();
+  page.dialog.close();
+  sectionsRead = "nothing read";
+  filledSections.length = 0;
+
+  page.dialog.open = true;
+  reopenSheets(saved);
+  assert.deepEqual(filledSections, ["took back the Mets' roster", "NYM"]);
+  page.dialog.close();
 });
 
 test("a sheet's part has its title, and a note across from it only when it has one", () => {
