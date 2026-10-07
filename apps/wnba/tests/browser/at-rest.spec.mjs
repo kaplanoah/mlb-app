@@ -1,5 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import {
+  countFramesAcross,
   expectAtRest,
   forgetResizeLoops,
   listResizeLoops,
@@ -37,6 +38,15 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
   await expectAtRest(page);
 
   expect(await readResizeLoops()).toEqual([]);
+});
+
+test("the page's redraw each minute, which keeps its times current, asks for no frame", async ({
+  page,
+}) => {
+  await openApp(page);
+  await waitForLoadToSettle(page);
+
+  expect(await countFramesAcross(page, 60_000)).toBe(0);
 });
 
 test("a shown list that grows loops no ResizeObserver", async ({ page }) => {
