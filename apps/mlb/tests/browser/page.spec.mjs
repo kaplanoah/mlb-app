@@ -143,11 +143,11 @@ test("the Games lists are as tall as the shown one when it runs past the screen"
   const readHeight = async (locator) => (await locator.boundingBox()).height;
 
   await page.getByRole("tab", { name: "Previous" }).click();
-  await expect
-    .poll(() => readHeight(pages))
-    .toBe(await readHeight(page.locator("#games-previous")));
+  await expect(page.locator("#games-previous")).not.toHaveAttribute("inert");
+  expect(await readHeight(pages)).toBe(await readHeight(page.locator("#games-previous")));
   await page.getByRole("tab", { name: "Today" }).click();
-  await expect.poll(() => readHeight(pages)).toBe(await readHeight(page.locator("#games-today")));
+  await expect(page.locator("#games-today")).not.toHaveAttribute("inert");
+  expect(await readHeight(pages)).toBe(await readHeight(page.locator("#games-today")));
 });
 
 const openShortToday = async (page) => {
@@ -232,7 +232,7 @@ test("on a phone, a list swiped in from far down another starts just under the p
   await expect(page.locator("#games-today")).toHaveCSS("transform", "none");
 });
 
-test("on a phone, a swipe that comes to rest between two lists goes on to the nearer once let go", async ({
+test("on a phone, a swipe that comes to rest between two lists goes on to the nearer", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -242,9 +242,36 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
   const pages = page.locator("#games-pages");
   await pages.evaluate((element) => (element.style.scrollSnapType = "none"));
 
-  await pages.dispatchEvent("touchstart", {
-    touches: [{ identifier: 0, clientX: 195, clientY: 400 }],
+  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.3));
+
+  await expect.poll(() => readPagesPosition(page)).toBe(0);
+  await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator("#games-today")).toHaveAttribute("inert");
+  await expect(pages).toHaveAttribute("data-settled-by", "scrollend");
+
+  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.96));
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("on a phone, where the browser fires no scrollend, the lists settle once they stop scrolling", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await page.addInitScript(() => {
+    delete Window.prototype.onscrollend;
+    delete window.onscrollend;
+    addEventListener("scrollend", (event) => event.stopImmediatePropagation(), { capture: true });
   });
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  const pages = page.locator("#games-pages");
+  await pages.evaluate((element) => (element.style.scrollSnapType = "none"));
+
   await pages.evaluate(
     (element) =>
       new Promise((resolve) => {
@@ -252,24 +279,14 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
         element.scrollLeft = element.clientWidth * 0.3;
       }),
   );
-  await page.clock.runFor(400);
-  expect(await readPagesPosition(page)).toBe(0.3);
-  await expect(page.locator("#games-today")).not.toHaveAttribute("inert");
+  await page.clock.runFor(200);
 
-  await pages.evaluate((element) => {
-    const elsewhere = new Touch({ identifier: 1, target: document.body });
-    element.dispatchEvent(new TouchEvent("touchend", { touches: [elsewhere], bubbles: true }));
-  });
   await expect.poll(() => readPagesPosition(page)).toBe(0);
   await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(page.locator("#games-today")).toHaveAttribute("inert");
-
-  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.96));
-  await expect.poll(() => readPagesPosition(page)).toBe(1);
-  await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
+  await expect(pages).toHaveAttribute("data-settled-by", "timer");
 });
 
 test("a tapped Games tab keeps its list while the lists are still on their way", async ({
@@ -1807,24 +1824,6 @@ test("on a phone, the tabs float at the bottom and stay there while the page scr
     .toBe(Math.round(resting.y));
 });
 
-test("on a phone, dragging along the tab bar picks the tab it's released on", async ({ page }) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  const from = await page.getByRole("tab", { name: "Bracket" }).boundingBox();
-  const to = await page.getByRole("tab", { name: "Standings" }).boundingBox();
-
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
-  await page.mouse.up();
-
-  await expect(page.getByRole("tab", { name: "Standings" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.locator("#view-standings")).toBeVisible();
-});
-
 test("on a phone, a screen reader's bare click still switches tabs", async ({ page }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
@@ -1860,154 +1859,21 @@ test("on a phone, tapping the tab that's showing scrolls back to the top", async
   await expect(page.locator("#view-standings")).toBeVisible();
 });
 
-test("on a phone, dragging back to the tab that's showing leaves the page where it is", async ({
+test("on a phone, a tap slides the tab bar's pill to its tab, and then nothing animates", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
-  await page.mouse.wheel(0, 800);
-  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
-  const scrolled = await page.evaluate(() => scrollY);
-  const from = await page.getByRole("tab", { name: "Bracket" }).boundingBox();
-  const to = await page.getByRole("tab", { name: "Standings" }).boundingBox();
+  const pill = page.locator(".tab-pill");
 
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2, { steps: 8 });
-  await page.mouse.up();
-  await page.clock.runFor(700);
-
-  expect(await page.evaluate(() => scrollY)).toBe(scrolled);
-});
-
-/** How far the tab bar's pill sits from resting on a tab: its center's offset and its extra height. */
-const measurePillFromRest = (page, name) =>
-  page.evaluate((name) => {
-    const pill = document.querySelector(".tab-pill").getBoundingClientRect();
-    const tab = [...document.querySelectorAll("[role=tab]")]
-      .find((button) => button.textContent.trim() === name)
-      .getBoundingClientRect();
-    return {
-      offset: Math.round(pill.left + pill.width / 2 - (tab.left + tab.width / 2)),
-      extraHeight: Math.round(pill.height - tab.height),
-    };
-  }, name);
-
-/**
- * How far a touch has raised the tab bar's pill, from 0 at rest to 1, how opaque its fill is, and
- * how bright its rim's light is at its brightest.
- */
-const readPillLift = (page) =>
-  page.locator(".tab-pill").evaluate((pill) => {
-    const style = getComputedStyle(pill);
-    const fill = style.backgroundColor.match(/[\d.]+/g).map(Number);
-    const rims = [...style.boxShadow.matchAll(/rgba\(255, 248, 236, ([\d.]+)\)/g)];
-    return {
-      lift: Number(style.getPropertyValue("--lift") || 0),
-      fillAlpha: fill[3] ?? 1,
-      rimAlpha: Math.max(0, ...rims.map((rim) => Number(rim[1]))),
-    };
-  });
-
-/** @param {import("@playwright/test").Page} page @param {string} name */
-async function pressTab(page, name) {
-  const box = await page.getByRole("tab", { name }).boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-}
-
-test("on a phone, a press lifts the tab bar's pill, thinner, with a faint rim, which settles on the tab once released", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  const resting = await readPillLift(page);
-
-  await pressTab(page, "Games");
-  await page.clock.runFor(400);
-
-  const lifted = await readPillLift(page);
-  expect(lifted.lift).toBeGreaterThan(0.9);
-  expect(lifted.fillAlpha).toBeLessThan(resting.fillAlpha * 0.7);
-  expect(lifted.rimAlpha).toBeGreaterThan(0);
-  expect(lifted.rimAlpha).toBeLessThanOrEqual(0.1);
-  expect((await measurePillFromRest(page, "Games")).extraHeight).toBeGreaterThan(5);
-  await page.mouse.up();
-  await page.clock.runFor(2000);
-  expect(await measurePillFromRest(page, "Games")).toEqual({ offset: 0, extraHeight: 0 });
-  expect((await readPillLift(page)).lift).toBe(0);
-});
-
-test("on a phone, with reduced motion, a tap moves the tab bar's pill without lifting it", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await openApp(page);
-
-  await pressTab(page, "Games");
-  await page.clock.runFor(400);
-
-  expect((await measurePillFromRest(page, "Games")).extraHeight).toBe(0);
-  expect((await readPillLift(page)).lift).toBe(0);
-  await page.mouse.up();
-});
-
-test("on a phone, the tab bar's pill follows a drag", async ({ page }) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  const from = await page.getByRole("tab", { name: "Bracket" }).boundingBox();
-  const to = await page.getByRole("tab", { name: "Games" }).boundingBox();
-  const between = (from.x + from.width / 2 + to.x + to.width / 2) / 2;
-  await pressTab(page, "Bracket");
-
-  await page.mouse.move(between, from.y + from.height / 2, { steps: 4 });
-  await page.clock.runFor(100);
-
-  const pill = await page.locator(".tab-pill").boundingBox();
-  expect(Math.round(pill.x + pill.width / 2)).toBe(Math.round(between));
-  await page.mouse.up();
-});
-
-test("on a phone, leaving the page mid-press puts the tab bar's pill back at rest", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  await pressTab(page, "Games");
-  await page.clock.runFor(400);
-
-  await setHidden(page, true);
-
-  expect(await measurePillFromRest(page, "Bracket")).toEqual({ offset: 0, extraHeight: 0 });
-});
-
-test("on a phone, the tab bar's pill still moves after a motion's frame was lost while away", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.evaluate(() => {
-    const requestFrame = window.requestAnimationFrame;
-    window.requestAnimationFrame = () => 1;
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        window.requestAnimationFrame = requestFrame;
-      },
-      { once: true },
-    );
-  });
-  await page.clock.runFor(100);
-  await setHidden(page, true);
-  await setHidden(page, false);
 
-  await page.getByRole("tab", { name: "Standings" }).click();
-  await page.clock.runFor(2000);
-
-  expect(await measurePillFromRest(page, "Standings")).toEqual({ offset: 0, extraHeight: 0 });
+  expect(await pill.evaluate((element) => element.getAnimations().length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  const pillBox = await pill.boundingBox();
+  const tabBox = await page.getByRole("tab", { name: "Games" }).boundingBox();
+  expect(pillBox.x + pillBox.width / 2).toBeCloseTo(tabBox.x + tabBox.width / 2, 0);
+  expect(pillBox.height).toBeCloseTo(tabBox.height, 0);
 });
 
 const readBracketFit = (page) =>

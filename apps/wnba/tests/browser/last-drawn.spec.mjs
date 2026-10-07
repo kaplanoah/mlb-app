@@ -66,7 +66,7 @@ test.describe("on a phone", () => {
     await page.reload({ waitUntil: "commit" });
 
     await expect(page.locator("#games-today")).toBeInViewport();
-    await expect(page.locator("#games-previous")).not.toBeInViewport();
+    expect((await page.locator("#games-today").boundingBox()).x).toBe(0);
     release();
   });
 
@@ -97,14 +97,13 @@ test.describe("on a phone", () => {
     await storeBeforeLoad(page, { lastTab: "games" });
     await openApp(page);
     const pill = page.locator(".tab-pill");
-    await expect(page.locator("#tabBar")).toHaveClass(/\bplaced\b/);
+    await expect(page.locator("#view-games")).toBeVisible();
     const placed = await pill.boundingBox();
     const release = await holdPageCode(page);
 
     await page.reload({ waitUntil: "commit" });
 
     await expect(page.locator("#view-games")).toBeVisible();
-    await expect(page.locator("#tabBar")).not.toHaveClass(/\bplaced\b/);
     const resting = await pill.boundingBox();
     expect(resting.x).toBeCloseTo(placed.x, 0);
     expect(resting.width).toBeCloseTo(placed.width, 0);

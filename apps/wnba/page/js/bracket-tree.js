@@ -144,14 +144,20 @@ function markVisibleRound() {
   markScrolledRound(tree, names, dots);
 }
 
+function layOutAndMarkRound() {
+  layOutBracket();
+  markVisibleRound();
+}
+
 // The cards move when the screen resizes, the tab shows, the header above them changes, or a font
 // arrives and changes their rows.
 export function startBracket() {
   const wrap = findWrap();
   placeOpeningRound = watchOpeningRound(wrap);
+  // Laying the bracket out resizes what this observes, so it waits a frame rather than loop the
+  // observer, and only while the bracket shows.
   resizes = new ResizeObserver(() => {
-    layOutBracket();
-    markVisibleRound();
+    if (isShown(wrap)) requestAnimationFrame(layOutAndMarkRound);
   });
   resizes.observe(wrap);
   resizes.observe(document.body);

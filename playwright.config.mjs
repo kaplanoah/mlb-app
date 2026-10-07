@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, webkit } from "@playwright/test";
 import { listApps } from "./worker/apps.mjs";
 
 // Another checkout's browser tests can run alongside on other ports.
@@ -11,6 +11,9 @@ const appsWithBrowserTests = listApps().filter((app) =>
   existsSync(new URL(`apps/${app}/tests/browser/`, import.meta.url)),
 );
 const findPort = (index) => FIRST_PORT + index;
+
+// iPhones run the pages in WebKit, so the at-rest specs run there too wherever it's installed.
+const hasWebKit = existsSync(webkit.executablePath());
 
 export default defineConfig({
   timeout: 30_000,
@@ -31,15 +34,27 @@ export default defineConfig({
     serviceWorkers: "block",
     trace: "retain-on-failure",
   },
-  projects: appsWithBrowserTests.map((app, index) => ({
-    name: app,
-    testDir: `apps/${app}/tests/browser`,
-    use: {
-      ...devices["Desktop Chrome"],
-      baseURL: `http://127.0.0.1:${findPort(index)}`,
-      launchOptions: executablePath ? { executablePath } : {},
+  projects: appsWithBrowserTests.flatMap((app, index) => [
+    {
+      name: app,
+      testDir: `apps/${app}/tests/browser`,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: `http://127.0.0.1:${findPort(index)}`,
+        launchOptions: executablePath ? { executablePath } : {},
+      },
     },
-  })),
+    ...(hasWebKit
+      ? [
+          {
+            name: `${app}-webkit`,
+            testDir: `apps/${app}/tests/browser`,
+            testMatch: "at-rest.spec.mjs",
+            use: { ...devices["Desktop Safari"], baseURL: `http://127.0.0.1:${findPort(index)}` },
+          },
+        ]
+      : []),
+  ]),
   webServer: appsWithBrowserTests.map((app, index) => ({
     command: `node tests/browser/serve.mjs ${findPort(index)} apps/${app}/page`,
     url: `http://127.0.0.1:${findPort(index)}/index.html`,

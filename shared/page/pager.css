@@ -92,10 +92,12 @@
     transition: color 0.25s ease-out;
   }
 }
-/* A swiped list slides off the screen, not off the gutter. */
+/* A swiped list slides off the screen, not off the gutter. The lists' row is as tall as the shown
+   list, and never shorter than the room under the pill that pager.js measures. */
 .pager-pages {
   display: flex;
   align-items: flex-start;
+  min-height: var(--room-under-bar, 0px);
   margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
   overflow-x: auto;
   overflow-y: hidden;
@@ -112,4 +114,8 @@
   padding-inline: var(--reach-left) var(--reach-right);
   scroll-snap-align: start;
   scroll-snap-stop: always;
+}
+/* A list not shown takes no height in the row, though a swipe still shows it. */
+.pager-page[inert] {
+  height: 0;
 }

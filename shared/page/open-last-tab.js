@@ -28,10 +28,21 @@ function showView(tab) {
   }
 }
 
+// The floating tab bar lays its tabs out in equal slots, and its pill rests on the selected one.
+function placeTabPill() {
+  const bar = /** @type {HTMLElement} */ (document.getElementById("tabBar"));
+  const buttons = [...bar.querySelectorAll("[role=tab]")];
+  const selected = buttons.findIndex((button) => button.classList.contains("active"));
+  bar.style.setProperty("--tab-count", String(buttons.length));
+  bar.style.setProperty("--tab-index", String(Math.max(selected, 0)));
+}
+
 // A tab saved before the page dropped it is left alone, so the page opens on its first tab.
 function openLastTab() {
   const tab = readLastTab();
-  if (!tab || !document.getElementById(`view-${tab}`)) return;
-  markTabSelected(tab);
-  showView(tab);
+  if (tab && document.getElementById(`view-${tab}`)) {
+    markTabSelected(tab);
+    showView(tab);
+  }
+  placeTabPill();
 }

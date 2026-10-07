@@ -26,7 +26,7 @@
  *                                              the app has one
  *   --tab-bar-tint                             the tab bar's fill
  *   --tab-bar-edge                             the tab bar's edge
- *   --tab-bar-ink                              the tab bar's icons and labels, and the glow under a touch
+ *   --tab-bar-ink                              the tab bar's icons and labels
  *   --tab-bar-pill                             the selected tab's pill
  *   --catch-up-fade                            the opacity the header's lines fade to as a sweep
  *                                              passes once the page catches up, like 0.75
@@ -38,7 +38,7 @@
  * An app's styles.css also gives .home-screen-icon the icon the Home Screen gets, as its
  * background-image, so the url() is read from the app's own folder.
  *
- * Phones are up to 779px wide, as tab-bar.js and settings-sheet.js also match. Focus rings show
+ * Phones are up to 779px wide, as settings-sheet.js also matches. Focus rings show
  * only while the body has the kbd class, which keyboard-focus.js sets during keyboard navigation.
  */
 
@@ -856,7 +856,7 @@ body:has(> .home-screen-bar:not([hidden])) {
 
   /*
    * A floating tab bar in the app's tint, sized like iOS's: a 62px capsule 21px in from the sides, a
-   * selection pill 5px inside it, icons over small system-font labels. tab-bar.js drives its motion.
+   * selection pill 5px inside it, icons over small system-font labels.
    */
   .tab-bar {
     --tab-height: calc(var(--tab-bar-height) - 10px);
@@ -886,16 +886,7 @@ body:has(> .home-screen-bar:not([hidden])) {
     background: var(--tab-bar-tint);
     box-shadow: inset 0 0 0 1px var(--tab-bar-edge);
   }
-  .tab-glow {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(
-      circle 46px at var(--glow-x, 50%) var(--glow-y, 50%),
-      color-mix(in srgb, var(--tab-bar-ink) calc(var(--glow-alpha, 0) * 100%), transparent),
-      transparent
-    );
-  }
-  /* The labels sit over the pill, which follows the tabs so it can rest on one as its anchor. */
+  /* The labels sit over the pill, in equal slots 9px in from the bar's ends. */
   .tab-list {
     position: absolute;
     z-index: 1;
@@ -949,39 +940,27 @@ body:has(> .home-screen-bar:not([hidden])) {
     margin: -1px;
   }
   /*
-   * The selected tab sits on a pill. --lift runs from 0 to 1 as a touch raises it, and its fill
-   * thins about halfway then, with a faint warm rim, so the tab under it shows through.
+   * The selected tab sits on a pill, which reaches 4px past its slot on each side. The bar's
+   * --tab-count and --tab-index, from open-last-tab.js and tab-bar.js, name the slots and the
+   * selected one, so a tap only changes --tab-index and the pill slides there.
    */
   .tab-pill {
+    --pill-overhang: 4px;
     display: block;
     position: absolute;
     top: 5px;
-    left: 5px;
-    width: var(--pill-width, 25%);
+    left: calc(9px - var(--pill-overhang));
+    width: calc((100% - 18px) / var(--tab-count, 1) + 2 * var(--pill-overhang));
     height: var(--tab-height);
     border-radius: 999px;
-    background: color-mix(
-      in srgb,
-      var(--tab-bar-pill) calc(100% - var(--lift, 0) * 45%),
-      transparent
-    );
-    box-shadow:
-      inset 0 1px 0 rgba(255, 248, 236, calc(var(--lift, 0) * 0.1)),
-      inset 0 0 0 1px rgba(255, 248, 236, calc(var(--lift, 0) * 0.05)),
-      0 6px 18px rgba(0, 0, 0, calc(var(--lift, 0) * 0.18));
+    background: var(--tab-bar-pill);
+    transform: translateX(calc(var(--tab-index, 0) * (100% - 2 * var(--pill-overhang))));
     pointer-events: none;
   }
-  /*
-   * Until tab-bar.js places the pill, it rests on the selected tab, reaching past it by the pill's
-   * overhang as tab-bar.js places it, so the page's first paint shows it where it will stay.
-   */
-  nav.tabs .tab-list button.active {
-    anchor-name: --selected-tab;
-  }
-  .tab-bar:not(.placed) .tab-pill {
-    position-anchor: --selected-tab;
-    left: calc(anchor(left) - 4px);
-    width: calc(anchor-size(width) + 8px);
+  @media (prefers-reduced-motion: no-preference) {
+    .tab-pill {
+      transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    }
   }
   /* The round dots stay just above the tab bar, wherever the bracket ends, over the scroll edge. */
   .round-dots {
