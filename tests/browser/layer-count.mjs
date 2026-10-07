@@ -25,7 +25,8 @@ async function countLayers(page) {
 }
 
 /**
- * Shows each view in turn and expects its layers within its budget, naming every view over.
+ * Shows each view in turn, once nothing in it is still loading, and expects its layers within its
+ * budget, naming every view over.
  * @param {import("@playwright/test").Page} page
  * @param {{ view: string, show: () => Promise<void> }[]} views
  * @param {Record<string, number>} budgets
@@ -34,6 +35,7 @@ export async function expectWithinBudgets(page, views, budgets) {
   const counts = /** @type {Record<string, number>} */ ({});
   for (const { view, show } of views) {
     await show();
+    await expect(page.locator(".placeholder:visible")).toHaveCount(0);
     counts[view] = await countLayers(page);
   }
   const over = Object.entries(counts)
