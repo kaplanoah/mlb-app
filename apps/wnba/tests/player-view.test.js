@@ -153,8 +153,24 @@ test("her turnovers sit between her assists and minutes, with her average, once 
   );
   const text = renderBody(player);
   assert.match(text, /Pts Reb Ast TO Min 21 9 4 3 37\.0 Avg 20\.8 8\.3 3\.3 2\.6 33\.0 /);
-  assert.match(text, /Regular season 42 games Pts 20\.8 7th of 125 TO 2\.6 9th of 125 3P%/);
-  assert.doesNotMatch(renderBody(createPlayer()), /TO/);
+  assert.match(
+    text,
+    /Regular season 42 games Pts 20\.8 7th of 125 TO 2\.6 9th of 125 3P% 25\.4 76th of 76 Turnovers ranked by fewest The number of ranked/,
+  );
+  const plain = renderBody(createPlayer());
+  assert.doesNotMatch(plain, /TO/);
+  assert.doesNotMatch(plain, /Turnovers/);
+});
+
+test("the turnovers curve runs from the most to the fewest, so her mark sits further right the fewer she has", () => {
+  const values = [0.5, 1.2, 2.6, 4];
+  const most = drawSpread(values, 2.6);
+  const fewest = drawSpread(values, 2.6, true);
+  assert.equal(fewest.left.toFixed(1), (100 - most.left).toFixed(1));
+  assert.equal(fewest.top.toFixed(3), most.top.toFixed(3));
+  assert.ok(drawSpread(values, 0.5, true).left > drawSpread(values, 4, true).left);
+  assert.equal(fewest.edge.split(" L").length, most.edge.split(" L").length);
+  assert.notEqual(fewest.edge, most.edge);
 });
 
 test("her playoffs list her team's games with her points in each, DNP for one she missed, and its next game", () => {

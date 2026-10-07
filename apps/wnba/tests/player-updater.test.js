@@ -14,7 +14,7 @@ import {
   nameTotalsRequest,
 } from "../worker/src/player.js";
 import { createPlayerJob } from "../worker/src/player-updater.js";
-import { joinGameLogs } from "./player-fixtures.js";
+import { addTurnovers, joinGameLogs } from "./player-fixtures.js";
 import {
   createRosterServer,
   nameEspnRosterRequest,
@@ -51,6 +51,14 @@ const IONESCU = "1629477";
 const STATS_FEEDS = 5;
 const TEAM_COUNT = Object.keys(TEAMS).length;
 
+// The current season's feeds carry turnovers, and the past season's are as the fixture recorded
+// them, without.
+/**
+ * @param {number} season
+ * @param {any} answer
+ */
+const withSeasonColumns = (season, answer) => (season === 2026 ? addTurnovers(answer) : answer);
+
 const EMPTY_ROSTER = {
   resultSets: [
     { name: "CommonTeamRoster", headers: ["PLAYER_ID"], rowSet: [] },
@@ -66,15 +74,14 @@ function listAnswers() {
   /** @type {Record<string, any>} */
   const answers = {};
   for (const season of [2025, 2026]) {
-    answers[nameTotalsRequest(season)] = PLAYERS.totals[season];
+    answers[nameTotalsRequest(season)] = withSeasonColumns(season, PLAYERS.totals[season]);
     answers[namePlayerListRequest(season)] = ROSTERS.playerList;
     for (const seasonType of [REGULAR_SEASON, PLAYOFFS]) {
       answers[nameTeamGameLogRequest(season, seasonType)] =
         PLAYERS.teamGames[`${season}:${seasonType}`];
-      answers[nameGameLogRequest(season, seasonType)] = joinGameLogs(
-        PLAYERS.gameLogs,
+      answers[nameGameLogRequest(season, seasonType)] = withSeasonColumns(
         season,
-        seasonType,
+        joinGameLogs(PLAYERS.gameLogs, season, seasonType),
       );
     }
     for (const team of Object.keys(TEAMS))
@@ -83,7 +90,10 @@ function listAnswers() {
   }
   for (const [key, games] of Object.entries(PLAYERS.gameLogs)) {
     const [id, season, seasonType] = key.split(":");
-    answers[nameGameLogRequest(Number(season), seasonType, id)] = games;
+    answers[nameGameLogRequest(Number(season), seasonType, id)] = withSeasonColumns(
+      Number(season),
+      games,
+    );
   }
   for (const team of Object.keys(TEAMS))
     answers[nameEspnRosterRequest(TEAMS[team].espnId)] = ROSTERS.espnRosters[team] ?? {
@@ -178,7 +188,7 @@ function createRun({ series = [], answers = listAnswers(), job = createPlayerJob
     }));
     docs.stored.set("seasons/2026", { ...season, games });
   };
-  return { docs, league, runJob, wait, endGames };
+  return { docs, storage, league, runJob, wait, endGames };
 }
 
 /** @param {any} docs */
@@ -309,6 +319,19 @@ test("a past season the store keeps is filled once, after the current one, and n
   const ionescu = await askForPlayer(`id=${IONESCU}&team=NYL&season=2025`, { docs });
   assert.deepEqual(ionescu.body, (await askForPlayer(`id=${IONESCU}&team=NYL&season=2025`)).body);
   assert.deepEqual(ionescu.requests, []);
+});
+
+test("a past season filled before the sheets read a column is filled once more, and then never again", async () => {
+  const { storage, league, runJob, wait } = createRun();
+  await storage.put("filled:2025", true);
+  await runJob();
+  const pastReads = league.requests.filter((url) => /Season=2025/.test(url));
+
+  wait(24 * 60);
+  await runJob();
+
+  assert.equal(pastReads.length, STATS_FEEDS + TEAM_COUNT + 1);
+  assert.equal(league.requests.filter((url) => /Season=2025/.test(url)).length, pastReads.length);
 });
 
 test("ESPN is read only for the teams still playing", async () => {

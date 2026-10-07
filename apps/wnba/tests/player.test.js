@@ -17,6 +17,7 @@ import {
   namePlayerListRequest,
 } from "../worker/src/roster.js";
 import { readTable } from "../worker/src/wnba.js";
+import { addTurnovers } from "./player-fixtures.js";
 
 // Every player's totals, every team's games, and the game logs of a few players, as the league
 // answered the morning after the Liberty's last game, beside the rosters recorded that morning.
@@ -32,19 +33,33 @@ const SABALLY = "1630149";
 const FIEBICH = "1630142";
 const BALOGUN = "1641663";
 const IONESCU = "1629477";
+// Where Stewart's stand-in turnovers rank from the fewest among the 125 ranked players.
+const TURNOVERS_RANK = 100;
+
+// The current season's feeds carry turnovers, and the past season's are as the fixture recorded
+// them, without.
+const CURRENT = 2026;
+/**
+ * @param {number} season
+ * @param {any} answer
+ */
+const withSeasonColumns = (season, answer) => (season === CURRENT ? addTurnovers(answer) : answer);
 
 function listAnswers() {
   /** @type {Record<string, any>} */
   const answers = {};
   for (const [season, totals] of Object.entries(PLAYERS.totals))
-    answers[nameTotalsRequest(Number(season))] = totals;
+    answers[nameTotalsRequest(Number(season))] = withSeasonColumns(Number(season), totals);
   for (const [key, games] of Object.entries(PLAYERS.teamGames)) {
     const [season, seasonType] = key.split(":");
     answers[nameTeamGameLogRequest(Number(season), seasonType)] = games;
   }
   for (const [key, games] of Object.entries(PLAYERS.gameLogs)) {
     const [id, season, seasonType] = key.split(":");
-    answers[nameGameLogRequest(Number(season), seasonType, id)] = games;
+    answers[nameGameLogRequest(Number(season), seasonType, id)] = withSeasonColumns(
+      Number(season),
+      games,
+    );
   }
   for (const [key, roster] of Object.entries(ROSTERS.rosters)) {
     const [team, season] = key.split(":");
@@ -105,6 +120,7 @@ test("a player's sheet has her facts from her roster, her last game with its sco
     minutes: 40,
     steals: 3,
     blocks: 3,
+    turnovers: 2,
     fieldGoalsMade: 6,
     fieldGoalsAttempted: 13,
     threesMade: 1,
@@ -127,6 +143,7 @@ test("her regular season has her averages and her rank in each stat among the pl
     ["assists", 26, 125],
     ["steals", 18, 125],
     ["blocks", 9, 125],
+    ["turnovers", TURNOVERS_RANK, 125],
     ["fieldGoalShare", 28, 71],
     ["threeShare", 76, 76],
     ["freeThrowShare", 27, 68],
@@ -139,6 +156,28 @@ test("her regular season has her averages and her rank in each stat among the pl
         index === 0 || value >= points.values[index - 1],
     ),
   );
+});
+
+test("her turnovers rank from the fewest, among the same players as her other averages", async () => {
+  const { body } = await askForPlayer(listAnswers(), `id=${STEWART}&team=NYL&season=2026`);
+  const turnovers = body.regularSeason.stats.find(
+    (/** @type {any} */ stat) => stat.key === "turnovers",
+  );
+
+  assert.equal(body.regularSeason.averages.turnovers.toFixed(2), turnovers.value.toFixed(2));
+  const fewer = turnovers.values.filter(
+    (/** @type {number} */ each) => each < turnovers.value - 0.001,
+  );
+  assert.equal(turnovers.rank, 1 + fewer.length);
+});
+
+test("a season saved before the store kept turnovers shows none, and its other stats as before", async () => {
+  const { body } = await askForPlayer(listAnswers(), `id=${IONESCU}&team=NYL&season=2025`);
+
+  assert.equal(body.lastGame.turnovers, undefined);
+  assert.equal(body.regularSeason.averages.turnovers, undefined);
+  assert.ok(body.regularSeason.stats.every((/** @type {any} */ stat) => stat.key !== "turnovers"));
+  assert.equal(body.regularSeason.stats.length, 8);
 });
 
 test("a player short of the rule's games has no rank, but where she made enough shots for a percentage", async () => {

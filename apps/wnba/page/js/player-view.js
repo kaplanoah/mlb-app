@@ -64,15 +64,17 @@ import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from
 
 const POSITION_WORDS = { G: "Guard", F: "Forward", C: "Center" };
 
-// A shooting percentage is a share, of the shots `shots` names.
-/** @type {{ key: string, label: string, isShare?: boolean, shots?: string }[]} */
+// A shooting percentage is a share, of the shots `shots` names. Turnovers rank from the fewest,
+// so their curve runs from the most to the fewest, and her mark sits further right the better she
+// ranks, as on every other row.
+/** @type {{ key: string, label: string, isShare?: boolean, shots?: string, isFewestFirst?: boolean }[]} */
 const RANKED_STATS = [
   { key: "points", label: "Pts" },
   { key: "rebounds", label: "Reb" },
   { key: "assists", label: "Ast" },
   { key: "steals", label: "Stl" },
   { key: "blocks", label: "Blk" },
-  { key: "turnovers", label: "TO" },
+  { key: "turnovers", label: "TO", isFewestFirst: true },
   { key: "fieldGoalShare", label: "FG%", isShare: true, shots: "field goals" },
   { key: "threeShare", label: "3P%", isShare: true, shots: "3-pointers" },
   { key: "freeThrowShare", label: "FT%", isShare: true, shots: "free throws" },
@@ -301,21 +303,25 @@ function measureBandwidth(values) {
 
 /**
  * The shape of every ranked player's numbers in a stat, smoothed, across the drawing from the
- * lowest to the highest, and where hers sits on it, each as a share of the drawing from 0 to 100.
+ * lowest to the highest, or the other way round when the fewest ranks first, and where hers sits
+ * on it, each as a share of the drawing from 0 to 100.
  * @param {number[]} values from the lowest
  * @param {number} value hers
+ * @param {boolean} [isFewestFirst]
  */
-export function drawSpread(values, value) {
+export function drawSpread(values, value, isFewestFirst = false) {
   const low = values[0];
   const high = values.at(-1) ?? low;
   const width = measureBandwidth(values);
   /** @param {number} at */
   const measureDensity = (at) =>
     values.reduce((sum, each) => sum + Math.exp(-0.5 * ((at - each) / width) ** 2), 0);
-  const steps = Array.from(
-    { length: CURVE_POINTS },
-    (_, index) => low + ((high - low) * index) / (CURVE_POINTS - 1),
-  );
+  /** @param {number} share of the drawing's width, from 0 to 1 */
+  const placeShare = (share) => (isFewestFirst ? 1 - share : share);
+  const steps = Array.from({ length: CURVE_POINTS }, (_, index) => {
+    const share = placeShare(index / (CURVE_POINTS - 1));
+    return low + (high - low) * share;
+  });
   const densities = steps.map(measureDensity);
   const tallest = Math.max(...densities);
   /** @param {number} density */
@@ -330,16 +336,19 @@ export function drawSpread(values, value) {
   return {
     area: `M0,${CURVE_HEIGHT} L${line} L${CURVE_WIDTH},${CURVE_HEIGHT} Z`,
     edge: `M${line}`,
-    left: high > low ? ((value - low) / (high - low)) * 100 : 50,
+    left: high > low ? placeShare((value - low) / (high - low)) * 100 : 50,
     top: (placeHeight(measureDensity(value)) / CURVE_HEIGHT) * 100,
   };
 }
 
-/** @param {RankedStat} stat */
-function renderCurve(stat) {
+/**
+ * @param {RankedStat} stat
+ * @param {boolean} [isFewestFirst]
+ */
+function renderCurve(stat, isFewestFirst) {
   if (stat.rank == null || stat.value == null || !stat.values.length)
     return html`<span class="player-curve"></span>`;
-  const { area, edge, left, top } = drawSpread(stat.values, stat.value);
+  const { area, edge, left, top } = drawSpread(stat.values, stat.value, isFewestFirst);
   const place = `left: ${left.toFixed(1)}%; top: ${top.toFixed(1)}%`;
   return html`<span class="player-curve" aria-hidden="true">
     <svg viewBox="0 0 ${CURVE_WIDTH} ${CURVE_HEIGHT}" preserveAspectRatio="none">
@@ -395,19 +404,21 @@ export function describeRankNote(season, isPastSeason) {
  * @param {boolean} isPastSeason
  */
 function renderRegularSeason(team, season, isPastSeason) {
-  const rows = RANKED_STATS.map(({ key, label, isShare }) => {
-    const stat = season.stats.find((each) => each.key === key);
-    if (!stat) return false;
+  const shown = RANKED_STATS.filter(({ key }) => season.stats.some((each) => each.key === key));
+  const rows = shown.map(({ key, label, isShare, isFewestFirst }) => {
+    const stat = /** @type {RankedStat} */ (season.stats.find((each) => each.key === key));
     return html`<div class="player-rank-row">
       <span class="player-rank-label">${label}</span>
       <span class="player-rank-value tabular">${formatStat(stat.value, isShare)}</span>
-      ${renderCurve(stat)}${renderRank(stat)}
+      ${renderCurve(stat, isFewestFirst)}${renderRank(stat)}
     </div>`;
   });
+  const hasTurnovers = shown.some(({ isFewestFirst }) => isFewestFirst);
   return renderSheetPart(
     "Regular season",
     html`<div class="player-ranks" style="${formatMarkColors(team)}">
       ${rows}
+      ${hasTurnovers && html`<p class="player-rank-note">Turnovers ranked by fewest</p>`}
       <p class="player-rank-note">${describeRankNote(season, isPastSeason)}</p>
     </div>`,
     `${season.games} ${season.games === 1 ? "game" : "games"}`,
