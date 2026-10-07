@@ -261,3 +261,25 @@ test("Copy puts the recorded opens on the clipboard as text", async ({ page, con
   expect(copied).toMatch(/^\+\d+ Shows /m);
   expect(copied).toMatch(/^Viewport\n\d+:\d\d:\d\d\s[AP]M screen \d+, layout 844, /m);
 });
+
+test("Copy goes back to Copy a moment after copying, ready to copy again", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await reloadAndRecord(page);
+  await openSettings(page);
+  const copyButton = page.locator("#diagnosticsCopy");
+
+  await copyButton.click();
+  await expect(copyButton).toHaveText("Copied");
+  await page.evaluate(() => navigator.clipboard.writeText(""));
+  await page.clock.runFor(2000);
+  await expect(copyButton).toHaveText("Copy");
+
+  await copyButton.click();
+  await expect(copyButton).toHaveText("Copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^\+\d+ Shows /m);
+});

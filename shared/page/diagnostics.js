@@ -28,6 +28,8 @@ const KEPT_RECORDS = 5;
 // A part whose text shrinks by more than this share dipped, which is what a flicker looks like.
 const DIP_SHARE = 0.25;
 const MINUTE_MS = 60 * 1000;
+// Copy says it copied for this long, then offers to copy again.
+const COPIED_MS = 2000;
 
 /** @typedef {{ ms: number, text: string, isDip?: boolean }} RecordLine */
 /** @typedef {{ at: number, how: string, tab: string, lines: RecordLine[] }} OpenRecord */
@@ -39,6 +41,8 @@ let recordStartedAt = 0;
 /** @type {Map<string, PartSize>} */
 let shownSizes = new Map();
 let isCopied = false;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let copiedTimer;
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -380,17 +384,24 @@ function toggleRecording() {
   drawRecords();
 }
 
+/** @param {boolean} hasCopied */
+function showCopied(hasCopied) {
+  clearTimeout(copiedTimer);
+  isCopied = hasCopied;
+  drawRecords();
+  if (hasCopied) copiedTimer = setTimeout(() => showCopied(false), COPIED_MS);
+}
+
 async function copyRecords() {
   try {
     const records = writeRecordsAsText(readRecords().toReversed(), new Date());
     const viewport = writeViewportAsText(readViewportLines().toReversed());
     const sheets = writeSheetLinesAsText(readSheetLines().toReversed());
     await navigator.clipboard.writeText([records, viewport, sheets].filter(Boolean).join("\n\n"));
-    isCopied = true;
+    showCopied(true);
   } catch {
-    isCopied = false;
+    showCopied(false);
   }
-  drawRecords();
 }
 
 /** @param {Event} event */
