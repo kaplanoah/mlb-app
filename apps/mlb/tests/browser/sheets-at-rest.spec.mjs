@@ -1,5 +1,9 @@
 import { test, expect, openApp, buildSnapshotWithStarters, ON_A_PHONE } from "./harness.mjs";
-import { expectAtRest, listResizeLoops } from "../../../../tests/browser/at-rest.mjs";
+import {
+  expectAtRest,
+  forgetResizeLoops,
+  listResizeLoops,
+} from "../../../../tests/browser/at-rest.mjs";
 import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
 
@@ -25,7 +29,7 @@ async function showGames(page) {
   await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
   await page.getByRole("tab", { name: "Games" }).click();
   await page.clock.runFor(1000);
-  await page.evaluate(() => /** @type {any} */ (window).resizeLoops.splice(0));
+  await forgetResizeLoops(page);
 }
 
 /** @param {import("@playwright/test").Page} page */
