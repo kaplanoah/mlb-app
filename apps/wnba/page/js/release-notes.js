@@ -6,10 +6,6 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
-    at: "2026-10-07T14:41:00Z",
-    text: html`Version 3 rebuilds how the app moves: the tab bar, the Games and Standings lists, and every sheet, built plainly so iPhones draw them every time. If anything ever looks blank, turn on Diagnostics in settings, tap <b>Record</b>, then <b>Share report</b>, and send what it shares.`,
-  },
-  {
     at: "2026-10-06T14:55:00Z",
     text: "More leading scorers shown on team and game pages, with more stats for each scorer, and player names are now tappable",
   },
