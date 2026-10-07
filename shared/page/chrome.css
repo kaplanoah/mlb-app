@@ -1,6 +1,6 @@
 /*
  * The chrome every app's page shares: the settings button, the tabs (a floating glass bar on
- * phones), the settings dialog (a sheet on phones) and the lines at its foot, a sideways
+ * phones), the settings dialog (the whole screen on phones) and the lines at its foot, a sideways
  * bracket's round dots (pinned above the tab bar on phones), the bar and settings box that ask
  * a phone's browser to add the page to the Home Screen, the note a slow load shows, the header's
  * line while the page catches up and the sweep through its lines once it has, the spokes a pull
@@ -19,8 +19,8 @@
  *   --radius-track                             the corners of a track that holds choices, like a
  *                                              pager's pill; what sits inside it takes those less
  *                                              the room around it
- *   --radius-sheet, --radius-sheet-phone       a sheet's corners, and the settings dialog's, on wide
- *                                              screens and on phones
+ *   --radius-sheet                             a sheet's corners, and the settings dialog's, on wide
+ *                                              screens; on phones they fill the screen
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
  *                                              the app has one
  *   --tab-bar-ink                              the glass tab bar's icons and labels
@@ -298,9 +298,10 @@ section.view.active {
   }
 }
 
-/* Settings are nearly the screen's height, like every sheet, and their header scrolls with them. They never scroll past their top or bottom, so a swipe down at the top moves
-   the sheet instead. An app that fills the whole sheet sizes its sections from --section-gap and
-   --bottom-padding. */
+/* Settings are nearly the screen's height on a wide screen, and a phone's whole screen, like every
+   sheet, and their header scrolls with them. They never scroll past their top or bottom, so a
+   swipe down at the top moves the sheet instead. An app that fills the whole sheet sizes its
+   sections from --section-gap and --bottom-padding. */
 .settings-panel {
   --head-height: 64px;
   --section-gap: 14px;
@@ -313,14 +314,19 @@ section.view.active {
   padding: 0;
   background: var(--card);
   color: var(--ink);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sheet);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.01);
+  border: 0;
   overscroll-behavior: none;
 }
-/* Settings lightly dim the page behind them, as a phone's own sheets do. */
-.settings-panel::backdrop {
-  background: rgba(0, 0, 0, 0.08);
+/* On wide screens, settings are a card over the page. */
+@media (min-width: 780px) {
+  .settings-panel {
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sheet);
+  }
+}
+/* Sheets and settings leave the page behind them as it is. */
+:is(.settings-panel, .sheet-panel)::backdrop {
+  background: none;
 }
 /* What they hold fills them, the copyright at their foot, so Diagnostics stay just out of sight. */
 .settings-body {
@@ -340,21 +346,22 @@ section.view.active {
   padding: 10px 22px;
   background: var(--card);
 }
-.sheet-grabber {
-  display: none;
-}
+/* A sheet's title is centered, clear of the close or back button at the head's left. */
 .sheet-head {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: center;
   min-height: 44px;
 }
 .sheet-title {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 3px;
+  min-width: 0;
+  padding-inline: 44px;
+  text-align: center;
 }
 .sheet-head h2 {
   font-size: 1.05rem;
@@ -495,37 +502,44 @@ section.view.active {
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
-.sheet-done {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin-right: -8px;
+/* A sheet's close button, a caret down, or its back button, an arrow, in place of it on a sheet
+   opened from another: just the icon, in --accent, its words only for screen readers. */
+.sheet-close,
+.sheet-back {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-control);
   background: none;
-  color: var(--ink-dim);
+  color: var(--accent);
   cursor: pointer;
 }
-@media (hover: hover) {
-  .sheet-done:hover {
-    background: var(--bg);
-  }
+.sheet-close svg,
+.sheet-back svg {
+  width: 26px;
+  height: 26px;
 }
-.sheet-done svg {
-  width: 20px;
-  height: 20px;
+.sheet-back[hidden],
+.sheet-head:has(> .sheet-back:not([hidden])) > .sheet-close {
+  display: none;
 }
-/* Wide screens show only the close icon; the label still names the button. */
-.sheet-done-label {
+:is(.sheet-close-label, .sheet-back-label) {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+body.kbd :is(.sheet-close, .sheet-back):focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 .settings-controls {
   border-block: 1px solid var(--divider);
@@ -781,11 +795,6 @@ body:has(> .home-screen-bar:not([hidden])) {
     transform: translateY(100%);
   }
 }
-@keyframes backdrop-fade-in {
-  from {
-    opacity: 0;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .switch,
   .switch-knob {
@@ -815,29 +824,23 @@ body:has(> .home-screen-bar:not([hidden])) {
     margin-bottom: 0;
   }
 
-  /* On phones, settings rise from the bottom as a sheet, and a swipe down closes them.
-     sheet-swipe.js moves the sheet with the finger. */
+  /* On phones, settings rise from the bottom to fill the screen, and a swipe down closes them.
+     sheet-swipe.js moves them with the finger. */
   .settings-panel {
     --head-height: 63px;
     --bottom-padding: max(22px, env(safe-area-inset-bottom));
     width: 100%;
     max-width: none;
-    height: calc(100% - 44px - env(safe-area-inset-top));
-    margin: auto 0 0;
-    border-width: 1px 0 0;
-    border-radius: var(--radius-sheet-phone) var(--radius-sheet-phone) 0 0;
-    box-shadow: 0 -30px 80px rgba(0, 0, 0, 0.01);
+    height: 100%;
+    max-height: none;
+    margin: 0;
   }
   @media (prefers-reduced-motion: no-preference) {
     .settings-panel[open] {
       animation: sheet-rise var(--sheet-motion);
     }
-    .settings-panel[open]::backdrop {
-      animation: backdrop-fade-in var(--sheet-motion);
-    }
     /* A sheet the page put back open as it loaded was already showing, so it doesn't rise again. */
-    .settings-panel[open][data-reopened],
-    .settings-panel[open][data-reopened]::backdrop {
+    .settings-panel[open][data-reopened] {
       animation: none;
     }
   }
@@ -845,40 +848,14 @@ body:has(> .home-screen-bar:not([hidden])) {
   .diagnostics-area {
     padding-inline: 18px;
   }
+  /* A sheet's top clears the status bar, which a Home Screen page draws over it. */
   .sheet-top {
     justify-content: flex-start;
     margin-inline: -18px;
-    padding: 0 18px 6px;
-  }
-  .sheet-grabber {
-    display: block;
-    width: 48px;
-    height: 5px;
-    margin: 8px auto 12px;
-    border-radius: var(--radius-chip);
-    background: color-mix(in srgb, var(--ink) 25%, transparent);
-  }
-  /* Done has no room of its own here, so the title sits a set distance under the grabber however
-     many lines it has. */
-  .sheet-head {
-    position: relative;
-    justify-content: center;
-    min-height: 0;
-  }
-  .sheet-title {
-    align-items: center;
+    padding: calc(env(safe-area-inset-top) + 8px) 18px 6px;
   }
   .sheet-head h2 {
     font-size: 0.9rem;
-  }
-  /* The swipe closes the sheet, so the button is left only for screen readers. */
-  .sheet-done {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
 
   /*

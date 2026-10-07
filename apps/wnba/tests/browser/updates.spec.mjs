@@ -96,7 +96,7 @@ test.describe("on a phone, tapping an update", () => {
     await tapTeamName(page, 0, "Minnesota Lynx");
     await expect(sheet.locator("#gameWhen")).toContainText("Liberty won");
     await expect(page.locator("#teamSheet")).toBeHidden();
-    await page.locator("#gameDoneBtn").dispatchEvent("click");
+    await page.locator("#gameCloseBtn").dispatchEvent("click");
     await expect(sheet).toBeHidden();
 
     await tapTeamName(page, 1, "Indiana Fever");

@@ -145,19 +145,19 @@
   <dialog id="settingsDialog" class="settings-panel" aria-labelledby="settingsTitle">
     <div class="settings-body">
       <div class="sheet-top">
-        <span class="sheet-grabber" aria-hidden="true"></span>
         <div class="sheet-head">
+          <button type="button" class="sheet-close" id="settingsCloseBtn">
+            <!-- Phosphor's caret-down, at its Light weight. -->
+            <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+              <path
+                d="M212.24,100.24l-80,80a6,6,0,0,1-8.48,0l-80-80a6,6,0,0,1,8.48-8.48L128,167.51l75.76-75.75a6,6,0,0,1,8.48,8.48Z"
+              />
+            </svg>
+            <span class="sheet-close-label">Close</span>
+          </button>
           <div class="sheet-title">
             <h2 id="settingsTitle">Settings</h2>
           </div>
-          <button type="button" class="sheet-done" id="settingsDoneBtn">
-            <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-              <path
-                d="M204.24,195.76a6,6,0,1,1-8.48,8.48L128,136.49,60.24,204.24a6,6,0,0,1-8.48-8.48L119.51,128,51.76,60.24a6,6,0,0,1,8.48-8.48L128,119.51l67.76-67.75a6,6,0,0,1,8.48,8.48L136.49,128Z"
-              />
-            </svg>
-            <span class="sheet-done-label">Done</span>
-          </button>
         </div>
       </div>
       <div class="settings-main">
@@ -208,20 +208,20 @@
       <section id="matchupSheet" class="sheet-page" aria-labelledby="matchupTitle" hidden>
         <div class="sheet-content matchup-sheet">
           <div class="sheet-top">
-            <span class="sheet-grabber" aria-hidden="true"></span>
             <div class="sheet-head">
+              <button type="button" class="sheet-close" id="matchupCloseBtn">
+                <!-- Phosphor's caret-down, at its Light weight. -->
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M212.24,100.24l-80,80a6,6,0,0,1-8.48,0l-80-80a6,6,0,0,1,8.48-8.48L128,167.51l75.76-75.75a6,6,0,0,1,8.48,8.48Z"
+                  />
+                </svg>
+                <span class="sheet-close-label">Close</span>
+              </button>
               <div class="sheet-title">
                 <h2 id="matchupTitle">Pitching matchup</h2>
                 <p class="sheet-note" id="matchupWhen" data-last-drawn></p>
               </div>
-              <button type="button" class="sheet-done" id="matchupDoneBtn">
-                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M204.24,195.76a6,6,0,1,1-8.48,8.48L128,136.49,60.24,204.24a6,6,0,0,1-8.48-8.48L119.51,128,51.76,60.24a6,6,0,0,1,8.48-8.48L128,119.51l67.76-67.75a6,6,0,0,1,8.48,8.48L136.49,128Z"
-                  />
-                </svg>
-                <span class="sheet-done-label">Done</span>
-              </button>
             </div>
           </div>
           <div class="matchup-body" id="matchupBody" data-last-drawn></div>
@@ -231,13 +231,21 @@
       <section id="teamSheet" class="sheet-page" aria-labelledby="teamTitle" hidden>
         <div class="sheet-content">
           <div class="sheet-top">
-            <span class="sheet-grabber" aria-hidden="true"></span>
             <div class="sheet-head">
-              <button type="button" class="sheet-back" id="teamBackBtn" hidden>
-                <!-- Phosphor's caret-left, at its Light weight. -->
+              <button type="button" class="sheet-close" id="teamCloseBtn">
+                <!-- Phosphor's caret-down, at its Light weight. -->
                 <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
                   <path
-                    d="M164.24,203.76a6,6,0,1,1-8.48,8.48l-80-80a6,6,0,0,1,0-8.48l80-80a6,6,0,0,1,8.48,8.48L88.49,128Z"
+                    d="M212.24,100.24l-80,80a6,6,0,0,1-8.48,0l-80-80a6,6,0,0,1,8.48-8.48L128,167.51l75.76-75.75a6,6,0,0,1,8.48,8.48Z"
+                  />
+                </svg>
+                <span class="sheet-close-label">Close</span>
+              </button>
+              <button type="button" class="sheet-back" id="teamBackBtn" hidden>
+                <!-- Phosphor's arrow-left, at its Light weight. -->
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M222,128a6,6,0,0,1-6,6H54.49l61.75,61.76a6,6,0,1,1-8.48,8.48l-72-72a6,6,0,0,1,0-8.48l72-72a6,6,0,0,1,8.48,8.48L54.49,122H216A6,6,0,0,1,222,128Z"
                   />
                 </svg>
                 <span class="sheet-back-label">Back</span>
@@ -246,14 +254,6 @@
                 <h2 id="teamTitle" class="team-title" data-last-drawn>Team</h2>
                 <p class="sheet-note team-note" id="teamNote" data-last-drawn></p>
               </div>
-              <button type="button" class="sheet-done" id="teamDoneBtn">
-                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M204.24,195.76a6,6,0,1,1-8.48,8.48L128,136.49,60.24,204.24a6,6,0,0,1-8.48-8.48L119.51,128,51.76,60.24a6,6,0,0,1,8.48-8.48L128,119.51l67.76-67.75a6,6,0,0,1,8.48,8.48L136.49,128Z"
-                  />
-                </svg>
-                <span class="sheet-done-label">Done</span>
-              </button>
             </div>
           </div>
           <div class="team-sheet-body" id="teamBody" data-last-drawn></div>

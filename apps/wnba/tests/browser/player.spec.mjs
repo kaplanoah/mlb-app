@@ -11,8 +11,8 @@ const PHONE = { width: 390, height: 844 };
 async function openLibertyRoster(page) {
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-  await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
-  const roster = page.locator("#rosterSheet");
+  await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
+  const roster = page.locator("#rosterSection");
   await expect(roster.locator(".roster-coach")).toBeVisible();
   return roster;
 }
@@ -53,9 +53,9 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
-  await sheet.getByRole("button", { name: "Back to Roster" }).click();
+  await sheet.getByRole("button", { name: "Back to Team" }).click();
   await expect(sheet).toBeHidden();
-  await expectShown(page.locator("#rosterSheet"));
+  await expectShown(page.locator("#rosterSection"));
 });
 
 test("a tap anywhere in a player's row on her roster opens her sheet, and a tap on a column's name only sorts", async ({
@@ -184,7 +184,7 @@ test("a top scorer's name in a box score opens her sheet over the game's, and a 
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Standings" }).click();
   await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-  await page.locator("#teamSheet").getByRole("button", { name: "Breanna Stewart" }).click();
+  await page.locator("#teamSection").getByRole("button", { name: "Breanna Stewart" }).click();
   await expect(sheet.locator("#playerTitle")).toHaveText("Breanna Stewart");
   await expect(sheet.getByRole("button", { name: "Back to Team" })).toBeVisible();
 });
@@ -201,6 +201,6 @@ test("her sheet, which reads her numbers again, the roster, and the team's sheet
 
   const sheet = page.locator("#playerSheet");
   await expect(sheet.locator(".player-curve b")).toHaveCount(8);
-  await sheet.getByRole("button", { name: "Back to Roster" }).click();
-  await expect(page.locator("#rosterSheet .roster-coach")).toBeVisible();
+  await sheet.getByRole("button", { name: "Back to Team" }).click();
+  await expect(page.locator("#rosterSection .roster-coach")).toBeVisible();
 });

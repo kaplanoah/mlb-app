@@ -1,5 +1,5 @@
-// On phones, a dialog shown as a sheet from the bottom closes with a swipe down, and slides down
-// whichever way it closes.
+// On phones, a dialog shown as a sheet over the whole screen closes with a swipe down, and slides
+// down whichever way it closes.
 
 // Matches chrome.css's phone layout, where dialogs are sheets.
 const SHEET_MEDIA = "(max-width: 779px)";
@@ -37,32 +37,21 @@ function finishOpening(sheet) {
   for (const motion of sheet.getAnimations()) if (motion instanceof CSSAnimation) motion.finish();
 }
 
-/** @param {HTMLDialogElement} dialog */
-function fadeBackdropOut(dialog) {
-  const duration = prefersReducedMotion() ? 0 : SHEET_MOTION_MS;
-  return dialog.animate([{ opacity: 1 }, { opacity: 0 }], {
-    pseudoElement: "::backdrop",
-    duration,
-    easing: SHEET_EASING,
-    fill: "forwards",
-  });
-}
-
 /** @type {WeakSet<HTMLDialogElement>} */
 const closingSheets = new WeakSet();
 
 /**
- * Slides a sheet down, its backdrop fading with it, and closes it.
+ * Slides a sheet down and closes it.
  * @param {HTMLDialogElement} dialog
  */
 async function slideSheetClosed(dialog) {
   if (closingSheets.has(dialog)) return;
   closingSheets.add(dialog);
-  const motions = [slideSheet(dialog, "translateY(100%)"), fadeBackdropOut(dialog)];
-  await motions[0].finished;
+  const slide = slideSheet(dialog, "translateY(100%)");
+  await slide.finished;
   dialog.close();
   dialog.removeAttribute("data-dragged");
-  for (const motion of motions) motion.cancel();
+  slide.cancel();
   closingSheets.delete(dialog);
 }
 

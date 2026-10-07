@@ -152,7 +152,7 @@ export const refreshPlayerSheet = () => renderSheet();
 
 export function startPlayerSheet() {
   wireSheet(findSheet(), {
-    doneButton: findElement("playerDoneBtn"),
+    closeButton: findElement("playerCloseBtn"),
     backButton: findElement("playerBackBtn"),
     keeper: { read: () => shownPlayer, reopen: reopenPlayer },
     name: "Player",

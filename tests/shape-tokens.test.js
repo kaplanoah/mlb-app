@@ -14,7 +14,6 @@ const APP_TOKENS = [
   "--radius-control",
   "--radius-track",
   "--radius-sheet",
-  "--radius-sheet-phone",
   "--held-bar-fade",
   "--held-bar-line",
   "--pager-thumb-lift",

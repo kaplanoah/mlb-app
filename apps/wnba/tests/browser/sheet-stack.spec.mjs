@@ -5,15 +5,12 @@ import { drag } from "../../../../tests/browser/touch.mjs";
 
 const PHONE = { width: 390, height: 844 };
 const ACES_AT_FEVER = "Game details: Aces at Fever, First Round Game 2";
-// A sheet the next one covers sits this share of the screen's width to the left, as sheet.css
-// moves it.
-const UNDER_SHIFT = 0.3;
 
 /**
- * Opens the Aces at the Fever's sheet, from the Previous games, then the Fever's beside it.
+ * Opens the Aces at the Fever's sheet, from the Previous games.
  * @param {import("@playwright/test").Page} page
  */
-async function openFeverFromGame(page) {
+async function openGame(page) {
   await page.getByRole("tab", { name: "Games" }).click();
   await page.getByRole("tab", { name: "Previous" }).click();
   const list = page.locator("#games-previous");
@@ -21,6 +18,15 @@ async function openFeverFromGame(page) {
   await list.getByRole("button", { name: ACES_AT_FEVER }).click();
   const gameSheet = page.locator("#gameSheet");
   await expect(gameSheet.locator(".line-score")).toBeVisible();
+  return gameSheet;
+}
+
+/**
+ * Opens the Aces at the Fever's sheet, then the Fever's beside it.
+ * @param {import("@playwright/test").Page} page
+ */
+async function openFeverFromGame(page) {
+  const gameSheet = await openGame(page);
   await gameSheet
     .locator(".faceoff")
     .getByRole("button", { name: "Team details: Indiana Fever" })
@@ -30,9 +36,6 @@ async function openFeverFromGame(page) {
   await expectShown(teamSheet);
   return { gameSheet, teamSheet };
 }
-
-/** @param {import("@playwright/test").Locator} sheet */
-const findContent = (sheet) => sheet.locator(":scope > .sheet-content");
 
 /**
  * Notes where a sheet is on each frame it's in the row, until the returned function stops and
@@ -61,8 +64,8 @@ async function startTrackingLeft(page, id) {
 }
 
 /**
- * Where the team's sheet and the game's content are, read on one frame, once the row has stopped
- * moving under a finger held still: the browser may still be applying the finger's last moves.
+ * Where the player's sheet and the game's are, read on one frame, once the row has stopped moving
+ * under a finger held still: the browser may still be applying the finger's last moves.
  * @param {import("@playwright/test").Page} page
  */
 const readRestingLefts = (page) =>
@@ -74,14 +77,14 @@ const readRestingLefts = (page) =>
           /** @type {Element} */ (document.querySelector(selector)).getBoundingClientRect().x -
           row.getBoundingClientRect().x;
         const read = () => ({
-          teamLeft: readLeft("#teamSheet"),
-          gameLeft: readLeft("#gameSheet > .sheet-content"),
+          playerLeft: readLeft("#playerSheet"),
+          gameLeft: readLeft("#gameSheet"),
         });
         let last = read();
         const readOnRest = () =>
           requestAnimationFrame(() => {
             const now = read();
-            if (now.teamLeft === last.teamLeft) resolve(now);
+            if (now.playerLeft === last.playerLeft) resolve(now);
             else {
               last = now;
               readOnRest();
@@ -119,14 +122,13 @@ test.describe("with reduced motion", () => {
   }) => {
     await openApp(page);
     const { teamSheet } = await openFeverFromGame(page);
-    await teamSheet.getByRole("button", { name: "Roster" }).click();
-    await page.locator("#rosterSheet").getByRole("button", { name: "Aliyah Boston" }).click();
+    await teamSheet.getByRole("tab", { name: "Roster" }).click();
+    await page.locator("#rosterSection").getByRole("button", { name: "Aliyah Boston" }).click();
     await expect(page.locator("#playerSheet .player-facts")).toBeVisible();
     // Where each sheet's band ends: a game's runs on through its face-off.
     const bandEnds = {
       gameSheet: ".faceoff",
       teamSheet: ".sheet-top",
-      rosterSheet: ".sheet-top",
       playerSheet: ".sheet-top",
     };
 
@@ -149,20 +151,19 @@ test.describe("with reduced motion", () => {
     expect(first.band[1]).toBe("1px");
   });
 
-  test("on a phone, every sheet is as tall as the screen allows, whatever it holds", async ({
-    page,
-  }) => {
+  test("on a phone, every sheet fills the screen, whatever it holds", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await openApp(page);
     const { gameSheet, teamSheet } = await openFeverFromGame(page);
     const dialog = page.locator("#sheetDialog");
 
+    expect(await dialog.boundingBox()).toEqual({ x: 0, y: 0, ...PHONE });
     const readHeight = (locator) => locator.evaluate((element) => element.offsetHeight);
-    expect(await readHeight(dialog)).toBe(PHONE.height - 44);
-    expect(await readHeight(teamSheet)).toBe(await readHeight(gameSheet));
+    expect(await readHeight(teamSheet)).toBe(PHONE.height);
+    expect(await readHeight(gameSheet)).toBe(PHONE.height);
   });
 
-  test("on a phone, each sheet rounds its leading corner inside the dialog's, the band of the one it slides in over running on under it, and the row never moves past its first or last sheet", async ({
+  test("on a phone, sheets have square corners and no shadow, nothing dims the page or the sheet a sheet slides in beside, and the row never moves past its first or last sheet", async ({
     page,
   }) => {
     await page.setViewportSize(PHONE);
@@ -170,18 +171,16 @@ test.describe("with reduced motion", () => {
     const { gameSheet, teamSheet } = await openFeverFromGame(page);
     const dialog = page.locator("#sheetDialog");
 
-    await expect(dialog).toHaveCSS("border-top-left-radius", "14px");
+    await expect(dialog).toHaveCSS("border-top-left-radius", "0px");
     await expect(dialog).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    expect(
+      await dialog.evaluate((element) => getComputedStyle(element, "::backdrop").backgroundColor),
+    ).toBe("rgba(0, 0, 0, 0)");
     await expect(dialog.locator(".sheet-row")).toHaveCSS("overscroll-behavior-x", "none");
     for (const sheet of [gameSheet, teamSheet]) {
-      await expect(sheet).toHaveCSS("border-top-left-radius", "14px 13px");
-      const band = await sheet
-        .locator(".sheet-top")
-        .evaluate((top) => getComputedStyle(top).backgroundColor);
-      await expect(sheet).toHaveCSS(
-        "box-shadow",
-        `rgba(0, 0, 0, 0.12) 0px 0px 16px 0px, ${band} 14px 0px 0px 0px`,
-      );
+      await expect(sheet).toHaveCSS("border-top-left-radius", "0px");
+      await expect(sheet).toHaveCSS("box-shadow", "none");
+      await expect(sheet).toHaveCSS("filter", "none");
     }
   });
 
@@ -225,16 +224,13 @@ test.describe("with reduced motion", () => {
   });
 });
 
-test("a team's sheet slides in from the right beside the game's, casting a soft shadow along its edge over the game's, which slides a little way left under it and shades a little, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
+test("a team's sheet slides in from the right beside the game's, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
   const { gameSheet, teamSheet } = await openFeverFromGame(page);
-
-  expect(await readLeft(findContent(gameSheet))).toBeCloseTo(-UNDER_SHIFT * PHONE.width, 1);
-  await expect(gameSheet).toHaveCSS("filter", "brightness(0.9)");
-  await expect(teamSheet).toHaveCSS("box-shadow", /^rgba\(0, 0, 0, 0\.12\) 0px 0px 16px 0px,/);
+  expect(await readLeft(gameSheet)).toBe(-PHONE.width);
 
   const readLefts = await startTrackingLeft(page, "teamSheet");
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
@@ -244,16 +240,17 @@ test("a team's sheet slides in from the right beside the game's, casting a soft 
   expect(hasStopOnTheWay(lefts)).toBe(true);
   expect(isMonotonic(lefts)).toBe(true);
   expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
-  await expect(gameSheet).toHaveCSS("filter", "brightness(1)");
 });
 
-test("on a phone, a finger moving the team's sheet moves the game's under it at a fraction of its pace, without the page changing anything, and the sheets settle without stepping back or running an opening motion", async ({
+test("on a phone, a finger moving a player's sheet moves the game's beside it, without the page changing anything, and the sheets settle without stepping back or running an opening motion", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   const readMotions = await recordSheetMotions(page);
   await openApp(page);
-  const { gameSheet } = await openFeverFromGame(page);
+  const gameSheet = await openGame(page);
+  await gameSheet.locator(".players .player-open").first().click();
+  await expectShown(page.locator("#playerSheet"));
   await readMotions();
   await page.evaluate(() => {
     const changes = /** @type {string[]} */ ([]);
@@ -267,19 +264,18 @@ test("on a phone, a finger moving the team's sheet moves the game's under it at 
   });
 
   const release = await drag(page, { x: 60, y: 400 }, { x: 250 });
-  const { teamLeft, gameLeft } = await readRestingLefts(page);
-  expect(teamLeft).toBeGreaterThan(PHONE.width / 2);
-  expect(gameLeft).toBeCloseTo(-UNDER_SHIFT * (PHONE.width - teamLeft), 0);
+  const { playerLeft, gameLeft } = await readRestingLefts(page);
+  expect(playerLeft).toBeGreaterThan(PHONE.width / 2);
+  expect(gameLeft).toBe(playerLeft - PHONE.width);
   expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
 
-  const readLefts = await startTrackingLeft(page, "teamSheet");
+  const readLefts = await startTrackingLeft(page, "playerSheet");
   await release();
   await expectShown(gameSheet);
-  await expect(page.locator("#teamSheet")).toBeHidden();
+  await expect(page.locator("#playerSheet")).toBeHidden();
   const lefts = await readLefts();
 
   expect(isMonotonic(lefts)).toBe(true);
   expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
-  const motions = await readMotions();
-  expect(motions.filter((motion) => motion.name && motion.name !== "sheet-page-under")).toEqual([]);
+  expect(await readMotions()).toEqual([]);
 });

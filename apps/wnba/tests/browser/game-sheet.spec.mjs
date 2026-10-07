@@ -95,7 +95,7 @@ function countBoxScoreReads(page) {
   return reads;
 }
 
-test("tapping a final opens its sheet with the score, the box score, and the top scorers, and Done closes it", async ({
+test("tapping a final opens its sheet with the score, the box score, and the top scorers, and its close button closes it", async ({
   page,
 }) => {
   await openApp(page);
@@ -124,7 +124,7 @@ test("tapping a final opens its sheet with the score, the box score, and the top
   ).toContainText("Caitlin Clark");
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
 
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
 });
 
@@ -173,7 +173,7 @@ test("a final's sheet charts the lead through the game under its quarters, and o
     "Top scorers",
   ]);
   await expect(chart.locator(".lead-period")).toHaveText(["Q1", "Q2", "Q3", "Q4", "OT"]);
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
 
   await openGameSheet(page, ACES_AT_FEVER);
@@ -580,7 +580,7 @@ test("a live game's sheet shows its game as it goes, and stops watching it once 
   });
   await expect(sheet.locator(".faceoff .score")).toHaveText(/77\s*72/);
 
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect.poll(() => app.listWatchedPaths()).not.toContain("games/1042600112");
 });
 
@@ -633,7 +633,7 @@ test("a game the league has no box score for says so, and a preview whose meetin
   await expect(sheet.locator(".sheet-message")).toHaveText(
     "The league hasn't posted a box score for this game yet.",
   );
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
 
   const preview = await openGameSheet(page, FEVER_AT_ACES);
   await expect(preview.locator(".sheet-message")).toHaveText(
@@ -652,7 +652,7 @@ test("a final's box score and a preview's meetings open from what the store keep
   await expect(sheet.locator(".line-score tbody tr").first()).toHaveText(
     /Aces\s*26\s*17\s*17\s*29\s*89/,
   );
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
 
   const preview = await openGameSheet(page, FEVER_AT_ACES);
   await expect(preview.locator(".meetings li")).toHaveCount(3);
@@ -768,7 +768,7 @@ test("no text in a game's sheet is smaller than 10.5px, in its box score or its 
       ),
     );
     expect(smallest, name).toBeGreaterThanOrEqual(10.5);
-    await sheet.getByRole("button", { name: "Done" }).click();
+    await sheet.getByRole("button", { name: "Close" }).click();
     await expect(sheet).toBeHidden();
   }
 });
@@ -822,7 +822,7 @@ test("a reload shows the open sheet where it was scrolled before the page's code
   await expect(sheet.locator("#gameWhen")).toHaveText("Fever won to tie 1-1•Yesterday");
   await expectScrolledTo(sheet, 200);
 
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
   await page.reload();
   await expect(sheet).toBeHidden();
@@ -888,7 +888,7 @@ test.describe("on a phone", () => {
     await answered;
     await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
     expect(await listSheetMotions()).toEqual([]);
-    await sheet.getByRole("button", { name: "Done" }).dispatchEvent("click");
+    await sheet.getByRole("button", { name: "Close" }).dispatchEvent("click");
     await expect(sheet).toBeHidden();
     await openGameSheet(page, ACES_AT_FEVER);
     await expect.poll(listSheetMotions).toContainEqual({
@@ -898,17 +898,15 @@ test.describe("on a phone", () => {
     });
   });
 
-  test("the game sheet rises from the bottom, with a grabber in place of Done", async ({
+  test("the game sheet rises to fill the screen, with its close button at its top left", async ({
     page,
   }) => {
     await openApp(page);
     const sheet = await openGameSheet(page, ACES_AT_FEVER);
-    await expect(sheet.locator(".sheet-grabber")).toBeVisible();
     await waitForTimedMotions(page);
-    await expect(sheet.getByRole("button", { name: "Done" })).toHaveCSS("width", "1px");
-    const box = await sheet.boundingBox();
-    expect(Math.round(box.y + box.height)).toBe(844);
-    expect(box.width).toBe(390);
+    const close = await sheet.getByRole("button", { name: "Close" }).boundingBox();
+    expect([Math.round(close.x), close.width]).toEqual([6, 44]);
+    expect(await sheet.boundingBox()).toEqual({ x: 0, y: 0, width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   });
 
@@ -926,31 +924,33 @@ test.describe("on a phone", () => {
     await expect(sheet.locator(".sheet-top")).not.toBeInViewport();
   });
 
-  test("the game sheet's backdrop fades in, and Done, a tap outside, or Escape slides the sheet down as the backdrop fades out", async ({
+  test("the game sheet rises with nothing dimming the page behind it, and its close button or Escape slides it down", async ({
     page,
   }) => {
     const readMotions = await recordSheetMotions(page);
     await openApp(page);
     const closings = {
-      Done: () => page.locator("#gameDoneBtn").dispatchEvent("click"),
-      "a tap outside": () => page.touchscreen.tap(195, 20),
+      "the close button": () => page.locator("#gameCloseBtn").dispatchEvent("click"),
       Escape: () => page.keyboard.press("Escape"),
     };
     for (const [way, close] of Object.entries(closings)) {
       const sheet = await openGameSheet(page, ACES_AT_FEVER);
       await expect.poll(readMotions, way).toContainEqual({
         id: "sheetDialog",
-        part: "::backdrop",
-        name: "backdrop-fade-in",
+        part: "sheet",
+        name: "sheet-rise",
       });
       await waitForTimedMotions(page);
       await readMotions();
+      const backdrop = await page
+        .locator("#sheetDialog")
+        .evaluate((dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor);
+      expect(backdrop, way).toBe("rgba(0, 0, 0, 0)");
 
       await close();
       await expect(sheet, way).toBeHidden();
       expect(await readMotions(), way).toEqual([
         { id: "sheetDialog", part: "sheet", to: { transform: "translateY(100%)" } },
-        { id: "sheetDialog", part: "::backdrop", to: { opacity: 0 } },
       ]);
     }
   });
@@ -1055,7 +1055,7 @@ test.describe("on a phone", () => {
   });
 });
 
-test("a team's name in a game's sheet opens its sheet over the game's, whose back button says Game and goes back to it, and Done closes both", async ({
+test("a team's name in a game's sheet opens its sheet over the game's, with a back button in place of its close button that says Game and goes back to it", async ({
   page,
 }) => {
   await openApp(page);
@@ -1073,18 +1073,11 @@ test("a team's name in a game's sheet opens its sheet over the game's, whose bac
     await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
     await expectShown(teamSheet);
     await expectSteppedAway(gameSheet);
+    await expect(teamSheet.getByRole("button", { name: "Close" })).toBeHidden();
     await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
     await expect(teamSheet).toBeHidden();
     await expectShown(gameSheet);
   }
-
-  await gameSheet
-    .locator(".faceoff")
-    .getByRole("button", { name: "Team details: Las Vegas Aces" })
-    .click();
-  await teamSheet.getByRole("button", { name: "Done" }).click();
-  await expect(teamSheet).toBeHidden();
-  await expect(gameSheet).toBeHidden();
 });
 
 test("Escape closes a team's sheet and the game's under it at once", async ({ page }) => {

@@ -77,8 +77,7 @@ const OWN_SHAPES = new Set([
  * A corner set from the app's shape tokens, or a circle.
  * @param {string} value
  */
-const isTokenCorner = (value) =>
-  value === "50%" || /var\(--(radius-[a-z-]+|sheet-radius)\)/.test(value);
+const isTokenCorner = (value) => value === "50%" || /var\(--radius-[a-z-]+\)/.test(value);
 
 /** @param {string} rule */
 const hasOwnShape = (rule) => rule.split(",").every((selector) => OWN_SHAPES.has(selector.trim()));

@@ -299,7 +299,7 @@ export function startGameSheet() {
   for (const holder of ["gamePager", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
-    doneButton: findElement("gameDoneBtn"),
+    closeButton: findElement("gameCloseBtn"),
     backButton: findElement("gameBackBtn"),
     keeper: { read: readShownGame, reopen: reopenGameSheet },
     name: "Game",

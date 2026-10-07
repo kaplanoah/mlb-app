@@ -1,7 +1,7 @@
 // The settings panel behind the page's settings button, and which release of the page this is.
-// Phones show it as a sheet from the bottom that a swipe down closes, wider screens as a modal.
+// Phones show it over the whole screen, which a swipe down closes, wider screens as a modal.
 // The page supplies the button (#settingsBtn) and the dialog (#settingsDialog), with its
-// .sheet-top, its Done button (#settingsDoneBtn), and a place for the release (#versionNote).
+// .sheet-top, its close button (#settingsCloseBtn), and a place for the release (#versionNote).
 
 import { joinWithSeparator, setHtml } from "./html.js";
 import { loadRelease } from "./release.js";
@@ -49,6 +49,6 @@ async function showRelease() {
 export function startSettingsSheet({ isOwnGesture } = {}) {
   const dialog = findDialog();
   findElement("settingsBtn").addEventListener("click", () => openSheet(dialog));
-  wireSheet(dialog, { doneButton: findElement("settingsDoneBtn"), isOwnGesture });
+  wireSheet(dialog, { closeButton: findElement("settingsCloseBtn"), isOwnGesture });
   showRelease();
 }
