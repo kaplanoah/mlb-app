@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeSinceScroll, writeTabBarLinesAsText } from "../shared/page/tab-bar-log.js";
+import {
+  describeScroll,
+  describeSinceScroll,
+  writeTabBarLinesAsText,
+} from "../shared/page/tab-bar-log.js";
 import { normalizeSpaces } from "./text.js";
 import { checkInTimeZone, EASTERN } from "./time-zone.js";
 
@@ -26,3 +30,6 @@ test("copied tab bar lines follow a heading, each with its time", () =>
   ));
 
 test("nothing logged copies as nothing", () => assert.equal(writeTabBarLinesAsText([]), ""));
+
+test("a scroll at rest says where it started and where it came to rest", () =>
+  assert.equal(describeScroll(0, 1840.5), "scroll from 0 to 1841"));
