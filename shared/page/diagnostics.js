@@ -1,10 +1,11 @@
 // While Diagnostics is on in settings, each open of the page, each return to it, and each tap on
-// Record now records what the page draws in its first seconds: what the store sends, and how much
+// Record records what the page draws in its first seconds: what the store sends, and how much
 // each part it draws whole (each `data-last-drawn` element) shows, frame by frame. The last few
-// records stay on this device, for the viewer to copy from settings, after a header that names
-// the release, the device, and the page's state, and before the logs of the viewport's changes
-// (viewport-log.js) and of what each dialog's row of sheets does (sheet-log.js).
-// It records nothing while it's off, which it starts as.
+// records stay on this device. Once a record on request ends, its button shares them as a report
+// on a phone or tablet, or copies it on a computer, after a header that names the release, the
+// device, and the page's state, and before the logs of the viewport's changes (viewport-log.js)
+// and of what each dialog's row of sheets does (sheet-log.js). It records nothing while it's off,
+// which it starts as.
 
 import {
   formatClockTime,
@@ -12,7 +13,7 @@ import {
   formatWeekdayAndDate,
   nameDay,
 } from "./days.js";
-import { isOnHomeScreen } from "./device.js";
+import { isOnHomeScreen, isTouchDevice } from "./device.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { describeAnimations, describeShownPagers } from "./pager-log.js";
 import { loadRelease } from "./release.js";
@@ -34,15 +35,17 @@ import {
 const SWITCH_KEY = "diagnostics";
 const RECORDS_KEY = "diagnosticsRecords";
 const RECORD_MS = 5000;
+const SECOND_MS = 1000;
 const KEPT_RECORDS = 5;
 // A part whose text shrinks by more than this share dipped, which is what a flicker looks like.
 const DIP_SHARE = 0.25;
 const MINUTE_MS = 60 * 1000;
-// Copy says it copied for this long, then offers to copy again.
-const COPIED_MS = 2000;
+// The report button says it copied or shared the report for this long, then offers to record again.
+const SENT_MS = 2000;
 const ON_REQUEST = "On request";
 
 /** @typedef {{ ms: number, text: string, isDip?: boolean }} RecordLine */
+/** @typedef {"ready" | "copied" | "shared"} ReportStep */
 /** @typedef {{ at: number, how: string, tab: string, lines: RecordLine[] }} OpenRecord */
 /** @typedef {{ text: number, height: number }} PartSize */
 /**
@@ -68,9 +71,11 @@ let record = null;
 let recordStartedAt = 0;
 /** @type {Map<string, PartSize>} */
 let shownSizes = new Map();
-let isCopied = false;
+/** @type {ReportStep | null} */
+let reportStep = null;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
-let copiedTimer;
+let reportTimer;
+let shownSecondsLeft = 0;
 const openedAt = Date.now();
 let returns = 0;
 /** @type {import("./release.js").Release | null} */
@@ -198,6 +203,7 @@ const sortLines = (openRecord) => ({
 
 function finishRecord() {
   if (!record) return;
+  if (record.how === ON_REQUEST) reportStep = "ready";
   saveRecords([...readRecords(), sortLines(record)]);
   record = null;
   drawRecords();
@@ -209,9 +215,25 @@ function finishRecord() {
  */
 const listRecords = () => [...readRecords(), ...(record ? [sortLines(record)] : [])].toReversed();
 
+/**
+ * The whole seconds a record still has to run, counting the one under way.
+ * @param {number} elapsedMs
+ */
+export const countSecondsLeft = (elapsedMs) =>
+  Math.max(0, Math.ceil((RECORD_MS - elapsedMs) / SECOND_MS));
+
+function drawCountdown() {
+  if (record?.how !== ON_REQUEST) return;
+  const secondsLeft = countSecondsLeft(performance.now() - recordStartedAt);
+  if (secondsLeft === shownSecondsLeft) return;
+  shownSecondsLeft = secondsLeft;
+  drawRecords();
+}
+
 function sampleParts() {
   if (!record) return;
   noteChangedParts();
+  drawCountdown();
   if (performance.now() - recordStartedAt < RECORD_MS) requestAnimationFrame(sampleParts);
   else {
     for (const line of describeShownPagers()) noteStep(line);
@@ -296,8 +318,9 @@ function formatDuration(ms) {
 export const describeTimeAway = (awayMs) => `Back after ${formatDuration(awayMs)}`;
 
 /**
- * The device and browser a user agent names: an iPhone's or iPad's model, iOS version, Safari
- * version, and WebKit build, or the user agent itself for any other.
+ * The device and browser a user agent names: an iPhone's or iPad's model, Safari version, WebKit
+ * build, and the iOS version Safari reports, or the user agent itself for any other. Safari stopped
+ * moving its reported iOS version past 18, so the Safari version is what tells a newer iOS apart.
  * @param {string} userAgent
  * @returns {string}
  */
@@ -307,9 +330,10 @@ export function describeDevice(userAgent) {
   const safari = /Version\/([\d.]+)/.exec(userAgent);
   const webKit = /AppleWebKit\/([\d.]+)/.exec(userAgent);
   return [
-    `${ios[1]}, iOS ${ios[2].replaceAll("_", ".")}`,
+    ios[1],
     safari && `Safari ${safari[1]}`,
     webKit && `WebKit ${webKit[1]}`,
+    `reports iOS ${ios[2].replaceAll("_", ".")}`,
   ]
     .filter(Boolean)
     .join(", ");
@@ -330,7 +354,7 @@ const formatMoment = (date) => `${formatWeekdayAndDate(date)} ${formatClockTimeW
 const countTimes = (count) => (count === 1 ? "1 time" : `${count} times`);
 
 /**
- * The lines that open the copied text, saying which release, on what device, in what state.
+ * The lines that open the report, saying which release, on what device, in what state.
  * @param {PageFacts} facts
  * @returns {string}
  */
@@ -485,29 +509,40 @@ const renderViewport = (lines) => {
   </details>`;
 };
 
+/**
+ * What the record button says: Record, the seconds left while it records, then the way to send
+ * what it recorded, and then that it was sent.
+ * @param {{ secondsLeft: number, reportStep: ReportStep | null, isTouch: boolean }} state
+ * @returns {string}
+ */
+export function nameRecordButton({ secondsLeft, reportStep: step, isTouch }) {
+  if (secondsLeft > 0) return `Recording ${secondsLeft}`;
+  if (step === "ready") return isTouch ? "Share report" : "Copy report";
+  if (step === "copied") return "Copied";
+  if (step === "shared") return "Shared";
+  return "Record";
+}
+
+function renderRecordButton() {
+  const secondsLeft = record?.how === ON_REQUEST ? shownSecondsLeft : 0;
+  const isReady = secondsLeft === 0 && reportStep === "ready";
+  return html`<button
+    type="button"
+    class="diagnostics-button ${isReady ? "diagnostics-report" : ""}"
+    id="diagnosticsRecord"
+    ${secondsLeft > 0 ? "disabled" : ""}
+  >
+    ${nameRecordButton({ secondsLeft, reportStep, isTouch: isTouchDevice() })}
+  </button>`;
+}
+
 function renderRecords() {
   const records = listRecords();
   const viewportLines = readViewportLines().toReversed();
   const sheetLines = readSheetLines().toReversed();
-  const isRecordingOnRequest = record?.how === ON_REQUEST;
   return html`<div class="diagnostics-head">
       <h3>Recent opens</h3>
-      <div class="diagnostics-actions">
-        <button
-          type="button"
-          class="diagnostics-button"
-          id="diagnosticsRecord"
-          ${isRecordingOnRequest ? "disabled" : ""}
-        >
-          ${isRecordingOnRequest ? "Recording" : "Record now"}
-        </button>
-        ${
-          (records.length > 0 || viewportLines.length > 0 || sheetLines.length > 0) &&
-          html`<button type="button" class="diagnostics-button" id="diagnosticsCopy">
-            ${isCopied ? "Copied" : "Copy"}
-          </button>`
-        }
-      </div>
+      <div class="diagnostics-actions">${renderRecordButton()}</div>
     </div>
     ${
       records.length
@@ -530,42 +565,80 @@ function toggleRecording() {
   const isOn = !isRecording();
   saveSwitch(isOn);
   if (!isOn) record = null;
-  isCopied = false;
+  reportStep = null;
   drawRecords();
 }
 
-/** @param {boolean} hasCopied */
-function showCopied(hasCopied) {
-  clearTimeout(copiedTimer);
-  isCopied = hasCopied;
-  drawRecords();
-  if (hasCopied) copiedTimer = setTimeout(() => showCopied(false), COPIED_MS);
+function writeReport() {
+  const header = writeHeader(readPageFacts());
+  const records = writeRecordsAsText(listRecords(), new Date());
+  const viewport = writeViewportAsText(readViewportLines().toReversed());
+  const sheets = writeSheetLinesAsText(readSheetLines().toReversed());
+  return [header, records, viewport, sheets].filter(Boolean).join("\n\n");
 }
 
-async function copyRecords() {
-  try {
-    const header = writeHeader(readPageFacts());
-    const records = writeRecordsAsText(listRecords(), new Date());
-    const viewport = writeViewportAsText(readViewportLines().toReversed());
-    const sheets = writeSheetLinesAsText(readSheetLines().toReversed());
-    await navigator.clipboard.writeText(
-      [header, records, viewport, sheets].filter(Boolean).join("\n\n"),
-    );
-    showCopied(true);
-  } catch {
-    showCopied(false);
+/** @param {ReportStep | null} step */
+function showReportStep(step) {
+  clearTimeout(reportTimer);
+  reportStep = step;
+  drawRecords();
+  if (step === "copied" || step === "shared") {
+    reportTimer = setTimeout(() => showReportStep(null), SENT_MS);
   }
+}
+
+/**
+ * Opens the phone's share sheet, which has to start in the tap's own gesture, so it's called
+ * before anything waits. A share sheet the viewer closes was their choice, so nothing else happens.
+ * @param {string} text
+ * @returns {Promise<"shared" | "closed" | "failed">}
+ */
+async function shareReport(text) {
+  if (!isTouchDevice() || typeof navigator.share !== "function") return "failed";
+  try {
+    await navigator.share({ title: `${readPageFacts().appName} Diagnostics`, text });
+    return "shared";
+  } catch (error) {
+    return error instanceof DOMException && error.name === "AbortError" ? "closed" : "failed";
+  }
+}
+
+/**
+ * @param {string} text
+ * @returns {Promise<boolean>} whether it was copied
+ */
+async function copyReport(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function sendReport() {
+  const text = writeReport();
+  const shared = await shareReport(text);
+  if (shared === "shared") showReportStep("shared");
+  else if (shared === "failed" && (await copyReport(text))) showReportStep("copied");
 }
 
 /** @param {Event} event */
 function followSectionClick(event) {
   const target = /** @type {Element} */ (event.target);
-  if (target.closest("#diagnosticsCopy")) copyRecords();
-  if (target.closest("#diagnosticsRecord")) recordOnRequest();
+  if (target.closest("#diagnosticsRecord")) followRecordButton();
+}
+
+function followRecordButton() {
+  if (reportStep === "ready") sendReport();
+  else recordOnRequest();
 }
 
 function recordOnRequest() {
   startRecord(ON_REQUEST);
+  clearTimeout(reportTimer);
+  reportStep = null;
+  shownSecondsLeft = countSecondsLeft(0);
   drawRecords();
 }
 
