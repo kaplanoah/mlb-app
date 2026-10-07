@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { touchAndCancel } from "../../../../tests/browser/touch.mjs";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -264,16 +265,56 @@ test("with Diagnostics on, each touch at the tab bar is logged with the tab it l
   const steps = lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""));
   expect(steps).toEqual(
     expect.arrayContaining([
-      expect.stringMatching(/^touchstart at \d+,\d+ on Standings, showing Bracket$/),
-      expect.stringMatching(/^pointerdown at \d+,\d+ on Standings, showing Bracket$/),
-      expect.stringMatching(/^pointerup at \d+,\d+ on #tabBar, showing Standings$/),
+      expect.stringMatching(/^touchstart at \d+,\d+ on Standings at the tab bar, showing Bracket$/),
+      expect.stringMatching(
+        /^pointerdown at \d+,\d+ on Standings at the tab bar, showing Bracket$/,
+      ),
+      expect.stringMatching(/^pointerup at \d+,\d+ on #tabBar at the tab bar, showing Standings$/),
     ]),
   );
   await page.getByRole("button", { name: "Copy" }).click();
   await expect(page.locator("#diagnosticsCopy")).toHaveText("Copied");
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   const copiedTabBar = copied.slice(copied.indexOf("\nTab bar\n"));
-  expect(copiedTabBar).toMatch(/pointerup at \d+,\d+ on #tabBar, showing Standings$/m);
+  expect(copiedTabBar).toMatch(
+    /pointerup at \d+,\d+ on #tabBar at the tab bar, showing Standings$/m,
+  );
+});
+
+test("with Diagnostics on, a touch anywhere on the page just after a scroll is logged, but not in settings, and each scroll once it rests", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await tapTab(page, "Standings");
+  const scrolled = page.evaluate(
+    () => new Promise((resolve) => addEventListener("scroll", resolve, { once: true })),
+  );
+  await page.evaluate(() => scrollTo(0, 300));
+  await scrolled;
+
+  await touchAndCancel(page, { x: 200, y: 300 });
+  await page.clock.runFor(200);
+  await openSettings(page);
+  await touchAndCancel(page, { x: 200, y: 400 });
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#settingsDialog")).toBeHidden();
+  await page.clock.runFor(1500);
+  await touchAndCancel(page, { x: 200, y: 320 });
+  await openSettings(page);
+
+  const log = findTabBarLog(page);
+  const lines = await log.locator("li").allTextContents();
+  const steps = lines.toReversed().map((line) => line.trim().replace(/^\S+\s[AP]M\s*/, ""));
+  expect(steps).toEqual(
+    expect.arrayContaining([
+      expect.stringMatching(
+        /^touchstart at 200,300 on .+, \d+ms after a scroll, showing Standings$/,
+      ),
+      expect.stringMatching(/^scroll from 0 to [1-9]\d*$/),
+    ]),
+  );
+  expect(steps.filter((step) => / at 200,(320|400) /.test(step))).toEqual([]);
 });
 
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
