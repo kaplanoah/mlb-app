@@ -1770,19 +1770,17 @@ test.describe("on a phone", () => {
     expect(scrollbars).toEqual([]);
   });
 
-  test("the tab bar's glass is tinted with each theme's raised wood, inside its edge", async ({
-    page,
-  }) => {
+  test("the tab bar is filled with each theme's raised wood, inside its edge", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
-    const readGlass = () =>
-      page.locator(".tab-glass").evaluate((glass) => {
+    const readBacking = () =>
+      page.locator(".tab-backing").evaluate((backing) => {
         const probe = document.createElement("span");
-        probe.style.background = "color-mix(in srgb, var(--raised) 55%, transparent)";
+        probe.style.background = "var(--raised)";
         probe.style.color = "var(--edge)";
         document.body.append(probe);
         const expected = getComputedStyle(probe);
-        const shown = getComputedStyle(glass);
+        const shown = getComputedStyle(backing);
         const result = {
           tint: shown.backgroundColor === expected.backgroundColor,
           edge: shown.boxShadow.includes(expected.color),
@@ -1792,7 +1790,7 @@ test.describe("on a phone", () => {
       });
     for (const appearance of ["Maple", "Walnut"]) {
       await chooseAppearance(page, appearance);
-      expect(await readGlass(), appearance).toEqual({ tint: true, edge: true });
+      expect(await readBacking(), appearance).toEqual({ tint: true, edge: true });
     }
   });
 

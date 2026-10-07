@@ -64,7 +64,7 @@ const OWN_SHAPES = new Set([
   ".switch",
   ".tab-bar::before",
   "nav.tabs .tab-list button",
-  ".tab-glass",
+  ".tab-backing",
   ".tab-pill",
   ".home-screen-icon",
   ".home-screen-tip .home-screen-icon",
