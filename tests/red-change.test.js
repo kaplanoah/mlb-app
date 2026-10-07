@@ -269,7 +269,7 @@ test("a change that isn't red passes without the label", () => {
 test("CI's check needs the gate, which a label change runs again without a push", () => {
   const workflow = readFileSync(`${import.meta.dirname}/../.github/workflows/ci.yml`, "utf8");
   assert.match(workflow, /types: \[[^\]]*\blabeled, unlabeled\]/);
-  assert.match(workflow, /needs: \[passed, gate, checks, browser, review\]/);
+  assert.match(workflow, /\n  check:\n    if: always\(\)\n    needs: \[[^\]]*\bgate\b/);
   assert.match(
     workflow,
     /github\.event_name == 'pull_request' && needs\.gate\.result != 'success'/,
