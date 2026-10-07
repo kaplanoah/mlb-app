@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { describeLoad, describeTimeAway, writeRecordsAsText } from "../shared/page/diagnostics.js";
+import {
+  describeDevice,
+  describeLoad,
+  describeOpenSheets,
+  describeTimeAway,
+  writeHeader,
+  writeRecordsAsText,
+} from "../shared/page/diagnostics.js";
 import { normalizeSpaces } from "./text.js";
 import { checkInTimeZone, EASTERN } from "./time-zone.js";
 
@@ -67,3 +74,82 @@ test("copied records list each open, newest first, with its steps and any dip", 
       ].join("\n"),
     );
   }));
+
+const IPHONE_SAFARI =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1";
+const IPHONE_HOME_SCREEN =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+
+test("a device names an iPhone's iOS version, Safari version, and WebKit build", () => {
+  assert.equal(describeDevice(IPHONE_SAFARI), "iPhone, iOS 18.6.2, Safari 18.6, WebKit 605.1.15");
+  assert.equal(describeDevice(IPHONE_HOME_SCREEN), "iPhone, iOS 18.6.2, WebKit 605.1.15");
+  assert.equal(
+    describeDevice("Mozilla/5.0 (X11; Linux x86_64)"),
+    "Mozilla/5.0 (X11; Linux x86_64)",
+  );
+});
+
+const PAGE_FACTS = {
+  appName: "WNBA",
+  release: { version: "2.27.13", commit: "abc1234", builtAt: "2026-10-06T12:00:00Z" },
+  userAgent: IPHONE_HOME_SCREEN,
+  isOnHomeScreen: true,
+  width: 390,
+  height: 844,
+  pixelRatio: 3,
+  prefersReducedMotion: false,
+  theme: "dark",
+  timeZone: "America/New_York",
+  openedAt: Date.parse("2026-10-07T10:01:00Z"),
+  returns: 3,
+  now: new Date("2026-10-07T12:16:30Z"),
+};
+
+test("the copied text opens with the release, the device, and the page's state", () =>
+  checkInTimeZone(EASTERN, () => {
+    assert.equal(
+      normalizeSpaces(writeHeader(PAGE_FACTS)),
+      [
+        "WNBA v2.27.13 commit abc1234",
+        "Device: iPhone, iOS 18.6.2, WebKit 605.1.15",
+        "Runs from the Home Screen",
+        "Viewport 390x844 at 3x",
+        "Reduced motion off",
+        "Theme dark",
+        "Opened Wed, Oct 7 6:01:00 AM, 2 h 16 min ago",
+        "Back from the background 3 times since",
+        "Now Wed, Oct 7 8:16:30 AM, America/New_York",
+      ].join("\n"),
+    );
+  }));
+
+test("a header in a browser, with no theme or release known, says so and leaves the theme out", () =>
+  checkInTimeZone(EASTERN, () => {
+    const header = writeHeader({
+      ...PAGE_FACTS,
+      appName: "MLB",
+      release: null,
+      isOnHomeScreen: false,
+      prefersReducedMotion: true,
+      theme: undefined,
+      returns: 1,
+    });
+
+    assert.match(header, /^MLB, release unknown$/m);
+    assert.match(header, /^Runs in the browser$/m);
+    assert.match(header, /^Reduced motion on$/m);
+    assert.match(header, /^Back from the background 1 time since$/m);
+    assert.doesNotMatch(header, /Theme/);
+  }));
+
+test("a record on request lists each open sheet and which one its dialog shows", () => {
+  assert.deepEqual(
+    describeOpenSheets([
+      { id: "sheetDialog", isShown: false },
+      { id: "teamSheet", isShown: true },
+      { id: "settingsDialog", isShown: true },
+    ]),
+    ["Sheet sheetDialog", "Sheet teamSheet, shown", "Sheet settingsDialog, shown"],
+  );
+  assert.deepEqual(describeOpenSheets([]), ["No sheets open"]);
+});
