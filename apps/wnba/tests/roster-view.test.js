@@ -187,3 +187,16 @@ test("the pinned table of numbers and names holds the same players in the same o
   };
   assert.equal(countRows("roster-pinned"), countRows("roster-facts"));
 });
+
+test("each row of facts is named by its player's name in the pinned table", () => {
+  const markup = renderText();
+  const labels = [...markup.matchAll(/data-player-row="([^"]+)" aria-labelledby="([^"]+)"/g)];
+  assert.equal(labels.length, 15);
+  for (const [, id, label] of labels) {
+    const nameCell = markup.match(
+      new RegExp(`<th scope="row" class="roster-player" id="${label}">[^]*?</th>`),
+    );
+    assert.ok(nameCell, label);
+    assert.match(nameCell[0], new RegExp(`data-player="${id}"`));
+  }
+});

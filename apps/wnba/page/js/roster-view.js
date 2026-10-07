@@ -245,6 +245,9 @@ const renderFactsHead = (sort) =>
     </tr>
   </thead>`;
 
+/** @param {RosterRow} row */
+const identifyNameCell = (row) => `rosterName-${row.id}`;
+
 const OUT_CHIP = html`<span class="foul-chip"><span class="foul-chip-words">Out</span></span>`;
 
 /**
@@ -255,7 +258,7 @@ const OUT_CHIP = html`<span class="foul-chip"><span class="foul-chip-words">Out<
 const renderPinnedRow = (row, team, showsOut) =>
   html`<tr data-key="${row.id}" data-player-row="${row.id}">
     <td class="roster-number">${NUMBER_COLUMN.read(row)}</td>
-    <th scope="row" class="roster-player">
+    <th scope="row" class="roster-player" id="${identifyNameCell(row)}">
       ${renderPlayerButton(
         { ...row, team },
         html`<span class="roster-first">${row.firstName}</span>
@@ -264,9 +267,10 @@ const renderPinnedRow = (row, team, showsOut) =>
     </th>
   </tr>`;
 
+// A row of facts is named by its player's name in the pinned table, its row header across the way.
 /** @param {RosterRow} row */
 const renderFactsRow = (row) =>
-  html`<tr data-key="${row.id}:facts" data-player-row="${row.id}">
+  html`<tr data-key="${row.id}:facts" data-player-row="${row.id}" aria-labelledby="${identifyNameCell(row)}">
     ${FACT_COLUMNS.map((column) => html`<td${renderClass(column)}>${column.read(row)}</td>`)}
   </tr>`;
 
