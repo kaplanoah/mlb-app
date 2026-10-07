@@ -56,10 +56,11 @@ export const forgetResizeLoops = (page) =>
   });
 
 /**
- * Counts the frames the page asks for across a second of its clock.
+ * Counts the frames the page asks for across `durationMs` of its clock.
  * @param {import("@playwright/test").Page} page
+ * @param {number} durationMs
  */
-async function countFramesAcrossASecond(page) {
+export async function countFramesAcross(page, durationMs) {
   await page.evaluate(() => {
     const counted = /** @type {any} */ (window);
     counted.pageRequestFrame ??= window.requestAnimationFrame;
@@ -70,7 +71,7 @@ async function countFramesAcrossASecond(page) {
       return counted.pageRequestFrame(callback);
     };
   });
-  await page.clock.runFor(1000);
+  await page.clock.runFor(durationMs);
   return page.evaluate(() => /** @type {any} */ (window).frameCounter.frames);
 }
 
@@ -84,7 +85,7 @@ async function countFramesAcrossASecond(page) {
 export async function waitForLoadToSettle(page) {
   await expect(page.locator("#loadNote")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("syncedAt"))).not.toBeNull();
-  await expect.poll(() => countFramesAcrossASecond(page)).toBe(0);
+  await expect.poll(() => countFramesAcross(page, 1000)).toBe(0);
 }
 
 /**
@@ -94,7 +95,7 @@ export async function waitForLoadToSettle(page) {
  */
 export async function expectAtRest(page) {
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
-  expect(await countFramesAcrossASecond(page)).toBe(0);
+  expect(await countFramesAcross(page, 1000)).toBe(0);
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 }
 
