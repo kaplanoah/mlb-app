@@ -724,13 +724,13 @@ header.top h1 {
   --top-room-above: 12px;
   --top-room-below: 23px;
 }
-#gameSheet {
+.sheet-page.game-sheet {
   --top-room-below: 27px;
 }
 .sheet-page .sheet-top {
   padding-top: calc(env(safe-area-inset-top) + var(--top-room-above));
 }
-.sheet-page:not(#gameSheet) .sheet-top {
+.sheet-page:not(.game-sheet) .sheet-top {
   padding-bottom: var(--top-room-below);
 }
 .faceoff {
@@ -1100,7 +1100,7 @@ table.players td.quiet-stat {
    number and name stays at its left as one box, since a box for each cell stuck in a scroller
    gives each a layer of its own. The column names stop at its top. Its sides are its tables',
    since a sticky box's offset counts from inside the section's own padding. */
-#rosterSection {
+.sheet-section.roster-section {
   overflow: auto;
   overscroll-behavior: none;
   container-type: inline-size;
@@ -1109,7 +1109,7 @@ table.players td.quiet-stat {
   --roster-number-gap: 11px;
   --roster-name-gap: 10px;
 }
-#rosterBody {
+.roster-body {
   --roster-space-above: 10px;
   display: grid;
   gap: 8px;
@@ -1118,7 +1118,7 @@ table.players td.quiet-stat {
   min-width: 100%;
   padding: var(--roster-space-above) 18px 0;
 }
-#rosterSection :is(.roster-note, .roster-coach, .sheet-message) {
+.roster-section :is(.roster-note, .roster-coach, .sheet-message) {
   position: sticky;
   left: 18px;
   box-sizing: border-box;
@@ -2419,7 +2419,7 @@ body.kbd .player-open:focus {
 
 /* A player's sheet: under her name and team, her position, age, height, and first season, each
    under a quiet label, without lines between them. */
-#playerSheet {
+.sheet-page.player-sheet {
   --top-room-below: 21px;
 }
 .player-facts {
