@@ -589,17 +589,17 @@ function showReportStep(step) {
 
 /**
  * Opens the phone's share sheet, which has to start in the tap's own gesture, so it's called
- * before anything waits.
+ * before anything waits. A share sheet the viewer closes was their choice, so nothing else happens.
  * @param {string} text
- * @returns {Promise<boolean>} whether it was shared
+ * @returns {Promise<"shared" | "closed" | "failed">}
  */
 async function shareReport(text) {
-  if (!isTouchDevice() || typeof navigator.share !== "function") return false;
+  if (!isTouchDevice() || typeof navigator.share !== "function") return "failed";
   try {
     await navigator.share({ title: `${readPageFacts().appName} Diagnostics`, text });
-    return true;
-  } catch {
-    return false;
+    return "shared";
+  } catch (error) {
+    return error instanceof DOMException && error.name === "AbortError" ? "closed" : "failed";
   }
 }
 
@@ -618,8 +618,9 @@ async function copyReport(text) {
 
 async function sendReport() {
   const text = writeReport();
-  if (await shareReport(text)) showReportStep("shared");
-  else if (await copyReport(text)) showReportStep("copied");
+  const shared = await shareReport(text);
+  if (shared === "shared") showReportStep("shared");
+  else if (shared === "failed" && (await copyReport(text))) showReportStep("copied");
 }
 
 /** @param {Event} event */

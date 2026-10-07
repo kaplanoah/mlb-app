@@ -410,6 +410,27 @@ test("on a phone whose share fails, Share report copies the report instead", asy
   expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
 });
 
+test("on a phone, closing the share sheet copies nothing and leaves Share report to tap again", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => {
+    navigator.share = () => Promise.reject(new DOMException("Share canceled", "AbortError"));
+  });
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await openSettings(page);
+  await page.evaluate(() => navigator.clipboard.writeText("before"));
+
+  await recordOnRequest(page);
+  await findRecordButton(page).click();
+  await page.clock.runFor(100);
+
+  await expect(findRecordButton(page)).toHaveText("Share report");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("before");
+});
+
 test.describe("on a computer", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
 
