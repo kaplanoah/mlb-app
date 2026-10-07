@@ -152,6 +152,7 @@
   --tab-bar-tint: var(--raised);
   --tab-bar-edge: var(--edge);
   --tab-bar-ink: var(--ink);
+  --tab-bar-pill: var(--edge);
   --display: "Barlow", system-ui, sans-serif;
   --numbers: "Barlow Condensed", "Arial Narrow", sans-serif;
   --heading: "Barlow Condensed", "Arial Narrow", sans-serif;
@@ -2260,7 +2261,7 @@ table.standings tr.playoff-line + tr td {
   display: grid;
   justify-items: center;
   gap: 6px;
-  font-size: var(--size-small);
+  font-size: var(--size-setting-note);
   color: var(--ink-dim);
   cursor: pointer;
 }
@@ -2277,10 +2278,10 @@ table.standings tr.playoff-line + tr td {
 .appearance-icon {
   position: relative;
   display: block;
-  width: 52px;
-  height: 52px;
+  width: 60px;
+  height: 60px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: 0 0 0 1px var(--card-border);
 }
 .appearance-icon img {

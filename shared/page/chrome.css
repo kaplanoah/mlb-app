@@ -26,7 +26,8 @@
  *   --tab-bar-tint                             the color that tints the tab bar's glass, and fills
  *                                              it when the viewer turns transparency down
  *   --tab-bar-edge                             the tab bar's edge
- *   --tab-bar-ink                              the tab bar's icons and labels, and its pill's tint
+ *   --tab-bar-ink                              the tab bar's icons and labels, and the glow under a touch
+ *   --tab-bar-pill                             the selected tab's pill
  *   --catch-up-fade                            the opacity the header's lines fade to as a sweep
  *                                              passes once the page catches up, like 0.75
  * and on phones this sets:
@@ -543,7 +544,7 @@ body.kbd :is(.sheet-close, .sheet-back):focus {
   gap: 12px;
   min-height: 56px;
   padding-block: 8px;
-  font-size: var(--size-read);
+  font-size: var(--size-setting);
 }
 .control-row:not([hidden]) ~ .control-row {
   border-top: 1px solid var(--divider);
@@ -583,7 +584,7 @@ body.kbd :is(.sheet-close, .sheet-back):focus {
   min-width: 0;
 }
 .control-note {
-  font-size: var(--size-glance);
+  font-size: var(--size-setting-note);
   line-height: 1.45;
   color: var(--ink-dim);
 }
@@ -627,17 +628,16 @@ body.kbd :is(.sheet-close, .sheet-back):focus {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--ink-dim);
-  transition:
-    transform 0.2s,
-    background 0.2s;
+  /* White in every theme, like the phone's own. */
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
 }
 .switch[aria-checked="true"] {
   background: var(--accent);
   border-color: var(--accent);
 }
 .switch[aria-checked="true"] .switch-knob {
-  background: var(--accent-ink);
   transform: translateX(18px);
 }
 .switch:disabled {
@@ -852,7 +852,7 @@ body:has(> .home-screen-bar:not([hidden])) {
 
   /*
    * A floating tab bar of tinted glass, sized like iOS's: a 62px capsule 21px in from the sides, a
-   * selection pill 5px inside it, icons over small system-font labels. tab-bar.js places the pill.
+   * selection pill 5px inside it, icons over small system-font labels. tab-bar.js drives its motion.
    */
   .tab-bar {
     --tab-height: calc(var(--tab-bar-height) - 10px);
@@ -877,11 +877,21 @@ body:has(> .home-screen-bar:not([hidden])) {
     display: block;
     position: absolute;
     inset: 0;
+    overflow: hidden;
     border-radius: 999px;
     background: color-mix(in srgb, var(--tab-bar-tint) 55%, transparent);
     -webkit-backdrop-filter: blur(10px) saturate(110%);
     backdrop-filter: blur(10px) saturate(110%);
     box-shadow: inset 0 0 0 1px var(--tab-bar-edge);
+  }
+  .tab-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle 46px at var(--glow-x, 50%) var(--glow-y, 50%),
+      color-mix(in srgb, var(--tab-bar-ink) calc(var(--glow-alpha, 0) * 100%), transparent),
+      transparent
+    );
   }
   /* The labels sit over the pill, which follows the tabs so it can rest on one as its anchor. */
   .tab-list {
@@ -936,7 +946,10 @@ body:has(> .home-screen-bar:not([hidden])) {
     height: 23px;
     margin: -1px;
   }
-  /* The selected tab sits on a faint pill of the bar's ink, which slides to the next one. */
+  /*
+   * The selected tab sits on a pill. --lift runs from 0 to 1 as a touch raises it, and its fill
+   * turns mostly to clear glass then, with a lit rim, so the tab under it shows through.
+   */
   .tab-pill {
     display: block;
     position: absolute;
@@ -945,13 +958,20 @@ body:has(> .home-screen-bar:not([hidden])) {
     width: var(--pill-width, 25%);
     height: var(--tab-height);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--tab-bar-ink) 10%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--tab-bar-pill) calc(100% - var(--lift, 0) * 84%),
+      transparent
+    );
+    -webkit-backdrop-filter: brightness(calc(1 + var(--lift, 0) * 0.07));
+    backdrop-filter: brightness(calc(1 + var(--lift, 0) * 0.07));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, calc(var(--lift, 0) * 0.5)),
+      inset 0 0 0 1px rgba(255, 255, 255, calc(var(--lift, 0) * 0.3)),
+      inset 0 -1px 1px rgba(255, 255, 255, calc(var(--lift, 0) * 0.17)),
+      0 6px 18px rgba(0, 0, 0, calc(var(--lift, 0) * 0.21));
     pointer-events: none;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .tab-bar.placed:not(.is-dragging, .is-placing) .tab-pill {
-      transition: transform 0.25s ease-out;
-    }
+    will-change: transform;
   }
   /*
    * Until tab-bar.js places the pill, it rests on the selected tab, reaching past it by the pill's
