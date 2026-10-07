@@ -141,7 +141,7 @@ function renderRow(row, view, form) {
   const isLeague = view === "League";
   return html`<tr class="${isAboveLine(row) ? "" : "below"}" data-team="${row.team}">
     <td class="place tabular">${isLeague ? row.place : row.conferencePlace}</td>
-    <td class="team">${renderTeamButton(row.team, html`<span class="team-cell">${renderPlainClub(row.team)}${renderTeamTag(row, view)}</span>`)}</td>
+    <td class="team row-button-cell">${renderTeamButton(row.team, html`<span class="team-cell">${renderPlainClub(row.team)}${renderTeamTag(row, view)}</span>`)}</td>
     <td class="tabular season">${row.wins}-${row.losses}</td>
     <td class="tabular season pair-end">${formatGamesBack(isLeague ? row.gamesBack : row.conferenceGamesBack)}</td>
     ${renderFormCells(form.renderCells(row))}
@@ -182,7 +182,8 @@ export function renderStandings(season, view = "League") {
   if (!rows.length) return html`<p class="empty-note">No standings yet</p>`;
   const league = [...rows].sort((first, second) => first.place - second.place);
   const form = chooseFormColumns(season);
-  return html`<table class="standings" aria-label="${view} standings">
+  return html`<div class="row-button-clip">
+    <table class="standings" aria-label="${view} standings">
       <thead>
         <tr class="groups">
           <th colspan="2"></th>
@@ -201,7 +202,8 @@ export function renderStandings(season, view = "League") {
       <tbody>
         ${renderBody(listViewRows(league, view), view, form)}
       </tbody>
-    </table>`;
+    </table>
+  </div>`;
 }
 
 /** Builds the pill over the league's and each conference's table, which a swipe moves between. */

@@ -122,6 +122,37 @@ test.describe("on a phone", () => {
     await expect(page.locator("#matchupSheet")).toBeVisible();
     await expect(page.locator("#teamSheet")).toBeHidden();
   });
+
+  test("a tap anywhere on a club's row in the standings, beside its name or on its numbers, lands on the club's button and opens its sheet, and the table scrolls no wider than it is", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Standings" }).click();
+    const row = page.locator('.div-grid tr[data-team="SEA"]');
+    await row.scrollIntoViewIfNeeded();
+    const spots = await row.locator("td").evaluateAll((cells) =>
+      cells
+        .map((cell) => cell.getBoundingClientRect())
+        .filter((box) => box.right <= innerWidth)
+        .map((box) => ({ x: box.right - 2, y: box.top + box.height / 2 })),
+    );
+    expect(spots.length).toBeGreaterThan(4);
+    for (const spot of spots) {
+      const target = await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.team,
+        spot,
+      );
+      expect(target).toBe("SEA");
+    }
+    const [scrolled, table] = await row.evaluate((tr) => [
+      tr.closest(".st-scroll").scrollWidth,
+      tr.closest("table").offsetWidth,
+    ]);
+    expect(scrolled).toBe(table);
+
+    await page.touchscreen.tap(spots.at(-1).x, spots.at(-1).y);
+    await expect(page.locator("#teamSheet #teamTitle")).toHaveText(/Mariners/);
+  });
 });
 
 test("a club's name in the matchup opens its sheet over it, whose back button goes back to the matchup", async ({
@@ -145,7 +176,7 @@ test("a club's row in the standings opens its sheet, with its race and titles, a
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
-  await page.locator('.div-grid tr[data-team="SEA"] td.mid').first().click();
+  await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
   const sheet = page.locator("#teamSheet");
 
   await expect(sheet.locator("#teamTitle")).toHaveText(/Mariners/);

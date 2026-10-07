@@ -129,7 +129,7 @@ function renderStandingsRow(row, cells, { out = false, cut = false, groupEnd = f
   const rowMarkup = html`<tr class="${rowClass}" data-team="${row.id}">
     ${renderRankCell(row.id)}
     <td class="seed-cell">${readSeed(row.id) || ""}</td>
-    <td class="team">${renderClub(row.id)}</td>
+    <td class="team row-button-cell">${renderClub(row.id)}</td>
     ${cells}
   </tr>`;
   // One cell spanning the table, so the dashes run at a single even pitch.
@@ -161,11 +161,11 @@ function renderRaceCells(row, gamesBack, eliminationNumber, isOut) {
 }
 
 function renderTable(title, head, body) {
-  return html`<div class="st-scroll" tabindex="0" role="region" aria-label="${title} standings"><table class="st">
+  return html`<div class="st-scroll" tabindex="0" role="region" aria-label="${title} standings"><div class="row-button-clip"><table class="st">
       ${COLUMNS}
       ${head}
       <tbody>${body}</tbody>
-    </table></div>`;
+    </table></div></div>`;
 }
 
 export function renderDivisionBlock(name, rows) {

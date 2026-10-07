@@ -171,7 +171,7 @@
   --text: "Barlow", system-ui, sans-serif;
   --page-gutter: 16px;
   --header-gap: 14px;
-  --pager-label: var(--ink-mid);
+  --pager-label: var(--ink);
   --pager-chosen-edge: color-mix(in srgb, var(--action) 70%, var(--shadow-ink));
   --held-bar-fade: 0px;
   --held-bar-line: var(--divider);
@@ -1529,8 +1529,10 @@ th[aria-sort="ascending"] .roster-caret {
   inset: 0;
 }
 /* The number and Seed share a baseline. Each is trimmed to its letters, from the top of a capital
-   to the baseline, so the pair centers on its row by what's drawn rather than by its fonts' boxes. */
+   to the baseline, so the pair centers on its row by what's drawn rather than by its fonts' boxes.
+   The label sits outside the button over its team's row, so it doesn't take a pointer. */
 .seed-label {
+  cursor: default;
   position: absolute;
   top: 50%;
   right: calc(100% + 9px);
