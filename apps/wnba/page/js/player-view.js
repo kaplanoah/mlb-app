@@ -419,8 +419,10 @@ function renderRegularSeason(team, season, isPastSeason) {
     "Regular season",
     html`<div class="player-ranks" style="${formatMarkColors(team)}">
       ${rows}
-      ${hasTurnovers && html`<p class="player-rank-note">Turnovers ranked by fewest</p>`}
-      <p class="player-rank-note">${describeRankNote(season, isPastSeason)}</p>
+      <div class="player-rank-notes">
+        ${hasTurnovers && html`<p class="player-rank-note">Turnovers ranked by fewest</p>`}
+        <p class="player-rank-note">${describeRankNote(season, isPastSeason)}</p>
+      </div>
     </div>`,
     `${season.games} ${season.games === 1 ? "game" : "games"}`,
   );
