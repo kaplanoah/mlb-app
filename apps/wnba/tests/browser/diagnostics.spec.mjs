@@ -268,61 +268,59 @@ test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(0);
 });
 
-test("Copy puts the recorded opens on the clipboard as text", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("the report holds every record kept, the one on request and the reload before it, and the viewport log", async ({
+  page,
+}) => {
+  await stubShare(page);
   await openApp(page);
   await turnOnDiagnostics(page);
   await reloadAndRecord(page);
   await openSettings(page);
 
-  await page.getByRole("button", { name: "Copy" }).click();
+  await recordOnRequest(page);
+  await findRecordButton(page).click();
 
-  await expect(page.locator("#diagnosticsCopy")).toHaveText("Copied");
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
-  expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, \w+, Bracket$/m);
-  expect(copied).toMatch(/^\+\d+ Shows /m);
-  expect(copied).toMatch(/^Viewport\n\d+:\d\d:\d\d\s[AP]M screen \d+, layout 844, /m);
+  await expect(findRecordButton(page)).toHaveText("Shared");
+  const [{ text: report }] = await readShares(page);
+  expect(report).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
+  expect(report).toMatch(/^Today \d+:\d\d\s[AP]M, \w+, Bracket$/m);
+  expect(report).toMatch(/^\+\d+ Shows /m);
+  expect(report).toMatch(/^Viewport\n\d+:\d\d:\d\d\s[AP]M screen \d+, layout 844, /m);
 });
 
-test("Copy goes back to Copy a moment after copying, ready to copy again", async ({
+test("once it has gone back to Record, the button records and offers the report again", async ({
   page,
-  context,
 }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await stubShare(page);
   await openApp(page);
   await turnOnDiagnostics(page);
-  await reloadAndRecord(page);
   await openSettings(page);
-  const copyButton = page.locator("#diagnosticsCopy");
-
-  await copyButton.click();
-  await expect(copyButton).toHaveText("Copied");
-  await page.evaluate(() => navigator.clipboard.writeText(""));
+  await recordOnRequest(page);
+  await findRecordButton(page).click();
+  await expect(findRecordButton(page)).toHaveText("Shared");
   await page.clock.runFor(2000);
-  await expect(copyButton).toHaveText("Copy");
 
-  await copyButton.click();
-  await expect(copyButton).toHaveText("Copied");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^\+\d+ Shows /m);
+  await recordOnRequest(page);
+  await expect(findRecordButton(page)).toHaveText("Share report");
+  await findRecordButton(page).click();
+
+  await expect(findRecordButton(page)).toHaveText("Shared");
+  expect(await readShares(page)).toHaveLength(2);
 });
 
-test("Record now records the page as it is, with the sheets open, and Copy puts it under a header naming the app and device", async ({
+test("Record records the page as it is, with the sheets open, and its report puts it under a header naming the app and device", async ({
   page,
-  context,
 }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await stubShare(page);
   await openApp(page);
   await turnOnDiagnostics(page);
   await openSettings(page);
 
-  await page.getByRole("button", { name: "Record now" }).click();
-  await expect(page.locator("#diagnosticsRecord")).toHaveText("Recording");
-  await page.clock.runFor(RECORD_MS + 1000);
-  await expect(page.locator("#diagnosticsRecord")).toHaveText("Record now");
-  await page.getByRole("button", { name: "Copy" }).click();
+  await recordOnRequest(page);
+  await findRecordButton(page).click();
 
-  await expect(page.locator("#diagnosticsCopy")).toHaveText("Copied");
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  await expect(findRecordButton(page)).toHaveText("Shared");
+  const [{ text: copied }] = await readShares(page);
   expect(copied).toMatch(/^WNBA, /);
   expect(copied).toMatch(/^Device: /m);
   expect(copied).toMatch(/^Runs in the browser$/m);
@@ -334,4 +332,131 @@ test("Record now records the page as it is, with the sheets open, and Copy puts 
   expect(copied).toMatch(/^\+\d+ Sheet settingsDialog, shown$/m);
   expect(copied).toMatch(/^\+\d+ Shows .*bracketWrap \d+\/\d+px/m);
   expect(copied).toMatch(/^\+\d+ Animations: /m);
+});
+
+/** @param {import("@playwright/test").Page} page */
+const findRecordButton = (page) => page.locator("#diagnosticsRecord");
+
+/** @param {import("@playwright/test").Page} page */
+const stubShare = (page) =>
+  page.addInitScript(() => {
+    /** @type {ShareData[]} */
+    const shares = [];
+    Object.defineProperty(window, "diagnosticsShares", { value: shares });
+    navigator.share = async (data) => {
+      shares.push(data ?? {});
+    };
+  });
+
+/** @param {import("@playwright/test").Page} page */
+const readShares = (page) =>
+  page.evaluate(() => /** @type {ShareData[]} */ (Reflect.get(window, "diagnosticsShares")));
+
+/** @param {import("@playwright/test").Page} page */
+async function recordOnRequest(page) {
+  const button = findRecordButton(page);
+  await expect(button).toHaveText("Record");
+  await button.click();
+  for (const secondsLeft of [5, 4, 3, 2, 1]) {
+    await expect(button).toHaveText(`Recording ${secondsLeft}`);
+    await expect(button).toBeDisabled();
+    await page.clock.runFor(1000);
+  }
+  await page.clock.runFor(100);
+}
+
+test("on a phone, Record counts down, then Share report, filled, shares the report, and goes back to Record", async ({
+  page,
+}) => {
+  await stubShare(page);
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await openSettings(page);
+
+  await recordOnRequest(page);
+  const button = findRecordButton(page);
+  await expect(button).toHaveText("Share report");
+  await expect(button).toBeEnabled();
+  await expect(button).toHaveClass(/diagnostics-report/);
+  await button.click();
+
+  await expect(button).toHaveText("Shared");
+  const shares = await readShares(page);
+  expect(shares).toHaveLength(1);
+  expect(shares[0].title).toBe("WNBA Diagnostics");
+  expect(shares[0].text).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
+  await page.clock.runFor(2000);
+  await expect(button).toHaveText("Record");
+  await expect(button).not.toHaveClass(/diagnostics-report/);
+});
+
+test("on a phone whose share fails, Share report copies the report instead", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => {
+    navigator.share = () => Promise.reject(new DOMException("Not allowed", "NotAllowedError"));
+  });
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await openSettings(page);
+
+  await recordOnRequest(page);
+  await findRecordButton(page).click();
+
+  await expect(findRecordButton(page)).toHaveText("Copied");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
+});
+
+test("on a phone, closing the share sheet copies nothing and leaves Share report to tap again", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => {
+    navigator.share = () => Promise.reject(new DOMException("Share canceled", "AbortError"));
+  });
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await openSettings(page);
+  await page.evaluate(() => navigator.clipboard.writeText("before"));
+
+  await recordOnRequest(page);
+  await findRecordButton(page).click();
+  await page.clock.runFor(100);
+
+  await expect(findRecordButton(page)).toHaveText("Share report");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("before");
+});
+
+test.describe("on a computer", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+
+  test("Record counts down, then Copy report copies the report and goes back to Record", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await stubShare(page);
+    await openApp(page);
+    await turnOnDiagnostics(page);
+    await openSettings(page);
+
+    await recordOnRequest(page);
+    const button = findRecordButton(page);
+    await expect(button).toHaveText("Copy report");
+    await expect(button).toHaveClass(/diagnostics-report/);
+    await button.click();
+
+    await expect(button).toHaveText("Copied");
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toMatch(/^WNBA, /);
+    expect(copied).toMatch(/^Viewport 1280x800 at \d+(\.\d+)?x$/m);
+    expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
+    expect(await readShares(page)).toHaveLength(0);
+    await page.clock.runFor(2000);
+    await expect(button).toHaveText("Record");
+  });
 });
