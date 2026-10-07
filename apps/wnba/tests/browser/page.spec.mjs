@@ -540,9 +540,8 @@ const readSettingsBoxes = (page) =>
       body: readBox(".settings-body"),
       top: readBox(".sheet-top"),
       head: readBox(".sheet-head"),
-      grabber: readBox(".sheet-grabber"),
       title: readBox("h2"),
-      done: readBox(".sheet-done"),
+      close: readBox(".sheet-close"),
       controls: readBox(".settings-controls"),
       footer: readBox(".settings-footer"),
     };
@@ -551,22 +550,21 @@ const readSettingsBoxes = (page) =>
 test.describe("on a phone, settings", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("rise from the bottom of the screen to near its top, like every sheet", async ({ page }) => {
+  test("rise from the bottom to fill the screen, like every sheet", async ({ page }) => {
     await openSettingsWithRelease(page);
     const { sheet } = await readSettingsBoxes(page);
-    expect(Math.round(sheet.bottom)).toBe(844);
-    expect(Math.round(sheet.height)).toBe(844 - 44);
+    expect([sheet.top, sheet.height]).toEqual([0, 844]);
   });
 
-  test("set their title 12px under the grabber and 21px over the first setting, and end 17px over the bottom", async ({
+  test("set their title level with their close button and 32px over the first setting, and end 17px over the bottom", async ({
     page,
   }) => {
     await openSettingsWithRelease(page);
-    const { sheet, top, head, grabber, title, controls, footer } = await readSettingsBoxes(page);
-    expect(grabber.height).toBe(5);
-    expect(title.top - grabber.bottom).toBe(12);
+    const { sheet, top, head, title, close, controls, footer } = await readSettingsBoxes(page);
+    const findMiddle = (box) => box.top + box.height / 2;
+    expect(Math.abs(findMiddle(title) - findMiddle(close))).toBeLessThan(1);
     expect(head.bottom).toBeLessThanOrEqual(top.bottom);
-    expect(Math.round(controls.top - title.bottom)).toBe(21);
+    expect(Math.round(controls.top - title.bottom)).toBe(32);
     expect(Math.round(sheet.bottom - footer.bottom)).toBe(17);
   });
 });
@@ -583,11 +581,11 @@ test.describe("on a wide screen, settings", () => {
     expect(Math.abs(sheet.top + sheet.height / 2 - 450)).toBeLessThan(1);
   });
 
-  test("set their title level with Done, inside the header", async ({ page }) => {
+  test("set their title level with their close button, inside the header", async ({ page }) => {
     await openSettingsWithRelease(page);
-    const { top, head, title, done } = await readSettingsBoxes(page);
+    const { top, head, title, close } = await readSettingsBoxes(page);
     const findMiddle = (box) => box.top + box.height / 2;
-    expect(Math.abs(findMiddle(title) - findMiddle(done))).toBeLessThan(1);
+    expect(Math.abs(findMiddle(title) - findMiddle(close))).toBeLessThan(1);
     expect(head.bottom).toBeLessThanOrEqual(top.bottom);
   });
 });
@@ -1085,7 +1083,7 @@ test.describe("a team's sheet in each theme", () => {
 test.describe("a team's sheet", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-  test("a team in the standings opens its sheet, which follows the season as it changes, and Done closes it", async ({
+  test("a team in the standings opens its sheet, which follows the season as it changes, and its close button closes it", async ({
     page,
   }) => {
     const app = await openApp(page);
@@ -1102,7 +1100,7 @@ test.describe("a team's sheet", () => {
     });
     await expect(sheet.locator(".team-form")).toContainText(/Last 10\s*9-1/);
 
-    await sheet.getByRole("button", { name: "Done" }).click();
+    await sheet.getByRole("button", { name: "Close" }).click();
     await expect(sheet).toBeHidden();
   });
 

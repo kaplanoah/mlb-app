@@ -1,14 +1,12 @@
-// A team's roster, in a sheet of its own that its team's sheet opens: each player's number and
-// name, then her position, height, where she came from, age, and first WNBA season, then her
-// averages a game this season, which the table scrolls across to while her number and name stay
-// put. A tap on a column's name sorts by it.
+// A team's roster, in the Roster section of its team's sheet: each player's number and name, then
+// her position, height, where she came from, age, and first WNBA season, then her averages a game
+// this season, which the table scrolls across to while her number and name stay put. A tap on a
+// column's name sorts by it.
 
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
-import { renderDot } from "./clubs.js";
 import { renderPlayerButton } from "./player-button.js";
 import { renderSheetMessage } from "./sheet-parts.js";
-import { TEAMS } from "./teams.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
 /** @typedef {{ id: string, number: string | null, firstName: string, lastName: string, position: string | null, height: string | null, age: number | null, college: string | null, country: string | null, isOut: boolean, debut: number | null }} RosterPlayer */
@@ -308,32 +306,9 @@ export function renderRoster({ roster, averages, sort, isLoading, showsOut }) {
 }
 
 /**
- * The roster's title, the team's dot and its name without its city, then Roster, so it reads
- * apart from the team's own sheet under it.
- * @param {string} team
- */
-export const renderRosterHeading = (team) =>
-  html`${renderDot(team)}<span>${TEAMS[team].name} Roster</span>`;
-
-/**
- * What the roster's sheet says under its title: the season, and how many players it has once
- * it's loaded.
+ * What the roster says above its table: the season, and how many players it has once it's loaded.
  * @param {Roster | null} roster
  * @param {number} year
  */
 export const describeRosterNote = (roster, year) =>
   joinWithSeparator(roster ? [String(year), `${roster.players.length} players`] : [String(year)]);
-
-// Phosphor's caret-right, at its Light weight.
-const NEXT_ICON = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-  <path
-    d="M180.24,132.24l-80,80a6,6,0,0,1-8.48-8.48L167.51,128,91.76,52.24a6,6,0,0,1,8.48-8.48l80,80A6,6,0,0,1,180.24,132.24Z"
-  />
-</svg>`;
-
-/**
- * The button across from a team's name, on its sheet, that opens its roster.
- * @param {string} team
- */
-export const renderRosterButton = (team) =>
-  html`<button type="button" class="sheet-action" data-roster="${team}">Roster${NEXT_ICON}</button>`;

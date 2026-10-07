@@ -22,7 +22,7 @@ const RELEASE = { version: "2.13.0", commit: "abc1234", builtAt: "2026-09-28T00:
 const serveRelease = (page, release) =>
   page.route(matchPath("/version.json"), (route) => route.fulfill({ json: release }));
 
-test("settings lightly dim the page behind them, as every sheet does", async ({ page }) => {
+test("settings leave the page behind them as it is, as every sheet does", async ({ page }) => {
   await openApp(page);
   await openSettings(page);
   const settings = page.locator("#settingsDialog");
@@ -30,10 +30,10 @@ test("settings lightly dim the page behind them, as every sheet does", async ({ 
   const dim = await settings.evaluate(
     (dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor,
   );
-  expect(dim).toBe("rgba(0, 0, 0, 0.08)");
+  expect(dim).toBe("rgba(0, 0, 0, 0)");
 });
 
-test("the sliders button opens settings, and Done, Escape, or the backdrop closes it", async ({
+test("the sliders button opens settings, and its close button, Escape, or the backdrop closes it", async ({
   page,
 }) => {
   await openApp(page, WITH_A_PAST_SEASON);
@@ -43,7 +43,7 @@ test("the sliders button opens settings, and Done, Escape, or the backdrop close
   await openSettings(page);
   await expect(settings).toBeVisible();
   await expect(settings.getByRole("combobox", { name: "Season" })).toHaveValue("2026");
-  await settings.getByRole("button", { name: "Done" }).click();
+  await settings.getByRole("button", { name: "Close" }).click();
   await expect(settings).toBeHidden();
 
   await openSettings(page);
@@ -75,7 +75,7 @@ test("settings open on a reload show again, with the season, notifications, and 
   await expect(settings.getByRole("combobox", { name: "Season" })).toHaveValue("2026");
   release();
   await expect(page.locator("#bracketWrap")).toContainText("Phillies");
-  await settings.getByRole("button", { name: "Done" }).click();
+  await settings.getByRole("button", { name: "Close" }).click();
   await expect(settings).toBeHidden();
 });
 
@@ -299,7 +299,7 @@ test("without a version file, settings leave the version out", async ({ page }) 
   await expect(page.locator("#versionNote")).toBeHidden();
 });
 
-test("on a phone, settings rise from the bottom as a sheet with a wide grabber and no Done button", async ({
+test("on a phone, settings rise to fill the screen, with their close button level with their title at the top left", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -308,19 +308,16 @@ test("on a phone, settings rise from the bottom as a sheet with a wide grabber a
   await waitForSheetToRise(page);
 
   const settings = page.getByRole("dialog", { name: "Settings" });
-  const done = settings.getByRole("button", { name: "Done" });
-  await expect(done).toHaveCount(1);
-  expect((await done.boundingBox()).width).toBeLessThanOrEqual(1);
-  const grabber = await settings.locator(".sheet-grabber").boundingBox();
+  const close = await settings.getByRole("button", { name: "Close" }).boundingBox();
   const title = await settings.getByRole("heading", { name: "Settings" }).boundingBox();
-  expect(grabber.width).toBe(48);
-  expect(title.y - (grabber.y + grabber.height)).toBe(12);
+  expect([Math.round(close.x), close.width]).toEqual([6, 44]);
+  expect(close.y + close.height / 2).toBeCloseTo(title.y + title.height / 2, 0);
   await expect
     .poll(async () => {
       const box = await settings.boundingBox();
-      return box && { left: box.x, width: box.width, bottom: Math.round(box.y + box.height) };
+      return box && { left: box.x, top: box.y, width: box.width, height: box.height };
     })
-    .toEqual({ left: 0, width: PHONE.width, bottom: PHONE.height });
+    .toEqual({ left: 0, top: 0, width: PHONE.width, height: PHONE.height });
 });
 
 const readSheetTop = (page) =>
@@ -351,7 +348,7 @@ test("on a phone, a slow swipe down far enough closes settings, and a short one 
 
   await swipeSheetDown(page, { target: ".sheet-top", distance: 60, steps: 6, stepMs: 60 });
   await expect(settings).toBeVisible();
-  await expect.poll(() => readSheetTop(page)).toBe(44);
+  await expect.poll(() => readSheetTop(page)).toBe(0);
 
   await swipeSheetDown(page, {
     target: ".settings-controls",
@@ -362,7 +359,7 @@ test("on a phone, a slow swipe down far enough closes settings, and a short one 
   await expect(settings).toBeHidden();
 
   await openSettings(page);
-  await expect.poll(() => readSheetTop(page)).toBe(44);
+  await expect.poll(() => readSheetTop(page)).toBe(0);
 });
 
 test("on a phone, a quick flick down closes settings, and a cancelled swipe springs back", async ({
@@ -382,7 +379,7 @@ test("on a phone, a quick flick down closes settings, and a cancelled swipe spri
     isCancelled: true,
   });
   await expect(settings).toBeVisible();
-  await expect.poll(() => readSheetTop(page)).toBe(44);
+  await expect.poll(() => readSheetTop(page)).toBe(0);
 
   await swipeSheetDown(page, { target: ".sheet-top", distance: 70, steps: 2, stepMs: 20 });
   await expect(settings).toBeHidden();
@@ -399,12 +396,12 @@ test("on a phone, a swipe down scrolled into the ranking or on a grip leaves set
 
   await swipeSheetDown(page, { target: "#rankList .grip", distance: 200, steps: 10, stepMs: 30 });
   await expect(settings).toBeVisible();
-  expect(await readSheetTop(page)).toBe(44);
+  expect(await readSheetTop(page)).toBe(0);
 
   await scrollSettingsToEnd(page);
   await swipeSheetDown(page, { target: "#rankList", distance: 200, steps: 10, stepMs: 30 });
   await expect(settings).toBeVisible();
-  expect(await readSheetTop(page)).toBe(44);
+  expect(await readSheetTop(page)).toBe(0);
 });
 
 test("on a wide screen, settings open as a modal with a close button", async ({ page }) => {
@@ -412,16 +409,17 @@ test("on a wide screen, settings open as a modal with a close button", async ({ 
   await openSettings(page);
 
   const settings = page.getByRole("dialog", { name: "Settings" });
-  await expect(settings.locator(".sheet-done svg")).toBeVisible();
+  await expect(settings.locator(".sheet-close svg")).toBeVisible();
   expect(
-    (await settings.getByText("Done", { exact: true }).boundingBox()).width,
+    (await settings.getByText("Close", { exact: true }).boundingBox()).width,
   ).toBeLessThanOrEqual(1);
   const box = await settings.boundingBox();
   const { width } = page.viewportSize();
   expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);
 });
 
-const SMALL_PHONE = { width: 375, height: 667 };
+// Settings shorter than 640px, as on a phone in a browser whose bars take some of the screen.
+const SHORT_SCREEN = { width: 375, height: 600 };
 const LAPTOP = { width: 1280, height: 800 };
 
 /** @param {import("@playwright/test").Page} page */
@@ -435,7 +433,7 @@ const scrollSettingsToEnd = (page) =>
 async function waitForSheetToRise(page) {
   await expect
     .poll(async () => Math.round((await page.locator("#settingsDialog").boundingBox()).y))
-    .toBe(44);
+    .toBe(0);
 }
 
 /** @param {import("@playwright/test").Page} page */
@@ -500,10 +498,10 @@ test("on a phone, scrolling settings down shows the whole ranking, and the heade
   await expect(settings.locator("#rankList .rank-ws").first()).toBeVisible();
 });
 
-test("on a short phone, the ranking's note gives way so each row keeps both lines", async ({
+test("on a short screen, the ranking's note gives way so each row keeps both lines", async ({
   page,
 }) => {
-  await page.setViewportSize(SMALL_PHONE);
+  await page.setViewportSize(SHORT_SCREEN);
   await openApp(page);
   await openSettings(page);
   await waitForSheetToRise(page);

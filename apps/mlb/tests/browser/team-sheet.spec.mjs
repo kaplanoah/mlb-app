@@ -37,7 +37,7 @@ test("a game's row names its clubs plainly, and a tap anywhere on it, their name
   await expect(page.locator("#teamSheet")).toBeHidden();
 });
 
-test("a club's sheet open over the matchup on a reload shows again over it, and its Done closes both", async ({
+test("a club's sheet open over the matchup on a reload shows again over it, with a back button in place of its close button, and Escape closes both", async ({
   page,
 }) => {
   await (await showGames(page)).click();
@@ -51,7 +51,8 @@ test("a club's sheet open over the matchup on a reload shows again over it, and 
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Astros");
   await expect(teamSheet.locator("#teamNote")).toContainText("AL West");
   await expect(teamSheet.getByRole("button", { name: "Back to Game", exact: true })).toBeVisible();
-  await teamSheet.getByRole("button", { name: "Done" }).click();
+  await expect(teamSheet.getByRole("button", { name: "Close" })).toBeHidden();
+  await page.keyboard.press("Escape");
   await expect(teamSheet).toBeHidden();
   await expect(matchup).toBeHidden();
 });
@@ -139,7 +140,7 @@ test("a club's name in the matchup opens its sheet over it, whose back button go
   await expectShown(matchup);
 });
 
-test("a club's row in the standings opens its sheet, with its race and titles, and Done closes it", async ({
+test("a club's row in the standings opens its sheet, with its race and titles, and its close button closes it", async ({
   page,
 }) => {
   await openApp(page);
@@ -154,7 +155,7 @@ test("a club's row in the standings opens its sheet, with its race and titles, a
   await expect(sheet.locator(".team-titles")).toHaveText("None yet");
   await expect(sheet).toContainText("Since 1977");
 
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
 });
 

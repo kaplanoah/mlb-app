@@ -1,9 +1,9 @@
-// A sheet that scrolls sideways, like a wide table, keeps a swipe that starts on it for itself, so
-// a phone's browser never hands the swipe on to its row: at the sheet's left edge it springs the
-// sheet past that edge instead. So a swipe right that isn't scrolling the sheet back, one that
-// starts on its top or while it's at its left edge, moves the row with the finger instead, and
-// once the finger lifts, the row goes on to the sheet before, or back to this one, as a swipe
-// between sheets does.
+// What scrolls sideways inside a row, like a team's sections inside the row of sheets or its
+// roster inside the row of sections, keeps a swipe that starts on it for itself, so a phone's
+// browser never hands the swipe on to the row: at its left edge it springs past that edge instead.
+// So a swipe right that starts while it's at its left edge moves the row with the finger instead,
+// and once the finger lifts, the row goes on to the one before, or back to this one, as a swipe
+// along the row does.
 
 // A touch has to move this far before it counts as a swipe, so a tap stays a tap.
 const SWIPE_START_PX = 6;
@@ -13,11 +13,8 @@ const BACK_SPEED_PX_PER_MS = 0.3;
 // The row has arrived on a sheet within this many pixels of its edge.
 const ARRIVED_PX = 2;
 
-/** @param {HTMLElement} sheet */
-const scrollsSideways = (sheet) => sheet.scrollWidth > sheet.clientWidth;
-
-/** @param {Node} target */
-const isOnTop = (target) => target instanceof Element && target.closest(".sheet-top") !== null;
+/** @param {HTMLElement} scroller */
+const scrollsSideways = (scroller) => scroller.scrollWidth > scroller.clientWidth;
 
 /**
  * Lets the row snap again once it has arrived at `left`.
@@ -36,24 +33,26 @@ function snapOnArrival(row, left) {
 }
 
 /**
- * Moves the row with a swipe right that starts on a sideways sheet's top or at its left edge, and
- * settles it on a sheet once the finger lifts.
+ * Moves the row with a swipe right that starts on what it shows while that's at its left edge, and
+ * settles it on one of what it holds once the finger lifts.
  * @param {HTMLElement} row
- * @param {{ findShownSheet: () => HTMLElement, readShown: () => number, scrollToSheet: (index: number) => void }} options
- *   `readShown` is the shown sheet's place in the row, and `scrollToSheet` brings the row to the
- *   sheet at a place
+ * @param {{ findShown: () => HTMLElement, findSideways: () => HTMLElement, readShown: () => number, scrollToIndex: (index: number) => void }} options
+ *   `findShown` is what the row shows, `findSideways` what may scroll sideways in it, itself or a
+ *   row of its own, `readShown` is its place in the row, and `scrollToIndex` brings the row to
+ *   what's at a place
  */
-export function stepBackOnEdgeSwipe(row, { findShownSheet, readShown, scrollToSheet }) {
+export function stepBackOnEdgeSwipe(row, { findShown, findSideways, readShown, scrollToIndex }) {
   /** @type {{ index: number, originX: number, originY: number, rowStart: number, lastX: number, lastTime: number, speed: number, isDragging: boolean } | null} */
   let swipe = null;
 
   /** @param {TouchEvent} event */
   function startSwipe(event) {
-    const sheet = findShownSheet();
+    const shown = findShown();
+    const sideways = findSideways();
     const index = readShown();
     if (event.touches.length !== 1 || index === 0 || !(event.target instanceof Node)) return;
-    if (!sheet.contains(event.target) || !scrollsSideways(sheet)) return;
-    if (sheet.scrollLeft > 0 && !isOnTop(event.target)) return;
+    if (!shown.contains(event.target) || !scrollsSideways(sideways)) return;
+    if (sideways.scrollLeft > 0) return;
     const { clientX, clientY } = event.touches[0];
     swipe = {
       index,
@@ -68,7 +67,7 @@ export function stepBackOnEdgeSwipe(row, { findShownSheet, readShown, scrollToSh
   }
 
   /**
-   * A swipe that sets off mostly rightward is the row's; any other is the sheet's own.
+   * A swipe that sets off mostly rightward is the row's; any other is what it shows.
    * @param {number} across
    * @param {number} down
    */
@@ -116,7 +115,7 @@ export function stepBackOnEdgeSwipe(row, { findShownSheet, readShown, scrollToSh
     const isFarOrFast = moved > row.clientWidth * BACK_SHARE || speed > BACK_SPEED_PX_PER_MS;
     const isBack = event.type === "touchend" && isFarOrFast;
     snapOnArrival(row, isBack ? rowStart - row.clientWidth : rowStart);
-    scrollToSheet(isBack ? index - 1 : index);
+    scrollToIndex(isBack ? index - 1 : index);
   }
 
   row.addEventListener("touchstart", startSwipe, { passive: true });

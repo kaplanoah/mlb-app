@@ -1,23 +1,24 @@
-// The sheet a team's name or dot opens wherever it shows. Phones show it as a sheet from the
-// bottom, wider screens as a modal, like a game's sheet, beside a sheet it opens from, and in place
-// of another team's. Each league hands it which teams it knows and what a team's sheet shows, like
+// The sheet a team's name or dot opens wherever it shows. Phones show it over the whole screen,
+// wider screens as a modal, like a game's sheet, beside a sheet it opens from, and in place of
+// another team's. Each league hands it which teams it knows and what a team's sheet shows, like
 // the cards of its nearest games (game-cards.js), and builds the buttons that open it with
-// renderTeamSheetButton. A league may put an action across from the title, like the WNBA's Roster,
-// and name the sheet that waits beside it for a swipe left.
+// renderTeamSheetButton. A league whose team sheet holds sections, like the WNBA's Team and
+// Roster, names them with pills in its markup and fills the ones after the first itself.
 
 import { fitGameCards, watchGameCards } from "./game-cards.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
 import { renderSheetPart } from "./sheet-part.js";
+import { wireSheetSections } from "./sheet-sections.js";
 import { openSheet, wireSheet } from "./sheet.js";
 
 /** @typedef {import("./html.js").Markup} Markup */
-/** @typedef {{ heading: Markup, note: Markup | string, body: Markup, action?: Markup | false }} TeamSheet */
+/** @typedef {{ heading: Markup, note: Markup | string, body: Markup }} TeamSheet */
 /**
  * @typedef {object} League
  * @property {(team: string) => boolean} isTeam
  * @property {(team: string) => TeamSheet} renderSheet
- * @property {(team: string) => HTMLElement | null} [prepareNext] the sheet that waits beside a
- *   team's for a swipe left, filled in and ready to show
+ * @property {(team: string) => void} [fillSections] fills the sections after the first, which
+ *   `body` fills, for the team shown
  */
 
 /** @type {League | null} */
@@ -25,6 +26,8 @@ let league = null;
 /** @type {string | null} */
 let shownTeam = null;
 let areAllTitlesShown = false;
+/** @type {ReturnType<typeof wireSheetSections> | null} */
+let sections = null;
 
 const TITLES_SHOWN = 3;
 // A shorter list reads in about the room its button would take, so it shows whole.
@@ -35,13 +38,12 @@ const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(
 
 function renderSheet() {
   if (!league || !shownTeam) return;
-  const { heading, note, body, action = false } = league.renderSheet(shownTeam);
+  const { heading, note, body } = league.renderSheet(shownTeam);
   setHtml(findElement("teamTitle"), heading);
   setHtml(findElement("teamNote"), note);
-  const actionSlot = document.getElementById("teamAction");
-  if (actionSlot) setHtml(actionSlot, action || "");
   setHtml(findElement("teamBody"), body);
   fitGameCards(findElement("teamBody"));
+  league.fillSections?.(shownTeam);
 }
 
 /** @param {string} team */
@@ -50,17 +52,20 @@ function openTeamSheet(team) {
   shownTeam = team;
   areAllTitlesShown = false;
   renderSheet();
+  sections?.showFirstSection();
   openSheet(findSheet());
 }
 
-const readShownTeam = () => shownTeam && { team: shownTeam, areAllTitlesShown };
+const readShownTeam = () =>
+  shownTeam && { team: shownTeam, areAllTitlesShown, section: sections?.readShown() ?? null };
 
-/** @param {{ team: string, areAllTitlesShown: boolean } | null} shown */
+/** @param {{ team: string, areAllTitlesShown: boolean, section?: unknown } | null} shown */
 function reopenTeamSheet(shown) {
   if (!shown || !league?.isTeam(shown.team)) return false;
   shownTeam = shown.team;
   areAllTitlesShown = shown.areAllTitlesShown === true;
   renderSheet();
+  if (typeof shown.section === "string") sections?.showSection(shown.section, true);
   return true;
 }
 
@@ -85,12 +90,15 @@ function showAllTitlesOnTap(event) {
 /** @param {League} teams */
 export function startTeamSheet(teams) {
   league = teams;
-  wireSheet(findSheet(), {
-    doneButton: findElement("teamDoneBtn"),
+  const sheet = findSheet();
+  sections = sheet.querySelector(".sheet-sections") ? wireSheetSections(sheet) : null;
+  wireSheet(sheet, {
+    closeButton: findElement("teamCloseBtn"),
     backButton: document.getElementById("teamBackBtn") ?? undefined,
+    findScroller: sections?.findShownSection,
+    findSections: sections?.findSections,
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
     name: "Team",
-    prepareNext: () => (shownTeam && league?.prepareNext?.(shownTeam)) || null,
     forget: () => {
       shownTeam = null;
     },

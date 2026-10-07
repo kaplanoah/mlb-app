@@ -67,17 +67,17 @@ const VIEWS = [
     name: "a team's roster",
     open: async (page) => {
       await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-      await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
+      await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
     },
-    shown: (page) => page.locator("#rosterSheet .roster-coach"),
+    shown: (page) => page.locator("#rosterSection .roster-coach"),
     close: (page) => page.keyboard.press("Escape"),
   },
   {
     name: "a player's sheet",
     open: async (page) => {
       await page.getByRole("button", { name: "Team details: New York Liberty" }).first().click();
-      await page.locator("#teamSheet").getByRole("button", { name: "Roster" }).click();
-      await page.locator("#rosterSheet").getByRole("button", { name: "Breanna Stewart" }).click();
+      await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
+      await page.locator("#rosterSection").getByRole("button", { name: "Breanna Stewart" }).click();
     },
     shown: (page) => page.locator("#playerSheet .player-curve b").first(),
     close: (page) => page.keyboard.press("Escape"),

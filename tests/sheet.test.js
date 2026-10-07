@@ -174,7 +174,8 @@ function findById(root, id) {
 }
 
 /**
- * A dialog with a row of sheets, each with Done and a back button, on a wide screen, where a dialog closes at once instead of sliding down.
+ * A dialog with a row of sheets, each with a close and a back button, on a wide screen, where a
+ * dialog closes at once instead of sliding down.
  * @param {string[]} ids
  * @param {Record<string, Partial<SheetParts>>} [partsById]
  */
@@ -190,7 +191,7 @@ function createRowDialog(ids, partsById = {}) {
     getElementById: (/** @type {string} */ id) => findById(dialog, id),
   });
   const row = dialog.append(new FakeRow());
-  /** @typedef {{ sheet: FakeElement, doneButton: FakeElement, backButton: FakeElement }} FakeSheet */
+  /** @typedef {{ sheet: FakeElement, closeButton: FakeElement, backButton: FakeElement }} FakeSheet */
   const sheets = /** @type {Record<string, FakeSheet>} */ (
     Object.fromEntries(
       ids.map((id) => {
@@ -198,7 +199,7 @@ function createRowDialog(ids, partsById = {}) {
         sheet.hidden = true;
         sheet.setAttribute("aria-labelledby", `${id}Title`);
         const parts = {
-          doneButton: new FakeElement(),
+          closeButton: new FakeElement(),
           backButton: createBackButton(),
           ...partsById[id],
         };
@@ -244,11 +245,11 @@ test("a sheet opens its dialog with it alone in the row, at its top, and opening
   dialog.close();
 });
 
-test("Done and a click on the backdrop close the dialog, and its sheets leave the row", () => {
+test("the close button and a click on the backdrop close the dialog, and its sheets leave the row", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet"]);
 
   open(sheets.gameSheet.sheet);
-  click(sheets.gameSheet.doneButton);
+  click(sheets.gameSheet.closeButton);
   assert.equal(dialog.open, false);
   assert.deepEqual(listInRow(row), []);
   open(sheets.gameSheet.sheet);
@@ -315,50 +316,23 @@ test("a sheet opened again after a step back away from it, before the row has co
   dialog.close();
 });
 
-test("a sheet opened from one with a sheet waiting after it takes its place, and the one waiting lets go of what it showed", () => {
+test("a sheet opened from one a step back has just left takes the place of the sheet it left, which lets go of what it showed", () => {
   /** @type {string[]} */
   const forgotten = [];
-  /** @type {Record<string, any>} */
-  const sheets = {};
-  const created = createRowDialog(["teamSheet", "rosterSheet", "playerSheet"], {
-    teamSheet: { prepareNext: () => sheets.rosterSheet.sheet },
-    rosterSheet: { forget: () => forgotten.push("roster") },
+  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet", "playerSheet"], {
+    teamSheet: { forget: () => forgotten.push("team") },
   });
-  Object.assign(sheets, created.sheets);
-  const { dialog, row } = created;
+  open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
+  row.isHeld = true;
+  row.moveTo(1);
 
+  row.isHeld = false;
   open(sheets.playerSheet.sheet);
 
-  assert.deepEqual(listInRow(row), ["teamSheet", "playerSheet"]);
-  assert.deepEqual(forgotten, ["roster"]);
+  assert.deepEqual(listInRow(row), ["gameSheet", "playerSheet"]);
+  assert.deepEqual(forgotten, ["team"]);
   assert.equal(findReachable(row), "playerSheet");
-  dialog.close();
-});
-
-test("a sheet that names its next one has it wait after it for a swipe, again after a step back from it", () => {
-  /** @type {Record<string, any>} */
-  const sheets = {};
-  const created = createRowDialog(["teamSheet", "rosterSheet"], {
-    teamSheet: { name: "Team", prepareNext: () => sheets.rosterSheet.sheet },
-    rosterSheet: { name: "Roster" },
-  });
-  Object.assign(sheets, created.sheets);
-  const { dialog, row } = created;
-
-  open(sheets.teamSheet.sheet);
-  assert.deepEqual(listInRow(row), ["teamSheet", "rosterSheet"]);
-  assert.equal(findReachable(row), "teamSheet");
-  assert.deepEqual(readBackLabel(sheets.rosterSheet.backButton), {
-    text: "Team",
-    ariaLabel: "Back to Team",
-  });
-
-  row.scrollTo({ left: ROW_WIDTH });
-  assert.equal(findReachable(row), "rosterSheet");
-  click(sheets.rosterSheet.backButton);
-  assert.deepEqual(listInRow(row), ["teamSheet", "rosterSheet"]);
-  assert.equal(findReachable(row), "teamSheet");
   dialog.close();
 });
 
@@ -378,8 +352,9 @@ test("a row partway between two sheets settles on neither, and one a pixel off s
 });
 
 // A stand-in for settings on a phone, a dialog that is its own sheet, which a swipe down moves and
-// closes.
-function createPhoneSheet() {
+// closes, with any of `parts` beside its close button.
+/** @param {Partial<SheetParts>} [parts] */
+function createPhoneSheet(parts = {}) {
   globalThis.matchMedia = /** @type {any} */ ((query) => ({ matches: query.includes("width") }));
   globalThis.document = /** @type {any} */ ({ activeElement: null });
   /** @type {KeyframeAnimationOptions[]} */
@@ -398,7 +373,10 @@ function createPhoneSheet() {
       return motion;
     },
   });
-  wireSheet(/** @type {any} */ (dialog), { doneButton: /** @type {any} */ (new EventTarget()) });
+  wireSheet(/** @type {any} */ (dialog), {
+    closeButton: /** @type {any} */ (new EventTarget()),
+    ...parts,
+  });
   open(dialog);
   /**
    * @param {string} type
@@ -427,8 +405,22 @@ test("on a phone, a swipe down that scrolls the sheet back to its top goes on to
   assert.equal(dialog.open, false);
   assert.deepEqual(
     motions.map(({ duration, easing }) => ({ duration, easing })),
-    Array(2).fill({ duration: 500, easing: "cubic-bezier(0.32, 0.72, 0, 1)" }),
+    [{ duration: 500, easing: "cubic-bezier(0.32, 0.72, 0, 1)" }],
   );
+});
+
+test("on a phone, a swipe down a sheet's section scrolled down scrolls the section, and moves the sheet only once the section is at its top", () => {
+  const section = new FakeElement();
+  section.scrollTop = 300;
+  const { dialog, touch } = createPhoneSheet({ findScroller: () => /** @type {any} */ (section) });
+
+  touch("touchstart", 100);
+  touch("touchmove", 200);
+  assert.equal(dialog.style.transform, "");
+  section.scrollTop = 0;
+  touch("touchmove", 230);
+  assert.equal(dialog.style.transform, "translateY(30px)");
+  dialog.close();
 });
 
 test("on a phone, a swipe at the sheet's top that goes up first moves the sheet from its highest point", () => {
@@ -443,14 +435,14 @@ test("on a phone, a swipe at the sheet's top that goes up first moves the sheet 
 });
 
 test("the sheets showing are listed up to the shown one, with where each is scrolled, what each shows, and what its back button calls the one before", () => {
-  const { dialog, sheets } = createRowDialog(["gameSheet", "teamSheet", "rosterSheet"], {
+  const { dialog, sheets } = createRowDialog(["gameSheet", "teamSheet", "playerSheet"], {
     gameSheet: { keeper: keepShown({ id: "game-1" }), name: "Game" },
     teamSheet: { keeper: keepShown({ team: "NY" }), name: "Team" },
   });
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
-  open(sheets.rosterSheet.sheet);
-  click(sheets.rosterSheet.backButton);
+  open(sheets.playerSheet.sheet);
+  click(sheets.playerSheet.backButton);
   sheets.gameSheet.sheet.scrollTop = 240;
 
   assert.deepEqual(listOpenSheets(), [
@@ -465,10 +457,10 @@ test("the sheets showing are listed up to the shown one, with where each is scro
 test("a page that loads again puts back each sheet it showed, up to the first that can't show what it did, and closes a dialog none of whose sheets can", () => {
   /** @type {unknown[]} */
   const reopened = [];
-  const { dialog, row } = createRowDialog(["gameSheet", "teamSheet", "rosterSheet"], {
+  const { dialog, row } = createRowDialog(["gameSheet", "teamSheet", "playerSheet"], {
     gameSheet: { keeper: keepShown(null, (subject) => reopened.push(subject) > 0) },
     teamSheet: { keeper: keepShown(null, () => false) },
-    rosterSheet: { keeper: keepShown(null) },
+    playerSheet: { keeper: keepShown(null) },
   });
   dialog.open = true;
   dialog.setAttribute("data-reopened", "");
@@ -476,7 +468,7 @@ test("a page that loads again puts back each sheet it showed, up to the first th
   reopenSheets([
     { id: "gameSheet", scrollTop: 120, subject: { id: "game-1" } },
     { id: "teamSheet", scrollTop: 0, subject: { team: "NY" } },
-    { id: "rosterSheet", scrollTop: 0, subject: { team: "NY" } },
+    { id: "playerSheet", scrollTop: 0, subject: { team: "NY" } },
     { id: "goneSheet", scrollTop: 0, subject: null },
     null,
   ]);

@@ -46,9 +46,8 @@ function createPage() {
     teamSheet: dialog,
     teamTitle: { innerHTML: "" },
     teamNote: { innerHTML: "" },
-    teamAction: { innerHTML: "" },
     teamBody: Object.assign(new EventTarget(), { innerHTML: "", querySelector: () => null }),
-    teamDoneBtn: new EventTarget(),
+    teamCloseBtn: new EventTarget(),
   };
   const document = Object.assign(new EventTarget(), {
     activeElement: null,
@@ -72,20 +71,19 @@ const BOS_TITLES = [2018, 2013, 2007, 2004, 1918, 1916, 1915];
 
 const page = createPage();
 let season = "the season so far";
-/**
- * A sheet for each team, the Mets' with an action across from its title.
- * @param {string} team
- */
+/** @param {string} team */
 function renderSheet(team) {
   const sheet = { heading: html`<b>${team}</b>`, note: `${team} note` };
-  if (team === "NYM")
-    return { ...sheet, body: html`<p>Mets</p>`, action: html`<button>Roster</button>` };
   return { ...sheet, body: team === "BOS" ? renderTitles(BOS_TITLES) : html`<p>${season}</p>` };
 }
+
+/** @type {string[]} */
+const filledSections = [];
 
 startTeamSheet({
   isTeam: (team) => ["NYY", "BOS", "NYM"].includes(team),
   renderSheet,
+  fillSections: (team) => filledSections.push(team),
 });
 
 // A tap on the titles' button for the rest, or on something else in the sheet's body.
@@ -124,9 +122,9 @@ test("an open sheet redraws from the season as it is now, and a closed one is le
   assert.equal(page.elements.teamBody.innerHTML, "<p>a new win</p>");
 });
 
-test("Done closes the sheet", () => {
+test("the close button closes the sheet", () => {
   tapTeam(page.document, "NYY");
-  page.elements.teamDoneBtn.dispatchEvent(new Event("click"));
+  page.elements.teamCloseBtn.dispatchEvent(new Event("click"));
   assert.equal(page.dialog.open, false);
 });
 
@@ -222,10 +220,11 @@ test("a sheet's part has its title, and a note across from it only when it has o
   assert.doesNotMatch(renderSheetPart("Season", html`<p>Stats</p>`).text, /<span>/);
 });
 
-test("a league's action shows across from the team's title, and a sheet without one shows none", () => {
+test("a league fills its sections after the first for each team the sheet shows, and again as the sheet redraws", () => {
+  filledSections.length = 0;
   tapTeam(page.document, "NYM");
-  assert.equal(page.elements.teamAction.innerHTML, "<button>Roster</button>");
   tapTeam(page.document, "NYY");
-  assert.equal(page.elements.teamAction.innerHTML, "");
+  refreshTeamSheet();
+  assert.deepEqual(filledSections, ["NYM", "NYY", "NYY"]);
   page.dialog.close();
 });

@@ -30,8 +30,7 @@ import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
 import { refreshPlayerSheet, startPlayerSheet } from "./player-sheet.js";
-import { prepareRoster, startRosterSheet } from "./roster-sheet.js";
-import { renderRosterButton } from "./roster-view.js";
+import { fillRoster, startRosterSection } from "./roster-section.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
 import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
@@ -130,13 +129,8 @@ function drawLastSeen() {
 }
 
 /** @param {string} team */
-function renderShownTeam(team) {
-  const sheet = renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
-  return { ...sheet, action: renderRosterButton(team) };
-}
-
-/** @param {string} team */
-const prepareNextFromTeam = (team) => prepareRoster(team);
+const renderShownTeam = (team) =>
+  renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
 
 const readShown = () =>
   session.season && { year: session.year, season: session.season, news: session.news };
@@ -194,9 +188,9 @@ async function boot() {
   startTeamSheet({
     isTeam: (team) => team in TEAMS,
     renderSheet: renderShownTeam,
-    prepareNext: prepareNextFromTeam,
+    fillSections: fillRoster,
   });
-  startRosterSheet();
+  startRosterSection();
   startPlayerSheet();
   startSettingsSheet();
   startNewsChoices(drawNews);

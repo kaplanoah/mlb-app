@@ -180,7 +180,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
   });
 }
 
-test("a sheet lightly dims the page behind it, and a switch stays round", async ({ page }) => {
+test("a sheet leaves the page behind it as it is, and a switch stays round", async ({ page }) => {
   await openApp(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const settings = page.locator("#settingsDialog");
@@ -188,7 +188,7 @@ test("a sheet lightly dims the page behind it, and a switch stays round", async 
   const dim = await settings.evaluate(
     (dialog) => getComputedStyle(dialog, "::backdrop").backgroundColor,
   );
-  expect(dim).toBe("rgba(0, 0, 0, 0.08)");
+  expect(dim).toBe("rgba(0, 0, 0, 0)");
   const toggle = settings.locator(".switch").first();
   await expect(toggle).toHaveCSS("border-radius", "14px");
   await expect(toggle.locator(".switch-knob")).toHaveCSS("border-radius", "50%");

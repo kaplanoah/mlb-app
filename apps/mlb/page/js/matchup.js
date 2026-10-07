@@ -349,7 +349,7 @@ export function startMatchups() {
   for (const holder of ["games-pages", "updates"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
-    doneButton: findElement("matchupDoneBtn"),
+    closeButton: findElement("matchupCloseBtn"),
     keeper: { read: () => shown, reopen: reopenMatchup },
     name: "Game",
     forget: () => {

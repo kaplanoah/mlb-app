@@ -102,7 +102,7 @@ function countPitcherReads(page) {
   return reads;
 }
 
-test("tapping a game with its starters named opens their matchup, and Done closes it", async ({
+test("tapping a game with its starters named opens their matchup, and its close button closes it", async ({
   page,
 }) => {
   const sheet = await openMatchup(page);
@@ -120,7 +120,7 @@ test("tapping a game with its starters named opens their matchup, and Done close
     "Sep 19vs Mariners5 2/3 IP, 2 R, 6 K",
   );
 
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
 });
 
@@ -138,7 +138,7 @@ test("a reload shows the open matchup before the page's code arrives, and the co
   release();
   await expect.poll(() => reads.count).toBe(2);
   await expect(sheet.locator(".pitcher-first")).toHaveText(["AJ", "Jeffrey"]);
-  await sheet.getByRole("button", { name: "Done" }).click();
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
 });
 
@@ -154,25 +154,25 @@ test("the sheet's title names it in capitals, at one size on a desktop and a pho
   await expect(title).toHaveCSS("font-size", "16px");
 });
 
-test("on a desktop, the title centers over the sheet, with Done at its right edge, and 18px sides as on a phone", async ({
+test("on a desktop, the title centers over the sheet, with its close button at its left edge, and 18px sides as on a phone", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
-  const { titleCenter, sheetCenter, doneRight, sheetRight } = await sheet.evaluate((matchup) => {
+  const { titleCenter, sheetCenter, closeLeft, sheetLeft } = await sheet.evaluate((matchup) => {
     const box = /** @type {Element} */ (matchup.closest("dialog")).getBoundingClientRect();
     const title = matchup.querySelector(".sheet-title").getBoundingClientRect();
-    const done = matchup.querySelector(".sheet-done").getBoundingClientRect();
+    const close = matchup.querySelector(".sheet-close").getBoundingClientRect();
     return {
       titleCenter: title.left + title.width / 2,
       sheetCenter: box.left + box.width / 2,
-      doneRight: done.right,
-      sheetRight: box.right,
+      closeLeft: close.left,
+      sheetLeft: box.left,
     };
   });
   expect(titleCenter).toBeCloseTo(sheetCenter, 0);
-  expect(sheetRight - doneRight).toBeCloseTo(11, 0);
+  expect(closeLeft - sheetLeft).toBeCloseTo(7, 0);
   const sides = await sheet.evaluate((matchup) => {
     const box = /** @type {Element} */ (matchup.closest("dialog")).getBoundingClientRect();
     const faceoff = matchup.querySelector(".faceoff").getBoundingClientRect();
@@ -221,14 +221,21 @@ test("the sheet's parts and lists leave room between their rows", async ({ page 
   expect(Math.round(tapeToScout)).toBe(22);
 });
 
-test("on a phone, the matchup rises as a sheet that a swipe down closes", async ({ page }) => {
+test("on a phone, the matchup rises to fill the screen, with its close button at its top left, and a swipe down closes it", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
   await waitForTimedMotions(page);
-  const done = sheet.getByRole("button", { name: "Done" });
-  expect((await done.boundingBox()).width).toBeLessThanOrEqual(1);
-  expect(Math.round((await sheet.boundingBox()).x)).toBe(0);
+  const close = await sheet.getByRole("button", { name: "Close" }).boundingBox();
+  expect([Math.round(close.x), close.width]).toEqual([6, 44]);
+  expect(await page.locator("#sheetDialog").boundingBox()).toEqual({
+    x: 0,
+    y: 0,
+    width: 390,
+    height: 844,
+  });
 
   await swipeSheetDown(page, {
     target: "#matchupSheet .sheet-top",
@@ -239,14 +246,12 @@ test("on a phone, the matchup rises as a sheet that a swipe down closes", async 
   await expect(sheet).toBeHidden();
 });
 
-test("on a phone, Done and a tap outside slide the matchup down as its backdrop fades out", async ({
-  page,
-}) => {
+test("on a phone, the close button and Escape slide the matchup down", async ({ page }) => {
   const readMotions = await recordSheetMotions(page);
   await page.setViewportSize({ width: 390, height: 844 });
   const closings = {
-    Done: () => page.locator("#matchupDoneBtn").dispatchEvent("click"),
-    "a tap outside": () => page.mouse.click(195, 20),
+    "the close button": () => page.locator("#matchupCloseBtn").dispatchEvent("click"),
+    Escape: () => page.keyboard.press("Escape"),
   };
   await showGames(page);
   for (const [way, close] of Object.entries(closings)) {
@@ -259,7 +264,6 @@ test("on a phone, Done and a tap outside slide the matchup down as its backdrop 
     await expect(sheet, way).toBeHidden();
     expect(await readMotions(), way).toEqual([
       { id: "sheetDialog", part: "sheet", to: { transform: "translateY(100%)" } },
-      { id: "sheetDialog", part: "::backdrop", to: { opacity: 0 } },
     ]);
   }
 });
