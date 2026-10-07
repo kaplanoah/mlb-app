@@ -106,13 +106,10 @@
 .pager-pages::-webkit-scrollbar {
   display: none;
 }
-/* Each list is a layer of its own: iOS lays out what the lists' row holds but can leave it
-   undrawn, while it draws every layer inside the row. */
 .pager-page {
   flex: 0 0 100%;
   min-width: 0;
   padding-inline: var(--reach-left) var(--reach-right);
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  will-change: transform;
 }

@@ -399,6 +399,22 @@ export const listOpenSheets = () =>
     .flatMap(listShownSheets)
     .map(describeOpenSheet);
 
+/**
+ * Each sheet in each open dialog's row, in order, and whether it's the one its dialog shows.
+ * @returns {{ id: string, isShown: boolean }[]}
+ */
+export const listSheetsInOpenDialogs = () =>
+  [...openDialogs]
+    .filter((dialog) => dialog.open)
+    .flatMap((dialog) => {
+      const { sheets } = readStack(dialog);
+      const shown = findShownSheet(dialog);
+      return (sheets.length ? sheets : [dialog]).map((sheet) => ({
+        id: sheet.id,
+        isShown: sheet === shown,
+      }));
+    });
+
 // What an earlier release saved may not fit the sheet as it is now.
 /**
  * @param {HTMLElement} sheet

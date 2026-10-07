@@ -1208,7 +1208,7 @@ body.kbd .rank-item .grip:focus {
   font-weight: 400;
 }
 .diagnostics-head h3,
-.diagnostics-copy,
+.diagnostics-button,
 .diagnostics-flag {
   font-weight: 450;
 }
