@@ -96,13 +96,20 @@ const readPagesPosition = (page) =>
     .locator("#games-pages")
     .evaluate((pages) => Math.round((pages.scrollLeft / pages.clientWidth) * 100) / 100);
 
-async function readThumbOffset(page, tabName) {
-  const thumb = await page.locator(".pager-thumb").boundingBox();
-  const tab = await page.getByRole("tab", { name: tabName }).boundingBox();
-  return Math.abs(thumb.x + thumb.width / 2 - (tab.x + tab.width / 2));
-}
+/** The names in the Games pill filled with the accent. */
+const readFilledNames = (page) =>
+  page.locator("#games-bar [role=tab]").evaluateAll((tabs) =>
+    tabs
+      .filter((tab) => {
+        const alpha = getComputedStyle(tab)
+          .backgroundColor.match(/[\d.]+/g)
+          .map(Number)[3];
+        return alpha === undefined || alpha > 0.5;
+      })
+      .map((tab) => tab.textContent.trim()),
+  );
 
-test("on a phone, swiping the games sideways moves between the lists and slides the tab thumb", async ({
+test("on a phone, swiping the games sideways moves between the lists and fills the shown list's name", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -120,12 +127,12 @@ test("on a phone, swiping the games sideways moves between the lists and slides 
   );
   await expect(page.locator("#games-previous")).not.toHaveAttribute("inert");
   await expect(page.locator("#games-today")).toHaveAttribute("inert");
-  await expect.poll(() => readThumbOffset(page, "Previous")).toBeLessThan(1);
+  await expect.poll(() => readFilledNames(page)).toEqual(["Previous"]);
 
   await page.getByRole("tab", { name: "Next" }).click();
   await expect.poll(() => readPagesPosition(page)).toBe(2);
   await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-  await expect.poll(() => readThumbOffset(page, "Next")).toBeLessThan(1);
+  await expect.poll(() => readFilledNames(page)).toEqual(["Next"]);
 });
 
 test("the Games lists are as tall as the shown one when it runs past the screen", async ({
@@ -447,21 +454,17 @@ test("each day of games is closed by lines, with its date in open space above it
   expect(secondDay.y - (secondDate.y + secondDate.height)).toBe(8);
 });
 
-test("a game still to come shows its start time centered in its row, under the Today tab", async ({
-  page,
-}) => {
+test("a game still to come shows its start time centered in its row", async ({ page }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const row = page.locator("#games-today .game-row.pre").first();
   const rowBox = await row.boundingBox();
   const timeBox = await row.locator(".game-time").boundingBox();
-  const todayBox = await page.getByRole("tab", { name: "Today" }).boundingBox();
   const findCenterX = (box) => box.x + box.width / 2;
 
   expect(Math.abs(timeBox.y + timeBox.height / 2 - (rowBox.y + rowBox.height / 2))).toBeLessThan(1);
   expect(Math.abs(findCenterX(timeBox) - findCenterX(rowBox))).toBeLessThan(1);
-  expect(Math.abs(findCenterX(timeBox) - findCenterX(todayBox))).toBeLessThan(1);
 });
 
 // A series' teamA is its higher seed or its first feeder's winner, not the game's away club.

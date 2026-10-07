@@ -1853,26 +1853,38 @@ test.describe("on a phone", () => {
     }
   });
 
-  test("in Walnut, the Games pill's track is raised like a game's card, and its thumb is tinted warm, not white", async ({
+  test("a pill's other names are plain words, and mid-swipe the fill passes from one name to the next", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
-    await chooseAppearance(page, "Walnut");
     await page.getByRole("tab", { name: "Games" }).click();
-    const readFill = (selector) =>
-      page
-        .locator(selector)
-        .first()
-        .evaluate((part) => getComputedStyle(part).backgroundColor);
-    expect(await readFill("#gamePager .pager-tabs")).toBe(
-      await readFill("#games-today .game-list"),
-    );
-    const [red, green, blue] = (await readFill("#gamePager .pager-thumb"))
-      .match(/[\d.]+/g)
-      .map(Number);
-    expect(red - blue).toBeGreaterThanOrEqual(60);
-    expect(green).toBeLessThan(red);
+    const readFills = () =>
+      page.locator("#games-bar [role=tab]").evaluateAll((tabs) =>
+        tabs.map((tab) => {
+          const style = getComputedStyle(tab);
+          const alpha = Number(style.backgroundColor.match(/[\d.]+/g)[3] ?? 1);
+          return { name: tab.textContent.trim(), alpha: Math.round(alpha * 10) / 10 };
+        }),
+      );
+    await expect.poll(readFills).toEqual([
+      { name: "Previous", alpha: 0 },
+      { name: "Today", alpha: 1 },
+      { name: "Next", alpha: 0 },
+    ]);
+    await expect(page.getByRole("tab", { name: "Previous" })).toHaveCSS("border-top-width", "0px");
+
+    // Snapping would carry a scroll set by hand to the nearest list, which a finger holds off.
+    await page.locator("#games-pages").evaluate((pages) => {
+      pages.style.scrollSnapType = "none";
+      pages.scrollTo({ left: pages.clientWidth * 0.5, behavior: "instant" });
+    });
+
+    await expect.poll(readFills).toEqual([
+      { name: "Previous", alpha: 0.5 },
+      { name: "Today", alpha: 0.5 },
+      { name: "Next", alpha: 0 },
+    ]);
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({

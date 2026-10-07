@@ -2,19 +2,14 @@
  * A pill over lists side by side, like the Games view's, as pager.js builds them. Apps link it
  * after chrome.css, before their own styles.css, which styles what the lists hold.
  *
- * Beside chrome.css's --bg and --ink, an app's :root defines these tokens:
+ * Beside chrome.css's --bg, --accent, and --accent-ink, an app's :root defines these tokens:
  *   --page-gutter          the body's side padding, which the lists reach past to the screen's edges
- *   --pager-track          the pill's fill
- *   --pager-track-edge     the pill's inner outline
- *   --pager-thumb          the fill of the thumb under the shown list's name
- *   --pager-thumb-edge     the thumb's lit top edge
- *   --pager-thumb-lift     the thumb's shadows, which lift it off the pill
  *   --pager-label          the names of the lists not showing
- *   --pager-chosen-label   the name of the list showing, over the thumb
+ *   --pager-chosen-edge    the outline inside the name of the list showing, or transparent for none
  *   --held-bar-fade        how far the page's color fades out under the pill's bar while it's held
  *                          at the top, or 0px for a bar that ends sharply
  *   --held-bar-line        the line under the held bar, or transparent for none
- * and chrome.css's --radius-track for the pill's corners.
+ * and chrome.css's --radius-control for each name's corners.
  */
 
 /* The pill and the lists keep to a phone's width, centered on a wider screen. Their bar and the
@@ -43,51 +38,35 @@
   background: linear-gradient(to bottom, var(--bg) calc(100% - var(--held-bar-fade)), transparent);
   box-shadow: 0 1px 0 var(--held-bar-line);
 }
-/* The lists sit side by side on a pill like the tab bar's, one slot for each of --list-count. Its
-   thumb follows --swipe, set from the lists' scroll position: 0 at the first list, the last's
-   index at the last, in between mid-swipe. */
+/*
+ * The lists' names sit in a row as plain words, and the shown one is filled with the accent.
+ * --nearness, set from the lists' scroll position, runs from 0 to 1 as a list comes into view, so
+ * mid-swipe the fill passes from one name to the next.
+ */
 .pager-tabs {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(var(--list-count), 1fr);
-  padding: 3px;
+  display: flex;
+  gap: 4px;
   pointer-events: auto;
-  border-radius: var(--radius-track);
-  background: var(--pager-track);
-  box-shadow: inset 0 0 0 1px var(--pager-track-edge);
 }
-.pager-thumb {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: 3px;
-  width: calc((100% - 6px) / var(--list-count));
-  border-radius: calc(var(--radius-track) - 3px);
-  background: var(--pager-thumb);
-  box-shadow:
-    inset 0 1px 0 var(--pager-thumb-edge),
-    var(--pager-thumb-lift);
-  transform: translateX(calc(var(--swipe, 0) * 100%));
-  pointer-events: none;
-}
-/* --nearness runs from 0 to 1 as the thumb reaches a label, which brightens with it. */
 .pager-tabs button {
-  position: relative;
   font: inherit;
   font-size: var(--size-small);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  background: none;
   border: 0;
-  border-radius: calc(var(--radius-track) - 3px);
-  color: color-mix(
-    in srgb,
-    var(--pager-chosen-label) calc(var(--nearness, 0) * 100%),
-    var(--pager-label)
-  );
-  padding: 7px 0;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) calc(var(--nearness) * 100%), transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--pager-chosen-edge) calc(var(--nearness) * 100%), transparent);
+  color: color-mix(in srgb, var(--accent-ink) calc(var(--nearness) * 100%), var(--pager-label));
+  padding: 8px 14px;
   cursor: pointer;
+  --nearness: 0;
+}
+/* Before the page's code paints the swipe, the shown list's name is filled. */
+.pager-tabs button[aria-selected="true"] {
+  --nearness: 1;
 }
 /* A swiped list slides off the screen, not off the gutter. */
 .pager-pages {

@@ -12,12 +12,11 @@ const APP_TOKENS = [
   "--radius-card",
   "--radius-chip",
   "--radius-control",
-  "--radius-track",
   "--radius-sheet",
   "--held-bar-fade",
   "--held-bar-line",
-  "--pager-thumb-lift",
-  "--pager-chosen-label",
+  "--pager-label",
+  "--pager-chosen-edge",
 ];
 
 const listSharedStylesheets = () =>

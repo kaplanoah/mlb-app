@@ -126,7 +126,7 @@ test("a pill's names are buttons, in sentence case at a button's weight and heig
     const card = readBox("#games-previous .game-list");
     return { above: pill.top - header.bottom, height: pill.height, below: card.top - pill.bottom };
   });
-  expect(room).toEqual({ above: 10, height: 36, below: 9 });
+  expect(room).toEqual({ above: 10, height: 30, below: 9 });
 
   await page.evaluate(() => scrollTo({ top: 400, behavior: "instant" }));
   const bar = page.locator("#games-bar");
@@ -171,11 +171,9 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
         readChannels(page, await readTokenColor(page, token)),
       ),
     );
-    const thumb = await page
-      .locator("#games-bar .pager-thumb")
-      .evaluate((element) => getComputedStyle(element).backgroundColor);
+    const fill = await chosen.evaluate((element) => getComputedStyle(element).backgroundColor);
     const name = await chosen.evaluate((element) => getComputedStyle(element).color);
-    expect(await readChannels(page, thumb)).toEqual(orange);
+    expect(await readChannels(page, fill)).toEqual(orange);
     expect(await readChannels(page, name)).toEqual(onOrange);
   });
 }

@@ -49,7 +49,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     /** @type {HTMLElement} */ (document.getElementById(`${idPrefix}-${key}`));
   const findTabs = () =>
     /** @type {HTMLButtonElement[]} */ ([...root.querySelectorAll("[role=tab]")]);
-  const findTabList = () => /** @type {HTMLElement} */ (root.querySelector("[role=tablist]"));
   const findBar = () => /** @type {HTMLElement} */ (document.getElementById(`${idPrefix}-bar`));
   const findPages = () => /** @type {HTMLElement} */ (document.getElementById(`${idPrefix}-pages`));
 
@@ -82,7 +81,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   const renderPager = () =>
     html`<div id="${idPrefix}-bar" class="pager-bar">
         <div class="pager-tabs" role="tablist" aria-label="${label}">
-          <span class="pager-thumb" aria-hidden="true"></span>
           ${lists.map(renderTab)}
         </div>
       </div>
@@ -137,7 +135,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   /** @param {number} position runs from 0 at the first list to the last's index, between them mid-swipe */
   function paintSwipe(position) {
-    findTabList().style.setProperty("--swipe", String(position));
     for (const [index, button] of findTabs().entries()) {
       const nearness = Math.max(0, 1 - Math.abs(index - position));
       button.style.setProperty("--nearness", String(nearness));
@@ -257,7 +254,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   root.classList.add("pager");
   setHtml(root, renderPager());
-  findTabList().style.setProperty("--list-count", String(keys.length));
   wireTabs(findTabs(), showList);
   markShownList(shownList);
   paintSwipe(keys.indexOf(shownList));

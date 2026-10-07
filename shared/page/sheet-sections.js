@@ -22,7 +22,6 @@ export function wireSheetSections(sheet) {
   const tabList = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top [role=tablist]"));
   const tabs = /** @type {HTMLButtonElement[]} */ ([...tabList.querySelectorAll("[role=tab]")]);
   const keys = tabs.map((tab) => tab.dataset.tab ?? "");
-  tabList.style.setProperty("--list-count", String(keys.length));
   let shown = keys[0];
   let rowWidth = 0;
 
@@ -32,10 +31,9 @@ export function wireSheetSections(sheet) {
       document.getElementById(tabs[keys.indexOf(key)].getAttribute("aria-controls") ?? "")
     );
 
-  // The thumb under the pills follows the row, and each pill's name brightens as it nears it.
+  // Each pill fills as the row brings its section into view.
   function paintSwipe() {
     const position = row.clientWidth ? row.scrollLeft / row.clientWidth : keys.indexOf(shown);
-    tabList.style.setProperty("--swipe", String(position));
     for (const [index, tab] of tabs.entries())
       tab.style.setProperty("--nearness", String(Math.max(0, 1 - Math.abs(index - position))));
   }
