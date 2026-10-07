@@ -44,6 +44,24 @@ export function readDeclarations(path) {
   return declarations;
 }
 
+/**
+ * Each `@font-face` in a stylesheet, as its properties by name, with quotes taken off its family.
+ * @param {string} path
+ * @returns {Record<string, string>[]}
+ */
+export const readFontFaces = (path) =>
+  [...stripComments(readFileSync(path, "utf8")).matchAll(/@font-face\s*\{([^}]*)\}/g)].map(
+    ([, block]) => {
+      const face = Object.fromEntries(
+        block
+          .split(";")
+          .map((declaration) => declaration.split(/:(.*)/s).map((part) => part.trim()))
+          .filter(([property, value]) => property && value),
+      );
+      return { ...face, "font-family": face["font-family"].replaceAll('"', "") };
+    },
+  );
+
 /** @param {Declaration} declaration */
 export const readRule = (declaration) => declaration.selectors.at(-1) ?? "";
 

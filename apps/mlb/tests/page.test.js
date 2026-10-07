@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { composeState, session } from "../page/js/session.js";
 import { renderDivisionBlock, renderFieldBlock, renderNextCell } from "../page/js/standings.js";
-import { describeTeamStatus, nameSeries } from "../page/js/bracket.js";
+import { describeTeamStatus, findSeries, nameSeries } from "../page/js/bracket.js";
+import { renderCardNote, renderMatchupRow } from "../page/js/bracket-view.js";
 import { describeDrought, listRankedOrder } from "../page/js/clubs.js";
 import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
@@ -20,7 +21,9 @@ import {
   renderUpdateText,
 } from "../page/js/updates.js";
 import { normalizeSpaces, stripTags } from "../../../tests/text.js";
-import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
+import { readFontFaces } from "../../../tests/css-rules.js";
+import { EASTERN, checkInTimeZone, useTimeZone } from "../../../tests/time-zone.js";
+import { TWO_UPDATES, readUpdateBox } from "./update-box.js";
 
 // The expected times below are what a viewer in Eastern time sees.
 useTimeZone(EASTERN);
@@ -1390,4 +1393,250 @@ test("an update finds the one game all its entries came from, and none when they
   assert.equal(findUpdateGame([fromTwo], GAMES_VIEW), null);
   assert.equal(findUpdateGame([{ at: berth.at, kind: "lock" }], GAMES_VIEW), null);
   assert.equal(findUpdateGame([berth], { today: { date: "2026-10-09", games: [] } }), null);
+});
+
+test("games list: a game under way shows its outs as two lights beside the inning", () => {
+  const live = (away, outs) => ({ away, home: "NYY", state: "live", inning: 5, half: "top", outs });
+  const slate = {
+    today: { date: "2026-09-24", games: [live("BOS", 1), live("TB", 2), live("TOR", 0)] },
+  };
+  const lights = [
+    ...String(renderGameList(slate, "today")).matchAll(
+      /<span class="out-lights" role="img" aria-label="([^"]+)">([\s\S]*?)<\/span><\/span>/g,
+    ),
+  ].map(([, label, spans]) => ({
+    label,
+    on: [...spans.matchAll(/class="out-light on"/g)].length,
+    off: [...spans.matchAll(/class="out-light "/g)].length,
+  }));
+  assert.deepEqual(lights, [
+    { label: "1 out", on: 1, off: 1 },
+    { label: "2 outs", on: 2, off: 0 },
+    { label: "0 outs", on: 0, off: 2 },
+  ]);
+});
+
+const SERIES_IDS = ["WC1", "WC2", "DS1", "DS2", "CS"]
+  .flatMap((round) => [`AL_${round}`, `NL_${round}`])
+  .concat("WS");
+const WILD_CARD_IDS = ["AL_WC1", "AL_WC2", "NL_WC1", "NL_WC2"];
+
+/**
+ * The evening's season, with these series and today's games added to what MLB had.
+ * @param {Record<string, object>} [series]
+ * @param {object[]} [games]
+ */
+function showEvening(series = {}, games = []) {
+  const { slate } = eveningSnapshot;
+  session.state = {
+    ...eveningSnapshot,
+    series: { ...eveningSnapshot.series, ...series },
+    slate: { ...slate, today: { ...slate.today, games: [...slate.today.games, ...games] } },
+  };
+}
+
+/** Each bracket row's score, by series, top side first. */
+const readBracketScores = (seriesIds) =>
+  seriesIds.map((id) => {
+    const series = findSeries(session.state, id);
+    return ["A", "B"].map((side) => {
+      const row = String(renderMatchupRow(series, side));
+      return {
+        isTbd: row.includes('class="tbd"'),
+        score: row.match(/class="nscore[^"]*">([^<]*)</)[1],
+      };
+    });
+  });
+
+/** What each series' card says under it, in the order of `seriesIds`, without its markup. */
+const readCardNotes = (seriesIds = SERIES_IDS) =>
+  seriesIds.map((id) => {
+    const note = String(renderCardNote(findSeries(session.state, id), ""));
+    return {
+      text: stripTags(normalizeSpaces(note).replace(/&bull;/g, "•")),
+      classes:
+        note
+          .match(/^<div class="([^"]*)"/)?.[1]
+          .trim()
+          .split(/\s+/) ?? [],
+    };
+  });
+
+/** @param {{ text: string }[]} notes */
+const listNoteTexts = (notes) => notes.map((note) => note.text);
+
+test("bracket: a score stays empty until its series' first game starts, and each TBD row has one too", () => {
+  showEvening();
+  const rows = readBracketScores(SERIES_IDS).flat();
+  assert.equal(rows.length, 22);
+  assert.equal(rows.filter((row) => row.isTbd).length, 10);
+  assert.deepEqual(new Set(rows.map((row) => row.score)), new Set([""]));
+});
+
+test("bracket: a club's score shows its wins, and a swept club's shows 0", () => {
+  const final2025 = JSON.parse(
+    readFileSync(`${import.meta.dirname}/fixtures/2025-final.json`, "utf8"),
+  );
+  session.state = buildSnapshot(final2025.responses, {
+    season: 2025,
+    now: Date.parse(final2025.now),
+  });
+  const wildCard = findSeries(session.state, "NL_WC1");
+  assert.deepEqual([wildCard.teamA, wildCard.teamB], ["LAD", "CIN"]);
+  assert.deepEqual(readBracketScores(["NL_WC1"]), [
+    [
+      { isTbd: false, score: "2" },
+      { isTbd: false, score: "0" },
+    ],
+  ]);
+});
+
+test("bracket: a series saved without being marked started still shows 0 beside a club's wins", () => {
+  showEvening({ AL_WC1: { winsA: 1, winsB: 0 } });
+  assert.deepEqual(readBracketScores(["AL_WC1"]), [
+    [
+      { isTbd: false, score: "1" },
+      { isTbd: false, score: "0" },
+    ],
+  ]);
+});
+
+const nextGame = (at, date, tbd = false, game = 1) => ({ at, date, tbd, game });
+
+test("bracket: under each card, the next game shows its day, as today or tomorrow when it can, and its start time", () =>
+  checkAt(eveningFixture.now, () => {
+    showEvening({
+      AL_WC1: {
+        ...eveningSnapshot.series.AL_WC1,
+        next: nextGame("2026-09-25T01:10:00Z", "2026-09-24"),
+      },
+      AL_WC2: {
+        ...eveningSnapshot.series.AL_WC2,
+        next: nextGame("2026-09-25T23:08:00Z", "2026-09-25"),
+      },
+      NL_WC1: {
+        ...eveningSnapshot.series.NL_WC1,
+        next: nextGame("2026-09-25T07:33:00Z", "2026-09-25", true),
+      },
+      NL_DS1: {
+        ...eveningSnapshot.series.NL_DS1,
+        next: nextGame("2026-10-03T20:08:00Z", "2026-10-03"),
+      },
+    });
+    assert.deepEqual(
+      listNoteTexts(readCardNotes(["AL_WC1", "AL_WC2", "NL_WC1", "NL_DS1", "NL_WC2", "AL_DS1"])),
+      [
+        "Today•9:10 PM",
+        "Tomorrow•7:08 PM",
+        "Tomorrow•time TBD",
+        "Sat Oct 3•4:08 PM",
+        "Tue Sep 29•time TBD",
+        "Sat Oct 3•time TBD",
+      ],
+    );
+  }));
+
+test("bracket: a card's next game reads its day and time by the viewer's own clock", () =>
+  checkInTimeZone("Europe/London", () =>
+    checkAt(eveningFixture.now, () => {
+      showEvening({
+        AL_WC1: {
+          ...eveningSnapshot.series.AL_WC1,
+          next: nextGame("2026-09-25T17:10:00Z", "2026-09-25"),
+        },
+      });
+      assert.deepEqual(listNoteTexts(readCardNotes(["AL_WC1"])), ["Today•6:10 PM"]);
+    }),
+  ));
+
+/**
+ * The evening with each Wild Card's next game at `start`, and one of them on today's slate.
+ * @param {string} start
+ * @param {object} slateGame
+ * @param {number} [game] the next game's number in its series
+ */
+function showWildCardsAt(start, slateGame, game = 1) {
+  const series = Object.fromEntries(
+    WILD_CARD_IDS.map((id) => [
+      id,
+      { ...eveningSnapshot.series[id], next: nextGame(start, start.slice(0, 10), false, game) },
+    ]),
+  );
+  showEvening(series, [slateGame]);
+}
+
+const NYY_AT_BOS = { away: "NYY", home: "BOS", state: "pre" };
+
+test("bracket: under a card whose series already counts the game, the next game shows even while the slate reads it as under way", () =>
+  checkAt(eveningFixture.now, () => {
+    const live = { away: "PHI", home: "ATL", state: "live", start: "2026-09-24T23:08:00Z" };
+    showWildCardsAt(
+      "2026-09-25T23:08:00Z",
+      { ...live, score: [3, 5], inning: 9, half: "middle" },
+      2,
+    );
+    assert.deepEqual(
+      readCardNotes(WILD_CARD_IDS),
+      Array(4).fill({ text: "Tomorrow•7:08 PM", classes: ["card-note"] }),
+    );
+  }));
+
+test("bracket: more than a half hour before first pitch, a card shows its next game", () =>
+  checkAt(eveningFixture.now, () => {
+    const start = "2026-09-25T01:20:00Z";
+    showWildCardsAt(start, { ...NYY_AT_BOS, start });
+    assert.deepEqual(
+      readCardNotes(WILD_CARD_IDS),
+      Array(4).fill({ text: "Today•9:20 PM", classes: ["card-note"] }),
+    );
+  }));
+
+test("bracket: past its start, a game still before its first pitch reads as warmup", () =>
+  checkAt(eveningFixture.now, () => {
+    const start = "2026-09-25T00:40:00Z";
+    showWildCardsAt(start, { ...NYY_AT_BOS, start });
+    const warmups = readCardNotes(WILD_CARD_IDS).filter((note) => note.text === "Warmup");
+    assert.deepEqual(warmups, [{ text: "Warmup", classes: ["card-note", "live"] }]);
+  }));
+
+test("bracket: a delayed start shows its delay instead of a countdown", () =>
+  checkAt(eveningFixture.now, () => {
+    const start = "2026-09-25T01:02:00Z";
+    showWildCardsAt(start, { ...NYY_AT_BOS, start, delay: "Delayed: Rain" });
+    const delayed = readCardNotes(WILD_CARD_IDS).filter((note) => note.classes.includes("live"));
+    assert.deepEqual(delayed, [
+      { text: "Delayed: Rain", classes: ["card-note", "live", "delayed"] },
+    ]);
+  }));
+
+test("Chivo Mono draws 6% smaller than its size, so it looks as big as Barlow", () => {
+  const faces = readFontFaces(`${import.meta.dirname}/../page/styles.css`).filter(
+    (face) => face["font-family"] === "Chivo Mono",
+  );
+  assert.deepEqual(
+    faces.map((face) => face["size-adjust"]),
+    ["94%", "94%"],
+  );
+});
+
+test("Updates box: each update shows when it happened, not when the page noticed it", (t) => {
+  keepSeenAt(session.activeYear, Date.parse("2026-09-24T20:00:00Z"));
+  t.after(() => keepSeenAt(session.activeYear, 0));
+  const { count, whens } = readUpdateBox(TWO_UPDATES);
+  assert.equal(count, "2 updates since yesterday");
+  assert.deepEqual(whens, ["8:30 PM", "Yesterday"]);
+});
+
+test("Updates box: a clinch and the elimination it brought are one update, at the game's time", () => {
+  const rangersLoss = { team: "TEX", won: false, opp: "MIN", score: [4, 6] };
+  const found = { ended: "2026-09-25T00:10:00Z", at: "2026-09-25T00:40:00Z" };
+  const { count, whats, whens } = readUpdateBox([
+    { kind: "berth", team: "HOU", what: "division", div: "AL West", via: [rangersLoss], ...found },
+    { kind: "elim", team: "TEX", via: [rangersLoss], ...found },
+  ]);
+  assert.equal(count, "1 update since earlier today");
+  assert.deepEqual(whats, [
+    "Astros clinch the AL West — Rangers eliminated with a 6-4 loss to the Twins",
+  ]);
+  assert.deepEqual(whens, ["8:10 PM"]);
 });

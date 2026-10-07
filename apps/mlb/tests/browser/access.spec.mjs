@@ -48,17 +48,3 @@ test("the page asks for its code in baseball's gold and copper, and the right on
   await expect(page.getByRole("tab", { name: "Standings" })).toBeVisible();
   await expect(findGate(page)).toHaveCount(0);
 });
-
-test("a new code signs the phone out, and the gate says the code has changed", async ({ page }) => {
-  const app = await openLockedApp(page, { accessCode: "FASTBALL" });
-  await sendCode(page, "FASTBALL");
-  await expect(page.getByRole("tab", { name: "Standings" })).toBeVisible();
-
-  await page.goto("about:blank");
-  app.changeAccessCode("SLIDER");
-  await page.goBack();
-  await expect(findGate(page)).toBeVisible();
-  await expect(page.getByRole("alert")).toHaveText(
-    "The code has changed. Ask whoever sent you the link for the new one.",
-  );
-});

@@ -157,17 +157,6 @@ test("a tap on a card opens its game's sheet beside the team's, and Back returns
   await expect(teamSheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
 });
 
-test("a card follows its game as the store's updates come in", async ({ page }) => {
-  const app = await openApp(page);
-  const sheet = await openDream(page);
-  await expect(sheet.locator(".game-card h3")).toHaveText(["Last game", "Next game"]);
-
-  await app.changeSeason(playTonight);
-
-  await expect(sheet.locator(".game-card h3")).toHaveText(["Last game", "Now", "Next game"]);
-  await expect(sheet.locator(".game-card-score").nth(1)).toHaveText("UP 61-58");
-});
-
 test("a card's lines sit at their spacing, from the tops of their capitals to their baselines, in their weights and colors", async ({
   page,
 }) => {

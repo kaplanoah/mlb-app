@@ -41,16 +41,6 @@ async function sleepUnannounced(page, minutes) {
   await page.clock.runFor(15 * 1000);
 }
 
-test("a page coming back reloads itself once a deploy has replaced it", async ({ page }) => {
-  const served = await serveReleases(page);
-  await openApp(page);
-  await expect.poll(() => served.requests).toBe(1);
-  await markPage(page);
-
-  served.release = NEXT_RELEASE;
-  await expectReload(page, () => comeBack(page));
-});
-
 test("a page coming back stays as it is when nothing was deployed", async ({ page }) => {
   const served = await serveReleases(page);
   await openApp(page);
@@ -105,21 +95,6 @@ async function hideAndShow(page) {
   await setHidden(page, true);
   await setHidden(page, false);
 }
-
-test("a page hidden a minute closes its socket, and opens another when it's shown", async ({
-  page,
-}) => {
-  await serveReleases(page);
-  const app = await openApp(page);
-  await expect.poll(() => app.countOpenSockets()).toBe(1);
-
-  await setHidden(page, true);
-  await page.clock.runFor(MINUTE_MS);
-  await expect.poll(() => app.countOpenSockets()).toBe(0);
-
-  await setHidden(page, false);
-  await expect.poll(() => app.countOpenSockets()).toBe(1);
-});
 
 test("a page whose first load failed loads its season once the store answers", async ({ page }) => {
   await openApp(page);

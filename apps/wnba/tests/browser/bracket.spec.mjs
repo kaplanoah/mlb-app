@@ -1,6 +1,8 @@
 import { TEAMS } from "../../page/js/teams.js";
 import { test, expect, openApp, formatRgb } from "./harness.mjs";
 
+test.use({ contextOptions: { reducedMotion: "reduce" } });
+
 const PHONE = { width: 390, height: 844 };
 
 /**
@@ -529,7 +531,6 @@ test.describe("on a phone's touchscreen", () => {
   test("a tap anywhere on a team's row in the bracket, beside its name or on its wins, lands on the team's button and opens its sheet", async ({
     page,
   }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     const row = page.locator('[data-series="1-0"] .team-line[data-team="NYL"]');
     await expect(row).toBeVisible();

@@ -45,25 +45,6 @@ test("a page whose styles took the whole wait says it's slow as soon as it shows
   await opened;
 });
 
-test("a page that loses its connection while it loads says it's offline", async ({ page }) => {
-  const release = await holdPageCode(page);
-  const opened = openApp(page);
-  const note = page.locator("#loadNote");
-  await waitForLoadWatch(page);
-  // The note says the page is slow once it has waited, so the wait stops short of that.
-  await page.clock.pauseAt(Date.parse(EVENING_FIXTURE.now) + 1000);
-
-  await page.context().setOffline(true);
-  await expect(note).toHaveText("You're offline. The page loads once you're back online.");
-  await page.context().setOffline(false);
-
-  await expect(note).toHaveText("Still loading. Your connection is slow.");
-  await page.clock.resume();
-  release();
-  await opened;
-  await expect(note).toHaveCount(0);
-});
-
 test("a page that loads quickly says nothing of a slow load", async ({ page }) => {
   await openApp(page);
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);

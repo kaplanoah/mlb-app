@@ -7,6 +7,7 @@ import { renderNextCell } from "../page/js/standings.js";
 import { normalizeSpaces, readStampText } from "../../../tests/text.js";
 import { checkInTimeZone } from "../../../tests/time-zone.js";
 import { readEasternDay } from "#shared/days.js";
+import { TWO_UPDATES, readUpdateBox } from "./update-box.js";
 
 const MARINERS_WIN = {
   away: "HOU",
@@ -123,4 +124,19 @@ test("MLB's day runs until 6 AM Eastern, through its night games", () => {
       zone,
     );
   }
+});
+
+test("the Updates box tells each update's time and day by the viewer's own clock", () => {
+  // The page's clock reads 8:44 PM Eastern, which is the next morning in London and Tokyo.
+  const expected = {
+    "Pacific/Honolulu": "2:30 PM",
+    "Europe/London": "1:30 AM",
+    "Asia/Tokyo": "9:30 AM",
+  };
+  for (const [zone, newer] of Object.entries(expected))
+    assert.deepEqual(
+      checkInTimeZone(zone, () => readUpdateBox(TWO_UPDATES).whens),
+      [newer, "Yesterday"],
+      zone,
+    );
 });

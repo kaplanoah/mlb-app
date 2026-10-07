@@ -499,3 +499,11 @@ test("the Worker bundles with its page, and exports its store", async () => {
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<title>WNBA<\/title>/);
 });
+
+test("the page serves both themes' icons", async () => {
+  const { listBundledFiles } = await import("../../../worker/build.mjs");
+  const release = { version: "1.0.0", commit: "abc1234", builtAt: "2026-10-01T00:00:00Z" };
+  const served = Object.keys(listBundledFiles("wnba", release));
+  for (const icon of ["icon-180.png", "icon-light-180.png", "icon.svg", "icon-light.svg"])
+    assert.ok(served.includes(icon), icon);
+});
