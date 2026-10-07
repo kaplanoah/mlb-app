@@ -18,7 +18,8 @@ device_type=$(node -e '
   const pick = phones.at(-1) ?? runtime.supportedDeviceTypes.filter((t) => t.productFamily === "iPhone").at(-1);
   console.log(pick.identifier);
 ' "$runtimes" "$runtime")
-echo "Runtime $runtime, device $device_type"
+echo "PHONE runtime $runtime, device $device_type, $(xcodebuild -version | tr '\n' ' ')" |
+  tee "$RUNNER_TEMP/phone.txt"
 udid=$(xcrun simctl create probe-phone "$device_type" "$runtime")
 xcrun simctl boot "$udid"
 xcrun simctl bootstatus "$udid" -b

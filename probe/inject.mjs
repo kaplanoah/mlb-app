@@ -23,7 +23,7 @@ const script = `<script>
       willChange: pages && pages.firstElementChild ? getComputedStyle(pages.firstElementChild).willChange : null,
       ua: navigator.userAgent
     };
-    fetch("probe-report?" + encodeURIComponent(JSON.stringify(data))).catch(function () {});
+    fetch("probe-report/" + encodeURIComponent(JSON.stringify(data))).catch(function () {});
   }
   addEventListener("load", function () {
     setTimeout(function () { report("t15"); }, 15000);

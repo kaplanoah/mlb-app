@@ -43,16 +43,12 @@ jobs:
           bash probe/shoot.sh broken-click "http://127.0.0.1:8701/probe/?probe=click" 40
           bash probe/shoot.sh fixed-click "http://127.0.0.1:8702/probe/?probe=click" 40
           bash probe/shoot.sh head-click "http://127.0.0.1:8703/probe/?probe=click" 40
-      - name: Show what the pages reported
-        if: always()
-        run: |
-          for label in broken fixed head; do
-            echo "== $label"
-            grep -E 'probe-report|rror|wnba|espn' "$RUNNER_TEMP/wrangler-$label.log" | head -60 || true
-          done
       - name: Keep the screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ios-sim-shots
           path: ${{ runner.temp }}/shots
+      - name: Print the results
+        if: always()
+        run: bash probe/print-results.sh
