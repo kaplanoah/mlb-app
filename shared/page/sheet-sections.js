@@ -1,17 +1,11 @@
 import { createPillThumb } from "./pill-thumb.js";
-import { followSideSwipes } from "./side-swipe.js";
-import { SHEET_MOTION_MS } from "./sheet-swipe.js";
+import { createSlidePanels } from "./slide-panels.js";
 import { selectTab, wireTabs } from "./tabs.js";
 
 // A sheet's sections under the pills in its top, like a WNBA team's Team and Roster, one shown at a
-// time. A tap on a pill slides the shown section away and its own in, and a swipe drags the shown
-// section with the finger, its neighbor beside it, and settles on the neighbor or springs back once
-// the finger lifts. A section that scrolls sideways on its own, like the roster, keeps a swipe until
-// it reaches its edge. Each section scrolls up and down on its own while the sheet's top, pills and
-// all, stays still above them, with a line under it once the shown section has scrolled under it.
-// Only the shown section is drawn while none is moving.
-
-const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+// time, side by side, as slide-panels.js moves them: a tap on a pill slides to its section, and a
+// swipe drags the shown section with its neighbor beside it. Each section scrolls up and down on
+// its own under the sheet's still top, which gets a line once the shown section scrolls under it.
 
 /**
  * Wires a sheet's pills to its sections, which it shows from the first.
@@ -24,103 +18,52 @@ export function wireSheetSections(sheet) {
   const top = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top"));
   const tabs = /** @type {HTMLButtonElement[]} */ ([...tabList.querySelectorAll("[role=tab]")]);
   const keys = tabs.map((tab) => tab.dataset.tab ?? "");
+  const sections = tabs.map(
+    (tab) =>
+      /** @type {HTMLElement} */ (document.getElementById(tab.getAttribute("aria-controls") ?? "")),
+  );
   const thumb = createPillThumb(tabList);
-  let shown = keys[0];
-  /** @type {ReturnType<typeof setTimeout> | undefined} */
-  let slide;
 
-  /** @param {string} key */
-  const findSection = (key) =>
-    /** @type {HTMLElement} */ (
-      document.getElementById(tabs[keys.indexOf(key)].getAttribute("aria-controls") ?? "")
-    );
+  const findShownSection = () => sections[panels.readShown()];
+  const markHeld = () => top.classList.toggle("stuck", findShownSection().scrollTop > 0);
 
-  /**
-   * Puts each section a whole width from the next, the one at `position` in place.
-   * @param {number} position runs from 0 at the first section to the last's index
-   */
-  function placeSections(position) {
-    keys.forEach((key, index) => {
-      const share = index - position;
-      findSection(key).style.transform = share ? `translateX(${share * 100}%)` : "";
-    });
-  }
-
-  function markHeld() {
-    top.classList.toggle("stuck", findSection(shown).scrollTop > 0);
-  }
-
-  /** @param {string} key */
-  function markShown(key) {
-    shown = key;
-    selectTab(tabs, key);
-    for (const other of keys) findSection(other).inert = other !== key;
-    markHeld();
-  }
-
-  /** @param {string} key */
-  function settleOn(key) {
-    clearTimeout(slide);
-    row.classList.remove("is-moving", "is-sliding");
-    placeSections(keys.indexOf(key));
-    markShown(key);
-  }
+  const panels = createSlidePanels(row, {
+    listPanels: () => sections,
+    place: (index, position) => index - position,
+    canGo: (direction) => keys[panels.readShown() + direction] !== undefined,
+    onShow: (index, isSliding) => {
+      selectTab(tabs, keys[index]);
+      thumb.moveThumb(index, { isSliding });
+    },
+    onSettle: markHeld,
+    onDrag: (position) => thumb.moveThumb(position),
+  });
 
   /**
-   * Slides the sections from wherever they are to rest on the one at `key`.
+   * Slides to the section at `key`, or shows it at once, as for a sheet that's opening.
    * @param {string} key
-   * @param {boolean} [isInstant] skips the slide, as for a sheet that's opening
+   * @param {boolean} [isInstant]
    */
   function showSection(key, isInstant = false) {
-    if (!keys.includes(key)) return;
-    selectTab(tabs, key);
-    if (isInstant || prefersReducedMotion()) {
-      thumb.moveThumb(keys.indexOf(key));
-      settleOn(key);
-      return;
-    }
-    clearTimeout(slide);
-    thumb.moveThumb(keys.indexOf(key), { isSliding: true });
-    row.classList.add("is-moving", "is-sliding");
-    placeSections(keys.indexOf(key));
-    slide = setTimeout(() => settleOn(key), SHEET_MOTION_MS);
-  }
-
-  /** @param {-1 | 1} direction */
-  const findNeighbor = (direction) => keys[keys.indexOf(shown) + direction];
-
-  /**
-   * @param {-1 | 1} direction
-   * @param {number} share
-   */
-  function followSwipe(direction, share) {
-    clearTimeout(slide);
-    row.classList.toggle("is-sliding", false);
-    row.classList.toggle("is-moving", true);
-    const position = keys.indexOf(shown) + direction * share;
-    placeSections(position);
-    thumb.moveThumb(position);
+    const index = keys.indexOf(key);
+    if (index < 0) return;
+    if (isInstant) panels.jumpTo(index);
+    else panels.slideTo(index);
   }
 
   /** Shows the first section, each scrolled to its top, as for a sheet showing something new. */
   function showFirstSection() {
-    for (const key of keys) findSection(key).scrollTop = 0;
+    for (const section of sections) section.scrollTop = 0;
     showSection(keys[0], true);
   }
 
-  for (const key of keys) findSection(key).addEventListener("scroll", markHeld, { passive: true });
+  for (const section of sections) section.addEventListener("scroll", markHeld, { passive: true });
   wireTabs(tabs, (key) => showSection(key));
-  followSideSwipes(row, {
-    canGo: (direction) => findNeighbor(direction) !== undefined,
-    follow: followSwipe,
-    settle: (direction, isGoing) => showSection(isGoing ? findNeighbor(direction) : shown),
-  });
-  settleOn(shown);
-  thumb.moveThumb(keys.indexOf(shown));
+  showSection(keys[0], true);
 
   return {
-    findShownSection: () => findSection(shown),
-    readShown: () => shown,
+    findShownSection,
+    readShown: () => keys[panels.readShown()],
     showSection,
     showFirstSection,
   };

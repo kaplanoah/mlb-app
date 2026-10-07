@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { html } from "../shared/page/html.js";
 import { renderSheetPart } from "../shared/page/sheet-part.js";
-import { listOpenSheets, reopenSheets } from "../shared/page/sheet.js";
+import { listOpenSheets, reopenSheets } from "../shared/page/sheet-reopen.js";
 import {
   refreshTeamSheet,
   renderTeamDetail,

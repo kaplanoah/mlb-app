@@ -1,23 +1,32 @@
 // A sheet a tap opens over the page: the whole screen on phones, rising from the bottom, and a
-// modal on wider screens. A sheet is a page in a dialog. A dialog with a .sheet-row holds several,
-// one over another, like a game's, a team's, and a player's, and a sheet opened from another slides
-// in over it from the right, with a back button in place of its close button, named for screen
-// readers after the one it came from. The back button, or a swipe right that the finger drags,
-// slides it away again, and it leaves the stack. Only the sheet on top is drawn while none is
-// moving. The close button, a click on the backdrop, Escape, and on phones a swipe down close the
-// dialog. A page that loads again shows the sheets it showed before, where they were scrolled
-// (show-last-drawn.js), and each sheet's code takes back what it showed.
+// modal on wider screens. A sheet is a page in a dialog.
+//
+// The stack: a dialog with a .sheet-row holds several sheets, one over another, like a game's, a
+// team's, and a player's. A sheet opened from another slides in over it from the right, the one
+// under it moving 30% left, with a back arrow in place of its close caret, named after the one
+// under it. The arrow, or a swipe right that the finger drags, slides it away, the one under it
+// coming back in, and it leaves the stack and lets go of what it showed. Only the sheet on top is
+// drawn at rest; the ones under it are hidden and inert. The caret, a click on the backdrop,
+// Escape, and on phones a swipe down close the dialog (sheet-swipe.js). A page that loads again
+// shows the sheets it showed before, where they were scrolled (show-last-drawn.js and
+// sheet-reopen.js). The stack and a sheet's sections both move their panels with slide-panels.js.
+//
+// Three rules hold for every motion here, and for the tab bar and pager too:
+// - Nothing asks for a layer ahead of time: the only will-change is on [data-dragged], which a
+//   dialog carries only while a finger drags it down.
+// - Nothing animates at rest: once a slide, a spring back, or a close ends,
+//   document.getAnimations() is empty and nothing asks for an animation frame.
+// - Nothing filters what is behind it: no backdrop-filter anywhere.
 
-import { followSideSwipes } from "./side-swipe.js";
 import { noteSheetStep } from "./sheet-log.js";
-import { SHEET_MOTION_MS, closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
+import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
+import { createSlidePanels } from "./slide-panels.js";
 
 /**
  * How a sheet's code tells what it shows, as a value JSON can hold, and shows it again on the
  * page's next load, saying whether it could.
  * @typedef {{ read: () => unknown, reopen: (subject: any) => boolean }} SheetKeeper
  */
-/** @typedef {{ id: string, scrollTop: number, subject: unknown, backLabel: string | null }} OpenSheet */
 /**
  * @typedef {object} SheetParts
  * @property {HTMLElement} closeButton
@@ -32,10 +41,7 @@ import { SHEET_MOTION_MS, closeOnSwipeDown, closeSheet } from "./sheet-swipe.js"
  * @property {() => void} [forget] lets go of what the sheet showed once it's no longer beside the
  *   others, or its dialog closes
  */
-/**
- * A dialog's sheets, in the order they opened, the one it shows, and the slide under way, if any.
- * @typedef {{ sheets: HTMLElement[], shown: number, slide?: ReturnType<typeof setTimeout> }} Stack
- */
+/** @typedef {ReturnType<typeof createSlidePanels>} SlidePanels */
 
 // A sheet under the one on top sits this share of its width to the left, as the phone's own do, so
 // it comes in from there as the one on top slides away.
@@ -43,13 +49,14 @@ const UNDER_SHARE = 0.3;
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
-/** @type {WeakMap<HTMLDialogElement, Stack>} */
+// Each dialog's sheets, in the order they opened.
+/** @type {WeakMap<HTMLDialogElement, HTMLElement[]>} */
 const stacks = new WeakMap();
+/** @type {WeakMap<HTMLDialogElement, SlidePanels>} */
+const panelsByDialog = new WeakMap();
 // In the order they opened.
 /** @type {Set<HTMLDialogElement>} */
 const openDialogs = new Set();
-
-const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** @param {HTMLElement} sheet */
 const findDialog = (sheet) => /** @type {HTMLDialogElement} */ (sheet.closest("dialog"));
@@ -58,34 +65,40 @@ const findDialog = (sheet) => /** @type {HTMLDialogElement} */ (sheet.closest("d
 const findRow = (dialog) =>
   /** @type {HTMLElement | null} */ (dialog.querySelector(":scope > .sheet-row"));
 
-/**
- * @param {HTMLElement[]} sheets
- * @param {number} shown
- * @returns {Stack}
- */
-const createStack = (sheets, shown) => ({ sheets, shown });
+/** @param {HTMLDialogElement} dialog */
+const listStack = (dialog) => stacks.get(dialog) ?? [];
 
 /** @param {HTMLDialogElement} dialog */
-function readStack(dialog) {
-  let stack = stacks.get(dialog);
-  if (!stack) {
-    stack = createStack([], 0);
-    stacks.set(dialog, stack);
-  }
-  return stack;
-}
+const readShownIndex = (dialog) => panelsByDialog.get(dialog)?.readShown() ?? 0;
+
+/** @param {HTMLElement} sheet */
+export const readSheetParts = (sheet) => sheetParts.get(sheet);
 
 /** @param {HTMLDialogElement} dialog */
-const findShownSheet = (dialog) => {
-  const { sheets, shown } = readStack(dialog);
-  return sheets[shown] ?? dialog;
-};
+const findShownSheet = (dialog) => listStack(dialog)[readShownIndex(dialog)] ?? dialog;
 
 /** @param {HTMLElement[]} sheets */
 const listIds = (sheets) => sheets.map((sheet) => sheet.id).join(", ");
 
-/** @param {HTMLElement} sheet */
-const nameSheet = (sheet) => sheetParts.get(sheet)?.name ?? "Back";
+/**
+ * Each dialog that's open, with its sheets in the order they opened and the one it shows.
+ * @returns {{ dialog: HTMLDialogElement, sheets: HTMLElement[], shown: number }[]}
+ */
+export const listOpenDialogs = () =>
+  [...openDialogs]
+    .filter((dialog) => dialog.open)
+    .map((dialog) => ({ dialog, sheets: listStack(dialog), shown: readShownIndex(dialog) }));
+
+/**
+ * Where a sheet sits for the row's position: under the one on top a little way left, on top, or
+ * past the right edge, waiting to come in.
+ * @param {number} index
+ * @param {number} position
+ */
+function placeSheet(index, position) {
+  if (index < position) return -UNDER_SHARE * Math.min(position - index, 1);
+  return Math.min(index - position, 1);
+}
 
 /**
  * @param {HTMLElement | undefined} button
@@ -95,76 +108,47 @@ function labelBackButton(button, before) {
   if (!button) return;
   button.hidden = !before;
   if (!before) return;
-  const name = nameSheet(before);
+  const name = sheetParts.get(before)?.name ?? "Back";
   const label = button.querySelector(".sheet-back-label");
   if (label) label.textContent = name;
   button.setAttribute("aria-label", `Back to ${name}`);
 }
 
-/** @param {Stack} stack */
-function labelBackButtons({ sheets }) {
-  sheets.forEach((sheet, index) =>
-    labelBackButton(sheetParts.get(sheet)?.backButton, sheets[index - 1]),
-  );
-}
-
-/**
- * Moves a sheet across by a share of its width, or puts it back in place.
- * @param {HTMLElement} sheet
- * @param {number} share
- */
-function moveSheet(sheet, share) {
-  sheet.style.transform = share ? `translateX(${share * 100}%)` : "";
-}
-
-/**
- * Where a sheet sits while the stack rests on the one at `shown`: under it a little way left, on
- * it, or past the right edge.
- * @param {number} index
- * @param {number} shown
- */
-const placeShare = (index, shown) => {
-  if (index < shown) return -UNDER_SHARE;
-  return index === shown ? 0 : 1;
-};
-
-// Each sheet in the stack takes its place in the row, later ones drawn over earlier ones, and the
-// rest leave it.
 /** @param {HTMLDialogElement} dialog */
-function placeSheets(dialog) {
+function placeRow(dialog) {
   const row = findRow(dialog);
   if (!row) return;
-  const stack = readStack(dialog);
+  const sheets = listStack(dialog);
   for (const sheet of /** @type {HTMLElement[]} */ ([...row.children])) {
-    const index = stack.sheets.indexOf(sheet);
+    const index = sheets.indexOf(sheet);
     sheet.hidden = index < 0;
     sheet.style.zIndex = index < 0 ? "" : String(index);
-    sheet.inert = index !== stack.shown;
-    moveSheet(sheet, index < 0 ? 0 : placeShare(index, stack.shown));
+    labelBackButton(sheetParts.get(sheet)?.backButton, sheets[index - 1]);
   }
-  labelBackButtons(stack);
 }
 
 /** @param {HTMLElement} sheet */
 const forgetSheet = (sheet) => sheetParts.get(sheet)?.forget?.();
 
 /**
- * Takes every sheet after the shown one out of the row, but `kept`.
- * @param {Stack} stack
+ * Takes every sheet after the shown one out of the stack, but `kept`.
+ * @param {HTMLDialogElement} dialog
  * @param {HTMLElement} [kept]
  */
-function dropSheetsAhead(stack, kept) {
-  const dropped = stack.sheets.splice(stack.shown + 1).filter((sheet) => sheet !== kept);
+function dropSheetsAhead(dialog, kept) {
+  const sheets = listStack(dialog);
+  const dropped = sheets.splice(readShownIndex(dialog) + 1).filter((sheet) => sheet !== kept);
   if (!dropped.length) return;
   for (const sheet of dropped) {
     sheet.hidden = true;
+    sheet.style.transform = "";
     forgetSheet(sheet);
   }
   noteSheetStep(`let go of ${listIds(dropped)}`);
 }
 
-// A sheet that a finger or a button brought into view is the one the keyboard and screen readers
-// are in, and is named by the dialog.
+// A sheet a finger or a button brought into view is the one the keyboard and screen readers are
+// in, and is named by the dialog.
 /** @param {HTMLDialogElement} dialog */
 function focusShownSheet(dialog) {
   const sheet = findShownSheet(dialog);
@@ -173,108 +157,52 @@ function focusShownSheet(dialog) {
   if (!sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true });
 }
 
-/**
- * Makes the sheet at `index` the shown one, and takes any after it out of the stack.
- * @param {HTMLDialogElement} dialog
- * @param {number} index
- */
-function settleOnSheet(dialog, index) {
-  const stack = readStack(dialog);
-  if (!stack.sheets[index]) return;
-  stack.shown = index;
-  dropSheetsAhead(stack);
-  placeSheets(dialog);
-  findRow(dialog)?.classList.remove("is-moving", "is-sliding");
+/** @param {HTMLDialogElement} dialog */
+function settleOnShown(dialog) {
+  if (!dialog.open) return;
+  dropSheetsAhead(dialog);
+  placeRow(dialog);
   focusShownSheet(dialog);
-  noteSheetStep(`settle on ${stack.sheets[index].id}`);
+  noteSheetStep(`settle on ${findShownSheet(dialog).id}`);
 }
 
 /**
- * Slides the stack from wherever its sheets are to rest on the sheet at `index`, which it then
- * shows. The stack counts the sheet as shown from the start, so a sheet opened mid-slide takes the
- * place of any it's leaving, and a slide under way gives way to this one from wherever it got to.
  * @param {HTMLDialogElement} dialog
  * @param {number} index
  */
 function slideToSheet(dialog, index) {
-  const row = findRow(dialog);
-  const stack = readStack(dialog);
-  clearTimeout(stack.slide);
-  if (!row || prefersReducedMotion()) {
-    settleOnSheet(dialog, index);
-    return;
-  }
-  noteSheetStep(`slide to ${stack.sheets[index].id}`);
-  stack.shown = index;
-  row.classList.add("is-moving", "is-sliding");
-  stack.sheets.forEach((sheet, sheetIndex) => moveSheet(sheet, placeShare(sheetIndex, index)));
-  stack.slide = setTimeout(() => settleOnSheet(dialog, index), SHEET_MOTION_MS);
+  noteSheetStep(`slide to ${listStack(dialog)[index].id}`);
+  panelsByDialog.get(dialog)?.slideTo(index);
 }
 
 /**
- * Follows a finger dragging the shown sheet toward the right edge, the one under it coming in.
+ * Shows the dialog's stack at rest on its last sheet, as when it opens.
  * @param {HTMLDialogElement} dialog
- * @param {number} share
+ * @param {HTMLElement[]} sheets
  */
-function followBackSwipe(dialog, share) {
-  const row = findRow(dialog);
-  const { sheets, shown, slide } = readStack(dialog);
-  clearTimeout(slide);
-  row?.classList.toggle("is-sliding", false);
-  row?.classList.toggle("is-moving", true);
-  moveSheet(sheets[shown], share);
-  moveSheet(sheets[shown - 1], -UNDER_SHARE * (1 - share));
-}
-
-/**
- * Puts a sheet new to the stack over the others at the right edge, for its slide to set off from
- * there, leaving the others wherever a slide under way has them.
- * @param {Stack} stack
- * @param {HTMLElement} sheet
- */
-function enterAtRightEdge(stack, sheet) {
-  sheet.hidden = false;
-  sheet.inert = true;
-  sheet.style.zIndex = String(stack.sheets.length);
-  moveSheet(sheet, 1);
-  void sheet.offsetWidth;
-}
-
-/** @param {HTMLElement} sheet */
-function stepBack(sheet) {
-  const dialog = findDialog(sheet);
-  const index = readStack(dialog).sheets.indexOf(sheet);
-  if (index > 0) slideToSheet(dialog, index - 1);
-}
-
-/**
- * @param {HTMLDialogElement} dialog
- * @param {HTMLElement} sheet
- */
-function showDialog(dialog, sheet) {
-  stacks.set(dialog, createStack(sheet === dialog ? [] : [sheet], 0));
-  placeSheets(dialog);
-  dialog.showModal();
+export function restoreStack(dialog, sheets) {
+  stacks.set(dialog, sheets);
   openDialogs.add(dialog);
-  settleOnSheet(dialog, 0);
+  placeRow(dialog);
+  panelsByDialog.get(dialog)?.jumpTo(Math.max(sheets.length - 1, 0));
 }
 
 /**
  * Brings a sheet into the open dialog over the shown one, in place of any after it, sliding in
- * from the right edge.
+ * from the right edge, or back to a sheet under the shown one.
  * @param {HTMLDialogElement} dialog
  * @param {HTMLElement} sheet
  */
 function showOver(dialog, sheet) {
-  const stack = readStack(dialog);
-  const index = stack.sheets.indexOf(sheet);
-  if (index >= 0 && index < stack.shown) return slideToSheet(dialog, index);
-  clearTimeout(stack.slide);
-  dropSheetsAhead(stack, sheet);
-  if (index < 0) enterAtRightEdge(stack, sheet);
-  stack.sheets.push(sheet);
-  labelBackButtons(stack);
-  slideToSheet(dialog, stack.sheets.length - 1);
+  const sheets = listStack(dialog);
+  const index = sheets.indexOf(sheet);
+  if (index >= 0 && index < readShownIndex(dialog)) return slideToSheet(dialog, index);
+  panelsByDialog.get(dialog)?.hold();
+  dropSheetsAhead(dialog, sheet);
+  if (index < 0) sheet.style.transform = "translateX(100%)";
+  sheets.push(sheet);
+  placeRow(dialog);
+  slideToSheet(dialog, sheets.length - 1);
 }
 
 /**
@@ -286,31 +214,31 @@ export function openSheet(sheet) {
   const dialog = findDialog(sheet);
   if (sheet !== dialog)
     noteSheetStep(`open ${sheet.id} over ${dialog.open ? findShownSheet(dialog).id : "the page"}`);
-  if (!dialog.open) showDialog(dialog, sheet);
-  else if (findShownSheet(dialog) !== sheet) showOver(dialog, sheet);
+  if (!dialog.open) {
+    dialog.showModal();
+    restoreStack(dialog, sheet === dialog ? [] : [sheet]);
+  } else if (findShownSheet(dialog) !== sheet) showOver(dialog, sheet);
   sheet.scrollTop = 0;
+}
+
+/** @param {HTMLElement} sheet */
+function stepBack(sheet) {
+  const dialog = findDialog(sheet);
+  const index = listStack(dialog).indexOf(sheet);
+  if (index > 0) slideToSheet(dialog, index - 1);
 }
 
 /** @param {HTMLDialogElement} dialog */
 function forgetDialog(dialog) {
-  const { sheets, slide } = readStack(dialog);
-  clearTimeout(slide);
+  const sheets = listStack(dialog);
+  panelsByDialog.get(dialog)?.hold();
   stacks.delete(dialog);
   openDialogs.delete(dialog);
   dialog.removeAttribute("data-reopened");
   for (const sheet of sheets) forgetSheet(sheet);
   if (sheets.length === 0) forgetSheet(dialog);
-  placeSheets(dialog);
-  findRow(dialog)?.classList.remove("is-moving", "is-sliding");
-}
-
-// A click on the backdrop lands on the dialog itself; its content fills it edge to edge.
-/**
- * @param {HTMLDialogElement} dialog
- * @param {MouseEvent} event
- */
-function closeOnBackdropClick(dialog, event) {
-  if (event.target === dialog) closeSheet(dialog);
+  for (const sheet of sheets) sheet.style.transform = "";
+  placeRow(dialog);
 }
 
 /** @param {HTMLDialogElement} dialog */
@@ -321,6 +249,27 @@ function closeOnCancel(dialog) {
   });
 }
 
+// A click on the backdrop lands on the dialog itself; its content fills it edge to edge.
+/** @param {HTMLDialogElement} dialog */
+function closeOnBackdropClick(dialog) {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) closeSheet(dialog);
+  });
+}
+
+/** @param {HTMLDialogElement} dialog */
+function wireStack(dialog) {
+  const row = findRow(dialog);
+  if (!row) return;
+  const panels = createSlidePanels(row, {
+    listPanels: () => listStack(dialog),
+    place: placeSheet,
+    canGo: (direction) => direction < 0 && readShownIndex(dialog) > 0,
+    onSettle: () => settleOnShown(dialog),
+  });
+  panelsByDialog.set(dialog, panels);
+}
+
 /** @type {WeakSet<HTMLDialogElement>} */
 const wiredDialogs = new WeakSet();
 
@@ -328,9 +277,9 @@ const wiredDialogs = new WeakSet();
 function wireDialog(dialog) {
   if (wiredDialogs.has(dialog)) return;
   wiredDialogs.add(dialog);
-  dialog.addEventListener("click", (event) => closeOnBackdropClick(dialog, event));
-  dialog.addEventListener("close", () => forgetDialog(dialog));
+  closeOnBackdropClick(dialog);
   closeOnCancel(dialog);
+  dialog.addEventListener("close", () => forgetDialog(dialog));
   /** @param {HTMLElement} sheet */
   const readParts = (sheet) => sheetParts.get(sheet);
   closeOnSwipeDown(dialog, {
@@ -340,16 +289,7 @@ function wireDialog(dialog) {
       return readParts(sheet)?.findScroller?.() ?? sheet;
     },
   });
-  const row = findRow(dialog);
-  if (!row) return;
-  followSideSwipes(row, {
-    canGo: (direction) => direction < 0 && readStack(dialog).shown > 0,
-    follow: (_direction, share) => followBackSwipe(dialog, share),
-    settle: (_direction, isGoing) => {
-      const { shown } = readStack(dialog);
-      slideToSheet(dialog, isGoing ? shown - 1 : shown);
-    },
-  });
+  wireStack(dialog);
 }
 
 /**
@@ -365,119 +305,4 @@ export function wireSheet(sheet, parts) {
   parts.closeButton.addEventListener("click", () => closeSheet(dialog));
   parts.backButton?.addEventListener("click", () => stepBack(sheet));
   wireDialog(dialog);
-}
-
-/** @param {HTMLElement} sheet */
-function readBackLabel(sheet) {
-  const backButton = sheetParts.get(sheet)?.backButton;
-  if (!backButton || backButton.hidden) return null;
-  return backButton.querySelector(".sheet-back-label")?.textContent ?? null;
-}
-
-/** @param {HTMLElement} sheet */
-const describeOpenSheet = (sheet) => ({
-  id: sheet.id,
-  scrollTop: sheet.scrollTop,
-  subject: sheetParts.get(sheet)?.keeper?.read() ?? null,
-  backLabel: readBackLabel(sheet),
-});
-
-/** @param {HTMLDialogElement} dialog */
-function listShownSheets(dialog) {
-  const { sheets, shown } = readStack(dialog);
-  return sheets.length ? sheets.slice(0, shown + 1) : [dialog];
-}
-
-/**
- * The sheets showing, each dialog's in the order they opened up to the one it shows, with where
- * each is scrolled, what it shows, and what its back button calls the one before it.
- * @returns {OpenSheet[]}
- */
-export const listOpenSheets = () =>
-  [...openDialogs]
-    .filter((dialog) => dialog.open)
-    .flatMap(listShownSheets)
-    .map(describeOpenSheet);
-
-/**
- * Each sheet in each open dialog's row, in order, and whether it's the one its dialog shows.
- * @returns {{ id: string, isShown: boolean }[]}
- */
-export const listSheetsInOpenDialogs = () =>
-  [...openDialogs]
-    .filter((dialog) => dialog.open)
-    .flatMap((dialog) => {
-      const { sheets } = readStack(dialog);
-      const shown = findShownSheet(dialog);
-      return (sheets.length ? sheets : [dialog]).map((sheet) => ({
-        id: sheet.id,
-        isShown: sheet === shown,
-      }));
-    });
-
-// What an earlier release saved may not fit the sheet as it is now.
-/**
- * @param {HTMLElement} sheet
- * @param {unknown} subject
- */
-function reopenSheet(sheet, subject) {
-  const keeper = sheetParts.get(sheet)?.keeper;
-  if (!keeper) return true;
-  try {
-    return keeper.reopen(subject);
-  } catch {
-    return false;
-  }
-}
-
-/** @param {unknown} sheet */
-const isOpenSheet = (sheet) => typeof (/** @type {OpenSheet | null} */ (sheet)?.id) === "string";
-
-/**
- * The sheets that show again what they showed, up to the first that can't.
- * @param {{ sheet: HTMLElement, subject: unknown }[]} saved
- */
-function listReopened(saved) {
-  const failed = saved.findIndex(({ sheet, subject }) => !reopenSheet(sheet, subject));
-  return saved.slice(0, failed < 0 ? saved.length : failed).map(({ sheet }) => sheet);
-}
-
-/**
- * Takes a dialog the page put back open as it loaded, with the sheets in its row that show again
- * what they showed, or closes it when none can.
- * @param {HTMLDialogElement} dialog
- * @param {{ sheet: HTMLElement, subject: unknown }[]} saved
- */
-function reopenDialog(dialog, saved) {
-  const reopened = listReopened(saved);
-  openDialogs.add(dialog);
-  if (!reopened.length) return dialog.close();
-  if (!findRow(dialog)) return;
-  const shown = reopened.length - 1;
-  stacks.set(dialog, createStack(reopened, shown));
-  settleOnSheet(dialog, shown);
-}
-
-/** @param {unknown} saved */
-function groupByDialog(saved) {
-  /** @type {Map<HTMLDialogElement, { sheet: HTMLElement, subject: unknown }[]>} */
-  const groups = new Map();
-  for (const { id, subject } of /** @type {OpenSheet[]} */ (
-    Array.isArray(saved) ? saved.filter(isOpenSheet) : []
-  )) {
-    const sheet = document.getElementById(id);
-    const dialog = sheet?.closest("dialog");
-    if (!sheet || !dialog?.open || openDialogs.has(dialog)) continue;
-    groups.set(dialog, [...(groups.get(dialog) ?? []), { sheet, subject }]);
-  }
-  return groups;
-}
-
-/**
- * Takes over the sheets the page put back open as it loaded, each showing again what it showed
- * beside the one it was opened from, and closes a dialog none of whose sheets can.
- * @param {unknown} saved what listOpenSheets listed as the page last left the screen
- */
-export function reopenSheets(saved) {
-  for (const [dialog, sheets] of groupByDialog(saved)) reopenDialog(dialog, sheets);
 }

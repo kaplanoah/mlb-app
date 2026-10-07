@@ -341,5 +341,5 @@ test("on a phone, a finger moving a player's sheet brings the game's in from und
 
   expect(isMonotonic(lefts)).toBe(true);
   expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
-  expect(await readMotions()).toEqual([]);
+  expect((await readMotions()).filter(({ id }) => id === "sheetDialog")).toEqual([]);
 });

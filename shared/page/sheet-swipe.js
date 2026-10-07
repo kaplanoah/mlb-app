@@ -1,5 +1,13 @@
 // On phones, a dialog shown as a sheet over the whole screen closes with a swipe down, and slides
-// down whichever way it closes.
+// down whichever way it closes. Each slide writes where it ends into the sheet's style and leaves
+// no animation behind once it ends.
+
+import {
+  SHEET_EASING,
+  SHEET_MOTION_MS,
+  prefersReducedMotion,
+  settleAfter,
+} from "./slide-panels.js";
 
 // Matches chrome.css's phone layout, where dialogs are sheets.
 const SHEET_MEDIA = "(max-width: 779px)";
@@ -8,33 +16,32 @@ const CLOSE_DISTANCE_PX = 110;
 const CLOSE_SPEED_PX_PER_MS = 0.5;
 // A touch has to move this far before it counts as a swipe, so a tap stays a tap.
 const SWIPE_START_PX = 6;
-// The phone's own sheets' pace and easing, as chrome.css's --sheet-motion has them.
-export const SHEET_MOTION_MS = 500;
-const SHEET_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 const isSheetLayout = () => matchMedia(SHEET_MEDIA).matches;
-const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
- * Moves a sheet from where a finger left it to `to`, and holds it there.
+ * Moves a sheet from where a finger left it to `to`, which its style holds from the start.
  * @param {HTMLElement} dialog
- * @param {string} to a transform
+ * @param {string} to a transform, or "" for none
  */
 function slideSheet(dialog, to) {
   const from = dialog.style.transform || "none";
-  dialog.style.transform = "";
+  dialog.style.transform = to;
   const duration = prefersReducedMotion() ? 0 : SHEET_MOTION_MS;
-  return dialog.animate([{ transform: from }, { transform: to }], {
+  return dialog.animate([{ transform: from }, { transform: to || "none" }], {
     duration,
     easing: SHEET_EASING,
-    fill: "forwards",
   });
 }
 
-// A sheet still opening goes straight to where it was opening to, so a finger moves it from there.
+// A sheet still opening goes straight to where it was opening to, and one springing back stops
+// where it is, so a finger moves it from there.
 /** @param {HTMLElement} sheet */
-function finishOpening(sheet) {
-  for (const motion of sheet.getAnimations()) if (motion instanceof CSSAnimation) motion.finish();
+function stopMotions(sheet) {
+  for (const motion of sheet.getAnimations()) {
+    if (motion instanceof CSSAnimation) motion.finish();
+    else motion.cancel();
+  }
 }
 
 /** @type {WeakSet<HTMLDialogElement>} */
@@ -44,15 +51,15 @@ const closingSheets = new WeakSet();
  * Slides a sheet down and closes it.
  * @param {HTMLDialogElement} dialog
  */
-async function slideSheetClosed(dialog) {
+function slideSheetClosed(dialog) {
   if (closingSheets.has(dialog)) return;
   closingSheets.add(dialog);
-  const slide = slideSheet(dialog, "translateY(100%)");
-  await slide.finished;
-  dialog.close();
-  dialog.removeAttribute("data-dragged");
-  slide.cancel();
-  closingSheets.delete(dialog);
+  settleAfter(slideSheet(dialog, "translateY(100%)"), () => {
+    dialog.close();
+    dialog.removeAttribute("data-dragged");
+    dialog.style.transform = "";
+    closingSheets.delete(dialog);
+  });
 }
 
 /**
@@ -127,17 +134,15 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, findScroller }) {
     return Math.hypot(across, down) >= SWIPE_START_PX && across > down;
   }
 
-  /** @param {number} offset */
-  function moveSheet(offset) {
-    if (!dialog.hasAttribute("data-dragged")) finishOpening(dialog);
+  function grabSheet() {
+    stopMotions(dialog);
     dialog.setAttribute("data-dragged", "");
-    dialog.style.transform = `translateY(${offset}px)`;
   }
 
   function springSheetBack() {
-    slideSheet(dialog, "none").finished.then((slide) => {
-      slide.cancel();
-      dialog.removeAttribute("data-dragged");
+    const spring = slideSheet(dialog, "");
+    settleAfter(spring, () => {
+      if (!swipe?.isDragging) dialog.removeAttribute("data-dragged");
     });
   }
 
@@ -153,10 +158,11 @@ export function closeOnSwipeDown(dialog, { isOwnGesture, findScroller }) {
       trackSwipeSpeed(clientY, event.timeStamp);
       return;
     }
+    if (!swipe.isDragging) grabSheet();
     swipe.isDragging = true;
     if (event.cancelable) event.preventDefault();
     trackSwipeSpeed(clientY, event.timeStamp);
-    moveSheet(Math.max(0, clientY - swipe.startY));
+    dialog.style.transform = `translateY(${Math.max(0, clientY - swipe.startY)}px)`;
   }
 
   /** @param {TouchEvent} event */

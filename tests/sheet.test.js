@@ -1,12 +1,55 @@
-import { mock, test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { listOpenSheets, openSheet, reopenSheets, wireSheet } from "../shared/page/sheet.js";
+import { openSheet, wireSheet } from "../shared/page/sheet.js";
+import { listOpenSheets, reopenSheets } from "../shared/page/sheet-reopen.js";
 
 /** @typedef {import("../shared/page/sheet.js").SheetKeeper} SheetKeeper */
 /** @typedef {import("../shared/page/sheet.js").SheetParts} SheetParts */
 
 /** @type {FakeElement | null} */
 let focused = null;
+
+/** @type {(() => void)[]} */
+let slidesUnderWay = [];
+
+/**
+ * A slide that runs until the test ends it, halfway along whenever it's asked, and rejects its
+ * `finished` once cancelled, as a browser's does.
+ * @param {FakeElement} element
+ * @param {Keyframe[]} keyframes
+ */
+function createFakeSlide(element, keyframes) {
+  /** @type {() => void} */
+  let finish = () => {};
+  /** @type {(reason: unknown) => void} */
+  let abort = () => {};
+  const finished = new Promise((resolve, reject) => {
+    finish = () => resolve(undefined);
+    abort = reject;
+  });
+  finished.catch(() => {});
+  const slide = {
+    finished,
+    effect: { getComputedTiming: () => ({ progress: 0.5 }) },
+    cancel: () => {
+      element.animations.delete(slide);
+      abort(new Error("AbortError"));
+    },
+    keyframes,
+  };
+  element.animations.add(slide);
+  slidesUnderWay.push(() => {
+    element.animations.delete(slide);
+    finish();
+  });
+  return slide;
+}
+
+/** Ends every slide under way, and waits for the sheets to settle. */
+async function endSlides() {
+  for (const finish of slidesUnderWay.splice(0)) finish();
+  await new Promise((resolve) => setTimeout(resolve));
+}
 
 // Just enough of an element for sheet.js: its family, attributes, and what it can be asked.
 class FakeElement extends EventTarget {
@@ -28,7 +71,9 @@ class FakeElement extends EventTarget {
     this.scrollTop = 0;
     this.offsetWidth = 390;
     this.textContent = "";
-    this.style = { zIndex: "", transform: "" };
+    this.style = { zIndex: "", transform: "", visibility: "" };
+    /** @type {Set<unknown>} */
+    this.animations = new Set();
     /** @type {Set<string>} */
     this.classes = new Set();
     this.classList = {
@@ -110,6 +155,11 @@ class FakeElement extends EventTarget {
 
   focus() {
     focused = this;
+  }
+
+  /** @param {Keyframe[]} keyframes */
+  animate(keyframes) {
+    return createFakeSlide(this, keyframes);
   }
 }
 
@@ -224,6 +274,10 @@ const keepShown = (shown, reopen = () => true) => ({ read: () => shown, reopen }
 /** @param {FakeElement} sheet */
 const open = (sheet) => openSheet(/** @type {any} */ (sheet));
 
+/** @param {any} slide */
+const readSlideEnds = (slide) =>
+  slide.keyframes.map((/** @type {Keyframe} */ frame) => frame.transform);
+
 test("a sheet opens its dialog with it alone in the row, at its top, and opening it again keeps it open there", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
   const { sheet } = sheets.gameSheet;
@@ -292,8 +346,7 @@ test("back goes to the sheet before and takes the one it left out of the row, wh
   dialog.close();
 });
 
-test("with motion, a sheet opened from another slides in from the right edge over it, the one under it going a little way left, and is the one shown once the slide ends", () => {
-  mock.timers.enable({ apis: ["setTimeout"] });
+test("with motion, a sheet opened from another slides in from the right edge over it, the one under it going a little way left, and is the one shown once the slide ends, with nothing left moving", async () => {
   const { dialog, row, sheets } = createRowDialog(
     ["gameSheet", "teamSheet"],
     {},
@@ -302,22 +355,25 @@ test("with motion, a sheet opened from another slides in from the right edge ove
   open(sheets.gameSheet.sheet);
 
   open(sheets.teamSheet.sheet);
+  const { gameSheet, teamSheet } = sheets;
+  assert.deepEqual(
+    [gameSheet, teamSheet].map(({ sheet }) => [...sheet.animations].map(readSlideEnds)),
+    [[["none", "translateX(-30%)"]], [["translateX(100%)", "none"]]],
+  );
   assert.deepEqual(readPlaces(row), {
     gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
     teamSheet: { zIndex: "1", transform: "" },
   });
-  assert.ok(row.classList.contains("is-sliding"));
-  assert.equal(findReachable(row), "gameSheet");
+  assert.equal(gameSheet.sheet.style.visibility, "visible");
 
-  mock.timers.tick(500);
-  assert.ok(!row.classList.contains("is-sliding"));
+  await endSlides();
   assert.equal(findReachable(row), "teamSheet");
+  assert.equal(gameSheet.sheet.style.visibility, "");
+  assert.equal(gameSheet.sheet.animations.size + teamSheet.sheet.animations.size, 0);
   dialog.close();
-  mock.timers.reset();
 });
 
-test("with motion, a sheet opened while the one over it slides away takes its place, and the one leaving lets go of what it showed", () => {
-  mock.timers.enable({ apis: ["setTimeout"] });
+test("with motion, a sheet opened while the one over it slides away takes its place, and the one leaving lets go of what it showed", async () => {
   /** @type {string[]} */
   const forgotten = [];
   const { dialog, row, sheets } = createRowDialog(
@@ -327,21 +383,20 @@ test("with motion, a sheet opened while the one over it slides away takes its pl
   );
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
-  mock.timers.tick(500);
+  await endSlides();
 
   click(sheets.teamSheet.backButton);
   open(sheets.playerSheet.sheet);
-  mock.timers.tick(500);
+  assert.equal(sheets.teamSheet.sheet.animations.size, 0);
+  await endSlides();
 
   assert.deepEqual(listInRow(row), ["gameSheet", "playerSheet"]);
   assert.deepEqual(forgotten, ["team"]);
   assert.equal(findReachable(row), "playerSheet");
   dialog.close();
-  mock.timers.reset();
 });
 
-test("with motion, a sheet opened again while it slides away stays, and slides back in", () => {
-  mock.timers.enable({ apis: ["setTimeout"] });
+test("with motion, a sheet opened again while it slides away stays, and slides back in from where it got to", async () => {
   /** @type {string[]} */
   const forgotten = [];
   const { dialog, row, sheets } = createRowDialog(
@@ -351,17 +406,39 @@ test("with motion, a sheet opened again while it slides away stays, and slides b
   );
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
-  mock.timers.tick(500);
+  await endSlides();
 
   click(sheets.teamSheet.backButton);
   open(sheets.teamSheet.sheet);
-  mock.timers.tick(500);
+  assert.deepEqual([...sheets.teamSheet.sheet.animations].map(readSlideEnds), [
+    ["translateX(50%)", "none"],
+  ]);
+  await endSlides();
 
   assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
   assert.deepEqual(forgotten, []);
   assert.equal(findReachable(row), "teamSheet");
   dialog.close();
-  mock.timers.reset();
+});
+
+test("with motion, a slide whose animations are cancelled still settles", async () => {
+  const { dialog, row, sheets } = createRowDialog(
+    ["gameSheet", "teamSheet"],
+    {},
+    { isMoving: true },
+  );
+  open(sheets.gameSheet.sheet);
+  open(sheets.teamSheet.sheet);
+
+  for (const { sheet } of [sheets.gameSheet, sheets.teamSheet])
+    for (const slide of /** @type {{ cancel: () => void }[]} */ ([...sheet.animations]))
+      slide.cancel();
+  slidesUnderWay = [];
+  await new Promise((resolve) => setTimeout(resolve));
+
+  assert.equal(findReachable(row), "teamSheet");
+  assert.equal(sheets.gameSheet.sheet.style.visibility, "");
+  dialog.close();
 });
 
 // A stand-in for settings on a phone, a dialog that is its own sheet, which a swipe down moves and

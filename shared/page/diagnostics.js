@@ -18,7 +18,7 @@ import { html, joinWithSeparator, setHtml } from "./html.js";
 import { describeAnimations, describeShownPagers } from "./pager-log.js";
 import { loadRelease } from "./release.js";
 import { watchTimeAway } from "./resume.js";
-import { listSheetsInOpenDialogs } from "./sheet.js";
+import { listSheetsInOpenDialogs } from "./sheet-reopen.js";
 import {
   forgetSheetLines,
   readSheetLines,
