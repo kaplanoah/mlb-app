@@ -243,10 +243,10 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
       "settle on gameSheet",
       expect.stringMatching(/^click at \d+,\d+ on Team details: Indiana Fever$/),
       "open teamSheet over gameSheet",
-      expect.stringMatching(/^scroll from 0 to \d+ of \d+, instant$/),
       "settle on teamSheet",
-      expect.stringMatching(/^let go of teamSheet/),
-      expect.stringMatching(/^row by frame: /),
+      expect.stringMatching(/^click at \d+,\d+ on Back to Game$/),
+      "let go of teamSheet",
+      "settle on gameSheet",
     ]),
   );
 });

@@ -9,7 +9,7 @@ const CLOSE_SPEED_PX_PER_MS = 0.5;
 // A touch has to move this far before it counts as a swipe, so a tap stays a tap.
 const SWIPE_START_PX = 6;
 // The phone's own sheets' pace and easing, as chrome.css's --sheet-motion has them.
-const SHEET_MOTION_MS = 500;
+export const SHEET_MOTION_MS = 500;
 const SHEET_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 const isSheetLayout = () => matchMedia(SHEET_MEDIA).matches;

@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  describeLefts,
   noteSheetStep,
   readSheetLines,
   watchSheets,
@@ -37,9 +36,6 @@ test("a step is logged only while Diagnostics is on", () => {
   );
   assert.equal(logged, 1);
 });
-
-test("where the row was on each frame writes each run of frames in one place once, with its count", () =>
-  assert.equal(describeLefts([0, 0, 0, 120, 300, 390, 390]), "0 x3, 120, 300, 390 x2"));
 
 test("copied sheet lines follow a heading, each with its time", () =>
   checkInTimeZone(EASTERN, () =>

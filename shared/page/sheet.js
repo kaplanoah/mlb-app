@@ -1,17 +1,16 @@
 // A sheet a tap opens over the page: the whole screen on phones, rising from the bottom, and a
-// modal on wider screens. A sheet is a page in a dialog. A dialog with a .sheet-row holds several
-// side by side, like a game's, a team's, and a player's, and a sheet opened from another slides in
-// beside it, with a back button in place of its close button, named for screen readers after the
-// one it came from. The row scrolls between them as the browser scrolls anything, so a swipe right
-// goes back, following the finger and settling on a sheet with the phone's own momentum; the back
-// button scrolls it the same way. A step back takes the sheet it left out of the row. The close
-// button, a click on the backdrop, Escape, and on phones a swipe down close the dialog. A page that
-// loads again shows the sheets it showed before, where they were scrolled (show-last-drawn.js), and
-// each sheet's code takes back what it showed.
+// modal on wider screens. A sheet is a page in a dialog. A dialog with a .sheet-row holds several,
+// one over another, like a game's, a team's, and a player's, and a sheet opened from another slides
+// in over it from the right, with a back button in place of its close button, named for screen
+// readers after the one it came from. The back button, or a swipe right that the finger drags,
+// slides it away again, and it leaves the stack. Only the sheet on top is drawn while none is
+// moving. The close button, a click on the backdrop, Escape, and on phones a swipe down close the
+// dialog. A page that loads again shows the sheets it showed before, where they were scrolled
+// (show-last-drawn.js), and each sheet's code takes back what it showed.
 
-import { stepBackOnEdgeSwipe } from "./sheet-edge-swipe.js";
-import { noteSheetStep, trackRow } from "./sheet-log.js";
-import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
+import { followSideSwipes } from "./side-swipe.js";
+import { noteSheetStep } from "./sheet-log.js";
+import { SHEET_MOTION_MS, closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
 
 /**
  * How a sheet's code tells what it shows, as a value JSON can hold, and shows it again on the
@@ -28,22 +27,19 @@ import { closeOnSwipeDown, closeSheet } from "./sheet-swipe.js";
  *   like a drag handle or a picker, never moves the sheet
  * @property {() => HTMLElement} [findScroller] what scrolls the content shown, when the sheet
  *   holds sections that each scroll on their own, like a team's Team and Roster
- * @property {() => HTMLElement} [findSections] what scrolls sideways between those sections
  * @property {SheetKeeper} [keeper]
  * @property {string} [name] what the back button of a sheet opened from it calls it
  * @property {() => void} [forget] lets go of what the sheet showed once it's no longer beside the
  *   others, or its dialog closes
  */
 /**
- * A dialog's sheets, in the row's order, and the one it shows. `steppedAway` holds the sheets a
- * step back left after the shown one, which leave the row once it rests.
- * @typedef {{ sheets: HTMLElement[], shown: number, steppedAway: HTMLElement[] }} Stack
+ * A dialog's sheets, in the order they opened, the one it shows, and the slide under way, if any.
+ * @typedef {{ sheets: HTMLElement[], shown: number, slide?: ReturnType<typeof setTimeout> }} Stack
  */
 
-// A row settles on a sheet within this many pixels of its edge, and has come to rest on it within
-// less than a pixel.
-const SETTLED_PX = 2;
-const AT_REST_PX = 1;
+// A sheet under the one on top sits this share of its width to the left, as the phone's own do, so
+// it comes in from there as the one on top slides away.
+const UNDER_SHARE = 0.3;
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
@@ -67,7 +63,7 @@ const findRow = (dialog) =>
  * @param {number} shown
  * @returns {Stack}
  */
-const createStack = (sheets, shown) => ({ sheets, shown, steppedAway: [] });
+const createStack = (sheets, shown) => ({ sheets, shown });
 
 /** @param {HTMLDialogElement} dialog */
 function readStack(dialog) {
@@ -112,6 +108,26 @@ function labelBackButtons({ sheets }) {
   );
 }
 
+/**
+ * Moves a sheet across by a share of its width, or puts it back in place.
+ * @param {HTMLElement} sheet
+ * @param {number} share
+ */
+function moveSheet(sheet, share) {
+  sheet.style.transform = share ? `translateX(${share * 100}%)` : "";
+}
+
+/**
+ * Where a sheet sits while the stack rests on the one at `shown`: under it a little way left, on
+ * it, or past the right edge.
+ * @param {number} index
+ * @param {number} shown
+ */
+const placeShare = (index, shown) => {
+  if (index < shown) return -UNDER_SHARE;
+  return index === shown ? 0 : 1;
+};
+
 // Each sheet in the stack takes its place in the row, later ones drawn over earlier ones, and the
 // rest leave it.
 /** @param {HTMLDialogElement} dialog */
@@ -122,8 +138,9 @@ function placeSheets(dialog) {
   for (const sheet of /** @type {HTMLElement[]} */ ([...row.children])) {
     const index = stack.sheets.indexOf(sheet);
     sheet.hidden = index < 0;
-    sheet.style.order = index < 0 ? "" : String(index);
+    sheet.style.zIndex = index < 0 ? "" : String(index);
     sheet.inert = index !== stack.shown;
+    moveSheet(sheet, index < 0 ? 0 : placeShare(index, stack.shown));
   }
   labelBackButtons(stack);
 }
@@ -137,9 +154,13 @@ const forgetSheet = (sheet) => sheetParts.get(sheet)?.forget?.();
  * @param {HTMLElement} [kept]
  */
 function dropSheetsAhead(stack, kept) {
-  const dropped = stack.sheets.splice(stack.shown + 1);
-  stack.steppedAway = [];
-  for (const sheet of dropped) if (sheet !== kept) forgetSheet(sheet);
+  const dropped = stack.sheets.splice(stack.shown + 1).filter((sheet) => sheet !== kept);
+  if (!dropped.length) return;
+  for (const sheet of dropped) {
+    sheet.hidden = true;
+    forgetSheet(sheet);
+  }
+  noteSheetStep(`let go of ${listIds(dropped)}`);
 }
 
 // A sheet that a finger or a button brought into view is the one the keyboard and screen readers
@@ -153,68 +174,77 @@ function focusShownSheet(dialog) {
 }
 
 /**
- * Makes the sheet at `index` the shown one, once the row has come to rest on it.
+ * Makes the sheet at `index` the shown one, and takes any after it out of the stack.
  * @param {HTMLDialogElement} dialog
  * @param {number} index
  */
 function settleOnSheet(dialog, index) {
   const stack = readStack(dialog);
   if (!stack.sheets[index]) return;
-  if (index < stack.shown) stack.steppedAway = stack.sheets.slice(index + 1);
   stack.shown = index;
+  dropSheetsAhead(stack);
   placeSheets(dialog);
+  findRow(dialog)?.classList.remove("is-moving", "is-sliding");
   focusShownSheet(dialog);
   noteSheetStep(`settle on ${stack.sheets[index].id}`);
 }
 
 /**
- * Takes the sheets a step back left out of the row, and any after them. A sheet opened since, which
- * the row may not have set off for yet, stays.
- * @param {HTMLDialogElement} dialog
- */
-function dropSteppedAway(dialog) {
-  const stack = readStack(dialog);
-  if (!stack.steppedAway.length) return;
-  noteSheetStep(`let go of ${listIds(stack.sheets.slice(stack.shown + 1))}`);
-  dropSheetsAhead(stack);
-  placeSheets(dialog);
-}
-
-/** @param {HTMLDialogElement} dialog */
-function settleWhereScrolled(dialog) {
-  const row = findRow(dialog);
-  if (!row?.clientWidth) return;
-  const index = Math.round(row.scrollLeft / row.clientWidth);
-  const offset = Math.abs(row.scrollLeft - index * row.clientWidth);
-  if (offset > SETTLED_PX) return;
-  if (index !== readStack(dialog).shown) settleOnSheet(dialog, index);
-  // A sheet sliding away leaves the row only once it's out of sight.
-  if (offset < AT_REST_PX) dropSteppedAway(dialog);
-}
-
-/**
- * Scrolls the row to the sheet at `index`, which settles on it once there.
+ * Slides the stack from wherever its sheets are to rest on the sheet at `index`, which it then
+ * shows. The stack counts the sheet as shown from the start, so a sheet opened mid-slide takes the
+ * place of any it's leaving, and a slide under way gives way to this one from wherever it got to.
  * @param {HTMLDialogElement} dialog
  * @param {number} index
  */
-function scrollToSheet(dialog, index) {
+function slideToSheet(dialog, index) {
   const row = findRow(dialog);
-  if (!row) return;
-  const left = index * row.clientWidth;
-  if (Math.abs(row.scrollLeft - left) <= SETTLED_PX) return settleOnSheet(dialog, index);
-  const behavior = prefersReducedMotion() ? "instant" : "smooth";
-  noteSheetStep(
-    `scroll from ${Math.round(row.scrollLeft)} to ${left} of ${row.scrollWidth}, ${behavior}`,
-  );
-  row.scrollTo({ left, behavior });
-  trackRow(row);
+  const stack = readStack(dialog);
+  clearTimeout(stack.slide);
+  if (!row || prefersReducedMotion()) {
+    settleOnSheet(dialog, index);
+    return;
+  }
+  noteSheetStep(`slide to ${stack.sheets[index].id}`);
+  stack.shown = index;
+  row.classList.add("is-moving", "is-sliding");
+  stack.sheets.forEach((sheet, sheetIndex) => moveSheet(sheet, placeShare(sheetIndex, index)));
+  stack.slide = setTimeout(() => settleOnSheet(dialog, index), SHEET_MOTION_MS);
+}
+
+/**
+ * Follows a finger dragging the shown sheet toward the right edge, the one under it coming in.
+ * @param {HTMLDialogElement} dialog
+ * @param {number} share
+ */
+function followBackSwipe(dialog, share) {
+  const row = findRow(dialog);
+  const { sheets, shown, slide } = readStack(dialog);
+  clearTimeout(slide);
+  row?.classList.toggle("is-sliding", false);
+  row?.classList.toggle("is-moving", true);
+  moveSheet(sheets[shown], share);
+  moveSheet(sheets[shown - 1], -UNDER_SHARE * (1 - share));
+}
+
+/**
+ * Puts a sheet new to the stack over the others at the right edge, for its slide to set off from
+ * there, leaving the others wherever a slide under way has them.
+ * @param {Stack} stack
+ * @param {HTMLElement} sheet
+ */
+function enterAtRightEdge(stack, sheet) {
+  sheet.hidden = false;
+  sheet.inert = true;
+  sheet.style.zIndex = String(stack.sheets.length);
+  moveSheet(sheet, 1);
+  void sheet.offsetWidth;
 }
 
 /** @param {HTMLElement} sheet */
 function stepBack(sheet) {
   const dialog = findDialog(sheet);
   const index = readStack(dialog).sheets.indexOf(sheet);
-  if (index > 0) scrollToSheet(dialog, index - 1);
+  if (index > 0) slideToSheet(dialog, index - 1);
 }
 
 /**
@@ -226,28 +256,29 @@ function showDialog(dialog, sheet) {
   placeSheets(dialog);
   dialog.showModal();
   openDialogs.add(dialog);
-  const row = findRow(dialog);
-  if (row) row.scrollLeft = 0;
   settleOnSheet(dialog, 0);
 }
 
 /**
- * Brings a sheet into the open dialog beside the shown one, in place of any after it.
+ * Brings a sheet into the open dialog over the shown one, in place of any after it, sliding in
+ * from the right edge.
  * @param {HTMLDialogElement} dialog
  * @param {HTMLElement} sheet
  */
-function showBeside(dialog, sheet) {
+function showOver(dialog, sheet) {
   const stack = readStack(dialog);
   const index = stack.sheets.indexOf(sheet);
-  if (index >= 0 && index < stack.shown) return scrollToSheet(dialog, index);
+  if (index >= 0 && index < stack.shown) return slideToSheet(dialog, index);
+  clearTimeout(stack.slide);
   dropSheetsAhead(stack, sheet);
+  if (index < 0) enterAtRightEdge(stack, sheet);
   stack.sheets.push(sheet);
-  placeSheets(dialog);
-  scrollToSheet(dialog, stack.sheets.length - 1);
+  labelBackButtons(stack);
+  slideToSheet(dialog, stack.sheets.length - 1);
 }
 
 /**
- * Shows a sheet, opening its dialog or beside the dialog's shown sheet, or keeps it showing,
+ * Shows a sheet, opening its dialog or over the dialog's shown sheet, or keeps it showing,
  * scrolled back to its top.
  * @param {HTMLElement} sheet
  */
@@ -256,19 +287,21 @@ export function openSheet(sheet) {
   if (sheet !== dialog)
     noteSheetStep(`open ${sheet.id} over ${dialog.open ? findShownSheet(dialog).id : "the page"}`);
   if (!dialog.open) showDialog(dialog, sheet);
-  else if (findShownSheet(dialog) !== sheet) showBeside(dialog, sheet);
+  else if (findShownSheet(dialog) !== sheet) showOver(dialog, sheet);
   sheet.scrollTop = 0;
 }
 
 /** @param {HTMLDialogElement} dialog */
 function forgetDialog(dialog) {
-  const { sheets } = readStack(dialog);
+  const { sheets, slide } = readStack(dialog);
+  clearTimeout(slide);
   stacks.delete(dialog);
   openDialogs.delete(dialog);
   dialog.removeAttribute("data-reopened");
   for (const sheet of sheets) forgetSheet(sheet);
   if (sheets.length === 0) forgetSheet(dialog);
   placeSheets(dialog);
+  findRow(dialog)?.classList.remove("is-moving", "is-sliding");
 }
 
 // A click on the backdrop lands on the dialog itself; its content fills it edge to edge.
@@ -309,19 +342,13 @@ function wireDialog(dialog) {
   });
   const row = findRow(dialog);
   if (!row) return;
-  row.addEventListener("scroll", () => settleWhereScrolled(dialog), { passive: true });
-  row.addEventListener("scrollend", () => settleWhereScrolled(dialog));
-  row.addEventListener("scrollend", () =>
-    noteSheetStep(`row rests at ${Math.round(row.scrollLeft)}`),
-  );
-  stepBackOnEdgeSwipe(row, {
-    findShown: () => findShownSheet(dialog),
-    findSideways: () => {
-      const sheet = findShownSheet(dialog);
-      return readParts(sheet)?.findSections?.() ?? sheet;
+  followSideSwipes(row, {
+    canGo: (direction) => direction < 0 && readStack(dialog).shown > 0,
+    follow: (_direction, share) => followBackSwipe(dialog, share),
+    settle: (_direction, isGoing) => {
+      const { shown } = readStack(dialog);
+      slideToSheet(dialog, isGoing ? shown - 1 : shown);
     },
-    readShown: () => readStack(dialog).shown,
-    scrollToIndex: (index) => scrollToSheet(dialog, index),
   });
 }
 
@@ -409,11 +436,9 @@ function reopenDialog(dialog, saved) {
   const reopened = listReopened(saved);
   openDialogs.add(dialog);
   if (!reopened.length) return dialog.close();
-  const row = findRow(dialog);
-  if (!row) return;
+  if (!findRow(dialog)) return;
   const shown = reopened.length - 1;
   stacks.set(dialog, createStack(reopened, shown));
-  row.scrollLeft = shown * row.clientWidth;
   settleOnSheet(dialog, shown);
 }
 
