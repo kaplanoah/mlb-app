@@ -69,6 +69,7 @@ const PITCHERS = {
   ),
 };
 
+const ASTROS_AT_ATHLETICS = "Game details: Astros at Athletics, Thu, Sep 24";
 const BLUBAUGH_VS_SPRINGS = "Pitching matchup: Blubaugh vs Springs";
 
 /**
@@ -86,10 +87,30 @@ async function showGames(page, pitchers = PITCHERS, snapshot = buildSnapshotWith
  * @param {Record<number, object>} [pitchers]
  * @param {object} [snapshot]
  */
-async function openMatchup(page, pitchers = PITCHERS, snapshot = buildSnapshotWithStarters()) {
+async function openGame(page, pitchers = PITCHERS, snapshot = buildSnapshotWithStarters()) {
   await showGames(page, pitchers, snapshot);
-  await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-  return page.locator("#matchupSheet");
+  await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
+  return page.locator("#gameSheet");
+}
+
+/**
+ * @param {import("@playwright/test").Locator} sheet
+ * @param {string} name
+ */
+async function showSection(sheet, name) {
+  await sheet.getByRole("tab", { name }).click();
+  await expect(sheet.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {Record<number, object>} [pitchers]
+ * @param {object} [snapshot]
+ */
+async function openMatchup(page, pitchers = PITCHERS, snapshot = buildSnapshotWithStarters()) {
+  const sheet = await openGame(page, pitchers, snapshot);
+  await showSection(sheet, "Matchup");
+  return sheet;
 }
 
 /** @param {import("@playwright/test").Page} page */
@@ -104,11 +125,32 @@ function countPitcherReads(page) {
   return reads;
 }
 
-test("tapping a game with its starters named opens their matchup, and its close button closes it", async ({
+test("tapping a game opens its sheet on Game: its row, then its starters on one line", async ({
   page,
 }) => {
-  const sheet = await openMatchup(page);
-  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Pitching matchup");
+  const sheet = await openGame(page);
+  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Astros @ Athletics");
+  await expect(sheet.locator("#gameWhen")).toHaveText("Thu, Sep 24•9:40 PM");
+  await expect(sheet.getByRole("tab", { name: "Game" })).toHaveAttribute("aria-selected", "true");
+  const row = sheet.locator("#gameBody .game-row");
+  await expect(row.locator(".game-side")).toHaveText(["Astros78-800.5 GB", "Athletics63-95"]);
+  await expect(row.locator(".game-headline")).toHaveText("9:40 PM");
+  await expect(row.locator(".game-extra, .game-open")).toHaveCount(0);
+  const starters = sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS });
+  await expect(starters).toHaveText(/^\s*Blubaugh\s*R\s*vs\s*Springs\s*L\s*$/);
+  await expect(starters.locator(".dot")).toHaveCount(2);
+});
+
+test("a tap on the starters slides to Matchup, with them face to face, and the close button closes it", async ({
+  page,
+}) => {
+  const sheet = await openGame(page);
+  await sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
+  await expect(sheet.getByRole("tab", { name: "Matchup" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(sheet.locator("#matchupSection")).toBeInViewport();
   await expect(sheet.locator(".pitcher-first")).toHaveText(["AJ", "Jeffrey"]);
   await expect(sheet.locator(".pitcher-last")).toHaveText(["Blubaugh", "Springs"]);
   await expect(sheet.locator(".pitcher-bio .arm")).toHaveText(["R", "L"]);
@@ -126,6 +168,67 @@ test("tapping a game with its starters named opens their matchup, and its close 
   await expect(sheet).toBeHidden();
 });
 
+test("a game's sheet opens on Game each time, even after it was left on Matchup", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+
+  await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
+  await expect(sheet.getByRole("tab", { name: "Game" })).toHaveAttribute("aria-selected", "true");
+  await expect(sheet.locator("#gameSection")).toBeInViewport();
+});
+
+test("a game with no starter named yet has no starters line", async ({ page }) => {
+  await showGames(page);
+  await page.locator("#games-next .game-open").first().click();
+  const sheet = page.locator("#gameSheet");
+  await expect(sheet.locator("#gameBody .game-row")).toBeVisible();
+  await expect(sheet.locator(".starters-open")).toHaveCount(0);
+});
+
+test("a tap on a club in the game's row opens its sheet over the game's, which a back arrow returns to", async ({
+  page,
+}) => {
+  const sheet = await openGame(page);
+  await sheet
+    .locator("#gameBody .game-row")
+    .getByRole("button", { name: "Team details: Athletics" })
+    .click();
+  const teamSheet = page.locator("#teamSheet");
+  await expect(teamSheet.locator("#teamTitle")).toHaveText("Athletics");
+  const back = teamSheet.getByRole("button", { name: "Back" });
+  await expect(back).toBeVisible();
+  await expect(teamSheet.locator(".sheet-back-label")).toHaveText("Game");
+  await back.click();
+  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Astros @ Athletics");
+  await expect(teamSheet).toBeHidden();
+});
+
+test("the game's row follows the score as the store updates it", async ({ page }) => {
+  const app = await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page
+    .getByRole("button", { name: "Game details: Brewers at Phillies, Thu, Sep 24" })
+    .click();
+  const row = page.locator("#gameBody .game-row");
+  await expect(row.locator(".game-headline")).toHaveText("4-1");
+  await expect(row.locator(".game-status")).toHaveText("Top 9th");
+
+  const season = await app.readDocument("seasons/2026");
+  const games = season.slate.today.games.map((game) =>
+    game.away === "MIL" ? { ...game, state: "final", score: [4, 2] } : game,
+  );
+  await app.writeFromWorker("seasons/2026", {
+    ...season,
+    slate: { ...season.slate, today: { ...season.slate.today, games } },
+  });
+
+  await expect(row.locator(".game-headline")).toHaveText("4-2");
+  await expect(row.locator(".game-status")).toHaveText("Final");
+});
+
 test("a reload shows the open matchup before the page's code arrives, and the code reads its starters again", async ({
   page,
 }) => {
@@ -139,6 +242,11 @@ test("a reload shows the open matchup before the page's code arrives, and the co
   await expect(sheet.locator(".pitcher-first")).toHaveText(["AJ", "Jeffrey"]);
   release();
   await expect.poll(() => reads.count).toBe(2);
+  await expect(sheet.getByRole("tab", { name: "Matchup" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(sheet.locator("#matchupSection")).toBeInViewport();
   await expect(sheet.locator(".pitcher-first")).toHaveText(["AJ", "Jeffrey"]);
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
@@ -150,7 +258,7 @@ test("the sheet's title names it in capitals, at one size on a desktop and a pho
   const sheet = await openMatchup(page);
   const title = sheet.getByRole("heading", { level: 2 });
   await expect(title).toHaveCSS("text-transform", "uppercase");
-  await expect(title).toHaveCSS("font-weight", "400");
+  await expect(title).toHaveCSS("font-weight", "500");
   await expect(title).toHaveCSS("font-size", "16px");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(title).toHaveCSS("font-size", "16px");
@@ -182,18 +290,20 @@ test("on a desktop, the title centers over the sheet, with its close button at i
   expect(sides.map(Math.round)).toEqual([19, 19]);
 });
 
-test("the sheet's title scrolls away with the rest, and the sheet never scrolls past its ends", async ({
+test("the sheet's title and pills hold still while a section scrolls under them, which never scrolls past its ends", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 500 });
   const sheet = await openMatchup(page);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
-  await expect(sheet).toHaveCSS("overscroll-behavior-y", "none");
+  const section = sheet.locator("#matchupSection");
+  await expect(section).toHaveCSS("overscroll-behavior-y", "none");
 
-  await sheet.evaluate((dialog) => {
-    dialog.scrollTop = 200;
+  await section.evaluate((scroller) => {
+    scroller.scrollTop = 200;
   });
-  await expect(sheet.locator(".sheet-top")).not.toBeInViewport();
+  await expect(sheet.locator(".sheet-top")).toBeInViewport();
+  await expect(sheet.locator(".sheet-top")).toHaveClass(/\bstuck\b/);
 });
 
 test("the sheet's parts and lists leave room between their rows", async ({ page }) => {
@@ -239,7 +349,7 @@ test("on a phone, the matchup rises to fill the screen, with its close button at
   });
 
   await swipeSheetDown(page, {
-    target: "#matchupSheet .sheet-top",
+    target: "#gameSheet .sheet-top",
     distance: 200,
     steps: 10,
     stepMs: 30,
@@ -252,13 +362,13 @@ test("on a phone, the close button and Escape slide the matchup down", async ({ 
   const readMotions = await recordSheetMotions(page);
   await page.setViewportSize({ width: 390, height: 844 });
   const closings = {
-    "the close button": () => page.locator("#matchupCloseBtn").dispatchEvent("click"),
+    "the close button": () => page.locator("#gameCloseBtn").dispatchEvent("click"),
     Escape: () => page.keyboard.press("Escape"),
   };
   await showGames(page);
   for (const [way, close] of Object.entries(closings)) {
-    await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-    const sheet = page.locator("#matchupSheet");
+    await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
+    const sheet = page.locator("#gameSheet");
     await waitForTimedMotions(page);
     await readMotions();
 
@@ -279,7 +389,7 @@ test("on a phone, the matchup rises only when the viewer allows motion", async (
 
   await sheet.press("Escape");
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
+  await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
   await expect(dialog).toHaveCSS("animation-name", "sheet-rise");
 });
 
@@ -297,8 +407,8 @@ test("a game on a later day without its starters says to check back for them, un
   const reads = countPitcherReads(page);
   await showGames(page);
   await page.locator("#games-next .game-open").first().click();
-  const sheet = page.locator("#matchupSheet");
-  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Pitching matchup");
+  const sheet = page.locator("#gameSheet");
+  await showSection(sheet, "Matchup");
   await expect(sheet.locator(".pitcher-last")).toHaveText(["Still TBD", "Still TBD"]);
   await expect(sheet.locator(".pitcher-id .club")).toHaveCount(2);
   await expect(sheet.locator(".check-back")).toHaveText("Check back for pitchers");
@@ -359,8 +469,10 @@ async function openStillTbd(page, rotations) {
   await page.getByRole("tab", { name: "Games" }).click();
   const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
   await expect(row.locator(".starter.pending")).toHaveText(["Still TBD", "Still TBD"]);
-  await row.getByRole("button", { name: "Pitching matchup: TBD vs TBD" }).click();
-  return page.locator("#matchupSheet");
+  await row.locator(".game-open").click();
+  const sheet = page.locator("#gameSheet");
+  await showSection(sheet, "Matchup");
+  return sheet;
 }
 
 test("a game later today without a starter says Still TBD, and opens to who started lately and how rested each is", async ({
@@ -395,8 +507,9 @@ test("while the starters' numbers load, the matchup holds their shape, then fill
 }) => {
   await showGames(page);
   const release = await holdPitchers(page);
-  await page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
-  const sheet = page.locator("#matchupSheet");
+  await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
+  const sheet = page.locator("#gameSheet");
+  await sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS }).click();
   const body = sheet.locator("#matchupBody");
 
   await expect(body).toHaveAttribute("aria-busy", "true");
@@ -420,8 +533,10 @@ test("while a club's last starters load, its side holds a list's shape, then fil
   await page.getByRole("tab", { name: "Games" }).click();
   const release = await holdRequests(page, matchPath("/rotation"));
   const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
-  await row.getByRole("button", { name: "Pitching matchup: TBD vs TBD" }).click();
-  const angels = page.locator("#matchupSheet").locator(".scout").first();
+  await row.locator(".game-open").click();
+  const sheet = page.locator("#gameSheet");
+  await showSection(sheet, "Matchup");
+  const angels = sheet.locator(".scout").first();
 
   await expect(angels.locator("h3")).toHaveText("AngelsWho's rested");
   await expect(angels.locator(".rotation li")).toHaveCount(5);
@@ -435,13 +550,13 @@ test("while a club's last starters load, its side holds a list's shape, then fil
 test("a finger coming down on a game starts reading its starters' numbers", async ({ page }) => {
   await showGames(page);
   const reads = countPitcherReads(page);
-  const button = page.getByRole("button", { name: BLUBAUGH_VS_SPRINGS });
+  const button = page.getByRole("button", { name: ASTROS_AT_ATHLETICS });
 
   await button.dispatchEvent("pointerdown");
   await expect.poll(() => reads.count).toBe(2);
 
   await button.click();
-  await expect(page.locator("#matchupSheet").locator(".pitch-mix")).toHaveCount(2);
+  await expect(page.locator("#gameSheet").locator(".pitch-mix")).toHaveCount(2);
   expect(reads.count).toBe(2);
 });
 
@@ -452,8 +567,14 @@ for (const { screen, viewport } of [
   test.describe(`on ${screen}`, () => {
     test.use({ viewport });
 
-    test("every piece of text in a matchup keeps to the type scale", async ({ page }) => {
-      const sheet = await openMatchup(page);
+    test("every piece of text in a game's sheet keeps to the type scale, in both its sections", async ({
+      page,
+    }) => {
+      const sheet = await openGame(page);
+      await expect(sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS })).toBeVisible();
+      expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
+      await showSection(sheet, "Matchup");
       await expect(sheet.locator(".pitch-rows li")).toHaveCount(5);
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);

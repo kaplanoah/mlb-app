@@ -1,6 +1,7 @@
 import { chooseTitleYear, showTitleYear } from "#shared/title-year.js";
 import { buildBracket } from "./bracket.js";
 import { renderBracket } from "./bracket-view.js";
+import { refreshGameSheet } from "./game-sheet.js";
 import { renderGames } from "./games-view.js";
 import { renderRanking } from "./ranking.js";
 import { session } from "./session.js";
@@ -31,4 +32,5 @@ export function renderAll() {
   renderRanking();
   renderTitleYear();
   refreshTeamSheet();
+  refreshGameSheet();
 }

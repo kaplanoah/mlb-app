@@ -9,7 +9,7 @@ import { keepSeenAt, readSeenAt } from "./kept-on-device.js";
 import { RELEASE_NOTES } from "./release-notes.js";
 import { session, readSeasonYear } from "./session.js";
 import { TEAMS } from "./teams.js";
-import { renderMatchupButton } from "./games-view.js";
+import { renderGameButton } from "./games-view.js";
 import { describeGame, findCommonGames, groupUpdates, isResult } from "./update-groups.js";
 
 function renderClubChip(id) {
@@ -105,7 +105,7 @@ export function findUpdateGame(group, slate) {
 function renderUpdateAction(group) {
   const { slate } = session.state;
   const game = findUpdateGame(group, slate);
-  return Boolean(game) && renderMatchupButton(game, game.date === slate.today.date);
+  return Boolean(game) && renderGameButton(game, game.date === slate.today.date);
 }
 
 // An update's day is MLB's, as the Games view's are, so it counts from MLB's today too.

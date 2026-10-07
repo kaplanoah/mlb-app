@@ -10,13 +10,13 @@ const BUDGETS = {
   Bracket: 21,
   Games: 11,
   Standings: 24,
-  Matchup: 14,
-  "Club's sheet over the matchup": 14,
+  "Game sheet": 14,
+  "Club's sheet over a game's": 14,
 };
 
 test.use({ ...ON_A_PHONE, contextOptions: { reducedMotion: "reduce" } });
 
-test("each view, a matchup, and a club's sheet over it keep within their layer budgets", async ({
+test("each view, a game's sheet, and a club's sheet over it keep within their layer budgets", async ({
   page,
 }) => {
   await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
@@ -34,17 +34,19 @@ test("each view, a matchup, and a club's sheet over it keep within their layer b
     [
       ...["Bracket", "Standings", "Games"].map((name) => ({ view: name, show: showTab(name) })),
       {
-        view: "Matchup",
+        view: "Game sheet",
         show: async () => {
-          await page.getByRole("button", { name: "Pitching matchup: Blubaugh vs Springs" }).click();
-          await expectShown(page.locator("#matchupSheet"));
+          await page
+            .getByRole("button", { name: "Game details: Astros at Athletics, Thu, Sep 24" })
+            .click();
+          await expectShown(page.locator("#gameSheet"));
         },
       },
       {
-        view: "Club's sheet over the matchup",
+        view: "Club's sheet over a game's",
         show: async () => {
           await page
-            .locator("#matchupSheet")
+            .locator("#gameSheet")
             .getByRole("button", { name: "Team details: Astros" })
             .first()
             .click();
