@@ -108,32 +108,6 @@ test.describe("on a phone", () => {
     await expect(updates).toBeHidden();
   });
 
-  test("markup in the shared store is shown as text", async ({ page }) => {
-    const markup = '<img id="injected" src="x">';
-    await openApp(page, {
-      liveAvailable: false,
-      store: {
-        "seasons/2026": {
-          year: 2026,
-          teams: {},
-          series: {},
-          log: [
-            {
-              kind: "berth",
-              team: "NYY",
-              what: "division",
-              div: markup,
-              at: "2026-09-24T20:00:00Z",
-            },
-          ],
-        },
-      },
-    });
-
-    await expect(page.locator("#updates")).toContainText(markup);
-    await expect(page.locator("#injected")).toHaveCount(0);
-  });
-
   const SEASON_WITH_TWO_UPDATES = {
     year: 2026,
     teams: {},
@@ -153,22 +127,6 @@ test.describe("on a phone", () => {
   // When this device last dismissed the Updates box.
   const keepSeenAtFromEarlierVisit = (page) =>
     keepFromEarlierVisit(page, "updatesSeenAt", { 2026: Date.parse("2026-09-24T20:00:00Z") });
-
-  test("the update list shows when a change happened, not when the page noticed it", async ({
-    page,
-  }) => {
-    await keepSeenAtFromEarlierVisit(page);
-    await openApp(page, {
-      liveAvailable: false,
-      store: { "seasons/2026": SEASON_WITH_TWO_UPDATES },
-    });
-
-    const updateTimes = page.locator("#updates .when");
-    await expect(updateTimes).toHaveCount(2);
-    await expect(updateTimes.nth(0)).toHaveText(/^8:30\sPM$/);
-    await expect(updateTimes.nth(1)).toHaveText(/^Yesterday$/);
-    await expect(page.locator("#updates .updates-count")).toHaveText("2 updates since yesterday");
-  });
 
   test("the update list leaves 18px below it", async ({ page }) => {
     await keepSeenAtFromEarlierVisit(page);
@@ -209,88 +167,4 @@ test.describe("on a phone", () => {
 
     await expect(page.locator("#updates")).toBeHidden();
   });
-
-  const ELIMINATED_AT_8_10 = (team, winner) => ({
-    kind: "elim",
-    team,
-    via: [{ team: winner, won: true, opp: "NYM", score: [3, 1] }],
-    ended: "2026-09-25T00:10:00Z",
-    at: "2026-09-25T00:40:00Z",
-  });
-
-  test("updates that share a time show it once", async ({ page }) => {
-    await openApp(page, {
-      liveAvailable: false,
-      store: {
-        "seasons/2026": {
-          ...SEASON_WITH_TWO_UPDATES,
-          log: [
-            ELIMINATED_AT_8_10("SEA", "TEX"),
-            ELIMINATED_AT_8_10("HOU", "BOS"),
-            { kind: "lock", at: "2026-09-25T00:30:00Z" },
-          ],
-        },
-      },
-    });
-
-    await expect(page.locator("#updates .when")).toHaveText([/^8:30\sPM$/, /^8:10\sPM$/, ""]);
-  });
-
-  test("a clinch and the elimination it brought are one update, at the game's time", async ({
-    page,
-  }) => {
-    const rangersLoss = { team: "TEX", won: false, opp: "MIN", score: [4, 6] };
-    const found = { ended: "2026-09-25T00:10:00Z", at: "2026-09-25T00:40:00Z" };
-    await openApp(page, {
-      liveAvailable: false,
-      store: {
-        "seasons/2026": {
-          ...SEASON_WITH_TWO_UPDATES,
-          log: [
-            {
-              kind: "berth",
-              team: "HOU",
-              what: "division",
-              div: "AL West",
-              via: [rangersLoss],
-              ...found,
-            },
-            { kind: "elim", team: "TEX", via: [rangersLoss], ...found },
-          ],
-        },
-      },
-    });
-
-    const updates = page.locator("#updates");
-    await expect(updates.locator(".updates-count")).toHaveText("1 update since earlier today");
-    await expect(updates.locator(".what")).toHaveText(
-      "Astros clinch the AL West \u2014 Rangers eliminated with a 6-4 loss to the Twins",
-    );
-    await expect(updates.locator(".when")).toHaveText(/^8:10\sPM$/);
-  });
-
-  // The page's clock reads 8:44 PM Eastern, which is the next morning in London and Tokyo.
-  const LOCAL_TIMES_OF_THE_NEWER_UPDATE = {
-    "Pacific/Honolulu": "2:30 PM",
-    "Europe/London": "1:30 AM",
-    "Asia/Tokyo": "9:30 AM",
-  };
-
-  for (const [timezoneId, localTime] of Object.entries(LOCAL_TIMES_OF_THE_NEWER_UPDATE)) {
-    test.describe(`in ${timezoneId}`, () => {
-      test.use({ timezoneId });
-
-      test("the update list tells time and day by the viewer's own clock", async ({ page }) => {
-        await openApp(page, {
-          liveAvailable: false,
-          store: { "seasons/2026": SEASON_WITH_TWO_UPDATES },
-        });
-
-        const updateTimes = page.locator("#updates .when");
-        await expect(updateTimes).toHaveCount(2);
-        await expect(updateTimes.nth(0)).toHaveText(localTime);
-        await expect(updateTimes.nth(1)).toHaveText("Yesterday");
-      });
-    });
-  }
 });

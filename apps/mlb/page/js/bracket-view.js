@@ -31,7 +31,7 @@ function findPreferredSide(series) {
 const renderSeriesWins = (wins, isWinner = false) =>
   html`<span class="nscore tabular ${isWinner ? "lead" : ""}">${wins ?? ""}</span>`;
 
-function renderMatchupRow(series, side) {
+export function renderMatchupRow(series, side) {
   const id = side === "A" ? series.teamA : series.teamB;
   const wins = side === "A" ? series.winsA : series.winsB;
   if (!id)
@@ -98,7 +98,8 @@ const WIDE_STAGE_WIDTH = findColumnRight(WIDE, 6) + WIDE.inset;
 const STACKED_LINES_WIDTH = findColumnLeft(STACKED, 3) + STACKED.worldSeriesWidth;
 
 const PAGE_GUTTER = 18; // body's side padding in styles.css
-const NARROW = matchMedia(`(max-width: ${WIDE_STAGE_WIDTH + 2 * PAGE_GUTTER - 1}px)`);
+const NARROW_QUERY = `(max-width: ${WIDE_STAGE_WIDTH + 2 * PAGE_GUTTER - 1}px)`;
+const isNarrow = () => matchMedia(NARROW_QUERY).matches;
 const alignToPixel = (value) => Math.round(value) + 0.5; // a 1px stroke centered on .5 fills one pixel row
 
 function drawConnector(x1, y1, x2, y2) {
@@ -199,7 +200,7 @@ function renderLiveNote(series, game) {
   return html`<div class="card-note live ${game.delay ? "delayed" : ""}"><span class="live-part tabular">${describeLiveScore(series, game)}</span> <span class="live-part">${game.delay || describeInning(game)}</span>${renderOutLights(game)}</div>`;
 }
 
-function renderCardNote(series, champLine) {
+export function renderCardNote(series, champLine) {
   if (champLine) return html`<div class="card-note champ">${champLine}</div>`;
   const game = findNextSlateGame(series);
   if (game?.state === "live") return renderLiveNote(series, game);
@@ -479,16 +480,15 @@ export function renderBracket() {
     return;
   }
 
-  const growth = NARROW.matches ? measureGrowth(wrap) : 0;
-  const fits = !NARROW.matches || measureFit(wrap);
-  const stage = NARROW.matches
-    ? renderStackedStage(bracket, growth, fits)
-    : renderWideStage(bracket);
+  const isStacked = isNarrow();
+  const growth = isStacked ? measureGrowth(wrap) : 0;
+  const fits = !isStacked || measureFit(wrap);
+  const stage = isStacked ? renderStackedStage(bracket, growth, fits) : renderWideStage(bracket);
   const scrollLeft = wrap.querySelector(".tree-scroll")?.scrollLeft ?? 0;
   const hadFocus = wrap.contains(document.activeElement);
   setHtml(
     wrap,
-    html`<div class="tree-scroll ${NARROW.matches ? "stacked" : ""}" tabindex="0" role="region" aria-label="Bracket">${stage}</div>
+    html`<div class="tree-scroll ${isStacked ? "stacked" : ""}" tabindex="0" role="region" aria-label="Bracket">${stage}</div>
       ${!fits && renderRoundDots(ROUND_ORDER)}`,
   );
   const scroller = /** @type {HTMLElement} */ (wrap.querySelector(".tree-scroll"));
@@ -516,11 +516,11 @@ export function renderBracket() {
 export function watchBracketSpace() {
   const wrap = document.getElementById("bracketWrap");
   const redrawIfResized = () => {
-    if (!NARROW.matches || !renderedGrowth || !isShown(wrap)) return;
+    if (!isNarrow() || !renderedGrowth || !isShown(wrap)) return;
     if (measureGrowth(wrap) !== renderedGrowth || measureFit(wrap) !== renderedFits)
       renderBracket();
   };
-  NARROW.addEventListener("change", renderBracket);
+  matchMedia(NARROW_QUERY).addEventListener("change", renderBracket);
   addEventListener("resize", redrawIfResized);
   wrap.addEventListener("scroll", markRoundScrolledTo, { capture: true, passive: true });
   new ResizeObserver(markRoundScrolledTo).observe(wrap);

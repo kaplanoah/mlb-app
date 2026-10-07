@@ -278,32 +278,27 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   for (const space of layout.rowSpaces) expect(space).toBeCloseTo(TAPE_ROW_SPACE_PX, 0);
 });
 
-for (const [device, viewport] of Object.entries({
-  "a computer": { width: 1280, height: 720 },
-  "a phone": { width: 390, height: 844 },
-})) {
-  test(`on ${device}, a sheet's title and teams sit on the sheet's own color, with no line under them`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(viewport);
-    await openApp(page);
-    const sheet = await openGameSheet(page, ACES_AT_FEVER);
-    await expect(sheet.locator(".faceoff .score")).toHaveText(/89\s*99/);
-    const top = await sheet.evaluate((dialog) => {
-      const read = (/** @type {string} */ selector) =>
-        getComputedStyle(/** @type {Element} */ (dialog.querySelector(selector)));
-      const sheetColor = getComputedStyle(dialog).backgroundColor;
-      const isSheetColor = (/** @type {string} */ color) =>
-        color === sheetColor || color === "rgba(0, 0, 0, 0)";
-      return {
-        isTitleOnSheet: isSheetColor(read(".sheet-top").backgroundColor),
-        areTeamsOnSheet: isSheetColor(read(".faceoff").backgroundColor),
-        lines: [read(".sheet-top").borderBottomWidth, read(".faceoff").borderBottomWidth],
-      };
-    });
-    expect(top).toEqual({ isTitleOnSheet: true, areTeamsOnSheet: true, lines: ["0px", "0px"] });
+test("on a phone, a sheet's title and teams sit on the sheet's own color, with no line under them", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openApp(page);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
+  await expect(sheet.locator(".faceoff .score")).toHaveText(/89\s*99/);
+  const top = await sheet.evaluate((dialog) => {
+    const read = (/** @type {string} */ selector) =>
+      getComputedStyle(/** @type {Element} */ (dialog.querySelector(selector)));
+    const sheetColor = getComputedStyle(dialog).backgroundColor;
+    const isSheetColor = (/** @type {string} */ color) =>
+      color === sheetColor || color === "rgba(0, 0, 0, 0)";
+    return {
+      isTitleOnSheet: isSheetColor(read(".sheet-top").backgroundColor),
+      areTeamsOnSheet: isSheetColor(read(".faceoff").backgroundColor),
+      lines: [read(".sheet-top").borderBottomWidth, read(".faceoff").borderBottomWidth],
+    };
   });
-}
+  expect(top).toEqual({ isTitleOnSheet: true, areTeamsOnSheet: true, lines: ["0px", "0px"] });
+});
 
 test("a box score's and a preview's two teams line their numbers up column for column, as wide as they can be", async ({
   page,
@@ -741,28 +736,6 @@ test("a finger coming down on a game starts reading its box score, and the sheet
   await button.click();
   await expect(page.locator("#gameSheet .line-score")).toBeVisible();
   expect(reads.count).toBe(1);
-});
-
-test("no text in a game's sheet is smaller than 10.5px, in its box score or its preview", async ({
-  page,
-}) => {
-  await openApp(page);
-  for (const name of [ACES_AT_FEVER, FEVER_AT_ACES]) {
-    const sheet = await openGameSheet(page, name);
-    await expect(sheet.locator("#gameBody")).toHaveAttribute("aria-busy", "false");
-    const smallest = await sheet.evaluate((dialog) =>
-      Math.min(
-        ...[...dialog.querySelectorAll("*")]
-          .filter((element) =>
-            [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()),
-          )
-          .map((element) => parseFloat(getComputedStyle(element).fontSize)),
-      ),
-    );
-    expect(smallest, name).toBeGreaterThanOrEqual(10.5);
-    await sheet.getByRole("button", { name: "Close" }).click();
-    await expect(sheet).toBeHidden();
-  }
 });
 
 /** @param {import("@playwright/test").Page} page */

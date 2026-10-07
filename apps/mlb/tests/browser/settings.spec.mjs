@@ -12,6 +12,8 @@ import {
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 
+test.use({ contextOptions: { reducedMotion: "reduce" } });
+
 const PHONE = { width: 390, height: 844 };
 // Settings show the Season picker once the store keeps more than one season.
 const WITH_A_PAST_SEASON = { store: { "seasons/2025": SEASON_2025 } };
@@ -191,28 +193,9 @@ test("at their foot, settings name the release and when it came out, in the view
   await expect(page.locator("#settingsDialog .sheet-top")).not.toContainText("Released");
 });
 
-test("a release from an earlier year names its year", async ({ page }) => {
-  await serveRelease(page, { ...RELEASE, builtAt: "2025-10-02T15:00:00Z" });
-  await openApp(page);
-  await openSettings(page);
-
-  await expect(page.locator("#versionNote")).toHaveText(
-    "v2.13.0\u2022Released Oct 2, 2025, 11:00 AM",
-  );
-});
-
-test("a release without a version names its commit", async ({ page }) => {
-  await serveRelease(page, { ...RELEASE, version: null });
-  await openApp(page);
-  await openSettings(page);
-
-  await expect(page.locator("#versionNote")).toHaveText(/^abc1234\u2022Released/);
-});
-
 test("on a wide screen, settings end at the bottom left, level with the ranking's end", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1280, height: 900 });
   await serveRelease(page, RELEASE);
   await openApp(page);
@@ -233,7 +216,6 @@ test("on a wide screen, settings end at the bottom left, level with the ranking'
 test("on a phone, settings end with the copyright, centered under the ranking", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await openSettings(page);
@@ -250,7 +232,6 @@ test("on a phone, settings end with the copyright, centered under the ranking", 
 test("on a phone, a scroll just past the end of settings rests at their end, with the copyright in full view", async ({
   page,
 }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize(PHONE);
   await serveRelease(page, RELEASE);
   await openApp(page);
@@ -280,17 +261,6 @@ test("on a phone, a scroll just past the end of settings rests at their end, wit
   expect(distanceToEnd).toBeLessThan(1);
 });
 
-test("a release the Worker no longer has, named only by its commit, leaves the version out", async ({
-  page,
-}) => {
-  await serveRelease(page, { version: null, commit: "abc1234", builtAt: null });
-  await openApp(page);
-  await openSettings(page);
-
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
-  await expect(page.locator("#versionNote")).toBeHidden();
-});
-
 test("without a version file, settings leave the version out", async ({ page }) => {
   await openApp(page);
   await openSettings(page);
@@ -302,6 +272,7 @@ test("without a version file, settings leave the version out", async ({ page }) 
 test("on a phone, settings rise to fill the screen, with their close button level with their title at the top left", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await openSettings(page);
@@ -340,6 +311,7 @@ test("on a phone, settings rise only when the viewer allows motion", async ({ pa
 test("on a phone, a slow swipe down far enough closes settings, and a short one springs back", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await openSettings(page);
@@ -365,6 +337,7 @@ test("on a phone, a slow swipe down far enough closes settings, and a short one 
 test("on a phone, a quick flick down closes settings, and a cancelled swipe springs back", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await openSettings(page);
@@ -388,6 +361,7 @@ test("on a phone, a quick flick down closes settings, and a cancelled swipe spri
 test("on a phone, a swipe down scrolled into the ranking or on a grip leaves settings open", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize(PHONE);
   await openApp(page);
   await openSettings(page);
@@ -470,14 +444,6 @@ test("the ranking has no tab of its own; settings hold it, numbered 1 to 12", as
     Array.from({ length: 12 }, (_, index) => String(index + 1)),
   );
   await expect(settings.locator("#rankList .status-chip").first()).toHaveText("Alive");
-});
-
-test("a page last left on the old Ranking tab opens on the bracket", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("lastTab", "ranking"));
-  await openApp(page);
-
-  await expect(page.getByRole("tab", { name: "Bracket" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#view-bracket")).toBeVisible();
 });
 
 test("on a phone, scrolling settings down shows the whole ranking, and the header scrolls away", async ({

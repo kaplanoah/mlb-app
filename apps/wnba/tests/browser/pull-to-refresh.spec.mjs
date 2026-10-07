@@ -198,15 +198,6 @@ test("a refresh quicker than the eye still shows the spokes turning a moment", a
   await expect(spinner).toBeHidden();
 });
 
-test("the spinner has every one of its eight spokes", async ({ page }) => {
-  await openFromHomeScreen(page);
-  await openApp(page);
-
-  const path = await page.locator(".pull-refresh path").getAttribute("d");
-
-  expect(path?.match(/[Mm]/g)).toHaveLength(8);
-});
-
 test("the turning spokes step round, and slower under reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await openFromHomeScreen(page);

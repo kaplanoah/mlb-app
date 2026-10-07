@@ -73,3 +73,8 @@ test("every icon on the pages is a Phosphor icon, copied path for path, but the 
   );
   assert.deepEqual(counts, HAND_DRAWN_ICONS);
 });
+
+test("pull to refresh's spinner has every one of its eight spokes", () => {
+  const [spinner] = readPaths(readFileSync(join(ROOT, "shared/page/pull-to-refresh.js"), "utf8"));
+  assert.equal(spinner.match(/[Mm]/g)?.length, 8);
+});

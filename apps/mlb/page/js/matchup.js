@@ -259,7 +259,7 @@ function renderPendingScouting(name) {
 const measureSidesSpeedRange = (sides) =>
   measureSpeedRange(sides.filter((side) => side.pitcher).map((side) => side.pitcher.pitches));
 
-function renderBody(game, sides) {
+export function renderMatchupBody(game, sides) {
   const speedRange = measureSidesSpeedRange(sides);
   return html`<div class="faceoff">${sides.map(renderPitcherId)}</div>
     ${renderCheckBack(sides, game)}
@@ -273,11 +273,11 @@ const isLoadingSide = (side, game) =>
 function renderMatchup(game, sides) {
   const body = findElement("matchupBody");
   setHtml(findElement("matchupWhen"), renderWhen(game));
-  setHtml(body, renderBody(game, sides));
+  setHtml(body, renderMatchupBody(game, sides));
   body.setAttribute("aria-busy", String(sides.some((side) => isLoadingSide(side, game))));
 }
 
-const listSides = (game) =>
+export const listSides = (game) =>
   SIDES.map((key, index) => ({
     key,
     club: game[key],

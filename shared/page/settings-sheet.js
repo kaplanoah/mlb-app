@@ -24,20 +24,24 @@ function formatReleaseTime(iso) {
   });
 }
 
-// The commit is there on hover, and stands in for a version the build couldn't work out.
+// A release this Worker no longer has names only its commit, and the page reloads for it, so it
+// has no line. A version the build couldn't work out leaves the commit in its place.
 /** @param {import("./release.js").Release} release */
-function renderRelease({ version, commit, builtAt }) {
-  const note = findElement("versionNote");
+export function describeRelease({ version, commit, builtAt }) {
+  if (!builtAt) return null;
   const name = version ? `v${version}` : commit;
-  setHtml(note, joinWithSeparator([name, `Released ${formatReleaseTime(builtAt)}`]));
-  note.title = `Commit ${commit}`;
-  note.hidden = false;
+  return joinWithSeparator([name, `Released ${formatReleaseTime(builtAt)}`]);
 }
 
+// The commit is there on hover.
 async function showRelease() {
   const release = await loadRelease().catch(() => null);
-  // A release this Worker no longer has names only its commit, and the page reloads for it.
-  if (release?.builtAt) renderRelease(release);
+  const line = release && describeRelease(release);
+  if (!line) return;
+  const note = findElement("versionNote");
+  setHtml(note, line);
+  note.title = `Commit ${release.commit}`;
+  note.hidden = false;
 }
 
 /**
