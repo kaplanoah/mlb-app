@@ -30,6 +30,17 @@ async function openLibertyRoster(page) {
 /** @param {import("@playwright/test").Locator} sheet */
 const readLastNames = (sheet) => sheet.locator("table.roster tbody .roster-last").allTextContents();
 
+/**
+ * A player's row in the pinned table of numbers and names, and its row in the table of facts.
+ * @param {import("@playwright/test").Locator} section
+ * @param {string} lastName
+ */
+async function findRows(section, lastName) {
+  const pinned = section.locator("table.roster-pinned tbody tr", { hasText: lastName });
+  const id = await pinned.getAttribute("data-player-row");
+  return { pinned, facts: section.locator(`table.roster-facts tr[data-player-row="${id}"]`) };
+}
+
 /** @param {import("@playwright/test").Locator} locator */
 async function readBox(locator) {
   const box = await locator.boundingBox();
@@ -62,9 +73,9 @@ test("a team's Roster pill shows its roster beside its stats: each player by las
   await expect(page.getByRole("tab", { name: "Roster" })).toHaveAttribute("aria-selected", "true");
   await expect(section.locator("#rosterNote")).toHaveText("2026•15 players");
   expect((await readLastNames(section)).slice(0, 3)).toEqual(["Allen", "Astier", "BalogunOut"]);
-  const stewart = section.locator("table.roster tbody tr", { hasText: "Stewart" });
-  await expect(stewart.locator("td")).toHaveText([
-    "30",
+  const stewart = await findRows(section, "Stewart");
+  await expect(stewart.pinned.locator("td")).toHaveText(["30"]);
+  await expect(stewart.facts.locator("td")).toHaveText([
     "F",
     `6'4"`,
     "Connecticut",
@@ -77,8 +88,8 @@ test("a team's Roster pill shows its roster beside its stats: each player by las
     "3.3",
   ]);
   await expect(section.locator(".roster-coach")).toHaveText(/Head coach\s*Chris DeMarco/);
-  const astier = section.locator("table.roster tbody tr", { hasText: "Astier" });
-  await expect(astier.locator(".roster-country")).toHaveText("France");
+  const astier = await findRows(section, "Astier");
+  await expect(astier.facts.locator(".roster-country")).toHaveText("France");
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
@@ -144,15 +155,15 @@ test("on a phone, swiping the roster across keeps each player's number and name,
   await page.setViewportSize(PHONE);
   await openApp(page);
   const section = await openLibertyRoster(page);
-  const row = section.locator("table.roster tbody tr", { hasText: "Stewart" });
-  const name = row.locator(".roster-player");
+  const row = await findRows(section, "Stewart");
+  const name = row.pinned.locator(".roster-player");
   const pinned = [
-    row.locator(".roster-number"),
+    row.pinned.locator(".roster-number"),
     name,
     section.locator("#rosterNote"),
     page.locator("#teamTitle"),
   ];
-  const position = row.locator("td").nth(1);
+  const position = row.facts.locator("td").first();
   const readEdge = () => name.evaluate((cell) => getComputedStyle(cell, "::after").visibility);
   const before = await Promise.all([...pinned, position].map(readBox));
   expect(await readEdge()).toBe("hidden");
@@ -224,6 +235,61 @@ test("on a phone, a swipe right on the roster scrolled across scrolls the table 
   await expectShown(section);
 });
 
+test("on a phone, each row of numbers and names lines up with its row of facts, a two-line name with an Out chip's too, as the roster scrolls across and down", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const section = await openLibertyRoster(page);
+  const balogun = await findRows(section, "Balogun");
+  await expect(balogun.pinned.locator(".foul-chip")).toBeVisible();
+  /** @param {string} table */
+  const readRows = (table) =>
+    section.locator(`table.${table} tr`).evaluateAll((rows) =>
+      rows.map((row) => {
+        const { top, height } = row.getBoundingClientRect();
+        return [/** @type {HTMLElement} */ (row).dataset.playerRow, top, height];
+      }),
+    );
+
+  const pinned = await readRows("roster-pinned");
+  expect(pinned).toHaveLength(17);
+  expect(await readRows("roster-facts")).toEqual(pinned);
+  for (const scroll of [{ left: 200 }, { top: 300 }]) {
+    await scrollSection(section, scroll);
+    expect(await readRows("roster-facts")).toEqual(await readRows("roster-pinned"));
+  }
+});
+
+test("on a phone, a swipe left on a player's facts scrolls them across under her name, which stays", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const section = await openLibertyRoster(page);
+  const name = (await findRows(section, "Stewart")).pinned.locator(".roster-player");
+  const before = await readBox(name);
+
+  await (
+    await drag(page, { x: 300, y: 400 }, { x: -150 })
+  )();
+
+  await expect.poll(() => section.evaluate((element) => element.scrollLeft)).toBeGreaterThan(100);
+  expect((await readBox(name)).x).toBe(before.x);
+  await expectShown(section);
+});
+
+test("a tap on a player's facts, as on her name, opens her sheet", async ({ page }) => {
+  await openApp(page);
+  const section = await openLibertyRoster(page);
+  const stewart = await findRows(section, "Stewart");
+
+  await stewart.facts.locator("td").nth(2).click();
+
+  await expect(page.locator("#playerTitle")).toHaveText("Breanna Stewart");
+  await expectShown(page.locator("#playerSheet"));
+});
+
 test("on a phone, scrolling down the roster takes its note away and stops the column names 4px under the team's pills, which stay with the title", async ({
   page,
 }) => {
@@ -236,7 +302,8 @@ test("on a phone, scrolling down the roster takes its note away and stops the co
   await scrollSection(section, { top: 400 });
 
   const top = await section.evaluate((element) => element.getBoundingClientRect().top);
-  expect((await readBox(section.locator("table.roster .roster-head"))).y).toBe(top + 4);
+  expect((await readBox(section.locator("table.roster-pinned .roster-head"))).y).toBe(top + 4);
+  expect((await readBox(section.locator("table.roster-facts .roster-head"))).y).toBe(top + 4);
   const note = await readBox(section.locator("#rosterNote"));
   expect(note.y + note.height).toBeLessThan(top);
   expect(await readBox(pills)).toEqual(pillsBefore);

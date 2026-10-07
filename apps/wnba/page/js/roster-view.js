@@ -1,7 +1,8 @@
 // A team's roster, in the Roster section of its team's sheet: each player's number and name, then
 // her position, height, where she came from, age, and first WNBA season, then her averages a game
-// this season, which the table scrolls across to while her number and name stay put. A tap on a
-// column's name sorts by it.
+// this season, which the section scrolls across to while her number and name stay put. The number
+// and name are a table of their own beside the rest's, so they stay put as one box rather than a
+// box for each cell. A tap on a column's name sorts by it.
 
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
@@ -137,7 +138,9 @@ const NAME_COLUMN = {
   sortValue: (row) => `${row.lastName} ${row.firstName}`,
 };
 
-const COLUMNS = [NUMBER_COLUMN, NAME_COLUMN, ...BIO_COLUMNS, ...STAT_COLUMNS];
+const FACT_COLUMNS = [...BIO_COLUMNS, ...STAT_COLUMNS];
+
+const COLUMNS = [NUMBER_COLUMN, NAME_COLUMN, ...FACT_COLUMNS];
 
 /** @param {string} key */
 const findColumn = (key) => COLUMNS.find((column) => column.key === key) ?? NAME_COLUMN;
@@ -219,19 +222,31 @@ function renderHeading(column, sort, className = "") {
 }
 
 /** @param {RosterSort} sort */
-const renderHead = (sort) =>
+const renderPinnedHead = (sort) =>
   html`<thead>
     <tr class="roster-bands">
       <th class="roster-number"></th>
       <th class="roster-player"></th>
+    </tr>
+    <tr class="roster-head">
+      ${renderHeading(NUMBER_COLUMN, sort, "roster-number")}${renderHeading(NAME_COLUMN, sort, "roster-player")}
+    </tr>
+  </thead>`;
+
+/** @param {RosterSort} sort */
+const renderFactsHead = (sort) =>
+  html`<thead>
+    <tr class="roster-bands">
       <th colspan="${BIO_COLUMNS.length}"></th>
       <th colspan="${STAT_COLUMNS.length}" class="roster-band roster-season-start" scope="colgroup">Per game</th>
     </tr>
     <tr class="roster-head">
-      ${renderHeading(NUMBER_COLUMN, sort, "roster-number")}${renderHeading(NAME_COLUMN, sort, "roster-player")}
-      ${[...BIO_COLUMNS, ...STAT_COLUMNS].map((column) => renderHeading(column, sort))}
+      ${FACT_COLUMNS.map((column) => renderHeading(column, sort))}
     </tr>
   </thead>`;
+
+/** @param {RosterRow} row */
+const identifyNameCell = (row) => `rosterName-${row.id}`;
 
 const OUT_CHIP = html`<span class="foul-chip"><span class="foul-chip-words">Out</span></span>`;
 
@@ -240,44 +255,66 @@ const OUT_CHIP = html`<span class="foul-chip"><span class="foul-chip-words">Out<
  * @param {string} team
  * @param {boolean} showsOut whether the Out chip shows, as it does only while the team still plays
  */
-const renderRow = (row, team, showsOut) =>
-  html`<tr data-key="${row.id}">
+const renderPinnedRow = (row, team, showsOut) =>
+  html`<tr data-key="${row.id}" data-player-row="${row.id}">
     <td class="roster-number">${NUMBER_COLUMN.read(row)}</td>
-    <th scope="row" class="roster-player">
+    <th scope="row" class="roster-player" id="${identifyNameCell(row)}">
       ${renderPlayerButton(
         { ...row, team },
         html`<span class="roster-first">${row.firstName}</span>
           <span class="roster-last">${row.lastName}${showsOut && row.isOut && OUT_CHIP}</span>`,
       )}
     </th>
-    ${[...BIO_COLUMNS, ...STAT_COLUMNS].map(
-      (column) => html`<td${renderClass(column)}>${column.read(row)}</td>`,
-    )}
   </tr>`;
 
-const renderPendingRow = () =>
+// A row of facts is named by its player's name in the pinned table, its row header across the way.
+/** @param {RosterRow} row */
+const renderFactsRow = (row) =>
+  html`<tr data-key="${row.id}:facts" data-player-row="${row.id}" aria-labelledby="${identifyNameCell(row)}">
+    ${FACT_COLUMNS.map((column) => html`<td${renderClass(column)}>${column.read(row)}</td>`)}
+  </tr>`;
+
+const renderPendingPinnedRow = () =>
   html`<tr>
     <td class="roster-number">${renderPlaceholder("00")}</td>
     <th scope="row" class="roster-player">
       <span class="roster-first">${renderPlaceholder("First")}</span>
       <span class="roster-last">${renderPlaceholder("Lastname")}</span>
     </th>
-    ${[...BIO_COLUMNS, ...STAT_COLUMNS].map(
-      (column) => html`<td${renderClass(column)}>${renderPlaceholder("00")}</td>`,
-    )}
+  </tr>`;
+
+const renderPendingFactsRow = () =>
+  html`<tr>
+    ${FACT_COLUMNS.map((column) => html`<td${renderClass(column)}>${renderPlaceholder("00")}</td>`)}
   </tr>`;
 
 /**
- * @param {Markup[]} rows
- * @param {RosterSort} sort
+ * The pinned table of numbers and names beside the table of facts and averages, row for row.
+ * @param {{ pinnedRows: Markup[], factsRows: Markup[], sort: RosterSort }} tables
  */
-const renderTable = (rows, sort) =>
-  html`<table class="roster tabular">
-    ${renderHead(sort)}
-    <tbody>
-      ${rows}
-    </tbody>
-  </table>`;
+const renderTables = ({ pinnedRows, factsRows, sort }) =>
+  html`<div class="roster-tables">
+    <table class="roster roster-pinned tabular">
+      ${renderPinnedHead(sort)}
+      <tbody>
+        ${pinnedRows}
+      </tbody>
+    </table>
+    <table class="roster roster-facts tabular">
+      ${renderFactsHead(sort)}
+      <tbody>
+        ${factsRows}
+      </tbody>
+    </table>
+  </div>`;
+
+/** @param {RosterSort} sort */
+const renderPendingTables = (sort) =>
+  renderTables({
+    pinnedRows: Array.from({ length: PENDING_ROWS }, renderPendingPinnedRow),
+    factsRows: Array.from({ length: PENDING_ROWS }, renderPendingFactsRow),
+    sort,
+  });
 
 /** @param {string | null} coach */
 const renderCoach = (coach) =>
@@ -294,15 +331,15 @@ const renderCoach = (coach) =>
  *   `showsOut` says whether a player out shows so, as she does only while her team still plays
  */
 export function renderRoster({ roster, averages, sort, isLoading, showsOut }) {
-  if (!roster && isLoading)
-    return renderTable(Array.from({ length: PENDING_ROWS }, renderPendingRow), sort);
+  if (!roster && isLoading) return renderPendingTables(sort);
   if (!roster)
     return renderSheetMessage("Couldn't load the roster. Close and try again in a minute.");
   const rows = sortRows(matchAverages(roster.players, averages), sort);
-  return html`${renderTable(
-    rows.map((row) => renderRow(row, roster.team, showsOut)),
+  return html`${renderTables({
+    pinnedRows: rows.map((row) => renderPinnedRow(row, roster.team, showsOut)),
+    factsRows: rows.map(renderFactsRow),
     sort,
-  )}${renderCoach(roster.coach)}`;
+  })}${renderCoach(roster.coach)}`;
 }
 
 /**
