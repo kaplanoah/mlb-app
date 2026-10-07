@@ -237,7 +237,7 @@ test("a team without a game yet starts its sheet 15px under the band, as before"
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
-  await page.locator('#standings-league tr[data-team="SEA"] td.season').first().click();
+  await page.locator('#standings-league tr[data-team="SEA"] .team-open').click();
   const sheet = page.locator("#teamSheet");
   await expect(sheet.locator("#teamTitle")).toHaveText("Seattle Storm");
   await expect(sheet.locator(".game-cards")).toHaveCount(0);

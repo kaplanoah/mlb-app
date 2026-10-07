@@ -416,7 +416,7 @@ test("the side behind on a measure gets a paler bar of its own team's hue, on ea
  */
 async function openRegularSeasonPoints(page, code) {
   await page.getByRole("tab", { name: "Standings" }).click();
-  await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
+  await page.locator(`#standings-league tr[data-team="${code}"] .team-open`).click();
   return page
     .locator("#teamSheet .tape-row")
     .filter({ has: page.locator(".tape-label", { hasText: /^PPG$/ }) })

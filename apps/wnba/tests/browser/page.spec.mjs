@@ -1,6 +1,10 @@
 import { test, expect, openApp, matchPath } from "./harness.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
-import { listTapFlashes, listTouchHoverRules } from "../../../../tests/browser/tap-states.mjs";
+import {
+  listTapFlashes,
+  listTapsOffButtons,
+  listTouchHoverRules,
+} from "../../../../tests/browser/tap-states.mjs";
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
@@ -884,7 +888,7 @@ test.describe("on a phone, the text", () => {
     expect(await listStrayPeriods(page)).toEqual([]);
     await expect(standings.locator("td.place").first()).toHaveCSS("width", "28px");
 
-    await standings.locator('tr[data-team="NYL"] td.season').first().click();
+    await standings.locator('tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
     await expect(sheet.locator(".team-game")).toHaveCount(3);
     expect(await listOffScaleText(page)).toEqual([]);
@@ -928,7 +932,7 @@ test.describe("on a phone, a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+    await page.locator('#standings-league tr[data-team="ATL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
     await expect(sheet.locator("table.players")).toBeVisible();
 
@@ -983,7 +987,7 @@ test.describe("a team's sheet in each theme", () => {
       await page.emulateMedia({ colorScheme });
       await openApp(page);
       await page.getByRole("tab", { name: "Standings" }).click();
-      await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+      await page.locator('#standings-league tr[data-team="ATL"] .team-open').click();
       const titles = page.locator("#teamSheet .team-titles");
       await expect(titles).toHaveText("None yet");
 
@@ -1016,7 +1020,7 @@ test.describe("a team's sheet", () => {
   }) => {
     const app = await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="LVA"] td.recent').first().click();
+    await page.locator('#standings-league tr[data-team="LVA"] .team-open').click();
     const sheet = page.locator("#teamSheet");
 
     await expect(sheet.locator("#teamTitle")).toHaveText("Las Vegas Aces");
@@ -1037,7 +1041,7 @@ test.describe("a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
+    await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
     await expect(sheet.locator("table.players")).toBeVisible();
 
@@ -1070,7 +1074,7 @@ test.describe("a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+    await page.locator('#standings-league tr[data-team="ATL"] .team-open').click();
     const next = page.locator("#teamSheet .team-game.next");
     const icon = next.locator(".next-game-icon");
 
@@ -1087,7 +1091,7 @@ test.describe("a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
+    await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
     const rows = await sheet
       .locator(".team-game")
@@ -1111,7 +1115,7 @@ test.describe("a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
+    await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
     const club = page.locator("#teamSheet .team-tape .tape-teams .club").first();
     const record = club.locator(".team-record");
     await expect(record).toHaveText("2-0");
@@ -1137,7 +1141,7 @@ test.describe("a team's sheet", () => {
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
-    await page.locator('#standings-league tr[data-team="NYL"] td.season').first().click();
+    await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
     const numbers = await sheet.locator(".team-tape").last().boundingBox();
     const form = await sheet.locator(".team-form").boundingBox();
@@ -1224,7 +1228,7 @@ test("a team's leading scorers set their shooting and minutes a step back, a sma
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
-  await page.locator('#standings-league tr[data-team="ATL"] td.season').first().click();
+  await page.locator('#standings-league tr[data-team="ATL"] .team-open').click();
   const quiet = page
     .locator("#teamSheet table.players tbody tr:not(.players-head)")
     .first()
@@ -1274,7 +1278,7 @@ test.describe("on a phone", () => {
     await page.getByRole("tab", { name: "Standings" }).click();
     const sheet = page.locator("#teamSheet");
     for (const code of ["LVA", "LAS", "CON", "CHI"]) {
-      await page.locator(`#standings-league tr[data-team="${code}"] td.season`).first().click();
+      await page.locator(`#standings-league tr[data-team="${code}"] .team-open`).click();
       const names = sheet.locator('table.players th[scope="row"]');
       await expect(names).toHaveCount(5);
       const lineCounts = await names.evaluateAll((cells) =>
@@ -1848,6 +1852,63 @@ test.describe("on a phone", () => {
         .locator(".streak-won")
         .evaluate((streak) => getComputedStyle(streak).color);
     expect(await readStreakColor("Fire")).not.toBe(await readStreakColor("Lynx"));
+  });
+
+  test("a tap anywhere on a team's row in the standings, beside its name or on its numbers, lands on the team's button and opens its sheet", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Standings" }).click();
+    const row = page.locator('#standings-league tr[data-team="ATL"]');
+    await expect(row).toBeVisible();
+    const cells = await row.locator("td").evaluateAll((all) =>
+      all.map((cell) => {
+        const box = cell.getBoundingClientRect();
+        return { x: box.right - 2, y: box.top + box.height / 2 };
+      }),
+    );
+    for (const spot of cells) {
+      const target = await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.team,
+        spot,
+      );
+      expect(target).toBe("ATL");
+    }
+
+    await page.touchscreen.tap(cells[2].x, cells[2].y);
+    await expect(page.locator("#teamSheet #teamTitle")).toHaveText("Atlanta Dream");
+  });
+
+  test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
+    await openApp(page);
+    await expect(page.locator('[data-series="1-0"] .team-line').first()).toBeVisible();
+    expect(await listTapsOffButtons(page)).toEqual([]);
+
+    await page.getByRole("tab", { name: "Games" }).click();
+    for (const list of ["Previous", "Today", "Next"]) {
+      await page.getByRole("tab", { name: list }).click();
+      await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+    }
+
+    await page.getByRole("tab", { name: "Standings" }).click();
+    for (const list of ["League", "East", "West"]) {
+      await page.getByRole("tab", { name: list }).click();
+      await expect(
+        page.locator(`#standings-${list.toLowerCase()} tbody tr`).first(),
+      ).toBeInViewport();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+    }
+
+    await page.locator('#standings-west tr[data-team="LVA"] .team-open').click();
+    await expect(page.locator("#teamSheet .team-game")).toHaveCount(3);
+    expect(await listTapsOffButtons(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#teamSheet")).toBeHidden();
+
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.locator("#settingsDialog")).toBeVisible();
+    expect(await listTapsOffButtons(page)).toEqual([]);
   });
 });
 
