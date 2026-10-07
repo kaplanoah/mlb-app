@@ -1830,7 +1830,7 @@ test.describe("on a phone", () => {
     expect(icon.width).toBe(60);
   });
 
-  test("a switch's knob is white in each theme, on or off", async ({ page }) => {
+  test("a switch's knob is Walnut's cream in each theme, on or off", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     for (const appearance of ["Maple", "Walnut"]) {
@@ -1848,7 +1848,7 @@ test.describe("on a phone", () => {
         new Set(["true", "false"]),
       );
       for (const [checked, color] of knobs)
-        expect(color, `${appearance}, ${checked}`).toBe("rgb(255, 255, 255)");
+        expect(color, `${appearance}, ${checked}`).toBe("rgb(241, 233, 223)");
       await page.keyboard.press("Escape");
     }
   });

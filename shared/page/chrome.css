@@ -18,6 +18,8 @@
  *                                              behind an icon button
  *   --radius-sheet                             a sheet's corners, and the settings dialog's, on wide
  *                                              screens; on phones they fill the screen
+ *   --switch-knob                              a switch's knob, one light color in every theme, as the
+ *                                              phone keeps its own
  *   --select-arrow                             a url() of a select field's down arrow, in --ink-dim, if
  *                                              the app has one
  *   --tab-bar-tint                             the color that tints the tab bar's glass, and fills
@@ -625,8 +627,7 @@ body.kbd :is(.sheet-close, .sheet-back):focus {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  /* White in every theme, like the phone's own. */
-  background: #ffffff;
+  background: var(--switch-knob);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s;
 }
@@ -945,7 +946,8 @@ body:has(> .home-screen-bar:not([hidden])) {
   }
   /*
    * The selected tab sits on a pill. --lift runs from 0 to 1 as a touch raises it, and its fill
-   * turns mostly to clear glass then, with a lit rim, so the tab under it shows through.
+   * thins about halfway to clear glass then, with a faint warm rim, so the tab under it shows
+   * through.
    */
   .tab-pill {
     display: block;
@@ -957,16 +959,15 @@ body:has(> .home-screen-bar:not([hidden])) {
     border-radius: 999px;
     background: color-mix(
       in srgb,
-      var(--tab-bar-pill) calc(100% - var(--lift, 0) * 84%),
+      var(--tab-bar-pill) calc(100% - var(--lift, 0) * 45%),
       transparent
     );
-    -webkit-backdrop-filter: brightness(calc(1 + var(--lift, 0) * 0.07));
-    backdrop-filter: brightness(calc(1 + var(--lift, 0) * 0.07));
+    -webkit-backdrop-filter: brightness(calc(1 + var(--lift, 0) * 0.035));
+    backdrop-filter: brightness(calc(1 + var(--lift, 0) * 0.035));
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, calc(var(--lift, 0) * 0.5)),
-      inset 0 0 0 1px rgba(255, 255, 255, calc(var(--lift, 0) * 0.3)),
-      inset 0 -1px 1px rgba(255, 255, 255, calc(var(--lift, 0) * 0.17)),
-      0 6px 18px rgba(0, 0, 0, calc(var(--lift, 0) * 0.21));
+      inset 0 1px 0 rgba(255, 248, 236, calc(var(--lift, 0) * 0.1)),
+      inset 0 0 0 1px rgba(255, 248, 236, calc(var(--lift, 0) * 0.05)),
+      0 6px 18px rgba(0, 0, 0, calc(var(--lift, 0) * 0.18));
     pointer-events: none;
     will-change: transform;
   }

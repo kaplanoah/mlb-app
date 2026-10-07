@@ -63,6 +63,7 @@
   --tab-bar-edge: var(--card-border);
   --tab-bar-ink: #fff;
   --tab-bar-pill: color-mix(in srgb, var(--tab-bar-ink) 10%, transparent);
+  --switch-knob: var(--ink);
   --page-gutter: 18px;
   --pager-chosen-edge: transparent;
   --held-bar-fade: 18px;
