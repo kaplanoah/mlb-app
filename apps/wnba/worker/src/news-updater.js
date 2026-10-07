@@ -26,7 +26,6 @@ const MORNING_HOUR = 7;
 const DAY_DELAY_MS = 15 * MINUTE_MS;
 const NIGHT_DELAY_MS = 60 * MINUTE_MS;
 const LABEL_BATCH = 12;
-const LABELS_PER_RUN = 24;
 const MAX_CARDS = 60;
 const CARDS_KEY = "news/cards";
 // A document no page reads, removed from any store that still keeps it.
@@ -297,13 +296,12 @@ function placeStory(stories, numbered, story, answer) {
   return same ? joinCard(stories, labeled, same, answer.lead === true) : [labeled];
 }
 
-// The newest stories are asked about first, and in the order they came out, so a story that tells
-// news an earlier one told can lead only by telling it better.
+// Every waiting story is asked about in one run, so a week judged again catches up at once, and in
+// the order they came out, so a story that tells news an earlier one told can lead only by telling
+// it better.
 async function labelWaitingStories({ storage, stories, ask, now }) {
   const waiting = [...stories.values()]
     .filter((story) => story.state === "pending" && isShownAge(story, now))
-    .sort(byNewest)
-    .slice(0, LABELS_PER_RUN)
     .sort(byOldest);
   for (const batch of splitIntoBatches(waiting, LABEL_BATCH)) {
     const cards = listCards(stories, now);
