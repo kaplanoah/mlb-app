@@ -174,13 +174,15 @@ jobs:
         run: npx playwright install webkit
       # WebKit's system libraries aren't on the runners, and the cache keeps only the browser. A slow
       # mirror stops an attempt after four minutes rather than hanging the job, and the second
-      # attempt keeps the packages the first downloaded. Playwright runs apt through sudo, which
-      # drops APT_CONFIG, so apt's timeouts go in its own config, where the second attempt also
-      # waits for the first one's apt to let go of its lock.
+      # attempt keeps the packages the first downloaded. The timeout runs as root, so Playwright
+      # runs apt itself rather than through sudo, and the timeout stops apt and frees its locks.
       - timeout-minutes: 9
         run: |
-          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; DPkg::Lock::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99timeout
-          timeout 4m npx playwright install-deps webkit || timeout 4m npx playwright install-deps webkit
+          echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99timeout
+          for attempt in 1 2; do
+            sudo env PATH="$PATH" timeout --kill-after=10s 4m npx playwright install-deps webkit && break
+            [ "$attempt" = 2 ] && exit 1
+          done
       - run: npm run test:browser -- --project '*-webkit'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
