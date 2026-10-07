@@ -27,3 +27,20 @@ period = 60
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SeasonStore"]
+
+# The beta channel's Worker, deployed from the beta branch to use a change on a phone before it
+# merges, with its own store, key, and address. Durable Objects and rate limits aren't inherited.
+[env.beta]
+name = "wnba-app-beta"
+
+[[env.beta.durable_objects.bindings]]
+name = "STORE"
+class_name = "SeasonStore"
+
+[[env.beta.ratelimits]]
+name = "ACCESS_LIMIT"
+namespace_id = "2701"
+
+[env.beta.ratelimits.simple]
+limit = 10
+period = 60

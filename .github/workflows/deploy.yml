@@ -3,7 +3,7 @@ name: Deploy
 # Its own workflow, so pull requests don't list a deploy job that never runs for them.
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -17,15 +17,20 @@ permissions:
 jobs:
   # A merge deploys at once when its pull request's CI passed on exactly the code main now has,
   # and otherwise once CI passes on main, unless nothing but docs, tests, and tooling changed
-  # since the live version. The token lives in the production environment, which only main can
-  # use.
+  # since the live version. A push to beta deploys the beta channel's Workers at once, to use a
+  # change on a phone before it merges. The token lives in the production environment, which only
+  # main and beta can use.
   deploy:
     if: github.event_name == 'push' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
+    # A workflow_run names main as its branch.
+    env:
+      CHANNEL: ${{ github.ref_name == 'beta' && 'beta' || 'production' }}
+    # Each channel waits only on its own deploys, so a push to beta never cancels main's waiting one.
     concurrency:
-      group: deploy
+      group: deploy-${{ github.ref_name }}
       cancel-in-progress: false
     steps:
       # All of main's history, so the merge can be compared with the live version's commit.
@@ -39,17 +44,17 @@ jobs:
           cache: npm
       - name: Find the pull request's CI run that passed on this code
         id: passed
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && env.CHANNEL == 'production'
         env:
           GH_TOKEN: ${{ github.token }}
         run: node worker/find-passed-ci.mjs
       # CI already ran the tests on this code, and no package's install script runs where the
       # token is.
       - run: npm ci --ignore-scripts
-        if: github.event_name != 'push' || steps.passed.outputs.run
+        if: github.event_name != 'push' || env.CHANNEL == 'beta' || steps.passed.outputs.run
       # A secret, so the account ID is masked in this public log.
       - name: Deploy the Worker
-        if: github.event_name != 'push' || steps.passed.outputs.run
+        if: github.event_name != 'push' || env.CHANNEL == 'beta' || steps.passed.outputs.run
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -58,4 +63,4 @@ jobs:
             echo "::notice::No CLOUDFLARE_API_TOKEN in the production environment, so nothing was deployed."
             exit 0
           fi
-          node worker/deploy.mjs
+          node worker/deploy.mjs --channel "$CHANNEL"
