@@ -156,7 +156,7 @@ const readChannels = (page, color) =>
   }, color);
 
 for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
-  test(`the list a pill shows is filled orange, its name in the color on orange, in ${colorScheme}`, async ({
+  test(`the list a pill shows is filled orange, its name in the color on orange, and the other names are in ink, in ${colorScheme}`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme });
@@ -166,8 +166,8 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     const chosen = page.locator("#games-bar .pager-tabs button.active");
     await expect(chosen).toHaveText("Previous");
     await page.clock.runFor(2000);
-    const [orange, onOrange] = await Promise.all(
-      ["--orange", "--orange-ink"].map(async (token) =>
+    const [orange, onOrange, ink] = await Promise.all(
+      ["--orange", "--orange-ink", "--ink"].map(async (token) =>
         readChannels(page, await readTokenColor(page, token)),
       ),
     );
@@ -177,6 +177,10 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     const name = await chosen.evaluate((element) => getComputedStyle(element).color);
     expect(await readChannels(page, fill)).toEqual(orange);
     expect(await readChannels(page, name)).toEqual(onOrange);
+    const other = page.locator("#games-bar .pager-tabs button:not(.active)").first();
+    const otherName = await other.evaluate((element) => getComputedStyle(element).color);
+    expect(await readChannels(page, otherName)).toEqual(ink);
+    await expect(other).toHaveCSS("font-weight", "500");
   });
 }
 

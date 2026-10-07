@@ -171,7 +171,7 @@
   --text: "Barlow", system-ui, sans-serif;
   --page-gutter: 16px;
   --header-gap: 14px;
-  --pager-label: var(--ink-mid);
+  --pager-label: var(--ink);
   --pager-chosen-edge: color-mix(in srgb, var(--action) 70%, var(--shadow-ink));
   --held-bar-fade: 0px;
   --held-bar-line: var(--divider);
