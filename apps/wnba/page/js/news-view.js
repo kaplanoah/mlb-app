@@ -46,6 +46,19 @@ const nameStoryDay = (publishedAt, now) =>
 const describeCredit = (credit) =>
   credit.startsWith("via ") ? `Photo ${credit}` : `Photo: ${credit}`;
 
+/**
+ * The credit, in parts that wrap apart before either wraps inside: who took the photo, then the
+ * agency it came through.
+ * @param {string} credit
+ */
+function renderCredit(credit) {
+  const described = describeCredit(credit);
+  const viaAt = described.indexOf(" via ");
+  if (viaAt < 0) return described;
+  return html`<span class="credit-part">${described.slice(0, viaAt)}</span>
+    <span class="credit-part">${described.slice(viaAt + 1)}</span>`;
+}
+
 /** @param {NewsStory["photo"]} photo */
 const findPhotoUrl = (photo) => (photo && isWebAddress(photo.url) ? photo.url : null);
 
@@ -120,7 +133,7 @@ function renderCardTop(teams, photo) {
   if (!credit) return teamLine;
   return html`<div class="news-top">
     ${teamLine}
-    <p class="news-photo-credit">${describeCredit(credit)}</p>
+    <p class="news-photo-credit">${renderCredit(credit)}</p>
   </div>`;
 }
 

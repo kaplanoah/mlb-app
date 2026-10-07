@@ -506,6 +506,29 @@ test.describe("on a phone, the news", () => {
     expect(clippedNames).toBe(0);
   });
 
+  test("wraps a photo's credit before the agency it came through, keeping each part on a line", async ({
+    page,
+  }) => {
+    await openNewsWithStories(page, (photoUrl) => [
+      createStory(photoUrl, {
+        id: "credit",
+        title: "The Liberty and the Dream meet again in the semifinals",
+        outlet: "ESPN",
+        source: "espn",
+        photo: { url: photoUrl, credit: "Christian Petersen/NBAE via Getty Images" },
+      }),
+    ]);
+    const credit = page.locator(".news-photo-credit");
+    const [taker, agency] = await Promise.all(
+      [0, 1].map((index) => credit.locator(".credit-part").nth(index).boundingBox()),
+    );
+
+    await expect(credit).toHaveText("Photo: Christian Petersen/NBAE via Getty Images");
+    await expect(credit.locator(".credit-part").last()).toHaveText("via Getty Images");
+    expect(agency.y).toBeCloseTo(taker.y + taker.height, 0);
+    expect(agency.height).toBeCloseTo(taker.height, 0);
+  });
+
   test("give way to another tab even when the phone takes the tap on it to stop the scrolling", async ({
     page,
   }) => {

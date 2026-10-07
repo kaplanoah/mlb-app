@@ -2090,6 +2090,9 @@ table.standings tr.playoff-line + tr td {
   font-size: var(--size-small);
   color: var(--ink-dim);
 }
+.news-photo-credit .credit-part {
+  display: inline-block;
+}
 .news-teams {
   display: flex;
   flex-wrap: wrap;
