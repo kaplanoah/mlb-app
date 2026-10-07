@@ -1,0 +1,58 @@
+name: iOS Simulator probe
+
+# Throwaway: does the iOS Simulator's Safari leave the Games lists undrawn as iPhones did?
+on:
+  push:
+    branches: [claude/ios-sim-probe]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      BROKEN: 637b8c5
+      FIXED: 0c10ff2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Install wrangler
+        run: npm install -g wrangler@4 --no-audit --no-fund --loglevel=error && wrangler --version
+      - name: Boot the phone
+        run: bash probe/boot-phone.sh
+      - name: Serve the broken version
+        run: bash probe/serve.sh broken "$BROKEN" 8701
+      - name: Serve the fixed version
+        run: bash probe/serve.sh fixed "$FIXED" 8702
+      - name: Serve the branch's own version
+        run: bash probe/serve.sh head "$GITHUB_SHA" 8703
+      - name: Screenshot each version opened on Games
+        run: |
+          bash probe/shoot.sh broken-open http://127.0.0.1:8701/probe/ 45
+          bash probe/shoot.sh fixed-open http://127.0.0.1:8702/probe/ 45
+          bash probe/shoot.sh head-open http://127.0.0.1:8703/probe/ 45
+      - name: Screenshot each version switched to Games
+        run: |
+          bash probe/shoot.sh broken-click "http://127.0.0.1:8701/probe/?probe=click" 40
+          bash probe/shoot.sh fixed-click "http://127.0.0.1:8702/probe/?probe=click" 40
+          bash probe/shoot.sh head-click "http://127.0.0.1:8703/probe/?probe=click" 40
+      - name: Show what the pages reported
+        if: always()
+        run: |
+          for label in broken fixed head; do
+            echo "== $label"
+            grep -E 'probe-report|rror|wnba|espn' "$RUNNER_TEMP/wrangler-$label.log" | head -60 || true
+          done
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-sim-shots
+          path: ${{ runner.temp }}/shots
