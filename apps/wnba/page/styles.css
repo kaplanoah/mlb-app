@@ -1694,10 +1694,12 @@ th[aria-sort="ascending"] .roster-caret {
 
 /* Standings: one table at a phone's width for the league and each conference, side by side under
    a pill like the Games view's. W-L and GB lead as the season; L10 and Strk follow as recent
-   form, until the playoffs' first round and where each team's run stands take their place. */
+   form, until the playoffs' first round and where each team's run stands take their place. The
+   column names sit on the page, like a day's date beside its games, and the teams on one card. */
 table.standings {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.85rem;
 }
 table.standings th {
@@ -1719,34 +1721,61 @@ table.standings tr.groups th {
 table.standings td {
   padding: 10px 0 10px 12px;
   border-top: 1px solid var(--divider);
+  background: var(--raised);
   text-align: center;
   white-space: nowrap;
+}
+/* The card's edge is drawn on the cells, so the teams keep one grid of columns with the names
+   over them: its top on the first row, its sides on each row's ends, its bottom on the last. */
+table.standings tbody tr:first-child td {
+  border-top-color: var(--edge);
+}
+table.standings tbody tr:last-child td {
+  border-bottom: 1px solid var(--edge);
+}
+table.standings td:first-child {
+  border-left: 1px solid var(--edge);
+}
+table.standings td:last-child {
+  border-right: 1px solid var(--edge);
+}
+table.standings tbody tr:first-child td:first-child {
+  border-top-left-radius: var(--radius-card);
+}
+table.standings tbody tr:first-child td:last-child {
+  border-top-right-radius: var(--radius-card);
+}
+table.standings tbody tr:last-child td:first-child {
+  border-bottom-left-radius: var(--radius-card);
+}
+table.standings tbody tr:last-child td:last-child {
+  border-bottom-right-radius: var(--radius-card);
 }
 table.standings .team {
   width: 100%;
   padding-left: 0;
   text-align: left;
 }
+/* The ranks' column is as narrow as its widest number, so every name starts in one place. */
 table.standings .place {
-  width: 33px;
-  min-width: 33px;
-  padding-left: 5px;
+  width: 1px;
+  padding-left: 10px;
+  padding-right: 6px;
   text-align: left;
   color: var(--ink-dim);
 }
-/* The rows' content sits a little in from the ends of the lines between them. */
-table.standings th:first-child {
-  padding-left: 5px;
-}
-table.standings th:last-child,
+/* The rows' content sits in from the card's sides, and the last column's name over it. */
 table.standings td:last-child {
-  padding-right: 5px;
+  padding-right: 8px;
+}
+table.standings th:last-child {
+  padding-right: 9px;
 }
 table.standings .pair-end {
-  padding-left: 18px;
+  padding-left: 16px;
 }
 table.standings .recent-start {
-  padding-left: 28px;
+  padding-left: 21px;
 }
 table.standings td.season {
   font-size: 0.92rem;
@@ -1814,8 +1843,10 @@ table.standings tr.playoff-line td {
   border-top: 0;
   font-size: 0;
   line-height: 0;
-  background: linear-gradient(to right, var(--structure) 3px, transparent 3px) left center / 6px
-    1.5px repeat-x;
+  background:
+    linear-gradient(to right, var(--structure) 3px, transparent 3px) left center / 6px 1.5px
+      repeat-x,
+    var(--raised);
 }
 table.standings tr.playoff-line + tr td {
   border-top: 0;
@@ -1825,7 +1856,9 @@ table.standings tr.playoff-line + tr td {
    name and its parts under teal titles. A team's name or dot opens it wherever it shows, and in
    the standings and the bracket so does the rest of its row. */
 @media (hover: hover) {
-  table.standings tr[data-team]:hover td,
+  table.standings tr[data-team]:hover td {
+    background: color-mix(in srgb, var(--ink) 5%, var(--raised));
+  }
   .team-line[data-team]:hover {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
@@ -2356,14 +2389,6 @@ body.kbd .appearance-choice:has(input:focus) .appearance-icon {
 :root[data-theme="dark"] .gate-icon-light,
 :root:not([data-theme="dark"]) .gate-icon-dark {
   display: none;
-}
-
-/* A phone gives the standings' ranks a narrower column, so the teams have room. */
-@media (max-width: 779px) {
-  table.standings .place {
-    width: 28px;
-    min-width: 28px;
-  }
 }
 
 /* A player's name, wherever it shows, opens her sheet, and reads as the text around it. */

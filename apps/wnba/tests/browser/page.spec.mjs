@@ -865,7 +865,7 @@ test.describe("on a phone, the text", () => {
     isMobile: true,
   });
 
-  test("keeps to the type scale in the header, the Updates box, the games, the standings, a team's sheet, and settings, with the ranks in a narrow column", async ({
+  test("keeps to the type scale in the header, the Updates box, the games, the standings, a team's sheet, and settings", async ({
     page,
   }) => {
     await openApp(page, { isShowingUpdates: true });
@@ -886,7 +886,6 @@ test.describe("on a phone, the text", () => {
     await expect(standings.locator("tbody tr").first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
-    await expect(standings.locator("td.place").first()).toHaveCSS("width", "28px");
 
     await standings.locator('tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
@@ -1588,19 +1587,80 @@ test("the playoff line is one dashed strip across the whole table", async ({ pag
   expect(line.width).toBeCloseTo(table.width, 0);
 });
 
-test("the standings draw lines only between rows, none under the playoff line or the last team", async ({
+test("the standings' teams sit on one raised card inside its edge, with their column names on the page and lines only between rows", async ({
   page,
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
-  const bottomBorders = await page
-    .locator("#standings-league table.standings td")
-    .evaluateAll((cells) =>
-      cells
-        .filter((cell) => getComputedStyle(cell).borderBottomStyle !== "none")
-        .map((cell) => cell.textContent),
+  const table = page.locator("#standings-league table.standings");
+  await expect(table.locator("tbody tr").first()).toBeVisible();
+  const [raised, edge, divider] = await Promise.all(
+    ["--raised", "--edge", "--divider"].map((token) => readTokenColor(page, token)),
+  );
+
+  const readCells = (selector) =>
+    table.locator(selector).evaluateAll((cells) =>
+      cells.map((cell) => {
+        const style = getComputedStyle(cell);
+        return {
+          background: style.backgroundColor,
+          top: style.borderTopStyle === "none" ? null : style.borderTopColor,
+          bottom: style.borderBottomStyle === "none" ? null : style.borderBottomColor,
+          left: style.borderLeftStyle === "none" ? null : style.borderLeftColor,
+          right: style.borderRightStyle === "none" ? null : style.borderRightColor,
+        };
+      }),
     );
-  expect(bottomBorders).toEqual([]);
+  const heads = await readCells("thead th");
+  expect(new Set(heads.map((head) => head.background))).toEqual(new Set(["rgba(0, 0, 0, 0)"]));
+
+  const rows = await table.locator("tbody tr[data-team]").count();
+  const first = await readCells("tbody tr[data-team]:first-child td");
+  const inside = await readCells("tbody tr[data-team]:nth-child(3) td");
+  const last = await readCells("tbody tr[data-team]:last-child td");
+  for (const cells of [first, inside, last]) {
+    expect(new Set(cells.map((cell) => cell.background))).toEqual(new Set([raised]));
+    expect([cells[0].left, cells.at(-1).right]).toEqual([edge, edge]);
+  }
+  expect(new Set(first.map((cell) => cell.top))).toEqual(new Set([edge]));
+  expect(new Set(inside.map((cell) => cell.top))).toEqual(new Set([divider]));
+  expect(new Set(inside.map((cell) => cell.bottom))).toEqual(new Set([null]));
+  expect(new Set(last.map((cell) => cell.bottom))).toEqual(new Set([edge]));
+  expect(rows).toBeGreaterThan(3);
+});
+
+test("the standings' ranks sit 10px in from the card's edge and 6px before the names, which all start in one place", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  const table = page.locator("#standings-league table.standings");
+  await expect(table.locator("tbody tr").first()).toBeVisible();
+  const [one, ten] = await Promise.all(
+    ["1", "10"].map((place) =>
+      table
+        .locator("tbody tr", {
+          has: page.locator("td.place", { hasText: new RegExp(`^${place}$`) }),
+        })
+        .evaluate((row) => {
+          const place = /** @type {HTMLElement} */ (row.querySelector("td.place"));
+          const card = place.getBoundingClientRect().left;
+          const number = document.createRange();
+          number.selectNodeContents(place);
+          const shown = number.getBoundingClientRect();
+          const name = row.querySelector(".club").getBoundingClientRect().left;
+          return {
+            numberIn: shown.left - card,
+            numberToName: name - shown.right,
+            nameIn: name - card,
+          };
+        }),
+    ),
+  );
+  expect(ten.numberIn).toBeCloseTo(11, 0);
+  expect(ten.numberToName).toBeCloseTo(6, 0);
+  expect(one.numberIn).toBeCloseTo(11, 0);
+  expect(one.nameIn).toBeCloseTo(ten.nameIn, 0);
 });
 
 test("clicking the tab that's showing scrolls back to the top", async ({ page }) => {
