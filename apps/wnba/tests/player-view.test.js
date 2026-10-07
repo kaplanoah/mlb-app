@@ -144,6 +144,19 @@ test("her last game has its day and score, her numbers over her season's average
   assert.match(text, /Shooting 8-15 FG \| 1-4 3PT \| 4-5 FT Defense 2 STL \| 1 BLK/);
 });
 
+test("her turnovers sit between her assists and minutes, with her average, once the store keeps them", () => {
+  const player = createPlayer();
+  player.lastGame.turnovers = 3;
+  player.regularSeason.averages.turnovers = 2.6;
+  player.regularSeason.stats.push(
+    describeStat({ key: "turnovers", value: 2.6, rank: 9, values: [0.5, 1.2, 2.6, 4] }),
+  );
+  const text = renderBody(player);
+  assert.match(text, /Pts Reb Ast TO Min 21 9 4 3 37\.0 Avg 20\.8 8\.3 3\.3 2\.6 33\.0 /);
+  assert.match(text, /Regular season 42 games Pts 20\.8 7th of 125 TO 2\.6 9th of 125 3P%/);
+  assert.doesNotMatch(renderBody(createPlayer()), /TO/);
+});
+
 test("her playoffs list her team's games with her points in each, DNP for one she missed, and its next game", () => {
   const text = renderBody(createPlayer());
   assert.match(

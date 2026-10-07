@@ -32,6 +32,7 @@ import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from
  * @property {number} minutes
  * @property {number} steals
  * @property {number} blocks
+ * @property {number} [turnovers] missing from a game the store saved before it kept them
  * @property {number} fieldGoalsMade
  * @property {number} fieldGoalsAttempted
  * @property {number} threesMade
@@ -44,7 +45,7 @@ import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from
  * @typedef {object} RegularSeason
  * @property {number} games
  * @property {number} gamesNeeded how many games the WNBA's rule for its leaders asks for so far
- * @property {{ points: number, rebounds: number, assists: number, minutes: number }} averages
+ * @property {{ points: number, rebounds: number, assists: number, turnovers?: number, minutes: number }} averages
  * @property {RankedStat[]} stats
  */
 /**
@@ -71,6 +72,7 @@ const RANKED_STATS = [
   { key: "assists", label: "Ast" },
   { key: "steals", label: "Stl" },
   { key: "blocks", label: "Blk" },
+  { key: "turnovers", label: "TO" },
   { key: "fieldGoalShare", label: "FG%", isShare: true, shots: "field goals" },
   { key: "threeShare", label: "3P%", isShare: true, shots: "3-pointers" },
   { key: "freeThrowShare", label: "FT%", isShare: true, shots: "free throws" },
@@ -189,18 +191,23 @@ const renderCount = (count, unit) =>
   html`<span class="player-count tabular">${count}</span> ${unit}`;
 
 /**
- * Her points, rebounds, assists, and minutes in her last game, and her season's averages under
- * them, then how she shot and what she took away.
+ * Her points, rebounds, assists, turnovers, and minutes in her last game, and her season's
+ * averages under them, then how she shot and what she took away.
  * @param {Player} player
  * @param {number} now
  */
 function renderLastGame({ lastGame: game, regularSeason }, now) {
   if (!game) return false;
   const averages = regularSeason?.averages;
+  const turnoverCells =
+    game.turnovers == null
+      ? []
+      : [{ label: "TO", title: "Turnovers", game: game.turnovers, average: averages?.turnovers }];
   const cells = [
     { label: "Pts", title: "Points", game: game.points, average: averages?.points },
     { label: "Reb", title: "Rebounds", game: game.rebounds, average: averages?.rebounds },
     { label: "Ast", title: "Assists", game: game.assists, average: averages?.assists },
+    ...turnoverCells,
     {
       label: "Min",
       title: "Minutes",
@@ -410,7 +417,7 @@ function renderRegularSeason(team, season, isPastSeason) {
 const renderPending = () =>
   renderSheetPart(
     "Last game",
-    html`<div class="player-last-game">${renderPlaceholder("Pts Reb Ast Min")}${renderPlaceholder("00 0 0 00.0")}${renderPlaceholder("Avg 00.0 0.0 0.0 00.0")}</div>`,
+    html`<div class="player-last-game">${renderPlaceholder("Pts Reb Ast TO Min")}${renderPlaceholder("00 0 0 0 00.0")}${renderPlaceholder("Avg 00.0 0.0 0.0 0.0 00.0")}</div>`,
   );
 
 /**

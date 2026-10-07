@@ -2447,16 +2447,16 @@ body.kbd .player-open:focus {
   color: var(--ink);
 }
 
-/* Her last game's four numbers center on the sheet by themselves, their line running as far past
-   the first as past the last, and AVG hangs outside the table to the left of her averages, on
-   their line, so it doesn't pull the columns off center. */
+/* Her last game's numbers center on the sheet by themselves, their line running as far past the
+   first as past the last, and AVG hangs outside the table to the left of her averages, on their
+   line, so it doesn't pull the columns off center. */
 .player-last-game {
   display: grid;
   gap: 12px;
 }
 table.player-game {
   justify-self: center;
-  width: min(100%, 15.5rem);
+  width: min(100%, 19rem);
   border-collapse: collapse;
   table-layout: fixed;
 }
