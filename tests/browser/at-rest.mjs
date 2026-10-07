@@ -49,10 +49,10 @@ export async function expectAtRest(page) {
  */
 export async function swipeToNextList(page, browserName, from) {
   if (browserName === "chromium") {
-    const lift = await drag(page, from, { x: -200 });
+    const lift = await drag(page, from, { x: -300 });
     await lift();
     return;
   }
   await page.mouse.move(from.x, from.y);
-  await page.mouse.wheel(200, 0);
+  await page.mouse.wheel(300, 0);
 }

@@ -26,7 +26,7 @@ test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no Re
   await expect(page.locator("#games-pages")).toHaveAttribute("data-settled-by", "scrollend");
   await expectAtRest(page);
 
-  await swipeToNextList(page, browserName, { x: 300, y: 500 });
+  await swipeToNextList(page, browserName, { x: 340, y: 500 });
   await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#games-today")).toBeInViewport();
   await expectAtRest(page);
