@@ -2,7 +2,8 @@
 // shown, which the store keeps, beside every player's averages that season, which the store also
 // keeps, read together as the team's sheet shows a season and again once they're old, sorted by
 // the column the viewer picked until the sheet shows another team. Who is out shows only while the
-// team still plays.
+// team still plays. The team's sheet keeps what the section shows, so a reload draws it again
+// while it reads again.
 
 import { setHtml } from "#shared/html.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
@@ -12,7 +13,9 @@ import { isPastSeason, session } from "./session.js";
 
 /** @typedef {import("./roster-view.js").Roster} Roster */
 /** @typedef {import("./roster-view.js").Averages} Averages */
+/** @typedef {import("./roster-view.js").RosterSort} RosterSort */
 /** @typedef {{ at: number, roster: Roster | null, averages: Averages[], isLoading: boolean }} RosterRead */
+/** @typedef {{ team: string, year: number, roster: Roster, averages: Averages[], sort: RosterSort }} SavedRoster */
 
 const FETCH_TIMEOUT_MS = 15 * 1000;
 // A roster changes with a signing or an injury, and the averages after each game.
@@ -117,6 +120,47 @@ export function fillRoster(team) {
   }
   shownTeam = team;
   renderSection();
+}
+
+/** @param {any} sort */
+const isSort = (sort) => typeof sort?.key === "string" && typeof sort.isDescending === "boolean";
+
+/** @param {any} saved */
+const isSavedRoster = (saved) =>
+  typeof saved?.team === "string" &&
+  typeof saved.year === "number" &&
+  Array.isArray(saved.roster?.players) &&
+  Array.isArray(saved.averages) &&
+  isSort(saved.sort);
+
+/**
+ * What the section shows, with only its own players' averages, for the team's sheet to keep.
+ * @returns {SavedRoster | null}
+ */
+export function readShownRoster() {
+  const read = shownTeam ? reads.get(`${shownTeam}:${session.year}`) : null;
+  if (!shownTeam || !read?.roster) return null;
+  const ids = new Set(read.roster.players.map((player) => player.id));
+  return {
+    team: shownTeam,
+    year: session.year,
+    roster: read.roster,
+    averages: read.averages.filter((each) => ids.has(String(each.id))),
+    sort,
+  };
+}
+
+/**
+ * Takes back what the section showed, to show while it reads again, unless it has read since.
+ * @param {unknown} saved what readShownRoster found
+ */
+export function reopenRoster(saved) {
+  if (!isSavedRoster(saved)) return;
+  const { team, year, roster, averages, sort: savedSort } = /** @type {SavedRoster} */ (saved);
+  const key = `${team}:${year}`;
+  if (!reads.has(key)) reads.set(key, { at: 0, roster, averages, isLoading: false });
+  sortedTeam = team;
+  sort = savedSort;
 }
 
 /** @param {Event} event */

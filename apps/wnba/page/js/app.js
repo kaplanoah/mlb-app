@@ -30,7 +30,7 @@ import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
 import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
 import { refreshPlayerSheet, startPlayerSheet } from "./player-sheet.js";
-import { fillRoster, startRosterSection } from "./roster-section.js";
+import { fillRoster, readShownRoster, reopenRoster, startRosterSection } from "./roster-section.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
 import { isPastSeason, session } from "./session.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
@@ -189,6 +189,7 @@ async function boot() {
     isTeam: (team) => team in TEAMS,
     renderSheet: renderShownTeam,
     fillSections: fillRoster,
+    sectionsKeeper: { read: readShownRoster, reopen: reopenRoster },
   });
   startRosterSection();
   startPlayerSheet();
