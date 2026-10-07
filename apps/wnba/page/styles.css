@@ -2604,9 +2604,15 @@ table.player-game td {
   font-weight: 500;
   color: var(--ink);
 }
-/* Its lines run even, so no word sits alone on the last one. */
+/* The notes under the rows sit a little further from them than the rows from each other, and
+   nearer each other. Each one's lines run even, so no word sits alone on the last one. */
+.player-rank-notes {
+  display: grid;
+  gap: 7px;
+  margin-top: 5px;
+}
 .player-rank-note {
-  margin: 8px 0 0;
+  margin: 0;
   font-size: var(--size-glance);
   line-height: 1.35;
   color: var(--ink-dim);

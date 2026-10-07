@@ -6,6 +6,10 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
+    at: "2026-10-07T22:35:00Z",
+    text: html`Player pages now include turnover stats. From a team page, tap <b>Roster</b> and then a player's name.`,
+  },
+  {
     at: "2026-10-06T14:55:00Z",
     text: "More leading scorers shown on team and game pages, with more stats for each scorer, and player names are now tappable",
   },

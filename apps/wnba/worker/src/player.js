@@ -31,16 +31,19 @@ const LEADER_GAMES = 31;
  * @typedef {object} RankedStat
  * @property {string} key what the page calls it
  * @property {(row: Record<string, number>) => number | null} read her number, from her totals
- * @property {(row: Record<string, number>) => number} count what the rule counts, from her totals
- * @property {number} needed how many of it the rule asks for over a whole season
+ * @property {(row: Record<string, number>) => number} [count] what the rule counts, from her
+ *   totals, for a stat a season's total ranks her in short of the games
+ * @property {number} [needed] how many of it the rule asks for over a whole season
  * @property {boolean} [isShare] whether the rule counts only what she counts, not her games
+ * @property {boolean} [isFewestFirst] whether the fewest ranks first, as turnovers do
  */
 
 /**
  * @param {string} total
  * @returns {(row: Record<string, number>) => number | null}
  */
-const readPerGame = (total) => (row) => (row.GP > 0 ? row[total] / row.GP : null);
+const readPerGame = (total) => (row) =>
+  row.GP > 0 && row[total] != null ? row[total] / row.GP : null;
 
 /**
  * @param {string} made
@@ -57,6 +60,7 @@ const RANKED_STATS = [
   { key: "assists", read: readPerGame("AST"), count: (row) => row.AST, needed: 150 },
   { key: "steals", read: readPerGame("STL"), count: (row) => row.STL, needed: 55 },
   { key: "blocks", read: readPerGame("BLK"), count: (row) => row.BLK, needed: 40 },
+  { key: "turnovers", read: readPerGame("TOV"), isFewestFirst: true },
   {
     key: "fieldGoalShare",
     read: readShare("FGM", "FGA"),
@@ -94,6 +98,7 @@ export const TOTALS_COLUMNS = [
   "AST",
   "STL",
   "BLK",
+  "TOV",
   "FGM",
   "FGA",
   "FG3M",
@@ -190,15 +195,23 @@ function countSeasonGames(teamGames) {
 const prorate = (seasonGames, needed) => Math.ceil((needed * seasonGames) / FULL_SEASON_GAMES);
 
 /**
+ * Whether a player's totals reach the season's total that ranks her in a stat short of the games.
+ * @param {Record<string, number>} row
+ * @param {RankedStat} stat
+ * @param {number} seasonGames
+ */
+const hasCount = (row, stat, seasonGames) =>
+  stat.count != null && stat.needed != null && stat.count(row) >= prorate(seasonGames, stat.needed);
+
+/**
  * Whether a player's totals meet the rule for a stat.
  * @param {Record<string, number>} row
  * @param {RankedStat} stat
  * @param {number} seasonGames
  */
 function meetsRule(row, stat, seasonGames) {
-  const hasCount = stat.count(row) >= prorate(seasonGames, stat.needed);
-  if (stat.isShare) return hasCount;
-  return hasCount || row.GP >= prorate(seasonGames, LEADER_GAMES);
+  if (stat.isShare) return hasCount(row, stat, seasonGames);
+  return hasCount(row, stat, seasonGames) || row.GP >= prorate(seasonGames, LEADER_GAMES);
 }
 
 /**
@@ -233,6 +246,17 @@ export function describeRanks(totals, teamGames) {
 const roundForCurve = (value) => Math.round(value * 10000) / 10000;
 
 /**
+ * How many ranked numbers beat hers: the higher ones, or the lower for a stat the fewest leads.
+ * @param {number[]} values
+ * @param {number} value
+ * @param {RankedStat} stat
+ */
+const countAhead = (values, value, stat) =>
+  stat.isFewestFirst
+    ? values.filter((each) => each < value - SAME_NUMBER).length
+    : values.filter((each) => each > value + SAME_NUMBER).length;
+
+/**
  * Her number in a stat, and, among the players who meet the rule, her place and every number, from
  * the lowest, for the page to draw how they spread.
  * @param {Record<string, number>} her
@@ -243,9 +267,17 @@ function rankStat(her, ranks, stat) {
   const value = stat.read(her);
   const values = ranks.values[stat.key] ?? [];
   const isRanked = value != null && meetsRule(her, stat, ranks.seasonGames);
-  const rank = isRanked ? 1 + values.filter((each) => each > value + SAME_NUMBER).length : null;
+  const rank = isRanked ? 1 + countAhead(values, value, stat) : null;
   return { key: stat.key, value, rank, count: values.length, values: values.map(roundForCurve) };
 }
+
+/**
+ * Whether her totals have a stat: a per-game stat is missing only from totals saved before the
+ * store kept its column, while a percentage she took no shots for is kept, shown with no number.
+ * @param {Record<string, number>} her
+ * @param {RankedStat} stat
+ */
+const hasStat = (her, stat) => !!stat.isShare || stat.read(her) != null;
 
 /**
  * Her regular season: her games, her averages, and her place in each ranked stat, or null before
@@ -264,7 +296,9 @@ export function describeRegularSeason(her, ranks) {
       assists: her.AST / her.GP,
       minutes: her.MIN / her.GP,
     },
-    stats: RANKED_STATS.map((stat) => rankStat(her, ranks, stat)),
+    stats: RANKED_STATS.filter((stat) => hasStat(her, stat)).map((stat) =>
+      rankStat(her, ranks, stat),
+    ),
   };
 }
 
@@ -300,6 +334,7 @@ const describeGame = (game, isPlayoffs, teamGames) => ({
   minutes: game.MIN,
   steals: game.STL,
   blocks: game.BLK,
+  turnovers: game.TOV,
   fieldGoalsMade: game.FGM,
   fieldGoalsAttempted: game.FGA,
   threesMade: game.FG3M,
