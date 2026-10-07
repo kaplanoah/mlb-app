@@ -1896,12 +1896,20 @@ const measurePillFromRest = (page, name) =>
     };
   }, name);
 
-/** How far a touch has raised the tab bar's pill, from 0 at rest to 1, and how opaque its fill is. */
+/**
+ * How far a touch has raised the tab bar's pill, from 0 at rest to 1, how opaque its fill is, and
+ * how bright its rim's light is at its brightest.
+ */
 const readPillLift = (page) =>
   page.locator(".tab-pill").evaluate((pill) => {
     const style = getComputedStyle(pill);
     const fill = style.backgroundColor.match(/[\d.]+/g).map(Number);
-    return { lift: Number(style.getPropertyValue("--lift") || 0), fillAlpha: fill[3] ?? 1 };
+    const rims = [...style.boxShadow.matchAll(/rgba\(255, 248, 236, ([\d.]+)\)/g)];
+    return {
+      lift: Number(style.getPropertyValue("--lift") || 0),
+      fillAlpha: fill[3] ?? 1,
+      rimAlpha: Math.max(0, ...rims.map((rim) => Number(rim[1]))),
+    };
   });
 
 /** @param {import("@playwright/test").Page} page @param {string} name */
@@ -1911,7 +1919,7 @@ async function pressTab(page, name) {
   await page.mouse.down();
 }
 
-test("on a phone, a press lifts the tab bar's pill into clear glass, which settles on the tab once released", async ({
+test("on a phone, a press lifts the tab bar's pill into glass with a faint rim, which settles on the tab once released", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -1923,7 +1931,9 @@ test("on a phone, a press lifts the tab bar's pill into clear glass, which settl
 
   const lifted = await readPillLift(page);
   expect(lifted.lift).toBeGreaterThan(0.9);
-  expect(lifted.fillAlpha).toBeLessThan(resting.fillAlpha / 2);
+  expect(lifted.fillAlpha).toBeLessThan(resting.fillAlpha * 0.7);
+  expect(lifted.rimAlpha).toBeGreaterThan(0);
+  expect(lifted.rimAlpha).toBeLessThanOrEqual(0.1);
   expect((await measurePillFromRest(page, "Games")).extraHeight).toBeGreaterThan(5);
   await page.mouse.up();
   await page.clock.runFor(2000);

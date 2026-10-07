@@ -149,6 +149,8 @@
   --tab-bar-edge: var(--edge);
   --tab-bar-ink: var(--ink);
   --tab-bar-pill: var(--edge);
+  /* Walnut's cream, in Maple too. */
+  --switch-knob: #f1e9df;
   --display: "Barlow", system-ui, sans-serif;
   --numbers: "Barlow Condensed", "Arial Narrow", sans-serif;
   --heading: "Barlow Condensed", "Arial Narrow", sans-serif;
