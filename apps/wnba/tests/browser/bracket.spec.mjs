@@ -475,6 +475,7 @@ test("a round's Best of, in the text face, sits half a pixel above its name's ba
 
 test("a round's Best of sits just after its name", async ({ page }) => {
   await openApp(page);
+  await expect(readRoundName(page, 1).locator(".best-of")).toBeVisible();
   const [name, bestOf] = await readRoundName(page, 1)
     .locator(":scope > span")
     .evaluateAll((parts) => parts.map((part) => part.getBoundingClientRect().toJSON()));
