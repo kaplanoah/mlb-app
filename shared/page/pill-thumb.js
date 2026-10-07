@@ -1,5 +1,6 @@
 // The accent block under a pill's shown name. It follows a swipe between names of any width, and
-// slides straight to a name tapped, past any between, whose names stay as they are.
+// slides straight to a name tapped, past any between, each name's letters taking the color of
+// whatever is under them.
 
 /**
  * @param {number} from
@@ -25,8 +26,10 @@ export function createPillThumb(tabList) {
     const width = blend(tabs[index].offsetWidth, next.offsetWidth, share);
     thumb.style.setProperty("--thumb-left", `${left}px`);
     thumb.style.setProperty("--thumb-width", `${width}px`);
-    for (const [tabIndex, tab] of tabs.entries())
-      tab.style.setProperty("--nearness", String(Math.max(0, 1 - Math.abs(tabIndex - position))));
+    for (const tab of tabs) {
+      tab.style.setProperty("--cover-start", `${left - tab.offsetLeft}px`);
+      tab.style.setProperty("--cover-end", `${left + width - tab.offsetLeft}px`);
+    }
   }
 
   /**
