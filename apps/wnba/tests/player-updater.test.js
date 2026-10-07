@@ -135,14 +135,19 @@ function createDocs(initial) {
   const stored = new Map(Object.entries(initial));
   /** @type {string[]} */
   const writes = [];
+  /** @type {string[]} */
+  const lists = [];
   return {
     stored,
     writes,
+    lists,
     read: async (/** @type {string} */ key) => structuredClone(stored.get(key)) ?? null,
-    list: async (/** @type {string} */ collection) =>
-      [...stored]
+    list: async (/** @type {string} */ collection) => {
+      lists.push(collection);
+      return [...stored]
         .filter(([key]) => key.startsWith(`${collection}/`))
-        .map(([, doc]) => structuredClone(doc)),
+        .map(([, doc]) => structuredClone(doc));
+    },
     write: async (/** @type {string} */ key, /** @type {any} */ doc) => {
       writes.push(key);
       stored.set(key, structuredClone(doc));
@@ -513,4 +518,35 @@ test("a count the store can't take still answers the sheet", async (t) => {
   );
 
   assert.equal(response.status, 200);
+});
+
+test("once every past season is filled, a run lists the seasons again only when the current one changes", async () => {
+  const { docs, runJob, wait } = createRun();
+  await runJob();
+  wait(5);
+  await runJob();
+  const listings = docs.lists.length;
+
+  wait(5);
+  await runJob();
+  wait(24 * 60);
+  await runJob();
+  assert.equal(docs.lists.length, listings);
+
+  docs.stored.set("live/current", { season: 2027 });
+  docs.stored.set("seasons/2027", { year: 2027, games: [], series: [] });
+  wait(5);
+  await runJob();
+
+  assert.deepEqual(docs.lists.slice(listings), ["seasons"]);
+  assert.equal(docs.stored.get(STATUS_KEY).pastSeason.season, 2026);
+});
+
+test("past seasons filled with other columns are listed again", async () => {
+  const { docs, storage, runJob } = createRun();
+  await storage.put("allFilled", "2026 PLAYER_ID PTS");
+
+  await runJob();
+
+  assert.deepEqual(docs.lists, ["seasons"]);
 });

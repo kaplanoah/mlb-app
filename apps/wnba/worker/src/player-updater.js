@@ -110,6 +110,12 @@ const nameFilledKey = (season) => `filled:${season}`;
 const FILLED_COLUMNS = [
   ...new Set([...TOTALS_COLUMNS, ...GAME_LOG_COLUMNS, ...TEAM_GAME_COLUMNS]),
 ].join(" ");
+// Says every past season was filled with these columns while this one was current, so a run lists
+// the store's seasons again only once the store moves on, which makes the current season a past
+// one, or the sheets come to read another column.
+const ALL_FILLED_KEY = "allFilled";
+/** @param {number} current */
+const describeAllFilled = (current) => `${current} ${FILLED_COLUMNS}`;
 
 /**
  * How many of a season's games the store has seen end.
@@ -330,6 +336,8 @@ function createStoreKeeper() {
    * @param {number} current
    */
   async function fillPastSeason(context, current) {
+    const allFilled = describeAllFilled(current);
+    if ((await context.storage.get(ALL_FILLED_KEY)) === allFilled) return;
     for (const season of await listPastSeasons(context.docs, current)) {
       if ((await context.storage.get(nameFilledKey(season))) === FILLED_COLUMNS) continue;
       const isWhole = await updateSeason(context, season, null);
@@ -337,6 +345,7 @@ function createStoreKeeper() {
       if (isWhole) await context.storage.put(nameFilledKey(season), FILLED_COLUMNS);
       return;
     }
+    await context.storage.put(ALL_FILLED_KEY, allFilled);
   }
 
   /**
