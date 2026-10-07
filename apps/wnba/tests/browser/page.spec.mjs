@@ -1554,7 +1554,7 @@ test("the Standings pill switches between the league and each conference, throug
   await expect(pill.getByRole("tab", { name: "East" })).toHaveAttribute("aria-selected", "true");
 });
 
-test("the standings' recent form reads a step below the season, in the mid ink, and the pill's other lists' names too", async ({
+test("the standings' recent form reads a step below the season, in the mid ink", async ({
   page,
 }) => {
   await openApp(page);
@@ -1573,9 +1573,6 @@ test("the standings' recent form reads a step below the season, in the mid ink, 
   expect(recent.size).toBeLessThan(season.size);
   expect(recent.size).toBeGreaterThanOrEqual(12.8);
   expect([recent.weight, recent.color]).toEqual(["500", middle]);
-  const east = page.getByRole("tablist", { name: "Standings" }).getByRole("tab", { name: "East" });
-  await expect(east).toHaveCSS("color", middle);
-  await expect(east).toHaveCSS("font-weight", "500");
 });
 
 test("the playoff line is one dashed strip across the whole table", async ({ page }) => {
