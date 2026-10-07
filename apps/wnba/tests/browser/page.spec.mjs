@@ -962,8 +962,10 @@ test.describe("on a phone, a team's sheet", () => {
       ),
     );
     const [teamTop, gameTop, sheetColor] = backgrounds;
+    const floor = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     expect(teamTop).toBe(gameTop);
-    expect([sheetColor, "rgba(0, 0, 0, 0)"]).toContain(teamTop);
+    expect(teamTop).toBe(floor);
+    expect(sheetColor).not.toBe(floor);
     const top = await sheet.locator(".sheet-top").boundingBox();
     const cardTitle = await sheet.locator(".game-card .sheet-part-head").first().boundingBox();
     const cards = await sheet.locator(".game-cards").boundingBox();
@@ -974,7 +976,7 @@ test.describe("on a phone, a team's sheet", () => {
     expect(cardTitle.y - (top.y + top.height)).toBeCloseTo(11.5, 0);
     expect(firstPart.y - (cards.y + cards.height)).toBeCloseTo(16, 0);
     await expect(sheet.locator(".sheet-top")).toHaveCSS("border-bottom-width", "0px");
-    await expect(sheet.locator(".sheet-top")).toHaveCSS("box-shadow", "none");
+    await expect(sheet.locator(".sheet-top")).not.toHaveCSS("box-shadow", "none");
   });
 });
 
@@ -1627,6 +1629,26 @@ test("the standings' teams sit on one raised card inside its edge, with their co
   expect(new Set(inside.map((cell) => cell.bottom))).toEqual(new Set([null]));
   expect(new Set(last.map((cell) => cell.bottom))).toEqual(new Set([edge]));
   expect(rows).toBeGreaterThan(3);
+});
+
+test("the standings' widest value in the last column ends 10px in from the card's right edge", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  const table = page.locator("#standings-league table.standings");
+  await expect(table.locator("tbody tr").first()).toBeVisible();
+  const rooms = await table.locator("tbody td:last-child").evaluateAll((cells) =>
+    cells.map((cell) => {
+      const text = document.createRange();
+      text.selectNodeContents(cell);
+      const edge =
+        cell.getBoundingClientRect().right - parseFloat(getComputedStyle(cell).borderRightWidth);
+      return edge - text.getBoundingClientRect().right;
+    }),
+  );
+
+  expect(Math.min(...rooms)).toBeCloseTo(10, 0);
 });
 
 test("the standings' ranks sit 10px in from the card's edge and 6px before the names, which all start in one place", async ({

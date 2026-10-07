@@ -2,18 +2,19 @@
 // modal on wider screens. A sheet is a page in a dialog.
 //
 // The stack: a dialog with a .sheet-row holds several sheets, one over another, like a game's, a
-// team's, and a player's. A sheet opened from another slides in over it from the right, the one
-// under it moving 30% left, with a back arrow in place of its close caret, named after the one
-// under it. The arrow, or a swipe right that the finger drags, slides it away, the one under it
-// coming back in, and it leaves the stack and lets go of what it showed. Only the sheet on top is
-// drawn at rest; the ones under it are hidden and inert. A sheet opened to show something new
-// always comes in over the shown one, even when the stack already holds it: it leaves a copy in
-// its place, a still picture of what it showed, and once the stack comes back to rest on the copy,
-// the sheet takes back what the copy showed, scrolled where it was, and the copy goes. Only a tap
-// on what the sheet under the shown one shows goes back to it. The caret, a click on the backdrop,
-// Escape, and on phones a swipe down close the dialog (sheet-swipe.js). A page that loads again
-// shows the sheets it showed before, where they were scrolled (show-last-drawn.js and
-// sheet-reopen.js). The stack and a sheet's sections both move their panels with slide-panels.js.
+// team's, and a player's. A sheet opened from another slides in from the right beside it, the one
+// under it moving out to the left, the row's gap between them, with a back arrow in place of its
+// close caret, named after the one under it. The arrow, or a swipe right that the finger drags,
+// slides it away, the one under it coming back in, and it leaves the stack and lets go of what it
+// showed. Only the sheet on top is drawn at rest; the ones under it are hidden and inert. A sheet
+// opened to show something new always comes in after the shown one, even when the stack already
+// holds it: it leaves a copy in its place, a still picture of what it showed, and once the stack
+// comes back to rest on the copy, the sheet takes back what the copy showed, scrolled where it was,
+// and the copy goes. Only a tap on what the sheet under the shown one shows goes back to it. The
+// caret, a click on the backdrop, Escape, and on phones a swipe down close the dialog
+// (sheet-swipe.js). A page that loads again shows the sheets it showed before, where they were
+// scrolled (show-last-drawn.js and sheet-reopen.js). The stack and a sheet's sections both move
+// their panels with slide-panels.js.
 //
 // Three rules hold for every motion here, and for the tab bar and pager too:
 // - Nothing asks for a layer ahead of time: the only will-change is on [data-dragged], which a
@@ -58,10 +59,6 @@ import { createSlidePanels } from "./slide-panels.js";
  * A copy's sheet, what that showed as it was copied, and where it and each part of it were scrolled.
  * @typedef {{ sheet: HTMLElement, subject: unknown, scrolls: ScrollSpot[] }} SheetCopy
  */
-
-// A sheet under the one on top sits this share of its width to the left, as the phone's own do, so
-// it comes in from there as the one on top slides away.
-const UNDER_SHARE = 0.3;
 
 /** @type {WeakMap<HTMLElement, SheetParts>} */
 const sheetParts = new WeakMap();
@@ -138,15 +135,12 @@ export const listOpenDialogs = () =>
     .map((dialog) => ({ dialog, sheets: listStack(dialog), shown: readShownIndex(dialog) }));
 
 /**
- * Where a sheet sits for the row's position: under the one on top a little way left, on top, or
+ * Where a sheet sits for the row's position: past the left edge, under the one on top, on top, or
  * past the right edge, waiting to come in.
  * @param {number} index
  * @param {number} position
  */
-function placeSheet(index, position) {
-  if (index < position) return -UNDER_SHARE * Math.min(position - index, 1);
-  return Math.min(index - position, 1);
-}
+const placeSheet = (index, position) => Math.max(-1, Math.min(index - position, 1));
 
 /**
  * @param {HTMLElement | undefined} button
@@ -305,11 +299,38 @@ function settleOnShown(dialog) {
 }
 
 /**
+ * How far down the row two sheets' bands both reach, as far as each still shows.
+ * @param {HTMLElement} row
+ * @param {(HTMLElement | undefined)[]} sheets
+ */
+function measureSharedBand(row, sheets) {
+  const rowTop = row.getBoundingClientRect().top;
+  const reaches = sheets.map((sheet) => {
+    const top = sheet?.querySelector(".sheet-top");
+    return top ? top.getBoundingClientRect().bottom - rowTop : 0;
+  });
+  return Math.max(0, Math.min(...reaches));
+}
+
+// A slide a tap starts carries two sheets as one, so the row fills the gap between their bands down
+// to where the shorter one ends, as sheet.css draws it from --sheet-band-joined.
+/**
+ * @param {HTMLDialogElement} dialog
+ * @param {(HTMLElement | undefined)[]} sheets
+ */
+function joinBands(dialog, sheets) {
+  const row = findRow(dialog);
+  if (row) row.style.setProperty("--sheet-band-joined", `${measureSharedBand(row, sheets)}px`);
+}
+
+/**
  * @param {HTMLDialogElement} dialog
  * @param {number} index
  */
 function slideToSheet(dialog, index) {
-  noteSheetStep(`slide to ${nameSheet(listStack(dialog)[index])}`);
+  const sheets = listStack(dialog);
+  noteSheetStep(`slide to ${nameSheet(sheets[index])}`);
+  joinBands(dialog, [sheets[readShownIndex(dialog)], sheets[index]]);
   panelsByDialog.get(dialog)?.slideTo(index);
 }
 
@@ -357,7 +378,7 @@ function showIn(sheet, opening) {
 }
 
 /**
- * Brings a sheet into the open dialog over the shown one, in place of any after it, sliding in
+ * Brings a sheet into the open dialog after the shown one, in place of any after it, sliding in
  * from the right edge, or from where it was as it slid away, leaving a copy wherever the stack
  * still holds it, or slides back to the sheet under the shown one when that shows the same.
  * @param {HTMLDialogElement} dialog
