@@ -103,7 +103,7 @@ const listStoryStates = (storage) =>
 const listCardTitles = (doc) =>
   doc.cards.map(({ lead, more }) => [lead.title, ...more.map((story) => story.title)]);
 
-test("a run has Claude judge the new stories in batches, and saves a card for each it keeps, newest first", async () => {
+test("a run has Claude judge every waiting story, twelve at a time, and saves a card for each it keeps, newest first", async () => {
   const requests = [];
   const { docs, runJob } = createRun();
 
@@ -111,14 +111,14 @@ test("a run has Claude judge the new stories in batches, and saves a card for ea
 
   assert.deepEqual(
     requests.map((request) => readStories(request.body.messages[0].content).length),
-    [12, 12],
+    [12, 12, 8],
   );
   assert.equal(requests[0].headers["x-api-key"], "test-key");
   assert.equal(requests[0].body.model, NEWS_MODEL);
   assert.deepEqual(requests[0].body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
 
   const { cards } = docs.stored.get("news/cards");
-  assert.equal(cards.length, 24);
+  assert.equal(cards.length, 32);
   const published = cards.map((card) => Date.parse(card.lead.publishedAt));
   assert.deepEqual(
     published,
@@ -180,9 +180,12 @@ test("a story Claude drops as told already gets no card", async () => {
   assert.ok(!titles.some((title) => title.startsWith("Film review")));
 });
 
+// The second batch comes after the first batch's twelve stories each lead a card.
+const isSecondBatch = (cards) => cards.length === 12;
+
 // The first card's news, told again by the first story of the second batch.
 const tellFirstCardAgain = (lead) => (story, cards) =>
-  cards.length > 0 && story.id === cards.length + 1 ? { same: 1, lead } : {};
+  isSecondBatch(cards) && story.id === cards.length + 1 ? { same: 1, lead } : {};
 
 test("a story that adds to a card's news goes under its lead", async () => {
   const requests = [];
@@ -194,7 +197,7 @@ test("a story that adds to a card's news goes under its lead", async () => {
   const lead = readStories(first)[0].title;
   const added = readStories(second)[0].title;
   const titles = listCardTitles(docs.stored.get("news/cards"));
-  assert.equal(titles.length, 23);
+  assert.equal(titles.length, 31);
   assert.deepEqual(
     titles.find(([title]) => title === lead),
     [lead, added],
@@ -206,7 +209,7 @@ test("a story that tells a card's news better leads it, and the stories that led
   const { docs, runJob } = createRun();
   // In the second batch, the first new story goes under the first card, and the next leads it.
   const place = (story, cards) => {
-    if (cards.length === 0) return {};
+    if (!isSecondBatch(cards)) return {};
     if (story.id === cards.length + 1) return { same: 1, lead: false };
     if (story.id === cards.length + 2) return { same: 1, lead: true };
     return {};
@@ -218,7 +221,7 @@ test("a story that tells a card's news better leads it, and the stories that led
   const [oldLead] = readStories(first).map((story) => story.title);
   const [added, better] = readStories(second).map((story) => story.title);
   const titles = listCardTitles(docs.stored.get("news/cards"));
-  assert.equal(titles.length, 22);
+  assert.equal(titles.length, 30);
   const card = titles.find(([title]) => title === better);
   assert.deepEqual(card.toSorted(), [better, oldLead, added].toSorted());
   assert.ok(!titles.some(([title]) => title === oldLead));
@@ -232,8 +235,8 @@ test("a new story can tell the news of an earlier one in its batch", async () =>
   await runJob(createFetch({ place }));
 
   const titles = listCardTitles(docs.stored.get("news/cards"));
-  assert.equal(titles.length, 22);
-  assert.equal(titles.filter((card) => card.length === 2).length, 2);
+  assert.equal(titles.length, 29);
+  assert.equal(titles.filter((card) => card.length === 2).length, 3);
 });
 
 /** @param {{ body: any }[]} requests */
@@ -275,10 +278,10 @@ test("the status counts each day's calls and tokens, and names the feeds that di
   assert.deepEqual(status.missing, ["winsidr"]);
   assert.equal(status.problem, "");
   assert.deepEqual(status.usage["2026-10-05"], {
-    calls: 2,
-    input: 200,
-    output: 100,
-    cacheRead: 1800,
+    calls: 3,
+    input: 300,
+    output: 150,
+    cacheRead: 2700,
     cacheWrite: 0,
   });
 });
@@ -295,7 +298,7 @@ test("a story Claude didn't answer for waits for the next run, and one it labele
   const asked = requests.flatMap((request) =>
     readStories(request.body.messages[0].content).map((story) => story.title),
   );
-  assert.ok(waiting > 1);
+  assert.ok(waiting > 0);
   assert.ok(asked.some((title) => title.startsWith("Film review")));
   assert.equal(asked.length, waiting);
 });
