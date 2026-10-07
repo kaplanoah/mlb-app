@@ -2,6 +2,9 @@
 // sections. A finger drags the shown one toward a neighbor, and once it lifts, or a tap asks, the
 // panels slide to rest on one. Where the panels are is one number, the position, which runs from
 // 0 at the first panel to the last's index; each caller says where a panel sits for a position.
+// Panels a whole width apart sit the row's --panel-gap apart too, so the row's own color shows
+// between them while they move, and the row carries data-sliding until they rest: "finger" while
+// a finger drags them and as they settle from its swipe, and "tap" for a slide a tap asked for.
 // A slide is an animation with no fill, so the end state goes into the panels' style as it starts,
 // and once it ends, or is cancelled, the panels settle: all but the shown one hidden and inert,
 // with nothing left animating.
@@ -21,8 +24,19 @@ export const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: r
  */
 export const settleAfter = (animation, settle) => animation.finished.then(settle, settle);
 
-/** @param {number} share of the row's width, right of where the shown panel rests */
-const writeTransform = (share) => (share ? `translateX(${share * 100}%)` : "");
+/**
+ * @param {number} share of the row's width, right of where the shown panel rests
+ * @param {number} gap in pixels, between panels a whole width apart
+ */
+function writeTransform(share, gap) {
+  if (!share) return "";
+  if (!gap) return `translateX(${share * 100}%)`;
+  const offset = share * gap;
+  return `translateX(calc(${share * 100}% ${offset < 0 ? "-" : "+"} ${Math.abs(offset)}px))`;
+}
+
+/** @param {HTMLElement} row */
+const readGap = (row) => parseFloat(getComputedStyle(row).getPropertyValue("--panel-gap")) || 0;
 
 /**
  * @typedef {object} PanelRow
@@ -31,7 +45,7 @@ const writeTransform = (share) => (share ? `translateX(${share * 100}%)` : "");
  *   for a position, as a share of the row's width right of where the shown panel rests
  * @property {(direction: -1 | 1) => boolean} canGo whether a swipe can bring in the panel before
  *   (-1) or after (1) the shown one
- * @property {(index: number) => void} onSettle runs once the panels rest on the one at `index`
+ * @property {(index: number) => void} [onSettle] runs once the panels rest on the one at `index`
  * @property {(index: number, isSliding: boolean) => void} [onShow] runs as the panels set off
  *   for the one at `index`, or jump to it
  * @property {(position: number) => void} [onDrag] runs as a finger moves the panels
@@ -49,8 +63,9 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
 
   /** @param {number} at */
   function placePanels(at) {
+    const gap = readGap(row);
     listPanels().forEach((panel, index) => {
-      panel.style.transform = writeTransform(place(index, at));
+      panel.style.transform = writeTransform(place(index, at), gap);
     });
   }
 
@@ -72,19 +87,21 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
     placePanels(at);
   }
 
-  /** @param {boolean} isMoving */
-  function revealPanels(isMoving) {
-    for (const panel of listPanels()) panel.style.visibility = isMoving ? "visible" : "";
+  /** @param {"finger" | "tap" | null} cause what moves the panels, or null once they rest */
+  function revealPanels(cause) {
+    if (cause) row.setAttribute("data-sliding", cause);
+    else row.removeAttribute("data-sliding");
+    for (const panel of listPanels()) panel.style.visibility = cause ? "visible" : "";
   }
 
   function rest() {
     position = shown;
     placePanels(shown);
+    revealPanels(null);
     listPanels().forEach((panel, index) => {
-      panel.style.visibility = "";
       panel.inert = index !== shown;
     });
-    onSettle(shown);
+    onSettle?.(shown);
   }
 
   /**
@@ -102,21 +119,23 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
    * Slides the panels from wherever they are to rest on the one at `index`, which counts as shown
    * from the start.
    * @param {number} index
+   * @param {"finger" | "tap"} [cause] a finger's swipe the slide finishes, or a tap
    */
-  function slideTo(index) {
+  function slideTo(index, cause = "tap") {
     hold();
     const from = position;
     shown = index;
     onShow?.(index, true);
     if (from === index || prefersReducedMotion()) return rest();
-    revealPanels(true);
+    revealPanels(cause);
     position = index;
+    const gap = readGap(row);
     const animations = listPanels().map((panel, panelIndex) => {
-      const to = writeTransform(place(panelIndex, index));
+      const to = writeTransform(place(panelIndex, index), gap);
       panel.style.transform = to;
       return panel.animate(
         [
-          { transform: writeTransform(place(panelIndex, from)) || "none" },
+          { transform: writeTransform(place(panelIndex, from), gap) || "none" },
           { transform: to || "none" },
         ],
         { duration: SHEET_MOTION_MS, easing: SHEET_EASING },
@@ -132,14 +151,16 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
   }
 
   /**
-   * Moves the panels with a finger, a share of the row's width toward a neighbor.
+   * Moves the panels with a finger, a share of the row's width toward a neighbor. Neighbors sit a
+   * width and a gap apart, so the panel under the finger moves exactly as far as the finger does.
    * @param {-1 | 1} direction
    * @param {number} share
    */
   function drag(direction, share) {
     hold();
-    position = shown + direction * share;
-    revealPanels(true);
+    const width = row.clientWidth || 1;
+    position = shown + direction * share * (width / (width + readGap(row)));
+    revealPanels("finger");
     placePanels(position);
     onDrag?.(position);
   }
@@ -147,7 +168,7 @@ export function createSlidePanels(row, { listPanels, place, canGo, onSettle, onS
   followSideSwipes(row, {
     canGo,
     follow: drag,
-    settle: (direction, isGoing) => slideTo(isGoing ? shown + direction : shown),
+    settle: (direction, isGoing) => slideTo(isGoing ? shown + direction : shown, "finger"),
   });
 
   return { hold, jumpTo, slideTo, readShown: () => shown };

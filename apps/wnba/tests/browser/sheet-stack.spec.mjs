@@ -4,8 +4,10 @@ import { expectShown, readLeft } from "../../../../tests/browser/sheet-row.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
 
 const PHONE = { width: 390, height: 844 };
-// How far left, as a share of its width, a sheet waits under the one over it.
-const UNDER_SHARE = 0.3;
+// The room between two sheets side by side, which the WNBA's --sheet-gap sets.
+const GAP_PX = 15;
+// How far under a band's top every sheet's close or back button sits.
+const BUTTON_TOP_PX = 10;
 const ACES_AT_FEVER = "Game details: Aces at Fever, First Round Game 2";
 
 /**
@@ -126,6 +128,20 @@ const readRestingLefts = (page) =>
   );
 
 /**
+ * A color a token names, as the page computes it.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} token
+ */
+const readTokenColor = (page, token) =>
+  page.evaluate((name) => {
+    const probe = document.body.appendChild(document.createElement("div"));
+    probe.style.backgroundColor = `var(${name})`;
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  }, token);
+
+/**
  * Whether each step goes the same way as the first, never back.
  * @param {number[]} lefts
  */
@@ -148,7 +164,7 @@ function hasStopOnTheWay(lefts) {
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
-  test("no sheet sets its top apart with a tint or a line, so two sheets side by side show no edge where one ends, nor a game's face-off under its teams", async ({
+  test("every sheet's top is a band of the floor's color over the card's, ending in a line and edged on no other side at rest, with its close or back button in one spot, and a game's band holds its teams", async ({
     page,
   }) => {
     await openApp(page);
@@ -156,32 +172,48 @@ test.describe("with reduced motion", () => {
     await teamSheet.getByRole("tab", { name: "Roster" }).click();
     await page.locator("#rosterSection").getByRole("button", { name: "Aliyah Boston" }).click();
     await expect(page.locator("#playerSheet .player-facts")).toBeVisible();
+    const [floor, card, line] = await Promise.all(
+      ["--bg", "--card", "--edge"].map((token) => readTokenColor(page, token)),
+    );
 
     const sheets = await page.locator(".sheet-page").evaluateAll((pages) =>
       pages.map((sheet) => {
-        const sheetColor = getComputedStyle(sheet).backgroundColor;
-        const tops = [...sheet.querySelectorAll(".sheet-top, .faceoff")].map((element) => {
-          const style = getComputedStyle(element);
-          const isClear = style.backgroundColor === "rgba(0, 0, 0, 0)";
-          return {
-            isSheetColor: isClear || style.backgroundColor === sheetColor,
-            border: style.borderBottomWidth,
-            shadow: style.boxShadow,
-          };
-        });
-        return { id: sheet.id, tops };
+        const top = /** @type {Element} */ (sheet.querySelector(".sheet-top"));
+        const style = getComputedStyle(top);
+        const button = /** @type {Element} */ (
+          [...top.querySelectorAll(".sheet-close, .sheet-back")].find(
+            (element) => getComputedStyle(element).display !== "none",
+          )
+        );
+        return {
+          id: sheet.id,
+          sheet: getComputedStyle(sheet).backgroundColor,
+          band: style.backgroundColor,
+          border: style.borderBottomWidth,
+          shadow: style.boxShadow,
+          hasTeams: !!top.querySelector(".faceoff"),
+          buttonTop: Math.round(
+            button.getBoundingClientRect().top - top.getBoundingClientRect().top,
+          ),
+        };
       }),
     );
 
     expect(sheets.map((sheet) => sheet.id)).toEqual(["gameSheet", "teamSheet", "playerSheet"]);
-    expect(sheets[0].tops).toHaveLength(2);
     for (const sheet of sheets)
-      for (const top of sheet.tops)
-        expect(top, sheet.id).toEqual({ isSheetColor: true, border: "0px", shadow: "none" });
+      expect(sheet, sheet.id).toEqual({
+        id: sheet.id,
+        sheet: card,
+        band: floor,
+        border: "0px",
+        shadow: `${line} 0px -1px 0px 0px inset`,
+        hasTeams: sheet.id === "gameSheet",
+        buttonTop: BUTTON_TOP_PX,
+      });
   });
 
   for (const theme of ["light", "dark"])
-    test(`in ${theme}, every sheet, its roster's pinned cells, and settings are the page's own color, so the cards in them are raised as on the page`, async ({
+    test(`in ${theme}, every sheet and its roster's pinned cells are the card's color, and settings stay the page's own`, async ({
       page,
     }) => {
       await openApp(page);
@@ -192,6 +224,7 @@ test.describe("with reduced motion", () => {
       await roster.getByRole("button", { name: "Aliyah Boston" }).click();
       await expect(page.locator("#playerSheet .player-facts")).toBeVisible();
       const floor = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      const card = await readTokenColor(page, "--card");
 
       const sheetColors = await page
         .locator(".sheet-page")
@@ -199,12 +232,14 @@ test.describe("with reduced motion", () => {
       const pinnedColors = await roster
         .locator("table.roster :is(thead, .roster-player)")
         .evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell).backgroundColor));
-      expect(sheetColors).toEqual([floor, floor, floor]);
-      expect(new Set(pinnedColors)).toEqual(new Set([floor]));
+      expect(sheetColors).toEqual([card, card, card]);
+      expect(new Set(pinnedColors)).toEqual(new Set([card]));
 
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await expect(page.locator(".settings-panel")).toHaveCSS("background-color", floor);
+      await expect(page.locator(".settings-panel .sheet-top")).toHaveCSS("background-color", floor);
+      await expect(page.locator(".settings-panel .sheet-top")).toHaveCSS("box-shadow", "none");
     });
 
   test("on a wide screen, a sheet and settings lift off the page by a shadow", async ({ page }) => {
@@ -308,7 +343,7 @@ test.describe("with reduced motion", () => {
     await expectShown(teamSheet);
   });
 
-  test("a tap on a team in a game's sheet, opened from another team's, brings that team's sheet in over the game's, and back goes to the game, then to the first team where it was", async ({
+  test("a tap on a team in a game's sheet, opened from another team's, brings that team's sheet in beside the game's, and back goes to the game, then to the first team where it was", async ({
     page,
   }) => {
     await page.setViewportSize(PHONE);
@@ -328,11 +363,11 @@ test.describe("with reduced motion", () => {
     const teamSheet = page.locator("#teamSheet");
     await expect(teamSheet.locator("#teamTitle")).toHaveText("Indiana Fever");
     await expectShown(teamSheet);
-    expect(await readLeft(gameSheet)).toBeCloseTo(-PHONE.width * UNDER_SHARE, 0);
+    expect(await readLeft(gameSheet)).toBeCloseTo(-(PHONE.width + GAP_PX), 0);
     const copy = page.locator("#sheetDialog .sheet-page:not([id])");
     await expect(copy.locator(".team-title")).toHaveText("Las Vegas Aces");
     await expect(copy.locator("[id], [data-last-drawn]")).toHaveCount(0);
-    expect(await readLeft(copy)).toBeCloseTo(-PHONE.width * UNDER_SHARE, 0);
+    expect(await readLeft(copy)).toBeCloseTo(-(PHONE.width + GAP_PX), 0);
 
     await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
     await expectShown(gameSheet);
@@ -364,13 +399,13 @@ test.describe("with reduced motion", () => {
   });
 });
 
-test("a team's sheet slides in from the right over the game's, which waits a little way left, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
+test("a team's sheet slides in from the right beside the game's, which waits a gap past the left edge, and slides away again on the back button, a frame at a time, leaving the row once it's gone", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
   const { gameSheet, teamSheet } = await openFeverFromGame(page);
-  expect(await readLeft(gameSheet)).toBeCloseTo(-PHONE.width * UNDER_SHARE, 0);
+  expect(await readLeft(gameSheet)).toBeCloseTo(-(PHONE.width + GAP_PX), 0);
 
   const readLefts = await startTrackingLeft(page, { id: "teamSheet" });
   await teamSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
@@ -426,6 +461,7 @@ test("on a phone, a finger moving a player's sheet brings the game's in from und
     const changes = /** @type {string[]} */ ([]);
     const isMoving = (/** @type {MutationRecord} */ record) =>
       record.attributeName === "style" ||
+      record.attributeName === "data-sliding" ||
       (record.attributeName === "class" &&
         /** @type {Element} */ (record.target).matches(".sheet-row"));
     new MutationObserver((records) =>
@@ -444,7 +480,7 @@ test("on a phone, a finger moving a player's sheet brings the game's in from und
   const release = await drag(page, { x: 60, y: 400 }, { x: 250 });
   const { playerLeft, gameLeft } = await readRestingLefts(page);
   expect(playerLeft).toBeGreaterThan(PHONE.width / 2);
-  expect(gameLeft).toBeCloseTo(-UNDER_SHARE * (PHONE.width - playerLeft), 0);
+  expect(gameLeft).toBeCloseTo(playerLeft - PHONE.width - GAP_PX, 0);
   expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
 
   const readLefts = await startTrackingLeft(page, { id: "playerSheet" });
@@ -456,4 +492,109 @@ test("on a phone, a finger moving a player's sheet brings the game's in from und
   expect(isMonotonic(lefts)).toBe(true);
   expect(lefts.at(-1)).toBeGreaterThan(lefts[0]);
   expect((await readMotions()).filter(({ id }) => id === "sheetDialog")).toEqual([]);
+});
+
+test("on a phone, while a finger moves a player's sheet, the game's stays a gap away on every frame, the sheets' color between them, each band edged on its sides in its line until they rest", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const gameSheet = await openGame(page);
+  await gameSheet.locator(".players .player-open").first().click();
+  const playerSheet = page.locator("#playerSheet");
+  await expectShown(playerSheet);
+  const row = page.locator("#sheetDialog .sheet-row");
+  const [card, line] = await Promise.all(
+    ["--card", "--edge"].map((token) => readTokenColor(page, token)),
+  );
+  await expect(row).toHaveCSS("background-color", card);
+  await page.evaluate(() => {
+    const read = (/** @type {string} */ id) =>
+      /** @type {Element} */ (document.getElementById(id)).getBoundingClientRect();
+    const gaps = /** @type {number[]} */ ([]);
+    const note = () => {
+      const [game, player] = [read("gameSheet"), read("playerSheet")];
+      if (player.left > 0) gaps.push(Math.round(player.left - game.right));
+      if (!(/** @type {any} */ (window).isTrackingDone)) requestAnimationFrame(note);
+    };
+    Object.assign(window, { trackedGaps: gaps, isTrackingDone: false });
+    requestAnimationFrame(note);
+  });
+  const readBandShadow = () =>
+    playerSheet.locator(".sheet-top").evaluate((top) => getComputedStyle(top).boxShadow);
+
+  const release = await drag(page, { x: 60, y: 400 }, { x: 160 }, { durationMs: 600 });
+  await expect(row).toHaveAttribute("data-sliding", "finger");
+  await expect(row).toHaveCSS("background-image", "none");
+  expect(await readBandShadow()).toBe(
+    `${line} 0px -1px 0px 0px inset, ${line} 1px 0px 0px 0px inset, ${line} -1px 0px 0px 0px inset`,
+  );
+  await release();
+  await expectShown(gameSheet);
+  const gaps = await page.evaluate(() => {
+    Object.assign(window, { isTrackingDone: true });
+    return /** @type {number[]} */ (/** @type {any} */ (window).trackedGaps);
+  });
+
+  expect(gaps.length).toBeGreaterThan(2);
+  expect(new Set(gaps)).toEqual(new Set([GAP_PX]));
+  await expect(row).not.toHaveAttribute("data-sliding");
+  await expect(gameSheet.locator(".sheet-top")).toHaveCSS(
+    "box-shadow",
+    `${line} 0px -1px 0px 0px inset`,
+  );
+});
+
+test("on a phone, a tap on back slides the two sheets as one, the gap taking the band's color down to where the shorter band ends, with no line down the bands' sides", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  const gameSheet = await openGame(page);
+  await gameSheet.locator(".players .player-open").first().click();
+  const playerSheet = page.locator("#playerSheet");
+  await expectShown(playerSheet);
+  const line = await readTokenColor(page, "--edge");
+  const sharedBand = await page.evaluate(() => {
+    const row = /** @type {Element} */ (document.querySelector("#sheetDialog .sheet-row"));
+    const readBottom = (/** @type {string} */ id) =>
+      /** @type {Element} */ (document.querySelector(`#${id} .sheet-top`)).getBoundingClientRect()
+        .bottom - row.getBoundingClientRect().top;
+    return Math.min(readBottom("gameSheet"), readBottom("playerSheet"));
+  });
+  await page.evaluate(() => {
+    const row = /** @type {Element} */ (document.querySelector("#sheetDialog .sheet-row"));
+    const top = /** @type {Element} */ (document.querySelector("#playerSheet .sheet-top"));
+    const frames = /** @type {object[]} */ ([]);
+    const note = () => {
+      const style = getComputedStyle(row);
+      if (row.getAttribute("data-sliding"))
+        frames.push({
+          sliding: row.getAttribute("data-sliding"),
+          joined: parseFloat(style.getPropertyValue("--sheet-band-joined")),
+          isFilled: style.backgroundImage.startsWith("linear-gradient"),
+          sides: getComputedStyle(top).boxShadow,
+        });
+      if (!(/** @type {any} */ (window).isTrackingDone)) requestAnimationFrame(note);
+    };
+    Object.assign(window, { trackedFrames: frames, isTrackingDone: false });
+    requestAnimationFrame(note);
+  });
+
+  await playerSheet.getByRole("button", { name: "Back to Game", exact: true }).click();
+  await expectShown(gameSheet);
+  const frames = await page.evaluate(() => {
+    Object.assign(window, { isTrackingDone: true });
+    return /** @type {any[]} */ (/** @type {any} */ (window).trackedFrames);
+  });
+
+  expect(frames.length).toBeGreaterThan(2);
+  for (const frame of frames)
+    expect(frame).toEqual({
+      sliding: "tap",
+      joined: expect.closeTo(sharedBand, 0),
+      isFilled: true,
+      sides: `${line} 0px -1px 0px 0px inset`,
+    });
+  await expect(page.locator("#sheetDialog .sheet-row")).toHaveCSS("background-image", "none");
 });

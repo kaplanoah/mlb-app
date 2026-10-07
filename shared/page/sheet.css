@@ -6,8 +6,14 @@
  * the rest, which scrolls with it and never past its top or bottom. A sheet with sections, like a
  * WNBA team's Team and Roster, holds its top still over them instead, with the sections' pills in
  * it, and each section scrolls on its own, as sheet-sections.js wires them. Apps link it after
- * chrome.css, before their own styles.css, and theme it with chrome.css's tokens and pager.css's
- * --held-bar-line, the line under a still top once a section scrolls under it.
+ * chrome.css, before their own styles.css, and theme it with chrome.css's tokens and these, from
+ * the app's :root:
+ *   --sheet-band         the band across a sheet's top, which holds its title and what goes with
+ *                        it, like a game's teams or a team's pills
+ *   --sheet-band-line    the line the band ends in, and its sides while sheets slide beside one
+ *                        another
+ *   --sheet-gap          the room between two sheets, or two sections, while they slide, in the
+ *                        sheet's own color
  *
  * Its content falls in titled parts, as sheet-part.js builds them, each with an optional note
  * across from its title, which takes the app's --sheet-part-head color. A short status beside a
@@ -58,14 +64,17 @@
   flex-direction: column;
 }
 /* The row holds its sheets one over another, later ones on top, each filling it. sheet.js moves
-   them across with slide-panels.js: a sheet opened from another slides in from the right edge, and slides away again
-   on going back, while the one under it comes in from a little way left. */
+   them across with slide-panels.js: a sheet opened from another slides in from the right edge
+   beside it, and slides away again on going back, while the one under it comes back in from the
+   left, the gap between them the sheet's own color. */
 .sheet-row {
+  --panel-gap: var(--sheet-gap);
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
   container-type: inline-size;
+  background: var(--sheet);
 }
 /* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole
    sheet. */
@@ -87,12 +96,29 @@
   flex: none;
   padding-bottom: 0;
 }
-/* Once the shown section scrolls under the still top, a line sets the top apart, as under a
-   pager's held pill. */
-.sheet-top.stuck {
-  box-shadow: inset 0 -1px 0 var(--held-bar-line);
+/* A sheet's top is a band across it that ends in a line. While a finger slides sheets beside one
+   another, the line runs down the band's sides too, so each band stands apart across the gap. A
+   slide a tap starts carries the two as one instead: the gap takes the band's color down to where
+   the shorter band ends, --sheet-band-joined, which sheet.js measures as the slide starts, and
+   the line under it. */
+.sheet-page .sheet-top {
+  background: var(--sheet-band);
+  box-shadow: inset 0 -1px 0 var(--sheet-band-line);
+}
+.sheet-row[data-sliding="tap"] {
+  background:
+    linear-gradient(to bottom, var(--sheet-band) calc(100% - 1px), var(--sheet-band-line) 0) top /
+      100% var(--sheet-band-joined, 0px) no-repeat,
+    var(--sheet);
+}
+.sheet-row[data-sliding="finger"] .sheet-top {
+  box-shadow:
+    inset 0 -1px 0 var(--sheet-band-line),
+    inset 1px 0 0 var(--sheet-band-line),
+    inset -1px 0 0 var(--sheet-band-line);
 }
 .sheet-sections {
+  --panel-gap: var(--sheet-gap);
   position: relative;
   flex: 1 1 auto;
   min-height: 0;

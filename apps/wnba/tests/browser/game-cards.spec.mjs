@@ -231,9 +231,7 @@ test("a card's lines sit at their spacing, from the tops of their capitals to th
   expect(now.margin?.weight).toBe("500");
 });
 
-test("a team without a game yet starts its sheet 15px under the band, as before", async ({
-  page,
-}) => {
+test("a team without a game yet starts its sheet 20px under the band", async ({ page }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
@@ -244,5 +242,5 @@ test("a team without a game yet starts its sheet 15px under the band, as before"
 
   const top = await sheet.locator(".sheet-top").boundingBox();
   const firstPart = await sheet.locator(".sheet-part-head").first().boundingBox();
-  expect((firstPart?.y ?? 0) - ((top?.y ?? 0) + (top?.height ?? 0))).toBeCloseTo(15, 0);
+  expect((firstPart?.y ?? 0) - ((top?.y ?? 0) + (top?.height ?? 0))).toBeCloseTo(20, 0);
 });
