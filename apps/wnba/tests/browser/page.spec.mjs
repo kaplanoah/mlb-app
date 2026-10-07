@@ -1796,6 +1796,63 @@ test.describe("on a phone", () => {
     }
   });
 
+  test("the tab bar's pill is the wood of its edge in each theme", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    const isWood = () =>
+      page.locator(".tab-pill").evaluate((pill) => {
+        const probe = document.createElement("span");
+        probe.style.background = "var(--edge)";
+        document.body.append(probe);
+        const isSame =
+          getComputedStyle(pill).backgroundColor === getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return isSame;
+      });
+    for (const appearance of ["Maple", "Walnut"]) {
+      await chooseAppearance(page, appearance);
+      expect(await isWood(), appearance).toBe(true);
+    }
+  });
+
+  test("settings set a setting's name a step over a sentence, and its note and the appearance names a step over a fact, with bigger icons", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const readSize = (locator) => locator.evaluate((element) => getComputedStyle(element).fontSize);
+
+    expect(await readSize(page.getByText("Include content from The Athletic"))).toBe("17px");
+    expect(await readSize(page.getByText("Most stories need a subscription"))).toBe("15px");
+    expect(await readSize(page.locator(".appearance-choice").first())).toBe("15px");
+    const icon = await page.locator(".appearance-icon").first().boundingBox();
+    expect(icon.width).toBe(60);
+  });
+
+  test("a switch's knob is white in each theme, on or off", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page);
+    for (const appearance of ["Maple", "Walnut"]) {
+      await chooseAppearance(page, appearance);
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const knobs = await page
+        .locator("#settingsDialog .switch:visible")
+        .evaluateAll((switches) =>
+          switches.map((element) => [
+            element.getAttribute("aria-checked"),
+            getComputedStyle(element.querySelector(".switch-knob")).backgroundColor,
+          ]),
+        );
+      expect(new Set(knobs.map(([checked]) => checked)), appearance).toEqual(
+        new Set(["true", "false"]),
+      );
+      for (const [checked, color] of knobs)
+        expect(color, `${appearance}, ${checked}`).toBe("rgb(255, 255, 255)");
+      await page.keyboard.press("Escape");
+    }
+  });
+
   test("in Walnut, the Games pill's track is raised like a game's card, and its thumb is tinted warm, not white", async ({
     page,
   }) => {

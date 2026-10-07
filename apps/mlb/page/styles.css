@@ -25,10 +25,13 @@
 
 :root {
   /* Chivo Mono's own size for each step of the type scale, matched by eye to Barlow's 16, 14, and
-     13px. Its letters run wider than Barlow's, so the larger steps sit lower. */
+     13px, and settings' 17 and 15px. Its letters run wider than Barlow's, so the larger steps sit
+     lower. */
   --size-read: 0.90625rem;
   --size-glance: 0.8125rem;
   --size-small: 0.8125rem;
+  --size-setting: 0.96875rem;
+  --size-setting-note: 0.875rem;
   --bg: #0d1f16;
   --card: #132a1f;
   --card-border: #2a4536;
@@ -60,6 +63,7 @@
   --tab-bar-tint: var(--card);
   --tab-bar-edge: var(--card-border);
   --tab-bar-ink: #fff;
+  --tab-bar-pill: color-mix(in srgb, var(--tab-bar-ink) 10%, transparent);
   --page-gutter: 18px;
   --pager-track: rgba(255, 255, 255, 0.07);
   --pager-track-edge: rgba(255, 255, 255, 0.06);
@@ -1251,13 +1255,13 @@ body.kbd .rank-item .grip:focus {
   gap: 3px;
 }
 .ranking-heading h3 {
-  font-size: var(--size-glance);
+  font-size: var(--size-setting);
   font-weight: 400;
   letter-spacing: 0;
 }
 .ranking-note {
   margin: 0;
-  font-size: var(--size-glance);
+  font-size: var(--size-setting-note);
   line-height: 1.4;
   color: var(--ink-dim);
 }
