@@ -19,8 +19,8 @@
  *
  * While a sheet's details load, placeholders hold their place in the shape they'll have.
  *
- * A sheet opened from another slides in from the right beside it, as the row scrolls, with
- * chrome.css's back button in place of its close button.
+ * A sheet opened from another slides in from the right over it, with chrome.css's back button in
+ * place of its close button.
  *
  * Where to watch a game, as network-logos.js builds it, is a line of its channels, or a note to
  * check back while they aren't listed, which takes these tokens from the app's :root:
@@ -55,42 +55,27 @@
   display: flex;
   flex-direction: column;
 }
-/* The row scrolls from sheet to sheet and stops only on one. Past the first or the last it doesn't
-   move at all, as the first screen of a phone's app doesn't. */
+/* The row holds its sheets one over another, later ones on top, each filling it. sheet.js moves
+   them across: a sheet opened from another slides in from the right edge, and slides away again
+   on going back, while the one under it comes in from a little way left. */
 .sheet-row {
-  display: flex;
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: none;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
+  overflow: hidden;
   container-type: inline-size;
-}
-.sheet-row::-webkit-scrollbar {
-  display: none;
-}
-/* While sheet-edge-swipe.js moves a row with a finger, it snaps only once it comes to rest. */
-.sheet-row.is-swiped {
-  scroll-snap-type: none;
 }
 /* A sheet scrolls down on its own and never past its top, so a swipe down there moves the whole
    sheet. */
 .sheet-page {
-  position: relative;
-  flex: 0 0 100%;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
   overflow: hidden auto;
   overscroll-behavior-y: none;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
   background: var(--card);
 }
-/* A sheet with sections holds its top still and scrolls each section on its own, side by side
-   under it. They stop at the first and last as the row of sheets does, and sheet-edge-swipe.js
-   moves the row of sheets with a swipe right from the first, and the row of sections with one
-   from the left edge of a section that scrolls sideways. */
+/* A sheet with sections holds its top still and shows one section at a time under it, each
+   scrolling on its own, as sheet-sections.js moves between them. */
 .sheet-page:has(> .sheet-sections) {
   display: flex;
   flex-direction: column;
@@ -106,29 +91,29 @@
   box-shadow: inset 0 -1px 0 var(--held-bar-line);
 }
 .sheet-sections {
-  display: flex;
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: none;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-}
-.sheet-sections::-webkit-scrollbar {
-  display: none;
-}
-.sheet-sections.is-swiped {
-  scroll-snap-type: none;
+  overflow: hidden;
 }
 .sheet-section {
-  flex: 0 0 100%;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
   overflow: hidden auto;
   overscroll-behavior-y: none;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
   padding: 0 18px max(22px, env(safe-area-inset-bottom));
+}
+/* Only what's shown is drawn while nothing moves: a sheet under another, or a section beside the
+   shown one, shows only while a finger or a slide moves them. */
+.sheet-row:not(.is-moving) > .sheet-page[inert],
+.sheet-sections:not(.is-moving) > .sheet-section[inert] {
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-row.is-sliding > .sheet-page,
+  .sheet-sections.is-sliding > .sheet-section {
+    transition: transform var(--sheet-motion);
+  }
 }
 .sheet-page[hidden] {
   display: none;

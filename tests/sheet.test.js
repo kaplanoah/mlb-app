@@ -1,11 +1,9 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { listOpenSheets, openSheet, reopenSheets, wireSheet } from "../shared/page/sheet.js";
 
 /** @typedef {import("../shared/page/sheet.js").SheetKeeper} SheetKeeper */
 /** @typedef {import("../shared/page/sheet.js").SheetParts} SheetParts */
-
-const ROW_WIDTH = 390;
 
 /** @type {FakeElement | null} */
 let focused = null;
@@ -28,10 +26,17 @@ class FakeElement extends EventTarget {
     this.inert = false;
     this.tabIndex = 0;
     this.scrollTop = 0;
-    this.scrollLeft = 0;
-    this.clientWidth = ROW_WIDTH;
+    this.offsetWidth = 390;
     this.textContent = "";
-    this.style = { order: "", transform: "" };
+    this.style = { zIndex: "", transform: "" };
+    /** @type {Set<string>} */
+    this.classes = new Set();
+    this.classList = {
+      add: (/** @type {string[]} */ ...names) => names.forEach((name) => this.classes.add(name)),
+      remove: (/** @type {string[]} */ ...names) =>
+        names.forEach((name) => this.classes.delete(name)),
+      contains: (/** @type {string} */ name) => this.classes.has(name),
+    };
   }
 
   /**
@@ -108,26 +113,6 @@ class FakeElement extends EventTarget {
   }
 }
 
-// A row scrolls at once, as it does when less motion is asked for, and says so, or, held, stays
-// put until moved.
-class FakeRow extends FakeElement {
-  constructor() {
-    super({ className: "sheet-row" });
-    this.isHeld = false;
-  }
-
-  /** @param {{ left: number }} options */
-  scrollTo({ left }) {
-    if (!this.isHeld) this.moveTo(left);
-  }
-
-  /** @param {number} left */
-  moveTo(left) {
-    this.scrollLeft = left;
-    this.dispatchEvent(new Event("scroll"));
-  }
-}
-
 class FakeDialog extends FakeElement {
   /** @param {string} id */
   constructor(id) {
@@ -175,13 +160,14 @@ function findById(root, id) {
 
 /**
  * A dialog with a row of sheets, each with a close and a back button, on a wide screen, where a
- * dialog closes at once instead of sliding down.
+ * dialog closes at once instead of sliding down, and sheets settle at once unless `isMoving`.
  * @param {string[]} ids
  * @param {Record<string, Partial<SheetParts>>} [partsById]
+ * @param {{ isMoving?: boolean }} [options]
  */
-function createRowDialog(ids, partsById = {}) {
+function createRowDialog(ids, partsById = {}, { isMoving = false } = {}) {
   globalThis.matchMedia = /** @type {any} */ (
-    (query) => ({ matches: query.includes("reduced-motion") })
+    (query) => ({ matches: query.includes("reduced-motion") && !isMoving })
   );
   const dialog = new FakeDialog("sheetDialog");
   globalThis.document = /** @type {any} */ ({
@@ -190,7 +176,7 @@ function createRowDialog(ids, partsById = {}) {
     },
     getElementById: (/** @type {string} */ id) => findById(dialog, id),
   });
-  const row = dialog.append(new FakeRow());
+  const row = dialog.append(new FakeElement({ className: "sheet-row" }));
   /** @typedef {{ sheet: FakeElement, closeButton: FakeElement, backButton: FakeElement }} FakeSheet */
   const sheets = /** @type {Record<string, FakeSheet>} */ (
     Object.fromEntries(
@@ -219,6 +205,14 @@ const listInRow = (row) => row.children.filter((sheet) => !sheet.hidden).map((sh
 
 /** @param {FakeElement} row */
 const findReachable = (row) => row.children.find((sheet) => !sheet.hidden && !sheet.inert)?.id;
+
+/** @param {FakeElement} row */
+const readPlaces = (row) =>
+  Object.fromEntries(
+    row.children
+      .filter((sheet) => !sheet.hidden)
+      .map((sheet) => [sheet.id, { zIndex: sheet.style.zIndex, transform: sheet.style.transform }]),
+  );
 
 /**
  * A sheet's code that shows what it's handed, or can't.
@@ -257,7 +251,7 @@ test("the close button and a click on the backdrop close the dialog, and its she
   assert.equal(dialog.open, false);
 });
 
-test("a sheet opened from another comes in after it, with a back button that names it, and only the one shown can be reached", () => {
+test("a sheet opened from another comes in over it, with a back button that names it, and only the one shown can be reached", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
     gameSheet: { name: "Game" },
   });
@@ -266,11 +260,10 @@ test("a sheet opened from another comes in after it, with a back button that nam
   open(sheets.teamSheet.sheet);
 
   assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
-  assert.deepEqual(
-    [sheets.gameSheet.sheet.style.order, sheets.teamSheet.sheet.style.order],
-    ["0", "1"],
-  );
-  assert.equal(row.scrollLeft, ROW_WIDTH);
+  assert.deepEqual(readPlaces(row), {
+    gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
+    teamSheet: { zIndex: "1", transform: "" },
+  });
   assert.equal(findReachable(row), "teamSheet");
   assert.equal(focused, sheets.teamSheet.sheet);
   assert.equal(dialog.getAttribute("aria-labelledby"), "teamSheetTitle");
@@ -282,7 +275,7 @@ test("a sheet opened from another comes in after it, with a back button that nam
   dialog.close();
 });
 
-test("back scrolls to the sheet before and takes the one it left out of the row, which lets go of what it showed", () => {
+test("back goes to the sheet before and takes the one it left out of the row, which lets go of what it showed", () => {
   /** @type {string[]} */
   const forgotten = [];
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
@@ -293,62 +286,82 @@ test("back scrolls to the sheet before and takes the one it left out of the row,
 
   click(sheets.teamSheet.backButton);
 
-  assert.equal(row.scrollLeft, 0);
+  assert.deepEqual(readPlaces(row), { gameSheet: { zIndex: "0", transform: "" } });
   assert.equal(findReachable(row), "gameSheet");
-  assert.deepEqual(listInRow(row), ["gameSheet"]);
   assert.deepEqual(forgotten, ["team"]);
   dialog.close();
 });
 
-test("a sheet opened again after a step back away from it, before the row has come to rest, stays for the row to go to", () => {
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
+test("with motion, a sheet opened from another slides in from the right edge over it, the one under it going a little way left, and is the one shown once the slide ends", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { dialog, row, sheets } = createRowDialog(
+    ["gameSheet", "teamSheet"],
+    {},
+    { isMoving: true },
+  );
   open(sheets.gameSheet.sheet);
+
   open(sheets.teamSheet.sheet);
-  row.isHeld = true;
-  row.moveTo(1);
+  assert.deepEqual(readPlaces(row), {
+    gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
+    teamSheet: { zIndex: "1", transform: "" },
+  });
+  assert.ok(row.classList.contains("is-sliding"));
   assert.equal(findReachable(row), "gameSheet");
 
-  open(sheets.teamSheet.sheet);
-  row.moveTo(0);
-  assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
-  row.moveTo(ROW_WIDTH);
+  mock.timers.tick(500);
+  assert.ok(!row.classList.contains("is-sliding"));
   assert.equal(findReachable(row), "teamSheet");
   dialog.close();
+  mock.timers.reset();
 });
 
-test("a sheet opened from one a step back has just left takes the place of the sheet it left, which lets go of what it showed", () => {
+test("with motion, a sheet opened while the one over it slides away takes its place, and the one leaving lets go of what it showed", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
   /** @type {string[]} */
   const forgotten = [];
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet", "playerSheet"], {
-    teamSheet: { forget: () => forgotten.push("team") },
-  });
+  const { dialog, row, sheets } = createRowDialog(
+    ["gameSheet", "teamSheet", "playerSheet"],
+    { teamSheet: { forget: () => forgotten.push("team") } },
+    { isMoving: true },
+  );
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
-  row.isHeld = true;
-  row.moveTo(1);
+  mock.timers.tick(500);
 
-  row.isHeld = false;
+  click(sheets.teamSheet.backButton);
   open(sheets.playerSheet.sheet);
+  mock.timers.tick(500);
 
   assert.deepEqual(listInRow(row), ["gameSheet", "playerSheet"]);
   assert.deepEqual(forgotten, ["team"]);
   assert.equal(findReachable(row), "playerSheet");
   dialog.close();
+  mock.timers.reset();
 });
 
-test("a row partway between two sheets settles on neither, and one a pixel off settles on the nearer, keeping the sheet it left until it comes to rest", () => {
-  const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"]);
+test("with motion, a sheet opened again while it slides away stays, and slides back in", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  /** @type {string[]} */
+  const forgotten = [];
+  const { dialog, row, sheets } = createRowDialog(
+    ["gameSheet", "teamSheet"],
+    { teamSheet: { forget: () => forgotten.push("team") } },
+    { isMoving: true },
+  );
   open(sheets.gameSheet.sheet);
   open(sheets.teamSheet.sheet);
+  mock.timers.tick(500);
 
-  row.scrollTo({ left: ROW_WIDTH / 2 });
-  assert.equal(findReachable(row), "teamSheet");
-  row.scrollTo({ left: 1 });
-  assert.equal(findReachable(row), "gameSheet");
+  click(sheets.teamSheet.backButton);
+  open(sheets.teamSheet.sheet);
+  mock.timers.tick(500);
+
   assert.deepEqual(listInRow(row), ["gameSheet", "teamSheet"]);
-  row.scrollTo({ left: 0 });
-  assert.deepEqual(listInRow(row), ["gameSheet"]);
+  assert.deepEqual(forgotten, []);
+  assert.equal(findReachable(row), "teamSheet");
   dialog.close();
+  mock.timers.reset();
 });
 
 // A stand-in for settings on a phone, a dialog that is its own sheet, which a swipe down moves and
@@ -489,7 +502,7 @@ test("a page that loads again puts back each sheet it showed, up to the first th
   assert.equal(dialog.open, false);
 });
 
-test("a page that loads again puts back a sheet after the one it was opened from, with the row on it", () => {
+test("a page that loads again puts back a sheet over the one it was opened from, and shows it", () => {
   const { dialog, row, sheets } = createRowDialog(["gameSheet", "teamSheet"], {
     gameSheet: { keeper: keepShown(null), name: "Game" },
     teamSheet: { keeper: keepShown(null) },
@@ -501,7 +514,10 @@ test("a page that loads again puts back a sheet after the one it was opened from
     { id: "teamSheet", scrollTop: 0, subject: null },
   ]);
 
-  assert.equal(row.scrollLeft, ROW_WIDTH);
+  assert.deepEqual(readPlaces(row), {
+    gameSheet: { zIndex: "0", transform: "translateX(-30%)" },
+    teamSheet: { zIndex: "1", transform: "" },
+  });
   assert.equal(findReachable(row), "teamSheet");
   assert.equal(readBackLabel(sheets.teamSheet.backButton)?.text, "Game");
   dialog.close();

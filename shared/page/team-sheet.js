@@ -96,7 +96,6 @@ export function startTeamSheet(teams) {
     closeButton: findElement("teamCloseBtn"),
     backButton: document.getElementById("teamBackBtn") ?? undefined,
     findScroller: sections?.findShownSection,
-    findSections: sections?.findSections,
     keeper: { read: readShownTeam, reopen: reopenTeamSheet },
     name: "Team",
     forget: () => {

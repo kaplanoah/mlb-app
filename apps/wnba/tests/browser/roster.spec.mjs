@@ -363,10 +363,14 @@ test.describe("in full motion", () => {
     await expectShown(page.locator("#teamSection"));
     await page.evaluate(() => {
       const changes = /** @type {string[]} */ ([]);
+      const isMoving = (/** @type {MutationRecord} */ record) =>
+        record.attributeName === "style" ||
+        (record.attributeName === "class" &&
+          /** @type {Element} */ (record.target).matches(".sheet-sections"));
       new MutationObserver((records) =>
         changes.push(
           ...records
-            .filter((record) => record.attributeName !== "style")
+            .filter((record) => !isMoving(record))
             .map((record) => record.attributeName ?? ""),
         ),
       ).observe(/** @type {Node} */ (document.getElementById("teamSheet")), {

@@ -1,15 +1,15 @@
 import { createPillThumb } from "./pill-thumb.js";
-import { stepBackOnEdgeSwipe } from "./sheet-edge-swipe.js";
+import { followSideSwipes } from "./side-swipe.js";
+import { SHEET_MOTION_MS } from "./sheet-swipe.js";
 import { selectTab, wireTabs } from "./tabs.js";
 
-// A sheet's sections side by side under the pills in its top, like a WNBA team's Team and Roster.
-// A tap on a pill or a swipe moves between them as the browser scrolls anything, and each section
-// scrolls up and down on its own while the sheet's top, pills and all, stays still above them, with
-// a line under it once the shown section has scrolled under it. A section that scrolls sideways,
-// like the roster, goes back to the one before with a swipe right from its left edge.
-
-// The sections have come to rest on one within this many pixels of its edge.
-const SETTLED_PX = 1;
+// A sheet's sections under the pills in its top, like a WNBA team's Team and Roster, one shown at a
+// time. A tap on a pill slides the shown section away and its own in, and a swipe drags the shown
+// section with the finger, its neighbor beside it, and settles on the neighbor or springs back once
+// the finger lifts. A section that scrolls sideways on its own, like the roster, keeps a swipe until
+// it reaches its edge. Each section scrolls up and down on its own while the sheet's top, pills and
+// all, stays still above them, with a line under it once the shown section has scrolled under it.
+// Only the shown section is drawn while none is moving.
 
 const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -20,15 +20,14 @@ const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)"
  */
 export function wireSheetSections(sheet) {
   const row = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-sections"));
-  const top = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top"));
   const tabList = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top [role=tablist]"));
+  const top = /** @type {HTMLElement} */ (sheet.querySelector(".sheet-top"));
   const tabs = /** @type {HTMLButtonElement[]} */ ([...tabList.querySelectorAll("[role=tab]")]);
   const keys = tabs.map((tab) => tab.dataset.tab ?? "");
   const thumb = createPillThumb(tabList);
   let shown = keys[0];
-  /** @type {string | null} */
-  let slidingTo = null;
-  let rowWidth = 0;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let slide;
 
   /** @param {string} key */
   const findSection = (key) =>
@@ -36,11 +35,15 @@ export function wireSheetSections(sheet) {
       document.getElementById(tabs[keys.indexOf(key)].getAttribute("aria-controls") ?? "")
     );
 
-  // The pill's block follows the row, but for while it scrolls to a section a tap chose, where the
-  // block is already sliding.
-  function paintSwipe() {
-    if (slidingTo) return;
-    thumb.moveThumb(row.clientWidth ? row.scrollLeft / row.clientWidth : keys.indexOf(shown));
+  /**
+   * Puts each section a whole width from the next, the one at `position` in place.
+   * @param {number} position runs from 0 at the first section to the last's index
+   */
+  function placeSections(position) {
+    keys.forEach((key, index) => {
+      const share = index - position;
+      findSection(key).style.transform = share ? `translateX(${share * 100}%)` : "";
+    });
   }
 
   function markHeld() {
@@ -55,38 +58,48 @@ export function wireSheetSections(sheet) {
     markHeld();
   }
 
-  function settleWhereScrolled() {
-    if (!row.clientWidth) return;
-    const index = Math.round(row.scrollLeft / row.clientWidth);
-    if (Math.abs(row.scrollLeft - index * row.clientWidth) > SETTLED_PX) return;
-    if (keys[index] === slidingTo) slidingTo = null;
-    if (keys[index] && keys[index] !== shown) markShown(keys[index]);
+  /** @param {string} key */
+  function settleOn(key) {
+    clearTimeout(slide);
+    row.classList.remove("is-moving", "is-sliding");
+    placeSections(keys.indexOf(key));
+    markShown(key);
   }
 
   /**
+   * Slides the sections from wherever they are to rest on the one at `key`.
    * @param {string} key
    * @param {boolean} [isInstant] skips the slide, as for a sheet that's opening
    */
   function showSection(key, isInstant = false) {
     if (!keys.includes(key)) return;
-    const behavior = isInstant || prefersReducedMotion() ? "instant" : "smooth";
     selectTab(tabs, key);
-    const left = keys.indexOf(key) * row.clientWidth;
-    const isSliding = behavior === "smooth" && Math.abs(row.scrollLeft - left) > SETTLED_PX;
-    slidingTo = isSliding ? key : null;
-    thumb.moveThumb(keys.indexOf(key), { isSliding });
-    row.scrollTo({ left, behavior });
-    if (!isSliding) markShown(key);
+    if (isInstant || prefersReducedMotion()) {
+      thumb.moveThumb(keys.indexOf(key));
+      settleOn(key);
+      return;
+    }
+    clearTimeout(slide);
+    thumb.moveThumb(keys.indexOf(key), { isSliding: true });
+    row.classList.add("is-moving", "is-sliding");
+    placeSections(keys.indexOf(key));
+    slide = setTimeout(() => settleOn(key), SHEET_MOTION_MS);
   }
 
-  // A hidden sheet's sections lose their place, so the row goes back to the shown one each time
-  // the sheet comes into view or the screen's width changes.
-  function realign() {
-    if (row.clientWidth === rowWidth) return;
-    rowWidth = row.clientWidth;
-    if (!rowWidth) return;
-    row.scrollLeft = keys.indexOf(shown) * rowWidth;
-    paintSwipe();
+  /** @param {-1 | 1} direction */
+  const findNeighbor = (direction) => keys[keys.indexOf(shown) + direction];
+
+  /**
+   * @param {-1 | 1} direction
+   * @param {number} share
+   */
+  function followSwipe(direction, share) {
+    clearTimeout(slide);
+    row.classList.toggle("is-sliding", false);
+    row.classList.toggle("is-moving", true);
+    const position = keys.indexOf(shown) + direction * share;
+    placeSections(position);
+    thumb.moveThumb(position);
   }
 
   /** Shows the first section, each scrolled to its top, as for a sheet showing something new. */
@@ -95,24 +108,17 @@ export function wireSheetSections(sheet) {
     showSection(keys[0], true);
   }
 
-  row.addEventListener("pointerdown", () => (slidingTo = null));
-  row.addEventListener("scroll", paintSwipe, { passive: true });
-  row.addEventListener("scroll", settleWhereScrolled, { passive: true });
-  row.addEventListener("scrollend", settleWhereScrolled);
   for (const key of keys) findSection(key).addEventListener("scroll", markHeld, { passive: true });
-  new ResizeObserver(realign).observe(row);
   wireTabs(tabs, (key) => showSection(key));
-  stepBackOnEdgeSwipe(row, {
-    findShown: () => findSection(shown),
-    findSideways: () => findSection(shown),
-    readShown: () => keys.indexOf(shown),
-    scrollToIndex: (index) => showSection(keys[index]),
+  followSideSwipes(row, {
+    canGo: (direction) => findNeighbor(direction) !== undefined,
+    follow: followSwipe,
+    settle: (direction, isGoing) => showSection(isGoing ? findNeighbor(direction) : shown),
   });
-  markShown(shown);
+  settleOn(shown);
   thumb.moveThumb(keys.indexOf(shown));
 
   return {
-    findSections: () => row,
     findShownSection: () => findSection(shown),
     readShown: () => shown,
     showSection,

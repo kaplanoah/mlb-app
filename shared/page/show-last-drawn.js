@@ -88,21 +88,22 @@ function labelBackButton(sheet, backLabel) {
 }
 
 /**
- * Puts a dialog's sheets back in its row, in the order they opened, and shows the last of them.
+ * Puts a dialog's sheets back in its row, one over another in the order they opened, and shows
+ * the last of them, as sheet.js places them.
  * @param {HTMLDialogElement} dialog
  * @param {{ sheet: HTMLElement, saved: any }[]} sheets
  */
 function showLastDialog(dialog, sheets) {
-  const row = dialog.querySelector(":scope > .sheet-row");
+  const last = sheets.length - 1;
   sheets.forEach(({ sheet, saved }, index) => {
     if (sheet === dialog) return;
     sheet.hidden = false;
-    sheet.style.order = String(index);
+    sheet.style.zIndex = String(index);
+    sheet.inert = index !== last;
     labelBackButton(sheet, saved.backLabel);
   });
   dialog.setAttribute("data-reopened", "");
   dialog.showModal();
-  if (row) row.scrollLeft = (sheets.length - 1) * row.clientWidth;
   for (const { sheet, saved } of sheets) sheet.scrollTop = Number(saved.scrollTop) || 0;
 }
 
