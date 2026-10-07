@@ -68,7 +68,7 @@ The feed shows each piece of news as one card: the story that tells it best, wit
 When a new story tells news a card already tells, or an earlier new story does, give that number as same. Then:
 - If it tells the news better than the card's lead, set lead to true. It leads the card, and the old lead goes under it. Reward quality, not speed: a deeper, better-reported, or better-written story should lead, whenever it came out.
 - Otherwise keep it only if it earns a place under the card, and the bar rises with each story the card has. Under a lead alone, it needs something the lead lacks: new facts, the why, or the people's own words. Under a lead with one story under it, it must add something real that neither has. With two or more under the lead, it must be exceptional. Otherwise drop it as retold.
-A new development, like an injured player ruled out of the next game, is news of its own, with no same.
+A new development in a card's story, like an injured player ruled out of the next game, leads that card: give its number as same and set lead to true, so the latest news leads and what came before goes under it.
 
 For each new story, give:
 - keep: true or false.
