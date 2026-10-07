@@ -86,6 +86,27 @@ test("a reload's first reading is what the page put back from its last showing, 
   await expect(record).not.toContainText("standingsPager: text");
 });
 
+test("a record ends with where the shown pager's lists are and what a tap on each one's first item lands on", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await turnOnDiagnostics(page);
+
+  await reloadAndRecord(page);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(/games-pages scrolled \d+ of \d+, 390 wide/);
+  await expect(record).toContainText(
+    /games-today at -?\d+,\d+ \d+x\d+, opacity 1, visible, transform none, first item at .*, a tap there lands on /,
+  );
+  await expect(record).toContainText(
+    /games-previous at .*, inert, first item at .*, off the screen/,
+  );
+  await expect(record).not.toContainText("standings-pages");
+});
+
 test("a reload is recorded with its first paint and when each font file arrived", async ({
   page,
 }) => {
