@@ -16,7 +16,9 @@ import { selectTab, wireTabs } from "./tabs.js";
  * @property {string} openOn the list shown first
  */
 
+// Without scrollend, the lists count as at rest once they haven't scrolled for this long.
 const SETTLE_DELAY_MS = 150;
+const HAS_SCROLLEND = "onscrollend" in window;
 
 const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** @returns {ScrollBehavior} */
@@ -43,7 +45,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   let pagesWidth = 0;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let settleTimer;
-  let isTouching = false;
 
   /** @param {string} key */
   const findPage = (key) =>
@@ -100,9 +101,8 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     return Math.ceil(innerHeight - bottomPadding - readBarTop() - findBar().offsetHeight) + 1;
   }
 
-  function fitPagesToShownList() {
-    const height = Math.max(findPage(shownList).offsetHeight, measureRoomUnderBar());
-    findPages().style.height = `${height}px`;
+  function fitPagesToRoomUnderBar() {
+    findPages().style.setProperty("--room-under-bar", `${measureRoomUnderBar()}px`);
   }
 
   // The page's scroll position that puts the top of the lists just under the pill.
@@ -129,7 +129,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     shownList = key;
     selectTab(findTabs(), key);
     for (const other of keys) findPage(other).inert = other !== key;
-    fitPagesToShownList();
+    fitPagesToRoomUnderBar();
     if (isNewList && scrollY > listsTopScroll)
       scrollTo({ top: listsTopScroll, behavior: "instant" });
     alignHiddenLists();
@@ -159,15 +159,17 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   function scheduleSettle() {
     clearTimeout(settleTimer);
-    settleTimer = setTimeout(settleSwipe, SETTLE_DELAY_MS);
+    settleTimer = setTimeout(() => settleSwipe("timer"), SETTLE_DELAY_MS);
   }
 
   // Changing the lists' height or inertness mid-swipe can stop Safari's swipe short of a list, so
   // the shown list changes only once the lists come to rest on it, and a rest between lists goes
-  // on to the nearest one.
-  function settleSwipe() {
+  // on to the nearest one. Diagnostics lists what last settled them.
+  /** @param {"scrollend" | "timer"} settledBy */
+  function settleSwipe(settledBy) {
     const pages = findPages();
-    if (isTouching || !pages.clientWidth) return;
+    if (!pages.clientWidth) return;
+    pages.dataset.settledBy = settledBy;
     const key = scrollTarget || keys[Math.round(readSwipePosition(pages))];
     if (!isAtList(pages, key)) {
       scrollToList(key, chooseScrollBehavior());
@@ -182,7 +184,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     const pages = findPages();
     if (!pages.clientWidth) return;
     if (!scrollTarget) thumb.moveThumb(readSwipePosition(pages));
-    scheduleSettle();
+    if (!HAS_SCROLLEND) scheduleSettle();
   }
 
   /** @param {string} key */
@@ -221,30 +223,19 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     else shownList = key;
   }
 
-  /** @param {TouchEvent} event */
-  function trackTouch(event) {
-    const pages = findPages();
-    isTouching = [...event.touches].some((touch) =>
-      pages.contains(/** @type {Node} */ (touch.target)),
-    );
-    if (isTouching) scrollTarget = null;
-    if (!isTouching) scheduleSettle();
-  }
-
   function wireSwipe() {
     const pages = findPages();
     const releaseScrollTarget = () => (scrollTarget = null);
     /** @param {WheelEvent} event */
     const releaseOnSidewaysWheel = (event) => event.deltaX && releaseScrollTarget();
     pages.addEventListener("scroll", followSwipe, { passive: true });
+    pages.addEventListener("scrollend", () => settleSwipe("scrollend"));
     pages.addEventListener("pointerdown", releaseScrollTarget);
     pages.addEventListener("wheel", releaseOnSidewaysWheel, { passive: true });
-    for (const type of ["touchstart", "touchend", "touchcancel"])
-      pages.addEventListener(type, trackTouch, { passive: true });
-    new ResizeObserver(realignPages).observe(pages);
-    const fitObserver = new ResizeObserver(fitPagesToShownList);
-    for (const key of keys) fitObserver.observe(findPage(key));
-    addEventListener("resize", fitPagesToShownList);
+    // The pill's bar is as wide as the lists, and a jump to a list never resizes it, which would
+    // loop the observer.
+    new ResizeObserver(realignPages).observe(findBar());
+    addEventListener("resize", fitPagesToRoomUnderBar);
     addEventListener("scroll", alignHiddenLists, { passive: true });
   }
 

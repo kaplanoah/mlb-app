@@ -1874,8 +1874,10 @@ test.describe("on a phone", () => {
     expect(resting.thumb).toEqual({ left: today.left, width: today.width });
     for (const name of Object.values(resting.names)) expect(name.fill).toBe("rgba(0, 0, 0, 0)");
 
-    // Snapping would carry a scroll set by hand to the nearest list, which a finger holds off.
+    // Snapping, or settling once the scroll ends, would carry a scroll set by hand to the nearest
+    // list, which a finger holds off.
     await page.locator("#games-pages").evaluate((pages) => {
+      addEventListener("scrollend", (event) => event.stopImmediatePropagation(), { capture: true });
       pages.style.scrollSnapType = "none";
       pages.scrollTo({ left: pages.clientWidth * 0.5, behavior: "instant" });
     });

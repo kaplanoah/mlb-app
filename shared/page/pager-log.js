@@ -1,7 +1,7 @@
 // While Diagnostics is on, each record ends with where each pager's lists are: how far their row
-// is scrolled, and for each list where it sits on the screen, how it's styled, and its first item's
-// opacity and what a tap on it would land on, and with every animation on the page that hasn't
-// finished. A list the phone laid out but didn't draw still names its item.
+// is scrolled and whether scrollend or the fallback timer last settled it, and for each list where
+// it sits on the screen, how it's styled, and its first item's opacity and what a tap on it would
+// land on, and with every animation on the page that hasn't finished. A list the phone laid out but didn't draw still names its item.
 
 /** @param {DOMRect} rect */
 const describeRect = ({ left, top, width, height }) =>
@@ -45,9 +45,13 @@ function describeList(list) {
 }
 
 /** @param {HTMLElement} pages */
+const describeSettle = (pages) =>
+  pages.dataset.settledBy ? `last settled by ${pages.dataset.settledBy}` : "not yet settled";
+
+/** @param {HTMLElement} pages */
 const describePages = (pages) =>
   [
-    `${pages.id} scrolled ${Math.round(pages.scrollLeft)} of ${pages.scrollWidth}, ${pages.clientWidth} wide`,
+    `${pages.id} scrolled ${Math.round(pages.scrollLeft)} of ${pages.scrollWidth}, ${pages.clientWidth} wide, ${describeSettle(pages)}`,
     .../** @type {HTMLElement[]} */ ([...pages.children]).map(describeList),
   ].join("; ");
 

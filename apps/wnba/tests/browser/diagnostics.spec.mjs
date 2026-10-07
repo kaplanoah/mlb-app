@@ -97,7 +97,9 @@ test("a record ends with where the shown pager's lists are and what a tap on eac
   await openSettings(page);
 
   const record = findRecords(page).locator(".diagnostics-record").first();
-  await expect(record).toContainText(/games-pages scrolled \d+ of \d+, 390 wide/);
+  await expect(record).toContainText(
+    /games-pages scrolled \d+ of \d+, 390 wide, last settled by scrollend/,
+  );
   await expect(record).toContainText(
     /games-today at -?\d+,\d+ \d+x\d+, opacity 1, visible, transform none, first item at .*, opacity 1, a tap there lands on /,
   );

@@ -1,7 +1,7 @@
 import { isStartListChosen, showStartList } from "./game-pager.js";
 import { saveLastTab } from "./last-tab.js";
 import { scrollToTop } from "./scroll-to-top.js";
-import { moveTabSelection, startTabBar } from "./tab-bar.js";
+import { moveTabSelection } from "./tab-bar.js";
 import { readSelectedTab, selectTab, wireTabs } from "./tabs.js";
 
 // The page's own tabs, in the tab bar, each showing the section whose id is `view-<tab>`.
@@ -38,8 +38,7 @@ function chooseTab(tab) {
   else switchTab(tab);
 }
 
-// The page has already reopened its last tab (open-last-tab.js), so the pill starts there.
+// The page has already reopened its last tab (open-last-tab.js), with the pill on it.
 export function startPageTabs() {
   wireTabs(findTabButtons(), chooseTab);
-  startTabBar(chooseTab);
 }
