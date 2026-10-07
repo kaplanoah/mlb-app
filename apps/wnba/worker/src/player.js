@@ -294,7 +294,6 @@ export function describeRegularSeason(her, ranks) {
       points: her.PTS / her.GP,
       rebounds: her.REB / her.GP,
       assists: her.AST / her.GP,
-      ...(her.TOV != null && { turnovers: her.TOV / her.GP }),
       minutes: her.MIN / her.GP,
     },
     stats: RANKED_STATS.filter((stat) => hasStat(her, stat)).map((stat) =>

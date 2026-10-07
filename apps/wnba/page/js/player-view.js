@@ -45,7 +45,7 @@ import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from
  * @typedef {object} RegularSeason
  * @property {number} games
  * @property {number} gamesNeeded how many games the WNBA's rule for its leaders asks for so far
- * @property {{ points: number, rebounds: number, assists: number, turnovers?: number, minutes: number }} averages
+ * @property {{ points: number, rebounds: number, assists: number, minutes: number }} averages
  * @property {RankedStat[]} stats
  */
 /**
@@ -193,23 +193,18 @@ const renderCount = (count, unit) =>
   html`<span class="player-count tabular">${count}</span> ${unit}`;
 
 /**
- * Her points, rebounds, assists, turnovers, and minutes in her last game, and her season's
- * averages under them, then how she shot and what she took away.
+ * Her points, rebounds, assists, and minutes in her last game, and her season's averages under
+ * them, then how she shot, what she took away, and what she gave away.
  * @param {Player} player
  * @param {number} now
  */
 function renderLastGame({ lastGame: game, regularSeason }, now) {
   if (!game) return false;
   const averages = regularSeason?.averages;
-  const turnoverCells =
-    game.turnovers == null
-      ? []
-      : [{ label: "TO", title: "Turnovers", game: game.turnovers, average: averages?.turnovers }];
   const cells = [
     { label: "Pts", title: "Points", game: game.points, average: averages?.points },
     { label: "Reb", title: "Rebounds", game: game.rebounds, average: averages?.rebounds },
     { label: "Ast", title: "Assists", game: game.assists, average: averages?.assists },
-    ...turnoverCells,
     {
       label: "Min",
       title: "Minutes",
@@ -247,12 +242,18 @@ function renderLastGame({ lastGame: game, regularSeason }, now) {
     renderCount(game.steals, "STL"),
     renderCount(game.blocks, "BLK"),
   ]);
+  const turnovers =
+    game.turnovers != null &&
+    renderTeamDetail(
+      "Turnovers",
+      html`<span class="player-count tabular">${game.turnovers}</span>`,
+    );
   return renderSheetPart(
     "Last game",
     html`<div class="player-last-game">
       ${table}
       <div class="player-lines">
-        ${renderTeamDetail("Shooting", shooting)}${renderTeamDetail("Defense", defense)}
+        ${renderTeamDetail("Shooting", shooting)}${renderTeamDetail("Defense", defense)}${turnovers}
       </div>
     </div>`,
     describeLastGame(game, now),
@@ -428,7 +429,7 @@ function renderRegularSeason(team, season, isPastSeason) {
 const renderPending = () =>
   renderSheetPart(
     "Last game",
-    html`<div class="player-last-game">${renderPlaceholder("Pts Reb Ast TO Min")}${renderPlaceholder("00 0 0 0 00.0")}${renderPlaceholder("Avg 00.0 0.0 0.0 0.0 00.0")}</div>`,
+    html`<div class="player-last-game">${renderPlaceholder("Pts Reb Ast Min")}${renderPlaceholder("00 0 0 00.0")}${renderPlaceholder("Avg 00.0 0.0 0.0 00.0")}</div>`,
   );
 
 /**
