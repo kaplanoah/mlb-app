@@ -327,7 +327,9 @@ export async function deploy({
 
   // Deploy logs are public, and the address names the account's workers.dev subdomain.
   async function confirmWorkerAnswers(url, previousVersions) {
-    if (await isWorkerAnswering(url, { fetchImpl, pause, commit })) {
+    if (!previousVersions) log("worker check: waiting for the new workers.dev address to resolve");
+    const attempts = previousVersions ? CHECK_ATTEMPTS : FIRST_DEPLOY_CHECK_ATTEMPTS;
+    if (await isWorkerAnswering(url, { fetchImpl, pause, commit, attempts })) {
       log("worker check: ok");
       return;
     }
@@ -353,6 +355,9 @@ export async function deploy({
 }
 
 const CHECK_ATTEMPTS = 12;
+// A Worker's first workers.dev address can take minutes to resolve. A redeploy's already does, so
+// a slow answer there means a bad version to roll back.
+const FIRST_DEPLOY_CHECK_ATTEMPTS = 60;
 const CHECK_INTERVAL_MS = 5000;
 const CHECK_TIMEOUT_MS = 10000;
 
@@ -384,8 +389,11 @@ async function isRobotsAnswered(url, fetchImpl, commit) {
 
 // A new version takes a few seconds to reach every Cloudflare location, and until then the one
 // before it answers.
-async function isWorkerAnswering(url, { fetchImpl = fetch, pause = waitFor, commit = undefined }) {
-  for (let attempt = 0; attempt < CHECK_ATTEMPTS; attempt += 1) {
+async function isWorkerAnswering(
+  url,
+  { fetchImpl = fetch, pause = waitFor, commit = undefined, attempts = CHECK_ATTEMPTS },
+) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     await pause(CHECK_INTERVAL_MS);
     if (await isRobotsAnswered(url, fetchImpl, commit)) return true;
   }

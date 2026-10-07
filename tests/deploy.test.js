@@ -557,6 +557,40 @@ test("a failed check says so when there's nothing to go back to, or going back f
   );
 });
 
+test("a first deploy waits minutes for its new address, and a redeploy doesn't", async () => {
+  const { deploy } = await loadDeployModule();
+  const deployAnsweringOnCheck = (isNew, answeringCheck) => {
+    let checks = 0;
+    const answerWorker = () =>
+      ++checks < answeringCheck ? new Response("", { status: 404 }) : ANSWER_ROBOTS();
+    const lines = [];
+    const result = deploy({
+      app: "mlb",
+      fetchImpl: createFakeCloudflare({ isNew, answerWorker }).fetchImpl,
+      env: ENV,
+      script: "",
+      log: (line) => lines.push(line),
+      pause: skipPause,
+    });
+    return { result, lines };
+  };
+
+  const firstDeploy = deployAnsweringOnCheck(true, 60);
+  assert.equal(await firstDeploy.result, WORKER_URL);
+  assert.ok(firstDeploy.lines.some((line) => /waiting for the new workers.dev address/.test(line)));
+  await assert.rejects(
+    deployAnsweringOnCheck(true, 61).result,
+    /didn't answer as the new version, and no earlier version exists/,
+  );
+
+  const redeploy = deployAnsweringOnCheck(false, 13);
+  await assert.rejects(
+    redeploy.result,
+    /didn't answer as the new version, so the earlier version is live again/,
+  );
+  assert.ok(!redeploy.lines.some((line) => /waiting for the new/.test(line)));
+});
+
 test("a step that fails after the upload puts the live version back", async () => {
   const { deploy } = await loadDeployModule();
   const cloudflare = createFakeCloudflare({ refuse: "/mlb-app/subdomain" });
