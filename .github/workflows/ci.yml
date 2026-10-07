@@ -136,12 +136,14 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: &browsers-key playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: &browsers-key playwright-webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       # The tests run on Chromium's headless shell, so the full browser isn't needed, and GitHub's
-      # Ubuntu runners already have the system libraries it needs.
+      # Ubuntu runners already have the system libraries it needs. WebKit runs the at-rest specs.
       - &install-browsers
         if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install --only-shell chromium
+        run: npx playwright install --only-shell chromium webkit
+      # WebKit's system libraries aren't on the runners, and the cache keeps only the browsers.
+      - run: npx playwright install-deps webkit
       - run: npm run test:browser -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
