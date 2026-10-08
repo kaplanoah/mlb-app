@@ -91,11 +91,13 @@ async function readRankedAmong(player, year, read) {
  */
 async function loadPlayer(id, year, read) {
   const key = nameRead(id, year);
-  const player = await fetchDoc(`players/${year}-${id}`).catch(() => null);
+  // The store answers null for a player it keeps no sheet for, apart from a read that failed.
+  const player = await fetchDoc(`players/${year}-${id}`).catch(() => undefined);
   const found = player ?? read.player;
   const ranked = found ? await readRankedAmong(found, year, read) : {};
   if (reads.get(key) !== read) return;
-  reads.set(key, { ...read, ...ranked, player: found, isLoading: false });
+  const isUnkept = player === null;
+  reads.set(key, { ...read, ...ranked, player: found, isUnkept, isLoading: false });
   if (shownPlayer?.id === id) renderSheet();
 }
 
@@ -115,6 +117,7 @@ function readPlayer(id, year) {
     hitters: kept?.hitters ?? null,
     starters: kept?.starters ?? null,
     side: kept?.side ?? null,
+    isUnkept: false,
     isLoading: true,
   };
   reads.set(key, read);
@@ -161,7 +164,7 @@ function reopenPlayer(saved) {
   const { id, club, name, number = "", year, player, hitters, starters, side } = saved;
   const key = nameRead(id, year);
   if (typeof year === "number" && player && !reads.has(key))
-    reads.set(key, { at: 0, player, hitters, starters, side, isLoading: false });
+    reads.set(key, { at: 0, player, hitters, starters, side, isUnkept: false, isLoading: false });
   showPlayer({ id, club, name, number });
   return true;
 }

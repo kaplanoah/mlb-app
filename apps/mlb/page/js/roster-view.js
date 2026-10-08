@@ -6,7 +6,7 @@ import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderPlayerButton } from "./player-button.js";
-import { formatInnings, renderNameCell, renderStatCells, renderStatTable } from "./stat-table.js";
+import { formatInnings, renderPlayerCell, renderStatCells, renderStatTable } from "./stat-table.js";
 
 /** @typedef {import("./stat-table.js").StatColumn} StatColumn */
 /**
@@ -82,11 +82,10 @@ const countOuts = (innings) => {
  */
 const renderPlayerRow = (player, club, tag, columns) =>
   html`<tr>
-    <td class="team row-button-cell">
-      <span class="roster-number tabular">${player.number}</span
-      >${renderPlayerButton(player, club)}<span class="box-pos">${tag}</span>
-    </td>
-    ${renderStatCells(player, columns)}
+    ${renderPlayerCell(player, club, {
+      lead: html`<span class="roster-number tabular">${player.number}</span>`,
+      note: html`<span class="box-pos">${tag}</span>`,
+    })}${renderStatCells(player, columns)}
   </tr>`;
 
 /**
@@ -140,7 +139,7 @@ const renderPendingRoster = () =>
         { length: PLACEHOLDER_ROWS },
         () =>
           html`<tr>
-            ${renderNameCell(renderPlaceholder("00 Steven Kwan"))}${HITTER_COLUMNS.map(
+            <td class="team">${renderPlaceholder("00 Steven Kwan")}</td>${HITTER_COLUMNS.map(
               () => html`<td>${renderPlaceholder(".000")}</td>`,
             )}
           </tr>`,

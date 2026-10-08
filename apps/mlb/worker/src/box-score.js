@@ -69,12 +69,14 @@ function readDecision(note) {
 
 /**
  * A batter's line in the game.
+ * @param {number} id
  * @param {any} player
  * @param {string} name
  */
-function describeBatter(player, name) {
+function describeBatter(id, player, name) {
   const game = player.stats?.batting ?? {};
   return {
+    id,
     name,
     position: player.position?.abbreviation ?? "",
     isSub: Number(player.battingOrder) % 100 !== 0,
@@ -89,12 +91,14 @@ function describeBatter(player, name) {
 
 /**
  * A batter in a lineup posted before first pitch, with his season so far.
+ * @param {number} id
  * @param {any} player
  * @param {string} name
  */
-function describeLineupBatter(player, name) {
+function describeLineupBatter(id, player, name) {
   const season = player.seasonStats?.batting ?? {};
   return {
+    id,
     name,
     position: player.position?.abbreviation ?? "",
     average: season.avg ?? null,
@@ -104,12 +108,14 @@ function describeLineupBatter(player, name) {
 }
 
 /**
+ * @param {number} id
  * @param {any} player
  * @param {string} name
  */
-function describePitcher(player, name) {
+function describePitcher(id, player, name) {
   const line = player.stats?.pitching ?? {};
   return {
+    id,
     name,
     decision: readDecision(line.note),
     inningsPitched: line.inningsPitched ?? "0.0",
@@ -137,10 +143,10 @@ function describeClub(team, nameOf, hasStarted) {
       (/** @type {number} */ first, /** @type {number} */ second) =>
         Number(playerOf(first).battingOrder) - Number(playerOf(second).battingOrder),
     )
-    .map((/** @type {number} */ id) => describe(playerOf(id), nameOf(id)));
+    .map((/** @type {number} */ id) => describe(id, playerOf(id), nameOf(id)));
   const pitchers = hasStarted
     ? (team.pitchers ?? []).map((/** @type {number} */ id) =>
-        describePitcher(playerOf(id), nameOf(id)),
+        describePitcher(id, playerOf(id), nameOf(id)),
       )
     : [];
   return { batters, pitchers };
