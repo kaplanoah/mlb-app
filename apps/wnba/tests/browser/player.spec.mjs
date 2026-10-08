@@ -1,5 +1,6 @@
 import { test, expect, openApp, openGameSheet } from "./harness.mjs";
 import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -51,6 +52,7 @@ test("a player's name on her roster opens her sheet over it: her facts, her last
   await expect(sheet.locator(".player-rank-row").first()).toHaveText(/Pts\s*20.8\s*7th of 125/);
   await expect(sheet.locator(".player-curve b")).toHaveCount(8);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await sheet.getByRole("button", { name: "Back to Team" }).click();

@@ -106,9 +106,9 @@
   /* Dark ink fading toward the light floor shows less than light ink fading toward the walnut, so
      Maple's lines fade further as the page catches up. */
   --catch-up-fade: 0.5;
-  --orange: #a93c0a;
+  --orange: #a23a0a;
   --orange-ink: #ffffff;
-  --teal: #0b6b63;
+  --teal: #0b6860;
   --teal-ink: #ffffff;
   --ink-mid: color-mix(in srgb, var(--ink-dim) 55%, var(--ink));
   /* A table's supporting numbers, like minutes, sit a step back from its counts, a smaller step on
@@ -659,10 +659,10 @@ header.top h1 {
   font-weight: 600;
   letter-spacing: 0.08em;
 }
-/* A game that may never happen reads quieter than one that's over. */
+/* A game that may never happen reads a weight lighter than one that's over. */
 .if-needed {
   font-weight: 500;
-  color: color-mix(in srgb, var(--ink-dim) 70%, var(--raised));
+  color: var(--ink-dim);
 }
 /* Labels in the text face stand apart from the condensed team names around them. */
 .series-label {
@@ -1347,9 +1347,11 @@ table.roster .roster-number {
   padding-right: var(--roster-number-gap);
   text-align: center;
 }
+/* A half step over the facts beside it, so a player's number reads at a glance. */
 table.roster td.roster-number {
+  font-size: 14.5px;
   font-weight: 400;
-  color: color-mix(in srgb, var(--ink-dim) 65%, var(--sheet));
+  color: var(--ink-dim);
 }
 /* The line at the names' edge keeps clear of the longest name and its Out chip. */
 table.roster .roster-player {
@@ -2033,6 +2035,7 @@ table.standings tr.playoff-line + tr td {
 }
 .status-chip.alive {
   background: color-mix(in srgb, var(--ink) 15%, transparent);
+  color: var(--ink-mid);
 }
 .status-chip.champion {
   background: var(--result);
@@ -2040,7 +2043,7 @@ table.standings tr.playoff-line + tr td {
 }
 .status-chip.out {
   background: color-mix(in srgb, var(--ink-dim) 16%, transparent);
-  color: var(--ink-dim);
+  color: var(--ink-mid);
 }
 .status-chip.missed {
   box-shadow: inset 0 0 0 1px var(--divider);

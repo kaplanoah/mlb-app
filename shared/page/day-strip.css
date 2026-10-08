@@ -127,7 +127,7 @@
   font: inherit;
   color: var(--ink);
 }
-button.day-cell {
+.day-cell:enabled {
   cursor: pointer;
 }
 .cell-name,
@@ -148,7 +148,7 @@ button.day-cell {
   line-height: 1;
 }
 /* A day without games is quieter, and isn't a button. */
-.day-cell.is-empty :is(.cell-name, .cell-month, .cell-number) {
+.day-cell:disabled :is(.cell-name, .cell-month, .cell-number) {
   color: color-mix(in srgb, var(--ink-dim) 70%, var(--bg));
 }
 .day-cell.is-today .cell-number {

@@ -85,8 +85,8 @@ function renderCell(day, { isListed, isToday, isChosen }) {
     .filter(Boolean)
     .join(" ");
   const content = html`${label}<span class="cell-number tabular">${date.getDate()}</span>`;
-  if (!isListed) return html`<span class="${classes} is-empty" data-day="${day}">${content}</span>`;
-  return html`<button type="button" class="${classes}" data-day="${day}" aria-label="${formatLongDate(date)}"${isToday ? html` aria-current="date"` : ""}>${content}</button>`;
+  // A day without games is shown but can't be chosen, as a date picker's unavailable dates are.
+  return html`<button type="button" class="${classes}" data-day="${day}" aria-label="${formatLongDate(date)}"${isToday ? html` aria-current="date"` : ""}${isListed ? "" : html` disabled`}>${content}</button>`;
 }
 
 /** @param {DayStripFill} fill */
@@ -351,7 +351,7 @@ function openTappedDay(event) {
     showStartDay();
     return;
   }
-  const cell = /** @type {HTMLElement | null} */ (target.closest("button.day-cell"));
+  const cell = /** @type {HTMLElement | null} */ (target.closest(".day-cell:enabled"));
   if (cell?.dataset.day) showDay(cell.dataset.day, "flown");
 }
 

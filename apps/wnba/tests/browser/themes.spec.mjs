@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listLayoutChanges, readLayout } from "../../../../tests/browser/theme-layout.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
@@ -95,33 +96,68 @@ const VIEWS = [
   },
 ];
 
-for (const [screen, viewport] of Object.entries({
+/**
+ * Opens the page in Maple with a week of news.
+ * @param {import("@playwright/test").Page} page
+ */
+async function openWithNews(page) {
+  await page.emulateMedia({ colorScheme: "light" });
+  const app = await openApp(page);
+  const [withPhoto, withoutPhoto] = createStories(new URL("icon-180.png", page.url()).href);
+  await app.writeDocument("news/cards", {
+    cards: [
+      { lead: withPhoto, more: [withoutPhoto] },
+      { lead: { ...withoutPhoto, id: "alone" }, more: [] },
+    ],
+  });
+}
+
+/**
+ * Opens each view in turn, checks it once it's drawn, and closes it.
+ * @param {import("@playwright/test").Page} page
+ * @param {(view: (typeof VIEWS)[number]) => Promise<void>} checkView
+ */
+async function checkEachView(page, checkView) {
+  for (const view of VIEWS) {
+    await view.open(page);
+    await expect(view.shown(page)).toBeVisible();
+    // Past the tab bar's pill sliding to the tab, and any other motion, before the page is read.
+    await page.clock.runFor(2000);
+    await checkView(view);
+    if (view.close) {
+      await view.close(page);
+      await expect(view.shown(page)).toBeHidden();
+    }
+  }
+}
+
+const SCREENS = {
   "a phone": { width: 390, height: 844 },
   "a wide screen": { width: 1280, height: 900 },
-})) {
+};
+
+for (const [screen, viewport] of Object.entries(SCREENS)) {
   test(`on ${screen}, every view lays out the same in Walnut as in Maple, which change only colors`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.emulateMedia({ colorScheme: "light" });
-    const app = await openApp(page);
-    const [withPhoto, withoutPhoto] = createStories(new URL("icon-180.png", page.url()).href);
-    await app.writeDocument("news/cards", {
-      cards: [
-        { lead: withPhoto, more: [withoutPhoto] },
-        { lead: { ...withoutPhoto, id: "alone" }, more: [] },
-      ],
-    });
-    for (const view of VIEWS) {
-      await view.open(page);
-      await expect(view.shown(page)).toBeVisible();
-      // Past the tab bar's pill sliding to the tab, and any other motion, before the page is read.
-      await page.clock.runFor(2000);
+    await openWithNews(page);
+    await checkEachView(page, async (view) => {
       expect(await listThemeLayoutChanges(page), view.name).toEqual([]);
-      if (view.close) {
-        await view.close(page);
-        await expect(view.shown(page)).toBeHidden();
+    });
+  });
+
+  test(`on ${screen}, every view's text stands out from what's behind it as WCAG's AA level asks, in Maple and Walnut`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await openWithNews(page);
+    await checkEachView(page, async (view) => {
+      for (const theme of /** @type {const} */ (["light", "dark"])) {
+        await showTheme(page, theme);
+        expect(await listLowContrastText(page), `${view.name} in ${theme}`).toEqual([]);
       }
-    }
+      await showTheme(page, "light");
+    });
   });
 }

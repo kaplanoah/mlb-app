@@ -15,6 +15,7 @@ import {
   recordSheetMotions,
   waitForTimedMotions,
 } from "../../../../tests/browser/sheet-motions.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -610,10 +611,12 @@ for (const { screen, viewport } of [
       const sheet = await openGame(page);
       await expect(sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS })).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await showSection(sheet, "Matchup");
       await expect(sheet.locator(".pitch-rows li")).toHaveCount(5);
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
     });
   });
@@ -789,6 +792,7 @@ test("a final's Game section shows its innings, then each club's batters and pit
     .evaluateAll((wraps) => wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth).length);
   expect(wideTables).toBe(0);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 

@@ -68,11 +68,8 @@ test.describe("with reduced motion", () => {
     expect(cells.at(-1)).toBe(listed.at(-1));
     expect(cells.length).toBeGreaterThan(listed.length);
     const quietDays = cells.filter((day) => !listed.includes(day));
-    for (const day of quietDays.slice(0, 3))
-      await expect(page.locator(`#seasonGames span.day-cell[data-day="${day}"]`)).toHaveCount(1);
-    await expect(page.locator("#seasonGames .day-cell.is-empty").first()).not.toHaveAttribute(
-      "role",
-    );
+    for (const day of quietDays.slice(0, 3)) await expect(findCell(page, day)).toBeDisabled();
+    await expect(findCell(page, listed[0])).toBeEnabled();
     await expect(findCell(page, listed[0]).locator(".cell-month")).toHaveCount(
       listed[0].endsWith("-01") ? 1 : 0,
     );
@@ -145,15 +142,15 @@ test.describe("with reduced motion", () => {
     expect(icon.width).toBe(14);
   });
 
-  test("a day without games isn't a button, and a tap on it moves nothing", async ({ page }) => {
+  test("a day without games can't be chosen, and a tap on it moves nothing", async ({ page }) => {
     await openApp(page, { isWholeSeason: true });
     await page.getByRole("tab", { name: "Games" }).click();
     await expectDayAtTop(page, "2026-09-30");
-    const quiet = page.locator("#seasonGames span.day-cell.is-empty").last();
+    const quiet = page.locator("#seasonGames .day-cell:disabled").last();
     await quiet.scrollIntoViewIfNeeded();
     const top = await findList(page).evaluate((list) => list.scrollTop);
 
-    await quiet.click();
+    await quiet.click({ force: true });
 
     expect(await findList(page).evaluate((list) => list.scrollTop)).toBe(top);
     await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute(
