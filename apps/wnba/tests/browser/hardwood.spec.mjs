@@ -172,23 +172,14 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
         readChannels(page, await readTokenColor(page, token)),
       ),
     );
-    const fill = await page
-      .locator("#games-bar .pager-thumb")
-      .evaluate((element) => getComputedStyle(element).backgroundColor);
-    expect(await readChannels(page, fill)).toEqual(orange);
-    const { names } = await readPillNames(page.locator("#games-bar [role=tablist]"));
-    for (const name of names) {
-      const letterColors = await Promise.all(
-        name.letterColors.map((color) => readChannels(page, color)),
-      );
-      expect(letterColors, name.name).toEqual([ink, onOrange, onOrange, ink]);
-      expect(name.textColor, name.name).toBe("rgba(0, 0, 0, 0)");
+    const [previous, ...others] = await readPillNames(page.locator("#games-bar [role=tablist]"));
+    expect(previous.name).toBe("Previous");
+    expect(await readChannels(page, previous.fill)).toEqual(orange);
+    expect(await readChannels(page, previous.textColor)).toEqual(onOrange);
+    for (const other of others) {
+      expect(other.fill, other.name).toBe("rgba(0, 0, 0, 0)");
+      expect(await readChannels(page, other.textColor), other.name).toEqual(ink);
     }
-    const [previous, ...others] = names;
-    expect(Math.round(previous.coverStart)).toBe(Math.round(previous.left));
-    expect(Math.round(previous.coverEnd)).toBe(Math.round(previous.right));
-    for (const other of others)
-      expect(Math.round(other.coverEnd), other.name).toBeLessThanOrEqual(Math.round(other.left));
     await expect(page.locator("#games-bar .pager-tabs button:not(.active)").first()).toHaveCSS(
       "font-weight",
       "500",
