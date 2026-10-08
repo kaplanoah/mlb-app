@@ -341,9 +341,10 @@ header.top h1 {
   color: var(--ink-dim);
   font-size: var(--size-read);
 }
-/* Level with where a list's first day starts under its pill. */
+/* Centered under its pill, a step lower than a list's first day, so it doesn't crowd the pill. */
 .pager-page .empty-note {
-  margin-top: 0;
+  margin-top: 44px;
+  text-align: center;
 }
 
 .dot {
@@ -827,8 +828,12 @@ header.top h1 {
   font-size: var(--size-glance);
   color: var(--ink-dim);
 }
+.game-sheet .sheet-head h2 {
+  font-size: 1.03125rem;
+  font-weight: 600;
+}
 .sheet-note {
-  font-size: var(--size-small);
+  font-size: var(--size-glance);
 }
 .faceoff-score {
   grid-area: score;
@@ -1722,8 +1727,8 @@ th[aria-sort="ascending"] .roster-caret {
   }
 }
 
-/* The Updates box's count is a label like the sheets' titles, and its team names are set like
-   every other team's. */
+/* The Updates box's count is a label like the sheets' titles, and its team names are in the team
+   font, a step lighter than elsewhere, so they stand out in the sentence without outweighing it. */
 /* The Updates box is a card like any other, raised off the floor inside an edge. */
 .updates {
   border-color: var(--edge);
@@ -1742,7 +1747,7 @@ th[aria-sort="ascending"] .roster-caret {
 .updates > .updates-list .what b {
   font-family: var(--team-name);
   font-size: var(--size-read-condensed);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 /* A release note's word that should stand out stays in its text's font, a step heavier. */

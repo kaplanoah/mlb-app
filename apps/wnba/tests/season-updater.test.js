@@ -310,7 +310,7 @@ test("a game that decides its series is news, worded as the Updates box words it
   ]);
 });
 
-test("a game that leaves its series going is news, its result the title and where the series stands the body", () => {
+test("a game that leaves its series going is news, its result and where the series stands the title", () => {
   const isFeverGame2 = (game) => game.id === "1042600122";
   const before = {
     ...SNAPSHOT,
@@ -325,8 +325,8 @@ test("a game that leaves its series going is news, its result the title and wher
 
   assert.deepEqual(notifications, [
     {
-      title: "Fever beat the Aces 99-89 in Game\u00a02",
-      body: "Tie the First Round 1\u20131",
+      title: "Fever beat the Aces 99-89 in Game\u00a02, tie the First Round 1\u20131",
+      body: "",
       tag: "final:1042600122",
     },
   ]);

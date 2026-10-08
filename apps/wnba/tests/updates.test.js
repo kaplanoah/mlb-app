@@ -16,7 +16,6 @@ const readText = (update) =>
   update.text.text
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/g, " ")
-    .replace(/&mdash;/g, "--")
     .replace(/&ndash;/g, "-");
 
 /** @param {any} season */
@@ -45,24 +44,24 @@ const refuseAccess = () => {
 
 const TUESDAY_WINS = [
   "Liberty beat the Lynx 87-71 to win the First Round 2-0",
-  "Fever beat the Aces 99-89 in Game 2 -- tie the First Round 1-1",
+  "Fever beat the Aces 99-89 in Game 2, tie the First Round 1-1",
 ];
 
 const SUNDAY_WINS = [
-  "Valkyries beat the Wings 104-80 in Game 1 -- lead the First Round 1-0",
-  "Dream beat the Mystics 92-77 in Game 1 -- lead the First Round 1-0",
-  "Aces beat the Fever 102-85 in Game 1 -- lead the First Round 1-0",
-  "Liberty beat the Lynx 91-75 in Game 1 -- lead the First Round 1-0",
+  "Valkyries beat the Wings 104-80 in Game 1, lead the First Round 1-0",
+  "Dream beat the Mystics 92-77 in Game 1, lead the First Round 1-0",
+  "Aces beat the Fever 102-85 in Game 1, lead the First Round 1-0",
+  "Liberty beat the Lynx 91-75 in Game 1, lead the First Round 1-0",
 ];
 
 test("each finished playoff game is an update, newest first, with where its series stood after it", () => {
   assert.deepEqual(readWins(SEASON), [
     "Liberty beat the Lynx 87-71 to win the First Round 2-0",
-    "Fever beat the Aces 99-89 in Game 2 -- tie the First Round 1-1",
-    "Valkyries beat the Wings 104-80 in Game 1 -- lead the First Round 1-0",
-    "Dream beat the Mystics 92-77 in Game 1 -- lead the First Round 1-0",
-    "Aces beat the Fever 102-85 in Game 1 -- lead the First Round 1-0",
-    "Liberty beat the Lynx 91-75 in Game 1 -- lead the First Round 1-0",
+    "Fever beat the Aces 99-89 in Game 2, tie the First Round 1-1",
+    "Valkyries beat the Wings 104-80 in Game 1, lead the First Round 1-0",
+    "Dream beat the Mystics 92-77 in Game 1, lead the First Round 1-0",
+    "Aces beat the Fever 102-85 in Game 1, lead the First Round 1-0",
+    "Liberty beat the Lynx 91-75 in Game 1, lead the First Round 1-0",
   ]);
 });
 
@@ -118,9 +117,9 @@ test("a team down in a longer series trails it after a win, and games still to f
   const games = [semis(1, 70, 80), semis(2, 75, 81), semis(3, 90, 84), semis(4, 40, 38, "live")];
 
   assert.deepEqual(readWins({ games }), [
-    "Liberty beat the Dream 90-84 in Game 3 -- trail the Semifinals 1-2",
-    "Dream beat the Liberty 81-75 in Game 2 -- lead the Semifinals 2-0",
-    "Dream beat the Liberty 80-70 in Game 1 -- lead the Semifinals 1-0",
+    "Liberty beat the Dream 90-84 in Game 3, trail the Semifinals 1-2",
+    "Dream beat the Liberty 81-75 in Game 2, lead the Semifinals 2-0",
+    "Dream beat the Liberty 80-70 in Game 1, lead the Semifinals 1-0",
   ]);
 });
 
