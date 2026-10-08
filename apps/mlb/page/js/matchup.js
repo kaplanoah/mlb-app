@@ -2,12 +2,20 @@
 // season's qualified starters, what each throws, and their last starts. A club yet to name today's starter
 // shows who started its last games instead, and how rested each would be, and any other starter
 // still to be named is one to check back for. Until each side loads, placeholders hold its shape.
+// A side that didn't load says so with a Try again button: under the starter's club when the other
+// side did load, or once for the whole section when nothing did.
 
 import { nameTeam, renderClub, renderClubName } from "./clubs.js";
 import { renderArm } from "./games-view.js";
 import { formatShortDate, readCalendarDate, readEasternDay } from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import {
+  renderRetryBlock,
+  renderRetryButton,
+  renderRetryMessage,
+  renderRetryNote,
+} from "#shared/retry.js";
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
 import { renderPlayerButton } from "./player-button.js";
@@ -37,33 +45,45 @@ function renderBio(side) {
   return html`<span class="pitcher-bio">${renderArm(pitcher.hand)}${age}</span>`;
 }
 
+// The game keeps a starter's first name beside his last, so it shows even when his numbers don't.
+const readFirstName = (side) => side.pitcher?.firstName || side.starter?.firstName || "";
+
 function renderFirstName(side) {
-  if (isLoadingPitcher(side))
+  if (isLoadingPitcher(side) && !side.starter?.firstName)
     return html`<span class="pitcher-first">${renderPlaceholder("Firstname")}</span>`;
-  const first = side.pitcher?.firstName;
+  const first = readFirstName(side);
   return first ? html`<span class="pitcher-first">${first}</span>` : html``;
 }
 
-// Until his numbers load, a starter has only the last name the game row shows. A named starter's
-// name opens his sheet.
+// A named starter's name opens his sheet.
 function renderName(side) {
   const { starter, pitcher } = side;
   const last = pitcher?.lastName || starter?.name || (starter ? "Not named yet" : "Still TBD");
   const content = html`${renderFirstName(side)}<span class="pitcher-last">${last}</span>`;
   if (!starter?.id || !side.club) return html`<span class="pitcher-name">${content}</span>`;
-  const name = [pitcher?.firstName, last].filter(Boolean).join(" ");
+  const name = [readFirstName(side), last].filter(Boolean).join(" ");
   return renderPlayerButton({ id: starter.id, name }, side.club, {
     content,
     className: "pitcher-name",
   });
 }
 
-function renderPitcherId(side) {
+// Under the club of a starter whose numbers didn't load, where his hand and age would be.
+const renderSideRetry = () =>
+  html`<div class="retry-side">${renderRetryMessage("Couldn't load")}${renderRetryButton()}</div>`;
+
+/**
+ * @param {any} side
+ * @param {boolean} isSectionFailed
+ */
+function renderPitcherId(side, isSectionFailed) {
   const { club } = side;
+  const isRetryShown = side.failed && Boolean(side.starter?.name) && !isSectionFailed;
   return html`<div class="pitcher-id ${side.key}">
     ${renderName(side)}
     ${club ? renderClub(club) : html``}
     ${renderBio(side)}
+    ${isRetryShown && renderSideRetry()}
   </div>`;
 }
 
@@ -169,7 +189,6 @@ const renderPendingRotationStarter = () =>
 const isLoadingRotation = (side) => !side.rotation && !side.failed;
 
 function describeRotationNote(side, game) {
-  if (side.failed) return "Couldn't load who started lately. Close and try again in a minute.";
   if (isLoadingRotation(side))
     return renderPlaceholder("No starter named yet. Each recent starter");
   if (!side.rotation.starters.length) return "No starts in the last two weeks to go by";
@@ -183,13 +202,18 @@ function renderRotationStarters(side) {
 }
 
 function renderRotation(side, game) {
+  const heading = html`<h3>${renderClubName(side.club)}<span>Who's rested</span></h3>`;
+  if (side.failed)
+    return html`<section class="scout">
+      ${heading}${renderRetryNote("Couldn't load who started lately", "scout-note")}
+    </section>`;
   const starters = renderRotationStarters(side);
   const list =
     starters.length > 0 &&
     html`<ul class="rotation">${starters}</ul>
       <p class="tape-note">Gold is a starter's usual rest, ${USUAL_REST_DAYS} days or more</p>`;
   return html`<section class="scout">
-    <h3>${renderClubName(side.club)}<span>Who's rested</span></h3>
+    ${heading}
     <p class="scout-note">${describeRotationNote(side, game)}</p>
     ${list}
   </section>`;
@@ -211,8 +235,7 @@ function renderScouting(side, game, speedRange) {
   if (isAwaitingStarter(side, game)) return renderRotation(side, game);
   if (!side.starter?.name) return html``;
   const name = side.starter.name;
-  if (side.failed)
-    return html`<section class="scout"><h3>${name}</h3><p class="scout-note">Couldn't load his numbers. Close and try again in a minute.</p></section>`;
+  if (side.failed) return html``;
   if (!side.pitcher) return renderPendingScouting(name);
   const { pitcher } = side;
   const starts =
@@ -245,12 +268,43 @@ function renderPendingScouting(name) {
 const measureSidesSpeedRange = (sides) =>
   measureSpeedRange(sides.filter((side) => side.pitcher).map((side) => side.pitcher.pitches));
 
+/**
+ * The sides that read something for the section: a named starter's numbers, or the last starters
+ * of a club yet to name one.
+ * @param {any[]} sides
+ * @param {MatchupGame} game
+ */
+const listReadingSides = (sides, game) =>
+  sides.filter((side) => Boolean(side.starter?.name) || isAwaitingStarter(side, game));
+
+/**
+ * @param {any[]} sides
+ * @param {MatchupGame} game
+ */
+function isSectionFailed(sides, game) {
+  const reading = listReadingSides(sides, game);
+  return reading.length > 0 && reading.every((side) => side.failed);
+}
+
+/** @param {any[]} failed */
+function describeSectionFailure(failed) {
+  const named = failed.filter((side) => side.starter?.name);
+  if (named.length === failed.length)
+    return named.length === 1 ? "Couldn't load his numbers" : "Couldn't load the starters' numbers";
+  if (named.length === 0) return "Couldn't load who started lately";
+  return "Couldn't load the matchup";
+}
+
 export function renderMatchupBody(game, sides) {
   const speedRange = measureSidesSpeedRange(sides);
-  return html`<div class="faceoff">${sides.map(renderPitcherId)}</div>
+  const isFailed = isSectionFailed(sides, game);
+  const scouting = isFailed
+    ? renderRetryBlock(describeSectionFailure(listReadingSides(sides, game)), "scout-note")
+    : sides.map((side) => renderScouting(side, game, speedRange));
+  return html`<div class="faceoff">${sides.map((side) => renderPitcherId(side, isFailed))}</div>
     ${renderCheckBack(sides, game)}
     ${renderTape(sides)}
-    ${sides.map((side) => renderScouting(side, game, speedRange))}`;
+    ${scouting}`;
 }
 
 export const isLoadingSide = (side, game) =>

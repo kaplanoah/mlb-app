@@ -1,11 +1,13 @@
 // The sheet a game's row opens: the two teams across the score in its top, then the game's box
 // score once it has started, or a preview before it does. Phones show it as a sheet from the bottom that a
 // swipe down closes, wider screens as a modal, like Settings. A team's sheet opens it beside itself
-// from the cards of the team's nearest games.
+// from the cards of the team's nearest games. Details that didn't load read again on a tap on Try
+// again, as the phone comes back online, or as the page comes back.
 
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { renderNetworks } from "#shared/network-logos.js";
+import { renderRetryBlock, watchRetries } from "#shared/retry.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { renderBoxScore, renderPendingBoxScore } from "./box-score-view.js";
 import { renderClub } from "./clubs.js";
@@ -123,7 +125,9 @@ function renderDetails(opened, game) {
     const meetings = opened.details?.meetings ?? null;
     return renderPreview({ teams, season: session.season, meetings, isLoading: isLoading(opened) });
   }
-  if (opened.error) return renderSheetMessage(describeProblem(opened.error));
+  if (opened.error?.status === 404)
+    return renderSheetMessage("The league hasn't posted a box score for this game yet");
+  if (opened.error) return renderRetryBlock("Couldn't load the box score");
   return opened.details
     ? renderBoxScore(opened.details, opened)
     : renderPendingBoxScore(teams, opened);
@@ -139,12 +143,6 @@ function renderSheet() {
   body.setAttribute("style", formatSheetColors(game.away.team, game.home.team));
   setHtml(body, renderDetails(shown, game));
   body.setAttribute("aria-busy", String(isLoading(shown)));
-}
-
-/** @param {any} error why the box score didn't load */
-function describeProblem(error) {
-  if (error?.status === 404) return "The league hasn't posted a box score for this game yet.";
-  return "Couldn't load the box score. Close and try again in a minute.";
 }
 
 /** @param {Game} game */
@@ -276,6 +274,17 @@ function reopenGameSheet(saved) {
   return true;
 }
 
+// A box score that didn't load, or a preview whose meetings didn't, shows its placeholders while
+// it reads again.
+function retryDetails() {
+  if (!shown || isLoading(shown)) return;
+  const isPreviewMissingMeetings = shown.kind === "preview" && !shown.details?.meetings;
+  if (!shown.error && !isPreviewMissingMeetings) return;
+  Object.assign(shown, { details: null, error: null });
+  renderSheet();
+  refreshDetails();
+}
+
 /** @param {string} id */
 function openGameSheet(id) {
   if (!findGame(id)) return;
@@ -312,6 +321,7 @@ function forgetGame() {
 }
 
 export function startGameSheet() {
+  watchRetries(findSheet(), retryDetails);
   for (const holder of ["seasonGames", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {

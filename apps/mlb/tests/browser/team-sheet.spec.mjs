@@ -16,6 +16,9 @@ import {
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
+import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -436,4 +439,65 @@ test("a reload shows the open player's sheet as it was while the page reads him 
   await expect(playerSheet.locator(".player-curve svg")).toHaveCount(10);
   await expect(playerSheet.locator(".placeholder")).toHaveCount(0);
   release();
+});
+
+/**
+ * Has the store's documents under `path` answer with an error until the returned function is
+ * called.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} path
+ */
+async function failStoreReads(page, path) {
+  const pattern = matchPath(path);
+  /** @param {import("@playwright/test").Route} route */
+  const refuse = (route) => route.fulfill({ status: 500, json: { error: "test" } });
+  await page.route(pattern, refuse);
+  return () => page.unroute(pattern, refuse);
+}
+
+test("a player's sheet that didn't load says so over Try again, which shows his placeholders as it reads him again", async ({
+  page,
+}) => {
+  const sheet = await openRoster(page, "CLE");
+  await expect(sheet.locator("#rosterBody .box-name").first()).toHaveText("Jo Adell");
+  const answer = await failStoreReads(page, "/store/players/");
+  await sheet.getByRole("button", { name: "Steven Kwan" }).click();
+  const playerSheet = page.locator("#playerSheet");
+  const block = playerSheet.locator("#playerBody .retry-block");
+  await expect(block.locator(".retry-title")).toHaveText("Couldn't load his numbers");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  await answer();
+  const release = await holdRequests(page, matchPath("/store/players/"));
+  await block.getByRole("button", { name: "Try again" }).click();
+  await expect(playerSheet.locator("#playerBody .placeholder").first()).toBeVisible();
+  release();
+  await expect(playerSheet.locator(".player-curve svg")).toHaveCount(10);
+});
+
+test("a roster that didn't load says so over Try again, and reads again as the page comes back", async ({
+  page,
+}) => {
+  await openApp(page, { store: { ...ROSTER_DOCS, ...PLAYER_DOCS }, pitchers: PITCHER_SIDES });
+  const answer = await failStoreReads(page, "/store/rosters/CLE");
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
+  const sheet = page.locator("#teamSheet");
+  await sheet.getByRole("tab", { name: "Roster" }).click();
+  const block = sheet.locator("#rosterBody .retry-block");
+  await expect(block.locator(".retry-title")).toHaveText("Couldn't load the roster");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  await answer();
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(sheet.locator("#rosterBody .box-name").first()).toHaveText("Jo Adell");
 });

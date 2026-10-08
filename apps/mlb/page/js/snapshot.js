@@ -105,6 +105,7 @@ const SEASON_FIELDS = ["seasons", "springStartDate", "regularSeasonEndDate"].joi
 const PITCHER_FIELDS = [
   "people",
   "id",
+  "useName",
   "useLastName",
   "pitchHand",
   "code",
@@ -213,6 +214,7 @@ const FIELD_RULES = {
   ],
   pitcher: [
     requireField("id", isNumber),
+    requireField("useName", isText, () => true, true),
     requireField("useLastName", isText),
     requireField("pitchHand.code", isText),
   ],
@@ -608,7 +610,13 @@ function describeStarter(id, pitchers) {
   const person = pitchers.get(id);
   if (!person) return { id };
   const line = readPitchingLine(person);
-  return { id, name: person.useLastName, hand: person.pitchHand?.code, era: line?.era || null };
+  const starter = {
+    id,
+    name: person.useLastName,
+    hand: person.pitchHand?.code,
+    era: line?.era || null,
+  };
+  return person.useName ? { ...starter, firstName: person.useName } : starter;
 }
 
 const isStillPitching = (game, side) =>

@@ -1,9 +1,12 @@
 // The sheet a tap on a player's name opens, beside the sheet it was in: her facts and numbers for
 // the season shown, which the store keeps, read the first time the sheet shows her season and
-// again once they're old. She shows as out only while her team still plays. The sheet keeps her
-// numbers with her, so a reload draws them again while it reads them again.
+// again once they're old. She shows as out only while her team still plays. A sheet that didn't
+// load reads again on a tap on Try again, as the phone comes back online or the page comes back,
+// or a minute later. The sheet keeps her numbers with her, so a reload draws them again while it
+// reads them again.
 
 import { setHtml } from "#shared/html.js";
+import { watchRetries } from "#shared/retry.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import {
@@ -23,7 +26,7 @@ import { TEAMS } from "./teams.js";
 const FETCH_TIMEOUT_MS = 15 * 1000;
 // Her numbers change after each game.
 const READ_AGAIN_MS = 10 * 60 * 1000;
-// A sheet that didn't load says to try again in a minute.
+// A sheet that didn't load reads again a minute later.
 const RETRY_MS = 60 * 1000;
 
 // Each read is kept by her id, team, and season, as 1627668:NYL:2026.
@@ -110,6 +113,16 @@ function renderSheet() {
   );
 }
 
+// A read that failed is dropped, so the sheet shows its placeholders while it reads again.
+function retryPlayer() {
+  if (!shownPlayer) return;
+  const key = nameRead(shownPlayer, session.year);
+  const read = reads.get(key);
+  if (!read || read.player || read.isLoading) return;
+  reads.delete(key);
+  renderSheet();
+}
+
 /** @param {PlayerSubject} subject */
 function showPlayer(subject) {
   shownPlayer = subject;
@@ -179,6 +192,7 @@ function openOnTap(event) {
 export const refreshPlayerSheet = () => renderSheet();
 
 export function startPlayerSheet() {
+  watchRetries(findSheet(), retryPlayer);
   wireSheet(findSheet(), {
     closeButton: findElement("playerCloseBtn"),
     backButton: findElement("playerBackBtn"),

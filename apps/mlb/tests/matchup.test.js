@@ -242,3 +242,72 @@ test("both starters' speed lines share one scale, from the slowest pitch either 
     ["70 mph", "80", "90", "100"],
   ]);
 });
+
+test("a starter whose numbers didn't load says so under his club, with Try again, and the other's still show", () => {
+  const markup = renderLoaded(AT_ATHLETICS, [{ pitcher: BLUBAUGH }, { failed: true }]);
+  const springs = markup.slice(markup.indexOf('<div class="pitcher-id home">'));
+  assert.deepEqual(readClass(springs, "retry-side"), ["Couldn't load Try again"]);
+  assert.equal(countMatches(markup, /class="retry-side"/g), 1);
+  assert.equal(countMatches(markup, /data-retry/g), 1);
+  assert.equal(countMatches(markup, /class="pitch-mix"/g), 1);
+  assert.equal(countMatches(markup, /<section class="scout">/g), 1);
+  assert.doesNotMatch(markup, /retry-block/);
+});
+
+test("a starter whose numbers didn't load still shows the first name the game keeps", () => {
+  const withFirstNames = {
+    ...AT_ATHLETICS,
+    starters: [
+      { id: 1, name: "Blubaugh", firstName: "AJ" },
+      { id: 2, name: "Springs", firstName: "Jeffrey" },
+    ],
+  };
+  const failed = renderLoaded(withFirstNames, [{ pitcher: BLUBAUGH }, { failed: true }]);
+  assert.deepEqual(readClass(failed, "pitcher-first"), ["AJ", "Jeffrey"]);
+  assert.match(failed, /data-player-name="Jeffrey Springs"/);
+  const loading = renderLoaded(withFirstNames, [{ pitcher: BLUBAUGH }, {}]);
+  assert.deepEqual(readClass(loading, "pitcher-first"), ["AJ", "Jeffrey"]);
+});
+
+test("with neither starter's numbers loaded, the section says so once, centered over Try again", () => {
+  const markup = renderLoaded(AT_ATHLETICS, [{ failed: true }, { failed: true }]);
+  assert.deepEqual(readClass(markup, "retry-title scout-note"), [
+    "Couldn't load the starters' numbers",
+  ]);
+  assert.equal(countMatches(markup, /data-retry/g), 1);
+  assert.match(markup, /class="retry-button filled"/);
+  assert.doesNotMatch(markup, /retry-side|<section class="scout">/);
+});
+
+test("a club whose last starters didn't load says so with Try again, beside the other's", () => {
+  const stillTbd = { ...AT_ATHLETICS, starters: [] };
+  const markup = renderLoaded(stillTbd, [
+    { rotation: { club: "HOU", date: TONIGHT, starters: [] } },
+    { failed: true },
+  ]);
+  const athletics = markup.slice(markup.lastIndexOf('<section class="scout">'));
+  assert.deepEqual(readClass(athletics, "retry-message scout-note"), [
+    "Couldn't load who started lately",
+  ]);
+  assert.equal(countMatches(markup, /data-retry/g), 1);
+  assert.doesNotMatch(markup, /retry-block/);
+});
+
+test("with neither club's last starters loaded, the section says so once", () => {
+  const stillTbd = { ...AT_ATHLETICS, starters: [] };
+  const markup = renderLoaded(stillTbd, [{ failed: true }, { failed: true }]);
+  assert.deepEqual(readClass(markup, "retry-title scout-note"), [
+    "Couldn't load who started lately",
+  ]);
+  assert.equal(countMatches(markup, /data-retry/g), 1);
+});
+
+test("a lone named starter whose numbers didn't load leaves the section saying so", () => {
+  const oneNamed = {
+    ...AT_ATHLETICS,
+    state: "final",
+    starters: [{ id: 1, name: "Blubaugh" }, null],
+  };
+  const markup = renderLoaded(oneNamed, [{ failed: true }, {}]);
+  assert.deepEqual(readClass(markup, "retry-title scout-note"), ["Couldn't load his numbers"]);
+});

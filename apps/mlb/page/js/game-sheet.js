@@ -19,6 +19,7 @@ import { watchGameOpens } from "#shared/game-row.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { isLoadingSide, listSides, loadSide, renderMatchupBody } from "./matchup.js";
 import { renderNetworks } from "#shared/network-logos.js";
+import { watchRetries } from "#shared/retry.js";
 import { session } from "./session.js";
 import { listSlateGames } from "./slate.js";
 import { wireSheetSections } from "#shared/sheet-sections.js";
@@ -211,6 +212,23 @@ async function showGame(game, sides, boxScore = null) {
   );
 }
 
+// Each side that didn't load shows its placeholders again while it reads again.
+async function retryFailedSides() {
+  const opened = shown;
+  const failed = opened?.sides.filter((side) => side.failed) ?? [];
+  if (!opened || failed.length === 0) return;
+  for (const side of failed) side.failed = false;
+  renderSheet();
+  const game = readCurrentGame(opened.game);
+  await Promise.all(
+    failed.map((side) =>
+      loadSide(side, game, session.activeYear).then(() => {
+        if (shown === opened) renderSheet();
+      }),
+    ),
+  );
+}
+
 /** @param {MatchupGame} game */
 function openGameSheet(game) {
   openSheet(findSheet(), {
@@ -273,6 +291,7 @@ export function startGameSheet() {
   for (const holder of ["games-pages", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromButton, prepare: prepareFromButton });
   findElement("gameBody").addEventListener("click", showMatchupOnTap);
+  watchRetries(sheet, retryFailedSides);
   wireSheet(sheet, {
     closeButton: findElement("gameCloseBtn"),
     backButton: findElement("gameBackBtn"),

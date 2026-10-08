@@ -101,7 +101,10 @@ test("a two-way player is with both the hitters and the pitchers, and the injure
   );
 });
 
-test("a roster still loading holds its shape, and one that didn't load says so", () => {
+test("a roster still loading holds its shape, and one that didn't load says so over Try again", () => {
   assert.match(String(renderRoster(null, { isLoading: true })), /class="placeholder/);
-  assert.match(String(renderRoster(null, { isLoading: false })), /The roster didn't load/);
+  const failed = String(renderRoster(null, { isLoading: false }));
+  assert.match(failed, /class="retry-block"/);
+  assert.match(failed, /<p class="retry-title">Couldn&#39;t load the roster<\/p>/);
+  assert.match(failed, /class="retry-button filled" data-retry/);
 });

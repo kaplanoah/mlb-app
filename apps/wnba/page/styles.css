@@ -2381,6 +2381,44 @@ table.standings tr.playoff-line + tr td {
   }
 }
 
+/* Try again, raised and outlined like the Read button, its arrow in orange, and filled orange where
+   it stands alone in place of what didn't load. */
+.retry-button {
+  gap: 6px;
+  height: var(--control-height);
+  padding: 0 var(--control-room) 0 calc(var(--control-room) - 2px);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--edge);
+  color: var(--ink);
+  font-size: var(--size-glance);
+  font-weight: var(--control-weight);
+}
+.retry-button span {
+  text-box: trim-both cap alphabetic;
+}
+.retry-button .retry-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--action);
+}
+.retry-button.filled {
+  background: var(--action);
+  box-shadow: inset 0 0 0 1px var(--pager-chosen-edge);
+  color: var(--action-ink);
+}
+.retry-button.filled .retry-icon {
+  color: inherit;
+}
+@media (hover: hover) {
+  .retry-button:not(.filled):hover {
+    color: var(--ink-hover);
+  }
+}
+.retry-block .retry-title {
+  font-weight: 500;
+}
+
 /* On a wide screen, Walnut's selected tab reads a step heavier on its bright orange. Each tab's
    label keeps room for itself at both weights, in hidden copies under it, in both themes, so
    choosing a tab never changes its width and the tabs lay out the same in each. */

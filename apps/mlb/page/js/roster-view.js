@@ -4,6 +4,7 @@
 
 import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import { renderRetryBlock } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderPlayerButton } from "./player-button.js";
 import { formatInnings, renderPlayerCell, renderStatCells, renderStatTable } from "./stat-table.js";
@@ -153,9 +154,7 @@ const renderPendingRoster = () =>
  */
 export function renderRoster(roster, { isLoading }) {
   if (!roster) {
-    return isLoading
-      ? renderPendingRoster()
-      : html`<p class="sheet-message">The roster didn't load. Check back in a minute.</p>`;
+    return isLoading ? renderPendingRoster() : renderRetryBlock("Couldn't load the roster");
   }
   const active = roster.players.filter((player) => !player.injury);
   const pitchers = active.filter(isPitcher);

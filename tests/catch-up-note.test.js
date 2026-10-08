@@ -137,6 +137,17 @@ test("an offline page still catching up says so at once, as a problem", () => {
   assert.doesNotMatch(readMarkup()[0], /catch-up-ring/);
 });
 
+test("a page that has never been current says it's offline, or can't reach the server, in a line with no period", () => {
+  const readDecodedLines = () => readLines().map((line) => line.replace(/&#39;/g, "'"));
+  setOnline(false);
+  startNote(null);
+  assert.deepEqual(readDecodedLines(), ["You're offline"]);
+
+  setOnline(true);
+  mock.timers.tick(STALLED_WAIT_MS);
+  assert.deepEqual(readDecodedLines(), ["Can't reach the server"]);
+});
+
 test("a page that goes offline while catching up says so as it does", () => {
   const { countRedraws } = startNote();
 

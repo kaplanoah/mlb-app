@@ -3,7 +3,7 @@
 import { trackKeyboardFocus } from "./keyboard-focus.js";
 
 const PROBLEMS = {
-  empty: "Type the code first.",
+  empty: "Type the code first",
   wrong_code: "That code isn't right. Check it and try again.",
   too_many_tries: "Too many tries. Try again in a minute.",
   unavailable: "Couldn't check the code. Check your connection and try again.",
