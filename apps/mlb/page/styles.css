@@ -78,6 +78,7 @@
   --sheet-part-head: var(--gold);
   --network-logo-height: 13px;
   --network-gap: 16px;
+  --network-name-offset: 0.5px;
   --logos-for-light: none;
   --logos-for-dark: inline;
   --game-card-edge: var(--card-border);

@@ -1250,6 +1250,29 @@ for (const [scheme, shown, hidden] of LOGO_LOOKS) {
   });
 }
 
+const readNameOffset = (sheet) =>
+  sheet.locator(".network-name").evaluate((name) => {
+    const readMiddle = (element) => {
+      const box = element.getBoundingClientRect();
+      return (box.top + box.bottom) / 2;
+    };
+    return readMiddle(name) - readMiddle(name.parentElement);
+  });
+
+test("in a sheet, a channel without a logo sits half a pixel above the logos' middle", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await app.changeSeason((season) => {
+    season.games.find((each) => each.id === "1042600132").networks = ["ABC", "ION"];
+    return season;
+  });
+  const sheet = await openWashingtonSheet(page);
+  await expect(sheet.locator(".network-name")).toHaveText("ION");
+
+  expect(await readNameOffset(sheet)).toBe(-0.5);
+});
+
 test("in a sheet, a square badge is drawn taller than a long wordmark", async ({ page }) => {
   const app = await openApp(page);
   await app.changeSeason((season) => {

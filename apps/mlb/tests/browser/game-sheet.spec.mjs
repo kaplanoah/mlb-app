@@ -822,6 +822,24 @@ test("today's game still to start shows each club's lineup once it's posted, and
   expect(reads).toEqual([]);
 });
 
+const readNameOffset = (sheet) =>
+  sheet.locator(".network-name").evaluate((name) => {
+    const readMiddle = (element) => {
+      const box = element.getBoundingClientRect();
+      return (box.top + box.bottom) / 2;
+    };
+    return readMiddle(name) - readMiddle(name.parentElement);
+  });
+
+test("in a sheet, a channel without a logo sits half a pixel below the logos' middle", async ({
+  page,
+}) => {
+  const { sheet } = await openOctoberGame(page, "Today", "Guardians at White Sox");
+  await expect(sheet.locator(".network-name")).toHaveText("TruTV");
+
+  expect(await readNameOffset(sheet)).toBe(0.5);
+});
+
 test("a live game's box score follows each one the store pushes, and passes over one from before it", async ({
   page,
 }) => {
