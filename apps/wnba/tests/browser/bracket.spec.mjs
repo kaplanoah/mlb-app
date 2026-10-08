@@ -517,6 +517,49 @@ test("a series' winner has its wins on a teal block, the color of a result, cut 
   await expect(out.locator(".club")).toHaveCSS("font-weight", "600");
 });
 
+test("a series' winner's row is washed in teal, more on Walnut, and its loser's name and wins dim a step beside a dimmer dot", async ({
+  page,
+}) => {
+  await openApp(page);
+  const card = page.locator('[data-series="1-0"]');
+  const [won, out] = [card.locator(".team-line.won"), card.locator(".team-line.out")];
+  await expect(won).toContainText("Liberty");
+  const readWash = (percent) =>
+    page.evaluate((share) => {
+      const probe = document.createElement("i");
+      probe.style.backgroundColor = `color-mix(in srgb, var(--teal) ${share}%, transparent)`;
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    }, percent);
+  for (const [colorScheme, percent] of /** @type {const} */ ([
+    ["light", 9],
+    ["dark", 12],
+  ])) {
+    await page.emulateMedia({ colorScheme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
+    await expect(won).toHaveCSS("background-color", await readWash(percent));
+    await expect(out).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+  for (const part of [".team-name", ".wins"]) {
+    await expect(out.locator(part)).toHaveCSS("opacity", "0.95");
+    await expect(won.locator(part)).toHaveCSS("opacity", "1");
+  }
+  await expect(out.locator(".dot")).toHaveCSS("opacity", "0.55");
+});
+
+test("each team's name sits a pixel above its dot and wins, which stay where they were", async ({
+  page,
+}) => {
+  await openApp(page);
+  const row = page.locator('[data-series="1-0"] .team-line[data-team="NYL"]');
+  await expect(row).toBeVisible();
+  await expect(row.locator(".team-name")).toHaveCSS("translate", "0px -1px");
+  for (const part of [".dot", ".wins"])
+    await expect(row.locator(part)).toHaveCSS("translate", "none");
+});
+
 test("each team's wins sit on a block that casts a shadow on the card", async ({ page }) => {
   await openApp(page);
   const wins = page.locator('[data-series="1-0"] .wins').first();
