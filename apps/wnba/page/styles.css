@@ -828,7 +828,7 @@ header.top h1 {
   color: var(--ink-dim);
 }
 .sheet-note {
-  font-size: var(--size-small);
+  font-size: var(--size-glance);
 }
 .faceoff-score {
   grid-area: score;
@@ -1722,8 +1722,8 @@ th[aria-sort="ascending"] .roster-caret {
   }
 }
 
-/* The Updates box's count is a label like the sheets' titles, and its team names are set like
-   every other team's. */
+/* The Updates box's count is a label like the sheets' titles, and its team names are in the team
+   font, a step lighter than elsewhere, so they stand out in the sentence without outweighing it. */
 /* The Updates box is a card like any other, raised off the floor inside an edge. */
 .updates {
   border-color: var(--edge);
@@ -1742,7 +1742,7 @@ th[aria-sort="ascending"] .roster-caret {
 .updates > .updates-list .what b {
   font-family: var(--team-name);
   font-size: var(--size-read-condensed);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 /* A release note's word that should stand out stays in its text's font, a step heavier. */

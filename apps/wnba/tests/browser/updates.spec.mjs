@@ -38,6 +38,13 @@ test.describe("on a phone", () => {
     await expect(page.locator("#updates .updates-notes .what")).toHaveCSS("line-height", "20.8px");
   });
 
+  test("a final's team names are set in Barlow Condensed at medium", async ({ page }) => {
+    await openApp(page, { isShowingUpdates: true });
+    const team = page.locator("#updates .updates-list .what b").first();
+    await expect(team).toHaveCSS("font-family", /^"Barlow Condensed"/);
+    await expect(team).toHaveCSS("font-weight", "500");
+  });
+
   test("the Updates box opens on the latest day's playoff finals, newest first, until it's dismissed, and then lists only what's new", async ({
     page,
   }) => {
