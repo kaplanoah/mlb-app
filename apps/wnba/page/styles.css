@@ -830,7 +830,6 @@ header.top h1 {
 }
 .game-sheet .sheet-head h2 {
   font-size: 1.03125rem;
-  font-weight: 600;
 }
 .sheet-note {
   font-size: var(--size-glance);
