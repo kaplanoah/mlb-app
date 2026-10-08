@@ -15,7 +15,7 @@ import {
 } from "./days.js";
 import { isOnHomeScreen, isTouchDevice } from "./device.js";
 import { html, joinWithSeparator, setHtml } from "./html.js";
-import { describeAnimations, describeShownPagers } from "./pager-log.js";
+import { describeAnimations, describeShownDayLists, describeShownPagers } from "./pager-log.js";
 import { loadRelease } from "./release.js";
 import { watchTimeAway } from "./resume.js";
 import { listSheetsInOpenDialogs } from "./sheet-reopen.js";
@@ -253,7 +253,7 @@ function sampleParts() {
   drawCountdown();
   if (performance.now() - recordStartedAt < RECORD_MS) requestAnimationFrame(sampleParts);
   else {
-    for (const line of describeShownPagers()) noteStep(line);
+    for (const line of [...describeShownPagers(), ...describeShownDayLists()]) noteStep(line);
     noteStep(describeAnimations());
     finishRecord();
   }

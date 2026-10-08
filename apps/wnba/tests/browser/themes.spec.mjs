@@ -49,7 +49,7 @@ const VIEWS = [
   {
     name: "Games",
     open: (page) => page.getByRole("tab", { name: "Games" }).click(),
-    shown: (page) => page.locator("#games-today .game-row").first(),
+    shown: (page) => page.locator("#seasonGames .game-day.is-today .game-row").first(),
   },
   {
     name: "Standings",

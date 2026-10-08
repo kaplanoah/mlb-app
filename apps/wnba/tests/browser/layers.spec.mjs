@@ -1,4 +1,4 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, findGameButton, openApp } from "./harness.mjs";
 import { expectWithinBudgets } from "../../../../tests/browser/layer-count.mjs";
 import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 
@@ -8,14 +8,15 @@ import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 // phone has drawn it on beta.
 const BUDGETS = {
   Bracket: 11,
-  Games: 11,
+  // The strip of days and the list of games each scroll on their own.
+  Games: 13,
   Standings: 11,
   News: 8,
-  "Team sheet, Team": 16,
+  "Team sheet, Team": 18,
   // The roster's numbers and names stay put as one table rather than two cells a player, each a
   // layer of its own.
-  "Team sheet, Roster": 20,
-  "Team sheet over the game's": 15,
+  "Team sheet, Roster": 22,
+  "Team sheet over the game's": 17,
 };
 
 test.use({
@@ -55,11 +56,9 @@ test("each view, a team's sheet on each section, and a sheet over a sheet keep w
         view: "Team sheet over the game's",
         show: async () => {
           await showTab("Games")();
-          await page.getByRole("tab", { name: "Previous" }).click();
-          await page
-            .locator("#games-previous")
-            .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
-            .click();
+          await (
+            await findGameButton(page, "Game details: Aces at Fever, First Round Game 2")
+          ).click();
           await expect(page.locator("#gameSheet .line-score")).toBeVisible();
           await page
             .locator("#gameSheet .faceoff")

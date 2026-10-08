@@ -13,28 +13,55 @@ import {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-test("a tab tap, a pill tap, and a swipe each leave the page at rest, with no ResizeObserver loop", async ({
+test("a tab tap, a tap on a day, and a tap on Today each leave the page at rest, with no ResizeObserver loop", async ({
+  page,
+}) => {
+  const readResizeLoops = await listResizeLoops(page);
+  await openApp(page, { isWholeSeason: true });
+  await waitForLoadToSettle(page);
+  await expectAtRest(page);
+  await forgetResizeLoops(page);
+
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+  await expectAtRest(page);
+
+  await page.locator('#seasonGames .day-cell[data-day="2026-09-27"]').click();
+  await expect(page.locator('#seasonGames .day-cell[data-day="2026-09-27"]')).toHaveClass(
+    /is-chosen/,
+  );
+  await page.clock.runFor(2000);
+  await expect(page.locator('#seasonGames .listed-day[data-day="2026-09-27"]')).toBeInViewport();
+  await expectAtRest(page);
+
+  await page.locator("#seasonGames .go-today").click();
+  await page.clock.runFor(2000);
+  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+  await expectAtRest(page);
+
+  expect(await readResizeLoops()).toEqual([]);
+});
+
+test("a pill tap and a swipe between the standings' lists each leave the page at rest", async ({
   page,
   browserName,
 }) => {
   const readResizeLoops = await listResizeLoops(page);
   await openApp(page);
   await waitForLoadToSettle(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await expect(page.locator("#standings-league")).toBeInViewport();
   await expectAtRest(page);
   await forgetResizeLoops(page);
 
-  await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator("#games-today")).toBeInViewport();
-  await expectAtRest(page);
-
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await expect(page.locator("#games-previous")).toBeInViewport();
-  await expect(page.locator("#games-pages")).toHaveAttribute("data-settled-by", "scrollend");
+  await page.getByRole("tab", { name: "East" }).click();
+  await expect(page.locator("#standings-east")).toBeInViewport();
+  await expect(page.locator("#standings-pages")).toHaveAttribute("data-settled-by", "scrollend");
   await expectAtRest(page);
 
   await swipeToNextList(page, browserName, { x: 340, y: 500 });
-  await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#games-today")).toBeInViewport();
+  await expect(page.getByRole("tab", { name: "West" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#standings-west")).toBeInViewport();
   await expectAtRest(page);
 
   expect(await readResizeLoops()).toEqual([]);
@@ -54,21 +81,22 @@ test("a shown list that grows loops no ResizeObserver", async ({ page }) => {
   await openApp(page);
   await waitForLoadToSettle(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator("#games-today")).toBeInViewport();
+  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
   await expectAtRest(page);
   await forgetResizeLoops(page);
 
-  await page.locator("#games-today").evaluate((list) => {
-    const filler = document.createElement("div");
-    filler.style.height = "3000px";
-    list.append(filler);
-  });
+  await page
+    .locator("#seasonGames .listed-day")
+    .first()
+    .evaluate((day) => {
+      const filler = document.createElement("div");
+      filler.style.height = "3000px";
+      day.append(filler);
+    });
   await page.clock.runFor(500);
 
   await expect
-    .poll(() =>
-      page.locator("#games-pages").evaluate((pages) => pages.getBoundingClientRect().height),
-    )
+    .poll(() => page.locator("#seasonGames .day-list").evaluate((list) => list.scrollHeight))
     .toBeGreaterThan(3000);
   expect(await readResizeLoops()).toEqual([]);
 });

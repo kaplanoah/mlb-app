@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renderBoxScore, renderPendingBoxScore } from "../page/js/box-score-view.js";
-import { renderGames } from "../page/js/games-view.js";
+import { listSeasonDays } from "../page/js/games-view.js";
 import { renderPreview } from "../page/js/preview-view.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeBoxScore } from "../worker/src/box-score.js";
@@ -80,8 +80,8 @@ function readTapeBars(markup, label) {
 }
 
 test("every game with both teams known opens its sheet, named for the game", () => {
-  const markup = Object.values(renderGames(SEASON, NOW))
-    .map((list) => list.text)
+  const markup = listSeasonDays(SEASON, null, NOW)
+    .days.map(({ markup: day }) => day.text)
     .join("");
   const labels = [...markup.matchAll(/class="game-open" aria-label="([^"]*)"/g)].map(
     ([, label]) => label,

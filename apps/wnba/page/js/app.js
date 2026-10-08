@@ -5,17 +5,12 @@ import { startHomeScreen } from "#shared/home-screen.js";
 import { setHtml } from "#shared/html.js";
 import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
+import { fillDayStrip, showStartDay, startDayStrip, startOverDayStrip } from "#shared/day-strip.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
-import {
-  chooseStartList,
-  fillGameLists,
-  startGamePager,
-  startGamesOn,
-} from "#shared/game-pager.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
-import { startPageTabs } from "#shared/page-tabs.js";
+import { setTabStart, startPageTabs } from "#shared/page-tabs.js";
 import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
 import { fillSeasonPicker } from "#shared/season-picker.js";
 import { isReadableSeason } from "#shared/season-reader.js";
@@ -29,7 +24,7 @@ import { startAppearance } from "./appearance.js";
 import { placeBracket, readBracketScroll, startBracket } from "./bracket-tree.js";
 import { renderBracket } from "./bracket-view.js";
 import { refreshGameSheet, startGameSheet } from "./game-sheet.js";
-import { findListsWithGames, renderGames } from "./games-view.js";
+import { listSeasonDays } from "./games-view.js";
 import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
@@ -85,8 +80,7 @@ function renderAll() {
   const keptLeft = readBracketScroll();
   setHtml(findElement("bracketWrap"), renderBracket(session.season, now));
   placeBracket(keptLeft);
-  const gameLists = renderGames(session.season, now);
-  fillGameLists((list) => gameLists[list], chooseGamesStart(now));
+  fillDayStrip(listSeasonDays(session.season, session.schedule, now));
   drawStandings(session.season);
   drawNews();
   drawUpdates();
@@ -114,22 +108,27 @@ function refreshClockEveryMinute() {
 // News the page can't read from its last showing leaves the view as it was until the store answers.
 const readLastSeenNews = (news) => (news === null || Array.isArray(news?.cards) ? news : undefined);
 
+// The season's games from the page's last showing count only in the version the page reads.
+const readLastSeenSchedule = (schedule) =>
+  Array.isArray(schedule?.games) && isReadableSeason(schedule, SNAPSHOT_VERSION) ? schedule : null;
+
 // The season the page last showed is only a stand-in until the store answers, so one that can't
 // be drawn is skipped.
 function drawLastSeen() {
   const lastSeen = readLastSeen();
   if (!lastSeen?.season || !isReadableSeason(lastSeen.season, SNAPSHOT_VERSION)) return;
-  const { year, season, news } = session;
+  const { year, season, schedule, news } = session;
   try {
     Object.assign(session, {
       year: lastSeen.year,
       season: lastSeen.season,
+      schedule: readLastSeenSchedule(lastSeen.schedule),
       news: readLastSeenNews(lastSeen.news),
     });
     renderAll();
     endLoadNote();
   } catch {
-    Object.assign(session, { year, season, news });
+    Object.assign(session, { year, season, schedule, news });
   }
 }
 
@@ -138,7 +137,12 @@ const renderShownTeam = (team) =>
   renderTeamSheet(session.season, team, { year: session.year, now: Date.now() });
 
 const readShown = () =>
-  session.season && { year: session.year, season: session.season, news: session.news };
+  session.season && {
+    year: session.year,
+    season: session.season,
+    schedule: session.schedule,
+    news: session.news,
+  };
 
 const findSeasonPicker = () => /** @type {HTMLSelectElement} */ (findElement("seasonPicker"));
 
@@ -153,24 +157,25 @@ async function listSeasonYears() {
 /** @param {string[]} years */
 const fillSeasonList = (years) => fillSeasonPicker(findSeasonPicker(), years, session.year);
 
-// A past season has no games today or ahead, so its Games view starts on its results.
-const chooseGamesStart = (now) =>
-  chooseStartList({ isSeasonOver: isPastSeason(), ...findListsWithGames(session.season, now) });
-
-const startGamesForSeason = () => startGamesOn(chooseGamesStart(Date.now()));
-
+// Another season's Games view opens on its start day: today, or a season over's last day.
 /** @param {number} year */
 async function switchSeason(year) {
   await showYear(year);
-  startGamesForSeason();
+  startOverDayStrip();
   renderAll();
 }
 
 // A new current season changes what the header says, and the picker lists it.
 async function showNewCurrentYear() {
-  startGamesForSeason();
+  startOverDayStrip();
   renderAll();
   fillSeasonList(await listSeasonYears());
+}
+
+// As on iPhone, choosing the Games tab while it shows goes back to where it starts: today.
+function returnGamesToToday() {
+  showStartDay();
+  return true;
 }
 
 async function reloadSeason() {
@@ -191,7 +196,8 @@ async function boot() {
   watchReturns({ catchUp, pause: () => session.db.pause() });
   trackKeyboardFocus();
   startPageTabs();
-  startGamePager();
+  setTabStart("games", returnGamesToToday);
+  startDayStrip(findElement("seasonGames"));
   startGameSheet();
   startTeamSheet({
     isTeam: (team) => team in TEAMS,

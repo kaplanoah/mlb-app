@@ -14,6 +14,11 @@ import { findTeamNearestGames } from "./nearest-games.js";
 // knows it.
 export const SNAPSHOT_VERSION = 1;
 
+// Every game of a season keeps a document of its own, which only the Games view reads, so the
+// season's record that pages watch through every live game doesn't carry it.
+/** @param {number} year */
+export const nameScheduleKey = (year) => `schedules/${year}`;
+
 const WNBA_CDN = "https://cdn.wnba.com";
 const WNBA_STATS = "https://stats.wnba.com";
 const ESPN_CORE = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba";
@@ -289,6 +294,41 @@ const listSeasonGames = (games, season) =>
 
 const isPlayoffGame = (game) => game.round !== null;
 
+// The Games view lists every game of the season, which the store saves on its own, again only as a
+// game ends or the schedule changes. A game under way is listed as it was before it started, since
+// the season's record carries it while it's played, as each team's game now, and only a final
+// keeps its score and status, since a row shows a game's start until then.
+/**
+ * @param {{ team: string | null, seed: number | null, score: number | null }} side
+ * @param {boolean} isFinal
+ */
+const readScheduledSide = ({ team, seed, score }, isFinal) => ({
+  team,
+  seed,
+  score: isFinal ? score : null,
+  isInBonus: false,
+});
+
+/** @param {any} game */
+function readScheduledGame(game) {
+  const isFinal = game.state === "final";
+  return {
+    id: game.id,
+    round: game.round,
+    series: game.series,
+    number: game.number,
+    start: game.start,
+    state: isFinal ? "final" : "pre",
+    status: isFinal ? game.status : "",
+    isTimeSet: game.isTimeSet,
+    period: null,
+    clock: null,
+    isIfNeeded: game.isIfNeeded,
+    away: readScheduledSide(game.away, isFinal),
+    home: readScheduledSide(game.home, isFinal),
+  };
+}
+
 const sortByStart = (games) =>
   games.sort((first, second) => Date.parse(first.start) - Date.parse(second.start));
 
@@ -551,6 +591,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     asOf: new Date(now).toISOString(),
     games,
     nearestGames: listNearestGames(seasonGames, series),
+    schedule: seasonGames.map(readScheduledGame),
     series,
     standings: readStandingsRows(responses.standings),
     leaders: listLeaders(responses.players),

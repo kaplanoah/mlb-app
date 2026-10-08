@@ -172,6 +172,8 @@
   /* Barlow Condensed reads a little smaller than Barlow in a sentence, so it takes its own size there,
      matched by eye. */
   --size-read-condensed: 1.03125rem;
+  /* Today's note when it has no games, a half step under a sentence. */
+  --size-empty-day: 0.96875rem;
   --gate-heading-font: var(--heading);
   --gate-code-font: var(--numbers);
   --gate-problem: var(--now);
@@ -180,6 +182,12 @@
   --header-gap: 14px;
   --pager-label: var(--ink);
   --pager-chosen-edge: color-mix(in srgb, var(--action) 70%, var(--shadow-ink));
+  --strip-month: var(--structure);
+  --strip-today: var(--now);
+  --strip-chosen: var(--action);
+  --strip-chosen-ink: var(--action-ink);
+  --strip-chosen-edge: var(--pager-chosen-edge);
+  --strip-action: var(--action);
   --held-bar-fade: 0px;
   --held-bar-line: var(--divider);
   --updates-head: var(--structure);
@@ -346,9 +354,29 @@ header.top h1 {
   color: var(--ink-dim);
   font-size: var(--size-read);
 }
-/* Centered under its pill, its capitals a touch above the middle of the date's number beside a
-   list's first game, where it looks level to the eye. */
-.pager-page .empty-note {
+/* The season's games, under a strip of its days, sit as close under the header as a pill does.
+   Each day's card draws only near the screen, at the height its games take inside its edge.
+   Today's date is orange, as it is in the strip. */
+.day-view {
+  margin-top: calc(10px - var(--header-gap));
+}
+.day-list .game-day .game-list {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height));
+}
+.game-day.is-today .day-number {
+  color: var(--strip-today);
+}
+/* Centered beside today's date, its capitals 41.9px down the day, a touch above the middle of the
+   date's number, where they look level to the eye. */
+.no-games .empty-note {
+  margin: calc(41.9px - 0.35 * var(--size-empty-day)) 0 0;
+  font-size: var(--size-empty-day);
+  text-align: center;
+  text-box: trim-both cap alphabetic;
+}
+/* A season without games yet says so where its first day would be. */
+.day-view > .empty-note {
   margin-top: 31.5px;
   text-align: center;
 }
@@ -442,7 +470,8 @@ header.top h1 {
   column-gap: 12px;
   align-items: start;
 }
-.game-day + .game-day {
+.game-day + .game-day,
+.listed-day + .listed-day {
   margin-top: 8px;
 }
 .day-label {

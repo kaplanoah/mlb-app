@@ -1,0 +1,388 @@
+import {
+  addDays,
+  formatLongDate,
+  formatMonth,
+  formatShortMonth,
+  formatShortWeekday,
+  readCalendarDate,
+} from "./days.js";
+import { html, setHtml } from "./html.js";
+import { isAwayLong } from "./last-game-list.js";
+import { watchTimeAway } from "./resume.js";
+import { scrollWithSpring } from "./spring-scroll.js";
+
+// A season's games as one list of its game days, from its first to its last, under a bar holding
+// a strip of every day between them. The strip's chosen day is the one at the top of the list, and
+// follows it as it scrolls; a tap on a day, or on Today, brings that day to the top. The list
+// opens on its start day, today or the day the app names, and goes back there once someone has
+// been away two minutes. A league hands it each game day's markup, as it draws a day elsewhere.
+
+/** @typedef {import("./html.js").Markup} Markup */
+/** @typedef {{ day: string, markup: Markup }} ListedDay a "YYYY-MM-DD" day and its games */
+/**
+ * @typedef {object} DayStripFill
+ * @property {ListedDay[]} days each game day, in order
+ * @property {string} today the viewer's "YYYY-MM-DD" date
+ * @property {string} startDay the day the list opens on and Today brings to the top
+ * @property {string} emptyNote what the view says while it has no days
+ */
+
+// Phosphor's calendar-dot, at its Regular weight, as beside the words of a Read button.
+const CALENDAR_DOT = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-64-56a16,16,0,1,1-16-16A16,16,0,0,1,144,152Z"/></svg>`;
+
+// A day reaches the top of the list once its top is this close to it, as when a scroll stops
+// just short of it.
+const TOP_REACH_PX = 24;
+// Farther than this many screens, a jump is made at once rather than flown.
+const FLOWN_SCREENS = 3;
+
+/** @type {HTMLElement | null} */
+let view = null;
+/** @type {DayStripFill | null} */
+let shown = null;
+/** @type {string | null} */
+let chosenDay = null;
+// A day a tap or Today sent the list to stays chosen while the list travels there, and until it
+// moves away again, since the season's last days can't all reach the top.
+/** @type {{ day: string, hasArrived: boolean } | null} */
+let held = null;
+let isPlaced = false;
+// The day at the top of the list and how far its top sits from the list's, kept while the list
+// shows, so the list can take it back after a redraw, or once its tab shows again.
+/** @type {{ day: string, offset: number } | null} */
+let anchor = null;
+/** @type {Map<string, string>} */
+const drawnDays = new Map();
+
+const findBar = () => /** @type {HTMLElement | null} */ (view?.querySelector(".day-bar") ?? null);
+const findStrip = () =>
+  /** @type {HTMLElement | null} */ (view?.querySelector(".day-strip") ?? null);
+const findList = () => /** @type {HTMLElement | null} */ (view?.querySelector(".day-list") ?? null);
+
+/**
+ * Every day from the first game day to the last.
+ * @param {ListedDay[]} days
+ */
+function listStripDays(days) {
+  if (!days.length) return [];
+  const last = days[days.length - 1].day;
+  const stripDays = [];
+  for (let day = days[0].day; day <= last; day = addDays(day, 1)) stripDays.push(day);
+  return stripDays;
+}
+
+/**
+ * @param {string} day
+ * @param {{ isListed: boolean, isToday: boolean, isChosen: boolean }} state
+ */
+function renderCell(day, { isListed, isToday, isChosen }) {
+  const date = readCalendarDate(day);
+  const label =
+    date.getDate() === 1
+      ? html`<span class="cell-month">${formatShortMonth(date)}</span>`
+      : html`<span class="cell-name">${formatShortWeekday(date)}</span>`;
+  const classes = ["day-cell", isToday && "is-today", isChosen && "is-chosen"]
+    .filter(Boolean)
+    .join(" ");
+  const content = html`${label}<span class="cell-number tabular">${date.getDate()}</span>`;
+  if (!isListed) return html`<span class="${classes} is-empty" data-day="${day}">${content}</span>`;
+  return html`<button type="button" class="${classes}" data-day="${day}" aria-label="${formatLongDate(date)}"${isToday ? html` aria-current="date"` : ""}>${content}</button>`;
+}
+
+/** @param {DayStripFill} fill */
+function renderCells({ days, today }) {
+  const listed = new Set(days.map(({ day }) => day));
+  return html`${listStripDays(days).map((day) =>
+    renderCell(day, {
+      isListed: listed.has(day),
+      isToday: day === today,
+      isChosen: day === chosenDay,
+    }),
+  )}`;
+}
+
+/** @param {string} day */
+const renderMonth = (day) => formatMonth(readCalendarDate(day));
+
+/** @param {DayStripFill} fill */
+const renderBar = (fill) =>
+  html`<div class="day-bar-head">
+      <p class="strip-month">${renderMonth(chosenDay ?? fill.startDay)}</p>
+      <button type="button" class="go-today">${CALENDAR_DOT}<span>Today</span></button>
+    </div>
+    <div class="day-strip" role="group" aria-label="Days">${renderCells(fill)}</div>`;
+
+/** @param {ListedDay} listed */
+const renderListedDay = ({ day, markup }) =>
+  html`<div class="listed-day" data-day="${day}">${markup}</div>`;
+
+/** @param {DayStripFill} fill */
+const renderView = (fill) =>
+  html`<div class="day-bar">${renderBar(fill)}</div>
+    <div class="day-list">${fill.days.map(renderListedDay)}</div>`;
+
+/** @param {string} day */
+const findListedDay = (day) =>
+  /** @type {HTMLElement | null} */ (findList()?.querySelector(`[data-day="${day}"]`) ?? null);
+
+/** @param {string} day */
+const findCell = (day) =>
+  /** @type {HTMLElement | null} */ (findStrip()?.querySelector(`[data-day="${day}"]`) ?? null);
+
+/** @param {ScrollBehavior} behavior */
+function centerChosenCell(behavior) {
+  const strip = findStrip();
+  const cell = chosenDay && findCell(chosenDay);
+  if (!strip || !cell) return;
+  const left = cell.offsetLeft - (strip.clientWidth - cell.offsetWidth) / 2;
+  strip.scrollTo({ left, behavior });
+}
+
+/**
+ * @param {string} day
+ * @param {ScrollBehavior} behavior
+ */
+function chooseDay(day, behavior) {
+  if (day === chosenDay) return;
+  if (chosenDay) findCell(chosenDay)?.classList.remove("is-chosen");
+  chosenDay = day;
+  findCell(day)?.classList.add("is-chosen");
+  const month = view?.querySelector(".strip-month");
+  if (month) month.textContent = renderMonth(day);
+  centerChosenCell(behavior);
+}
+
+/** The day at the top of the list: the last whose top has reached it. */
+function findTopDay() {
+  const list = findList();
+  const listed = /** @type {HTMLElement[]} */ ([...(list?.children ?? [])]);
+  if (!list || !listed.length) return null;
+  const line = list.scrollTop + TOP_REACH_PX;
+  let low = 0;
+  let high = listed.length - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (listed[middle].offsetTop <= line) low = middle;
+    else high = middle - 1;
+  }
+  return listed[low].dataset.day ?? null;
+}
+
+const isReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** @returns {ScrollBehavior} */
+const chooseMotion = () => (isReducedMotion() ? "instant" : "smooth");
+
+/**
+ * Where the list stands with `day` at its top, or as near as its end lets it.
+ * @param {string} day
+ */
+function findDayTop(day) {
+  const list = findList();
+  const listed = findListedDay(day);
+  return list && listed ? Math.min(listed.offsetTop, list.scrollHeight - list.clientHeight) : null;
+}
+
+/**
+ * @param {string} day
+ * @param {"instant" | "flown"} motion
+ */
+function showDay(day, motion) {
+  const list = findList();
+  const top = findDayTop(day);
+  if (!list || top === null) return;
+  held = { day, hasArrived: false };
+  const isFar = Math.abs(top - list.scrollTop) > FLOWN_SCREENS * list.clientHeight;
+  if (motion === "instant" || isFar) list.scrollTo({ top, behavior: "instant" });
+  else scrollWithSpring(list, top);
+  chooseDay(day, motion === "instant" ? "instant" : chooseMotion());
+}
+
+// The day's place is read again each time, since the list's end can move as its days draw.
+function isStillHeld() {
+  const list = findList();
+  const top = held && findDayTop(held.day);
+  if (!held || !list || top === null) return false;
+  const isAtTarget = Math.abs(list.scrollTop - top) < 2;
+  if (isAtTarget) held.hasArrived = true;
+  else if (held.hasArrived) held = null;
+  return !!held;
+}
+
+// The bar ends in a line once a day has scrolled under it.
+function markStuck() {
+  findBar()?.classList.toggle("stuck", (findList()?.scrollTop ?? 0) > 0);
+}
+
+let isFramePending = false;
+function followList() {
+  if (isFramePending) return;
+  isFramePending = true;
+  requestAnimationFrame(() => {
+    isFramePending = false;
+    markStuck();
+    const top = findTopDay();
+    if (top && !isStillHeld()) chooseDay(top, chooseMotion());
+    noteAnchor();
+  });
+}
+
+const isListShown = () => (findList()?.clientHeight ?? 0) > 0;
+
+function noteAnchor() {
+  const list = findList();
+  const listed = chosenDay && findListedDay(chosenDay);
+  if (list && listed && isListShown())
+    anchor = { day: /** @type {string} */ (chosenDay), offset: listed.offsetTop - list.scrollTop };
+}
+
+function takeBackAnchor() {
+  const list = findList();
+  const listed = anchor && findListedDay(anchor.day);
+  if (list && listed && anchor) list.scrollTop = listed.offsetTop - anchor.offset;
+}
+
+// Where the list stands at the start day, which a page that loads again after two minutes away
+// opens on (show-last-drawn.js).
+function noteStartTop() {
+  const list = findList();
+  const start = shown && findListedDay(shown.startDay);
+  if (list && start) list.dataset.startTop = String(start.offsetTop);
+}
+
+/**
+ * Brings the start day to the top, as Today does.
+ * @param {"instant" | "flown"} [motion]
+ */
+export function showStartDay(motion = "flown") {
+  if (shown?.days.length) showDay(shown.startDay, motion);
+}
+
+/** Has the next fill open the list on its start day, as for another season. */
+export function startOverDayStrip() {
+  isPlaced = false;
+  chosenDay = null;
+  held = null;
+  anchor = null;
+}
+
+/**
+ * @param {DayStripFill} fill
+ * @returns {boolean} whether the list kept the days it had, in the same order
+ */
+const hasSameDays = (fill) =>
+  !!shown &&
+  !!findList() &&
+  shown.days.length === fill.days.length &&
+  shown.days.every(({ day }, index) => fill.days[index].day === day);
+
+// Only the days whose games changed are drawn again, so a live game's update doesn't redraw the
+// season.
+/** @param {DayStripFill} fill */
+function redrawChangedDays(fill) {
+  for (const listed of fill.days) {
+    const markup = String(listed.markup);
+    if (drawnDays.get(listed.day) === markup) continue;
+    const element = findListedDay(listed.day);
+    if (element) setHtml(element, listed.markup);
+    drawnDays.set(listed.day, markup);
+  }
+}
+
+/** @param {DayStripFill} fill */
+function drawFill(fill) {
+  const bar = findBar();
+  if (hasSameDays(fill) && bar) {
+    setHtml(bar, renderBar(fill));
+    redrawChangedDays(fill);
+    return;
+  }
+  setHtml(/** @type {HTMLElement} */ (view), renderView(fill));
+  drawnDays.clear();
+  for (const listed of fill.days) drawnDays.set(listed.day, String(listed.markup));
+}
+
+// A list that isn't showing, as on another tab, has no place to keep, so it's placed once it
+// shows: on its start day the first time, unless the page put it back where it was as it loaded
+// again (show-last-drawn.js), and after that on the day it last had at its top.
+/** @param {number | null} putBackTop where the page put the list back as it loaded, if it did */
+function placeList(putBackTop) {
+  const list = findList();
+  if (!shown || !list || !isListShown()) return;
+  if (isPlaced) takeBackAnchor();
+  else if (putBackTop === null) showDay(shown.startDay, "instant");
+  else list.scrollTop = putBackTop;
+  isPlaced = true;
+  noteStartTop();
+  markStuck();
+  const top = findTopDay();
+  if (top && !isStillHeld()) chooseDay(top, "instant");
+  noteAnchor();
+}
+
+/**
+ * Draws the season's days, keeping the day at the top of the list where it is.
+ * @param {DayStripFill} fill
+ */
+export function fillDayStrip(fill) {
+  if (!view) return;
+  if (!fill.days.length) {
+    setHtml(view, html`<p class="empty-note">${fill.emptyNote}</p>`);
+    shown = fill;
+    return;
+  }
+  const putBack = !shown && isListShown() ? findList() : null;
+  const putBackTop = putBack ? Number(putBack.dataset.putBackTop ?? putBack.scrollTop) : null;
+  if (isListShown()) noteAnchor();
+  drawFill(fill);
+  shown = fill;
+  placeList(putBackTop);
+}
+
+// A finger or wheel on the list takes it over, even on its way to a day.
+/** @param {Event} event */
+function releaseHeldOnList(event) {
+  if (findList()?.contains(/** @type {Node} */ (event.target))) held = null;
+}
+
+/** @param {Event} event */
+function openTappedDay(event) {
+  const target = /** @type {Element} */ (event.target);
+  if (target.closest(".go-today")) {
+    showStartDay();
+    return;
+  }
+  const cell = /** @type {HTMLElement | null} */ (target.closest("button.day-cell"));
+  if (cell?.dataset.day) showDay(cell.dataset.day, "flown");
+}
+
+// Safari loses a scroll made as the page comes back, before it draws again, so the list moves in
+// the first frame it draws.
+/** @param {number} awayMs */
+function showStartAfterLongAway(awayMs) {
+  if (isAwayLong(awayMs)) requestAnimationFrame(() => showStartDay("instant"));
+}
+
+/**
+ * Wires the view in `element`, which `fillDayStrip` fills.
+ * @param {HTMLElement} element
+ */
+export function startDayStrip(element) {
+  view = element;
+  element.addEventListener("click", openTappedDay);
+  element.addEventListener(
+    "scroll",
+    (event) => {
+      if (event.target === findList()) followList();
+    },
+    { capture: true, passive: true },
+  );
+  for (const type of ["touchstart", "wheel"])
+    element.addEventListener(type, releaseHeldOnList, { capture: true, passive: true });
+  watchTimeAway(showStartAfterLongAway);
+  let wasShown = false;
+  new ResizeObserver(() => {
+    const isShown = isListShown();
+    if (isShown && !wasShown) placeList(null);
+    wasShown = isShown;
+  }).observe(element);
+}

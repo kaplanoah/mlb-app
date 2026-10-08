@@ -143,15 +143,33 @@ test.describe("on an Android phone, in the browser", () => {
     expect(await page.evaluate(() => /** @type {any} */ (window).installShown)).toBe(1);
   });
 
-  test("the Games pill holds just under the bar as the page scrolls", async ({ page }) => {
+  test("the standings' pill holds just under the bar as the page scrolls", async ({ page }) => {
     await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
+    await page.getByRole("tab", { name: "Standings" }).click();
     const barHeight = (await page.locator("#homeScreenBar").boundingBox()).height;
 
     await page.evaluate(() => scrollTo({ top: 400, behavior: "instant" }));
-    await expect(page.locator("#games-bar")).toHaveClass(/stuck/);
-    const pillBar = await page.locator("#games-bar").boundingBox();
+    await expect(page.locator("#standings-bar")).toHaveClass(/stuck/);
+    const pillBar = await page.locator("#standings-bar").boundingBox();
     expect(Math.round(pillBar.y)).toBe(Math.round(barHeight));
+  });
+
+  test("the Games view fits under the bar, its games reaching the screen's bottom without the page scrolling", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+    const barHeight = (await page.locator("#homeScreenBar").boundingBox()).height;
+    const header = await page.locator("header.top").boundingBox();
+    const list = await page.locator("#seasonGames .day-list").boundingBox();
+    expect(header.y).toBeGreaterThanOrEqual(barHeight);
+    expect(Math.round(list.y + list.height)).toBeGreaterThanOrEqual(844);
+    expect(Math.round(list.y + list.height)).toBeLessThanOrEqual(845);
+    const room = await page.evaluate(
+      () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+    );
+    expect(room).toBeLessThanOrEqual(1);
   });
 
   test("once installed from the browser's menu, the page asks no more", async ({ page }) => {

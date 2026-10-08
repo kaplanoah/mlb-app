@@ -1,8 +1,8 @@
 import { readEasternDay } from "#shared/days.js";
-import { createSeasonReader } from "#shared/season-reader.js";
 import { listSeasonYears } from "#shared/season-picker.js";
+import { createSeasonReader, isReadableSeason } from "#shared/season-reader.js";
 import { session } from "./session.js";
-import { SNAPSHOT_VERSION } from "./snapshot.js";
+import { SNAPSHOT_VERSION, nameScheduleKey } from "./snapshot.js";
 
 // The Worker keeps each season in the store as it plays out, says which season is current, and
 // pushes every change to the page, which the shared season reader follows.
@@ -11,6 +11,31 @@ const UNREACHABLE = "Can't reach the page's server right now.";
 
 /** @type {ReturnType<typeof createSeasonReader> | null} */
 let reader = null;
+/** @type {number | null} */
+let scheduleYear = null;
+let unwatchSchedule = () => {};
+
+/**
+ * Follows every game of the season shown, which the store keeps apart from its record, and redraws
+ * with `showChange` for each change. A list in a version the page doesn't read is left out, so the
+ * view lists the record's own games.
+ * @param {number} year
+ * @param {() => void} showChange
+ */
+function followSchedule(year, showChange) {
+  if (year === scheduleYear) return;
+  scheduleYear = year;
+  unwatchSchedule();
+  unwatchSchedule = session.db.doc(nameScheduleKey(year)).onSnapshot(
+    (/** @type {any} */ snapshot) => {
+      if (year !== scheduleYear) return;
+      const schedule = snapshot.exists ? snapshot.data() : null;
+      session.schedule = isReadableSeason(schedule, SNAPSHOT_VERSION) ? schedule : null;
+      showChange();
+    },
+    () => {},
+  );
+}
 
 const noteUnreachable = () => {
   session.problem = UNREACHABLE;
@@ -29,7 +54,11 @@ export function startSeasonData({ showChange, showStamp, showCurrentYear, showUn
     version: SNAPSHOT_VERSION,
     showUnreadable,
     guessYear: (now) => readEasternDay(now).year,
-    keepSeason: (year, season) => Object.assign(session, { year, season, problem: "" }),
+    keepSeason: (year, season) => {
+      if (year !== session.year) session.schedule = null;
+      Object.assign(session, { year, season, problem: "" });
+      followSchedule(year, showChange);
+    },
     showChange,
     showStatus: (status) => {
       session.status = status;

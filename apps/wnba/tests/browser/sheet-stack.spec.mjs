@@ -11,15 +11,12 @@ const BUTTON_TOP_PX = 10;
 const ACES_AT_FEVER = "Game details: Aces at Fever, First Round Game 2";
 
 /**
- * Opens the Aces at the Fever's sheet, from the Previous games.
+ * Opens the Aces at the Fever's sheet, from the Games view.
  * @param {import("@playwright/test").Page} page
  */
 async function openGame(page) {
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  const list = page.locator("#games-previous");
-  await expect(list).not.toHaveAttribute("inert");
-  await list.getByRole("button", { name: ACES_AT_FEVER }).click();
+  await page.locator("#seasonGames").getByRole("button", { name: ACES_AT_FEVER }).click();
   const gameSheet = page.locator("#gameSheet");
   await expect(gameSheet.locator(".line-score")).toBeVisible();
   return gameSheet;

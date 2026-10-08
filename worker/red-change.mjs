@@ -32,9 +32,11 @@ const RED_FILES = new Set(
     "tab-bar.js",
     "eased-redraw.js",
     "show-last-drawn.js",
+    "day-strip.js",
     "chrome.css",
     "team-sheet.css",
     "game-cards.css",
+    "day-strip.css",
   ].map((file) => `shared/page/${file}`),
 );
 

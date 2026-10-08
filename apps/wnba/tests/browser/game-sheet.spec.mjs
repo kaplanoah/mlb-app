@@ -1179,7 +1179,7 @@ test("going back from a team's sheet to a game's leaves no focus ring around the
  */
 async function openWashingtonSheet(page) {
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.locator('#games-today [data-game="1042600132"] .game-open').click();
+  await page.locator('#seasonGames [data-game="1042600132"] .game-open').click();
   return page.locator("#gameSheet");
 }
 
@@ -1191,7 +1191,7 @@ test("a game's sheet says where to watch it while it's yet to end, under its tim
   const networks = sheet.getByRole("group", { name: "Where to watch" });
   await expect(networks.getByRole("img")).toHaveAttribute("alt", "ESPN");
   await expect(networks.getByRole("img")).toBeVisible();
-  await expect(page.locator("#gamePager .network-logo")).toHaveCount(0);
+  await expect(page.locator("#seasonGames .network-logo")).toHaveCount(0);
   const faceOff = await sheet.locator(".faceoff-score").boundingBox();
   const logo = await networks.getByRole("img").boundingBox();
   expect(logo.y).toBeGreaterThan(faceOff.y + faceOff.height);

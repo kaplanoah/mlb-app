@@ -55,18 +55,41 @@ test("saved markup that can't be read leaves the page to open as it would", asyn
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("a reload on the Games view shows the list it was on before the page's code arrives", async ({
+  test("a reload on the Games view shows the day it was on before the page's code arrives, and today after two minutes off the screen", async ({
     page,
   }) => {
     await storeBeforeLoad(page, { lastTab: "games" });
-    await openApp(page);
-    await expect(page.locator("#games-today")).toBeInViewport();
-    const release = await holdPageCode(page);
+    await openApp(page, { isWholeSeason: true });
+    const list = page.locator("#seasonGames .day-list");
+    const today = page.locator("#seasonGames .game-day.is-today");
+    const earlier = page.locator('#seasonGames .listed-day[data-day="2026-09-20"]');
+    await expect(today).toBeInViewport();
+    await page.locator('#seasonGames .day-cell[data-day="2026-09-20"]').click();
+    await expect(earlier).toBeInViewport();
+    const top = await list.evaluate((element) => element.scrollTop);
+    let release = await holdPageCode(page);
 
     await page.reload({ waitUntil: "commit" });
 
-    await expect(page.locator("#games-today")).toBeInViewport();
-    expect((await page.locator("#games-today").boundingBox()).x).toBe(0);
+    await expect(earlier).toBeInViewport();
+    expect(await list.evaluate((element) => element.scrollTop)).toBe(top);
+    await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute(
+      "data-day",
+      "2026-09-20",
+    );
+    release();
+    await expect(page.locator("#stamp")).toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.clock.runFor(2 * 60_000);
+    release = await holdPageCode(page);
+
+    await page.reload({ waitUntil: "commit" });
+
+    await expect(today).toBeInViewport();
+    await expect(earlier).not.toBeInViewport();
     release();
   });
 

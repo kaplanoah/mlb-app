@@ -121,6 +121,22 @@ test("a regular-season game on the scoreboard is a team's game now, with its clo
   );
 });
 
+test("the schedule lists every game of the season in order, with only a final's score and status, and a game under way as before it started", () => {
+  const { schedule } = buildWithWholeSeason(addToScoreboard(SEATTLE_AT_CHICAGO));
+  assert.ok(schedule.length > 300);
+  assert.ok(
+    schedule.every((game, index) => index === 0 || game.start >= schedule[index - 1].start),
+  );
+  assert.ok(schedule.every((game) => !/^10[13]/.test(game.id)));
+  const seattle = schedule.find((game) => game.id === "1022600325");
+  assert.deepEqual([seattle.state, seattle.away.score, seattle.home.score], ["final", 103, 91]);
+  const live = schedule.find((game) => game.id === "1022600400");
+  assert.deepEqual(
+    [live.state, live.status, live.period, live.clock, live.away.score, live.home.score],
+    ["pre", "", null, null, null, null],
+  );
+});
+
 test("the clock reads as minutes and seconds, and tenths in the last minute", () => {
   assert.equal(WNBASnapshot.readClock("PT04M32.00S"), "4:32");
   assert.equal(WNBASnapshot.readClock("PT10M00.00S"), "10:00");

@@ -1,0 +1,181 @@
+/*
+ * A season's games as one list under a strip of its days, as day-strip.js builds it in a
+ * .day-view. While it shows, the page holds still, and only the list scrolls, under the strip, so
+ * the header above it stays in view. Apps link it after chrome.css, before their own styles.css.
+ *
+ * Beside chrome.css's --bg, --ink, --ink-dim, and --radius-control, and pager.css's --page-gutter
+ * and --held-bar-line, an app's :root defines these tokens:
+ *   --strip-month          the month over the strip
+ *   --strip-today          today's date, in the strip and beside its games
+ *   --strip-chosen         the fill of the day at the top of the list
+ *   --strip-chosen-ink     what's written on it
+ *   --strip-chosen-edge    the outline inside its fill, or transparent for none
+ *   --strip-action         Today, the way back to the start day
+ */
+
+/* The page and the view fill the screen, and the list takes what's left under the bar. A phone on
+   the Home Screen lays the page out short of the screen by the top safe area unless the page is
+   taller than it (chrome.css), so there the page stays that much taller. */
+:root:has(.view.active > .day-view) {
+  height: 100%;
+}
+/* The Home Screen bar takes its own height off the page's top (chrome.css). */
+:root:has(.view.active > .day-view) body {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - var(--home-screen-bar-height, 0px));
+  padding-bottom: 0;
+}
+@media (max-width: 779px) {
+  :root:has(.view.active > .day-view) {
+    height: calc(100% + env(safe-area-inset-top) + 1px);
+  }
+}
+.view.active:has(> .day-view) {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.day-view {
+  --reach-left: calc(var(--page-gutter) + 1px);
+  --reach-right: var(--page-gutter);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  min-height: 0;
+  margin-inline: auto;
+}
+
+/* The bar is the page's color, with a line under it once a day has scrolled under it. */
+.day-bar {
+  position: relative;
+  z-index: 5;
+  margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
+  padding-bottom: 7px;
+  background: var(--bg);
+}
+.day-bar.stuck {
+  box-shadow: 0 1px 0 var(--held-bar-line);
+}
+.day-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--control-height, 30px);
+  margin-bottom: 7px;
+  padding-inline: var(--reach-left) var(--reach-right);
+}
+.strip-month {
+  margin: 0;
+  font-size: var(--size-small);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--strip-month);
+}
+/* Today looks the same wherever the list is, so it reads as a shortcut, never as where the list
+   is. Its calendar names what it does before its word, and its tap area runs past them. */
+.go-today {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-block: -7px;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--strip-action);
+  cursor: pointer;
+}
+.go-today svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  translate: 0 0.5px;
+}
+
+/* The days run to the screen's edges, each a weekday over its date, the month on its first. */
+.day-strip {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  padding-inline: var(--reach-left) var(--reach-right);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.day-strip::-webkit-scrollbar {
+  display: none;
+}
+.day-cell {
+  flex: 0 0 46px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  padding: 5px 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  font: inherit;
+  color: var(--ink);
+}
+button.day-cell {
+  cursor: pointer;
+}
+.cell-name,
+.cell-month {
+  font-size: var(--size-small);
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+.cell-month {
+  color: var(--strip-month);
+}
+.cell-number {
+  font-size: var(--size-read);
+  font-weight: 600;
+  line-height: 1;
+}
+/* A day without games is quieter, and isn't a button. */
+.day-cell.is-empty :is(.cell-name, .cell-month, .cell-number) {
+  color: color-mix(in srgb, var(--ink-dim) 70%, var(--bg));
+}
+.day-cell.is-today .cell-number {
+  color: var(--strip-today);
+}
+.day-cell.is-chosen {
+  background: var(--strip-chosen);
+  box-shadow: inset 0 0 0 1px var(--strip-chosen-edge);
+}
+.day-cell.is-chosen :is(.cell-name, .cell-month, .cell-number) {
+  color: var(--strip-chosen-ink);
+}
+
+/* Only the list scrolls, from the screen's edges, past the tab bar at its end. Safari keeps no
+   scroll anchor, so the list's code keeps the day at its top itself, in every browser. */
+.day-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
+  padding: 0 var(--reach-right) 48px var(--reach-left);
+  overflow-y: auto;
+  overflow-anchor: none;
+  overscroll-behavior-y: contain;
+}
+@media (max-width: 779px) {
+  .day-list {
+    padding-bottom: var(--tab-bar-clearance);
+  }
+}

@@ -82,9 +82,11 @@ test("any change to the shared code that moves, layers, or draws the page is red
     "tab-bar.js",
     "eased-redraw.js",
     "show-last-drawn.js",
+    "day-strip.js",
     "chrome.css",
     "team-sheet.css",
     "game-cards.css",
+    "day-strip.css",
   ])
     assert.equal(findReasons(`shared/page/${file}`).length, 1, file);
   assert.deepEqual(findReasons("shared/page/stamp.js", ["export const x = 1;"]), []);
@@ -97,6 +99,7 @@ const SHARED_STYLESHEETS = [
   "chrome.css",
   "team-sheet.css",
   "game-cards.css",
+  "day-strip.css",
 ].map((file) => `shared/page/${file}`);
 
 test("a shared stylesheet's change to how text looks, or to its spacing, sizes, and colors, isn't red", () => {
