@@ -1,4 +1,4 @@
-import { ROUND_LABEL, buildBracket, isEliminated, listSlotCandidates } from "./bracket.js";
+import { ROUND_LABEL, buildBracket, listSlotCandidates } from "./bracket.js";
 import { listRankedOrder, renderRankTag, nameTeam, renderClub } from "./clubs.js";
 import { readGameDay } from "./dates.js";
 import { formatClockTime, formatShortDate, formatShortWeekday, nameDay } from "#shared/days.js";
@@ -81,11 +81,10 @@ const STACKED = {
   minGrowth: 0.5,
   maxGrowth: 3,
 };
-/* The spaces, which all grow or shrink by one factor to fit the screen's height. The page's margin
-   above the bracket, nav.tabs's on phones in styles.css, supplies the first aboveLeague, which
-   never shrinks, since the stage can't reach above its scroller. The NL's line sits betweenRows
-   below the AL's last note. */
-const SPACES = { aboveLeague: 18, belowLine: 11, betweenRows: 13 };
+/* The spaces, which all grow or shrink by one factor to fit the screen's height. The header's
+   margin in styles.css supplies the first aboveLeague, which never shrinks, since the stage can't
+   reach above its scroller. The NL's line sits betweenRows below the AL's last note. */
+const SPACES = { aboveLeague: 13, belowLine: 11, betweenRows: 13 };
 // A row of level cards and their notes.
 const SERIES_HEIGHT = CARD.height + STACKED.noteHeight;
 
@@ -476,7 +475,6 @@ export function renderBracket() {
   if (!hasField) {
     setHtml(wrap, html``);
     renderedGrowth = 0;
-    renderBanner(null);
     return;
   }
 
@@ -507,7 +505,6 @@ export function renderBracket() {
   markRoundScrolledTo();
   renderedGrowth = growth;
   renderedFits = fits;
-  renderBanner(bracket);
 }
 
 /* Redraws when the whole wide bracket starts or stops fitting, and while stacked when the spaces'
@@ -529,31 +526,4 @@ export function watchBracketSpace() {
   new ResizeObserver(() => {
     if (isShown(wrap)) requestAnimationFrame(redrawIfResized);
   }).observe(document.body);
-}
-
-function renderBannerTeam(label, id) {
-  return html`<span class="banner-label">${label}</span>
-    <span class="banner-team">${renderRankTag(id)}${renderClub(id)}</span>`;
-}
-
-function renderBanner(bracket) {
-  const banner = document.getElementById("banner");
-  if (!bracket || !listRankedOrder().length) {
-    banner.hidden = true;
-    return;
-  }
-  banner.hidden = false;
-
-  const champion = bracket.ws && bracket.ws.winner;
-  if (champion) {
-    setHtml(banner, renderBannerTeam("World Series champions", champion));
-    return;
-  }
-  const aliveRanked = listRankedOrder().filter((id) => !isEliminated(session.state, id));
-  setHtml(
-    banner,
-    aliveRanked.length
-      ? renderBannerTeam("Highest still in", aliveRanked[0])
-      : html`<span class="banner-label">All eliminated</span>`,
-  );
 }
