@@ -1,4 +1,4 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -53,6 +53,23 @@ test("Diagnostics sit past the end of settings, off, with nothing recorded", asy
   await expect(findSwitch(page)).toHaveAttribute("aria-checked", "false");
   await expect(findSwitch(page)).not.toBeInViewport();
   await expect(findRecords(page)).toBeHidden();
+});
+
+test("Diagnostics, once on, start with the release and its commit", async ({ page }) => {
+  await page.route(matchPath("/version.json"), (route) =>
+    route.fulfill({
+      json: { version: "3.6.0-beta", commit: "abc1234", builtAt: "2026-10-08T03:14:57Z" },
+    }),
+  );
+  await openApp(page);
+
+  await turnOnDiagnostics(page);
+  await page.reload();
+  await openSettings(page);
+
+  await expect(findRecords(page).locator(".diagnostics-release")).toHaveText(
+    "WNBA v3.6.0-beta commit abc1234",
+  );
 });
 
 test("with Diagnostics on, a reload is recorded with its tab, what the store sent, and what each part showed", async ({
