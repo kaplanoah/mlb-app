@@ -15,8 +15,10 @@
 
 /* The page and the view fill the screen, and the list takes what's left under the bar. A phone on
    the Home Screen lays the page out short of the screen by the top safe area unless the page is
-   taller than it (chrome.css), so there the page stays that much taller. */
-:root:has(.view.active > .day-view) {
+   taller than it (chrome.css), so there the page stays that much taller. Safari doesn't lay the
+   page out again when a tab changes only the root's height, so the root keeps it on every tab,
+   where what's taller than it still scrolls the page. */
+:root {
   height: 100%;
 }
 /* The Home Screen bar takes its own height off the page's top (chrome.css). */
@@ -27,7 +29,7 @@
   padding-bottom: 0;
 }
 @media (max-width: 779px) {
-  :root:has(.view.active > .day-view) {
+  :root {
     height: calc(100% + env(safe-area-inset-top) + 1px);
   }
 }
