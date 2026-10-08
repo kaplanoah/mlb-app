@@ -66,7 +66,7 @@ A new league is a new app. Copy the WNBA's: it's the newest, and every file belo
 - Release notes: each app's `page/js/release-notes.js` lists what's new in the app, which its Updates box shows under New in the app for two weeks from each note's `at`, until it's dismissed. Add a note only when the user asks for one, whatever the PR's type, in the words they approve, with an `at` just before the PR merges. A word that should stand out, like a button's name, goes in `<b>`, in a note built with the `html` template, which the Updates box sets a step heavier than the note's text.
 - Each app has a beta channel: a second Worker, `<app>-app-beta`, from the `[env.beta]` in its `wrangler.toml`, with its own store, key, and address, whose page says beta on the Home Screen and in settings' version line (`worker/build.mjs`). A push to the `beta` branch deploys it at once, with the same checks and rollback as `main`'s deploy. To use a PR's change on the owner's phone before it merges, reset `beta` to the PR's branch and push (`git push -f origin <branch>:beta`), wait for that push's Deploy run to say `worker check: ok` for each app, and tell the user to use the beta app on the Home Screen. `beta` is a scratch branch: never commit to it or open a PR from it. Each of `deploy:api`, `rollback`, `set-app-key`, and `set-access-code` takes `--channel beta`.
 - A red change is one whose bugs no CI browser would show, since none touches, scrolls, layers, and draws as an iPhone does, or that touches what iOS has drawn wrong before: parts left undrawn by how layers and sheets stack. `worker/red-change.mjs` finds it: any change to the shared JavaScript that moves and draws the page (`sheet.js`, `sheet-reopen.js`, `slide-panels.js`, `sheet-swipe.js`, `sheet-sections.js`, `side-swipe.js`, `pager.js`, `pill-thumb.js`, `tab-bar.js`, `eased-redraw.js`, and `show-last-drawn.js` in `shared/page/`); a change to its shared stylesheets (`sheet.css`, `pager.css`, `chrome.css`, `team-sheet.css`, and `game-cards.css`), added or removed, in a selector or at-rule, which says which parts a rule reaches, or in a property that decides how parts layer, stack, scroll, take a touch, or show (any below, any `position`, `overflow`, `overscroll-behavior`, `scroll-snap`, `touch-action`, `z-index`, `opacity`, `visibility`, `display`, `isolation`, or `mix-blend-mode`), but not in their fonts, colors, spacing, or sizes, which CI checks; or an added line in a page's CSS or JavaScript that sets a property that gives a part a layer of its own (`transform`, `filter`, `backdrop-filter`, `mask`, `clip-path`, `will-change`, `animation`, `transition`, `contain`, `content-visibility`, or a fixed or sticky `position`). Tests are never red. The owner's phone is a red change's test, and CI's `gate` job fails on one until its PR has the `phone-ok` label.
-  - Take a red change to its branch and PR, deploy it to beta as the bullet above says, and stop there: tell the user what to use on the phone, and wait, doing only what CI and the review ask of the PR meanwhile. Never add `phone-ok`. Only the owner labels it, once they've used the change on beta, which runs `gate` again without a push. Merge a red PR only once it has `phone-ok` and the owner has told you to merge it.
+  - Take a red change to its branch and PR, deploy it to beta as the bullet above says, and stop there: tell the user what to use on the phone, and wait, doing only what CI and the review ask of the PR meanwhile. Never add `phone-ok`. Only the owner labels it, once they've used the change on beta, which runs `gate` again without a push. Merge a red PR only once it has `phone-ok` and the owner has told you to merge it. An OK in chat is enough to merge, but never stands in for the label, which is the owner's only sign-off from beta. Merge it yourself: the owner doesn't.
   - One red change goes live per deploy. While a red change is on beta, or has merged and the owner hasn't confirmed it on the phone, no other red PR merges, and none replaces it on beta.
   - If parts of a page ever stop drawing on the phone again, the first step is a phone restart and a Diagnostics report from settings, not a code change.
 - `npm run rollback -- <app>` puts the app's previous version back at all of its traffic and prints which commit was live and which is now. Run it only when the user asks.
@@ -94,7 +94,7 @@ Follow these steps in order. When a step says to go back to an earlier step, con
    - A PR that changes `.github/workflows/ci.yml` isn't reviewed: the review runs only from the workflow as `main` has it, and passes without a summary otherwise. Keep a change to that file in its own small PR, so nothing else goes unreviewed with it.
    - If the `review` job fails without posting any comments, don't try to reproduce it locally or re-run it: it already tried twice, eight minutes each at most. Its log shows each attempt's turns and tool calls. Tell the user what it shows: an invalid or expired Claude credential secret, Claude unreachable, or where a review stalled. `check` can't pass until the job does.
 8. Squash-merge the PR once all of these are true: `check` passed on the latest commit, the PR has no merge conflicts, every review finding is answered, and its base is `main`. If GitHub refuses the merge, go back to step 4.
-   - Merge a red PR only once `check` passed with the `phone-ok` label on it and the owner has told you to merge it: until then, tell the user it's ready and wait. One red change goes live per deploy.
+   - Merge a red PR only once `check` passed with the `phone-ok` label on it and the owner has told you to merge it, in chat or otherwise: until then, tell the user it's ready and wait. An OK in chat never stands in for the label. One red change goes live per deploy.
 9. Don't deploy. Merging starts the Deploy workflow at once, and CI on `main`. When the PR's CI passed on exactly the code `main` now has (`worker/find-passed-ci.mjs`), which it did if the PR was up to date with `main` as it merged, that first Deploy run deploys, and CI on `main` skips the checks it already ran; otherwise the Deploy run that follows CI on `main` does. Either runs `worker/deploy.mjs`, which deploys each app's Worker and rolls back any new version that doesn't answer. An app's deploy is skipped when nothing but docs, tests, tooling, and other apps' folders changed since its live version's commit; `worker/deploy-scope.mjs` lists those files. Each line of the deploy log starts with its app's name, so read step 10's results for each app. When you add a file that can't change the Worker, add it to that list.
 10. Wait for the Deploy runs for the merge commit to finish, then read their logs and do what matches:
     - The first says "No pull request's CI passed on exactly this code": the deploy waits for CI on `main`. Read the next Deploy run's log.
@@ -106,6 +106,35 @@ Follow these steps in order. When a step says to go back to an earlier step, con
     - The run failed: read the log. If it says "the earlier version is live again", the Worker rolled back and is unchanged. Tell the user what failed and recommend a fix.
 11. Run `npm run deploy:api` yourself only when step 10 found no successful deploy and the user agrees. Say why the automatic deploy didn't happen and recommend whether to deploy by hand. Never deploy any other way.
 12. Related changes can ship together in one PR. Split work into several PRs only when its parts can be reviewed or rolled back on their own. A PR that needs another PR's unmerged changes doesn't wait for it: stack it. Start its branch from that PR's branch, open it into that branch, so its diff and review show only its own changes, and name the PR it builds on in its description. Whenever the earlier PR's branch changes, merge it into the stacked branch. Once the earlier PR merges, change the stacked PR's base to `main` if GitHub hasn't, merge `main` into its branch, and go back to step 2 for it. That merge conflicts wherever the stacked PR changed lines the earlier one did, since `main` has the earlier PR only as its squash: keep the stacked branch's side of those, and resolve any other conflict as step 4 says. Never merge a PR into another PR's branch: a stack merges into `main` one PR at a time, earliest first.
+
+## Building and fixing
+
+### Both apps, every place
+
+- A fix or design change applies to both apps, and to every view, sheet, and theme where the same thing shows, unless the owner names one app.
+- When only one app can have it now, build it in `shared/` so the other can add it later.
+- When adding to one app something the other already has, reuse the other app's values, like logo sizes and spacing, and leave the other app untouched.
+- A phone and a wide screen look the same, except where the width forces a difference.
+
+### When something is wrong
+
+- When fixing a bug, look for the same bug in all apps and in every view, sheet, and theme, and fix those in the same PR. Say what else you checked.
+- When a bug reaches production or beta, the PR also says how it got there and why no test caught it, and adds the test or lint rule that would have. Prefer a test or lint rule over a written rule, which agents can forget.
+- Say a bug is fixed only once you've reproduced it and seen the fix work.
+- Ask for a Diagnostics report rather than guessing.
+- While chasing a bug, test one idea at a time and say what each one showed. Never stack guesses in production.
+- Once a bug is fixed, take out any attempted fixes that didn't help, and put back anything removed that turned out not to be the cause.
+- When something replaces an old system, delete the old code in the same PR.
+
+### What the apps should feel like
+
+- Smooth above all. Nothing flickers, jumps, or flashes on open, return, reload, or redraw, and a new release arrives without anyone swiping the app closed.
+- Follow general best practices for web development code and app UI.
+- Desktop hover is a subtle change of text color only: never an underline, border, or highlight.
+- Simple beats configurable. Pick good defaults rather than adding settings.
+- Readable before elegant. Text that's too small, light, or dim is a bug: check it against the type scale.
+- Things shown side by side for comparison share one scale, like two pitchers' speed lines.
+- Build with mature web features that work in every browser, Safari first.
 
 ## Writing
 
