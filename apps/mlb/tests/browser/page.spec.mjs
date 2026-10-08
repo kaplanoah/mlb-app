@@ -15,6 +15,7 @@ import {
 } from "./harness.mjs";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
+import { readFilledNames } from "../../../../tests/browser/pill-names.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import {
@@ -89,17 +90,6 @@ const readPagesPosition = (page) =>
     .locator("#games-pages")
     .evaluate((pages) => Math.round((pages.scrollLeft / pages.clientWidth) * 100) / 100);
 
-/** The names in the Games pill that its block sits under. */
-const readFilledNames = (page) =>
-  page.locator("#games-bar [role=tablist]").evaluate((tabList) => {
-    const thumb = /** @type {Element} */ (
-      tabList.querySelector(".pager-thumb")
-    ).getBoundingClientRect();
-    return [...tabList.querySelectorAll("[role=tab]")]
-      .filter((tab) => Math.abs(tab.getBoundingClientRect().left - thumb.left) < 1)
-      .map((tab) => tab.textContent.trim());
-  });
-
 test("on a phone, swiping the games sideways moves between the lists and fills the shown list's name", async ({
   page,
 }) => {
@@ -119,12 +109,16 @@ test("on a phone, swiping the games sideways moves between the lists and fills t
   );
   await expect(page.locator("#games-previous")).not.toHaveAttribute("inert");
   await expect(page.locator("#games-today")).toHaveAttribute("inert");
-  await expect.poll(() => readFilledNames(page)).toEqual(["Previous"]);
+  await expect
+    .poll(() => readFilledNames(page.locator("#games-bar [role=tablist]")))
+    .toEqual(["Previous"]);
 
   await page.getByRole("tab", { name: "Next" }).click();
   await expect.poll(() => readPagesPosition(page)).toBe(2);
   await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-  await expect.poll(() => readFilledNames(page)).toEqual(["Next"]);
+  await expect
+    .poll(() => readFilledNames(page.locator("#games-bar [role=tablist]")))
+    .toEqual(["Next"]);
 });
 
 test("the Games lists are as tall as the shown one when it runs past the screen", async ({

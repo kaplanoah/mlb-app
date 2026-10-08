@@ -1751,8 +1751,9 @@ th[aria-sort="ascending"] .roster-caret {
 }
 
 /* A pill's names are buttons, so they're in sentence case at a button's weight and height, their
-   words centered on their capitals. The pill sits a little closer under the header than a view's
-   first card, as the control it is, with the bar's reach up under the status bar kept inside it. */
+   words a pixel above center on their capitals, where they look centered in the fill. The pill sits
+   a little closer under the header than a view's first card, as the control it is, with the bar's
+   reach up under the status bar kept inside it. */
 .pager {
   display: flow-root;
   margin-top: calc(10px - var(--header-gap));
@@ -1762,7 +1763,7 @@ th[aria-sort="ascending"] .roster-caret {
 }
 .pager-tabs button {
   height: var(--control-height);
-  padding: 0 var(--control-room);
+  padding: 0 var(--control-room) 2px;
   align-content: center;
   font-size: var(--size-glance);
   font-weight: var(--control-weight);

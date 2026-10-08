@@ -1,6 +1,10 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
-import { readPillNames } from "../../../../tests/browser/pill-names.mjs";
+import {
+  listFillFades,
+  noteNameFades,
+  readFilledNames,
+} from "../../../../tests/browser/pill-names.mjs";
 import { expectShown, readLeft } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
@@ -396,35 +400,44 @@ test.describe("in full motion", () => {
     return steps.every((step) => step >= 0) || steps.every((step) => step <= 0);
   };
 
-  test("a tap on Roster slides the pill's block from Team to Roster", async ({ page }) => {
+  test("a tap on Roster hands the pill's fill from Team to Roster, both fading together", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await openApp(page);
     await openLibertySheet(page);
-    const thumb = page.locator("#teamSheet .pager-thumb");
-    await thumb.evaluate((element) => {
-      Object.assign(window, { thumbSlides: 0 });
-      element.addEventListener("transitionrun", () => {
-        /** @type {any} */ (window).thumbSlides += 1;
-      });
-    });
+    const tabList = page.locator("#teamSheet [role=tablist]");
+    const readFades = await noteNameFades(tabList);
 
     await page.getByRole("tab", { name: "Roster" }).click();
 
-    await expect
-      .poll(() => page.evaluate(() => /** @type {any} */ (window).thumbSlides))
-      .toBeGreaterThan(0);
     await expectShown(page.locator("#rosterSection"));
-    await expect
-      .poll(async () => {
-        const [block, roster] = await Promise.all([
-          thumb.boundingBox(),
-          page.getByRole("tab", { name: "Roster" }).boundingBox(),
-        ]);
-        return Math.round(block.x - roster.x);
-      })
-      .toBe(0);
+    expect(listFillFades(await readFades())).toEqual([
+      "Roster 0.18s 0s ease-in-out",
+      "Team 0.18s 0s ease-in-out",
+    ]);
+    expect(await readFilledNames(tabList)).toEqual(["Roster"]);
   });
 
-  test("on a phone, a finger swiping a team's stats left brings in its roster, its pill following, and once it lifts, the roster settles without stepping back, changing nothing but the pills while the finger moves it", async ({
+  test("a team's sheet opening over another's roster shows its Team pill filled at once, fading nothing", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openApp(page);
+    await openLibertyRoster(page);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#teamSheet")).toBeHidden();
+    const tabList = page.locator("#teamSheet [role=tablist]");
+    const readFades = await noteNameFades(tabList);
+
+    await page.getByRole("button", { name: "Team details: Minnesota Lynx" }).first().click();
+
+    await expect(page.locator("#teamTitle")).toHaveText("Minnesota Lynx");
+    expect(await readFilledNames(tabList)).toEqual(["Team"]);
+    expect(await readFades()).toEqual([]);
+  });
+
+  test("on a phone, a finger swiping a team's stats left brings in its roster, changing nothing but where the sections are while it moves them, and once it lifts, the pill hands off to Roster as the roster sets off and settles without stepping back", async ({
     page,
   }) => {
     await page.setViewportSize(PHONE);
@@ -452,18 +465,23 @@ test.describe("in full motion", () => {
     const readLefts = await startTrackingRoster(page);
 
     const release = await drag(page, { x: 330, y: 400 }, { x: -250 }, { durationMs: 1000 });
-    const { thumb, names } = await readPillNames(page.locator("#teamSheet [role=tablist]"));
-    const roster = /** @type {any} */ (names.find(({ name }) => name === "Roster"));
-    const swiped = (thumb.right - roster.left) / (roster.right - roster.left);
-    expect(swiped).toBeGreaterThan(0.2);
-    expect(swiped).toBeLessThan(0.8);
-    for (const name of names) {
-      expect(name.coverStart, name.name).toBeCloseTo(thumb.left, 0);
-      expect(name.coverEnd, name.name).toBeCloseTo(thumb.right, 0);
-      expect(new Set(name.letterColors).size, name.name).toBe(2);
-    }
+    expect(await readFilledNames(page.locator("#teamSheet [role=tablist]"))).toEqual(["Team"]);
     expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
+    const rosterLeftAtHandoff = page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const roster = /** @type {HTMLElement} */ (document.getElementById("rosterSection"));
+          const tab = /** @type {HTMLElement} */ (
+            document.querySelector('#teamSheet [role=tab][data-tab="roster"]')
+          );
+          new MutationObserver(() => {
+            if (tab.getAttribute("aria-selected") === "true")
+              resolve(roster.getBoundingClientRect().x);
+          }).observe(tab, { attributes: true, attributeFilter: ["aria-selected"] });
+        }),
+    );
     await release();
+    expect(await rosterLeftAtHandoff).toBeGreaterThan(30);
     await expectShown(page.locator("#rosterSection"));
     const lefts = await readLefts();
 
