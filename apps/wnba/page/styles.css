@@ -341,9 +341,9 @@ header.top h1 {
   color: var(--ink-dim);
   font-size: var(--size-read);
 }
-/* Centered under its pill, a step lower than a list's first day, so it doesn't crowd the pill. */
+/* Centered under its pill, its capitals level with the date's number beside a list's first game. */
 .pager-page .empty-note {
-  margin-top: 44px;
+  margin-top: 35px;
   text-align: center;
 }
 
