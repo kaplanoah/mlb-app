@@ -725,24 +725,35 @@ test("on a day without games, the Games view starts on Next, and a list someone 
   await expect(shownGames).toHaveId("games-today");
 });
 
-test("a Games list with nothing in it centers its note under the pill, 44px lower than a list's first day", async ({
+test("a Games list with nothing in it centers its note under the pill, level with the date's number beside a list's first game", async ({
   page,
 }) => {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const readGapUnderPill = (selector) =>
-    page.evaluate((target) => {
-      const pill = document.querySelector("#gamePager .pager-tabs").getBoundingClientRect();
-      return document.querySelector(target).getBoundingClientRect().top - pill.bottom;
-    }, selector);
-  const dayGap = await readGapUnderPill("#games-previous .game-day");
-  await app.changeSeason((season) => ({
-    ...season,
-    games: season.games.filter((game) => game.state === "final"),
-  }));
+  await app.changeSeason(dropTodaysGames);
   const note = page.locator("#games-today .empty-note");
   await expect(note).toHaveText("No games today");
-  expect(await readGapUnderPill("#games-today .empty-note")).toBe(dayGap + 44);
+  // A zero-height box set inline after a text has its top on the text's baseline, and the
+  // capitals' middle sits half a capital above it. Chromium's builds set a baseline a fraction of a
+  // pixel apart, so the two match to within one.
+  const readCapitalsMiddle = (selector) =>
+    page.evaluate((target) => {
+      const text = /** @type {HTMLElement} */ (document.querySelector(target));
+      const style = getComputedStyle(text);
+      const context = document.createElement("canvas").getContext("2d");
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const capitalHeight = context.measureText("H").actualBoundingBoxAscent;
+      const probe = document.createElement("span");
+      probe.style.cssText = "display: inline-block; width: 0; height: 0";
+      text.append(probe);
+      const baseline = probe.getBoundingClientRect().top;
+      probe.remove();
+      return baseline - capitalHeight / 2;
+    }, selector);
+
+  const noteMiddle = await readCapitalsMiddle("#games-today .empty-note");
+  const numberMiddle = await readCapitalsMiddle("#games-next .day-number");
+  expect(Math.abs(noteMiddle - numberMiddle)).toBeLessThanOrEqual(1);
   const [textMiddle, listMiddle] = await note.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
