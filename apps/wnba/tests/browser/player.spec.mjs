@@ -221,6 +221,7 @@ test("her sheet that didn't load says so over Try again, which holds its shape a
   const block = sheet.locator("#playerBody .retry-block");
   await expect(block.locator(".retry-title")).toHaveText("Couldn't load her numbers");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await page.unroute(matchPath("/player"), refuse);

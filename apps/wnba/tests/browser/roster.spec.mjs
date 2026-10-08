@@ -563,6 +563,7 @@ test("a roster that didn't load says so over Try again, which holds its shape as
   const block = section.locator(".retry-block");
   await expect(block.locator(".retry-title")).toHaveText("Couldn't load the roster");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await page.unroute(matchPath("/roster"), refuse);

@@ -699,6 +699,7 @@ test("a game the league has no box score for says so, and a preview whose meetin
   await expect(preview.locator(".tape-label")).toHaveCount(6);
   await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(10);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 
@@ -776,6 +777,7 @@ test("a box score the Worker can't load says so over Try again, which holds the 
   const block = sheet.locator("#gameBody .retry-block");
   await expect(block.locator(".retry-title")).toHaveText("Couldn't load the box score");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await page.unroute(matchPath("/box-score"), refuse);

@@ -453,6 +453,7 @@ test("a starter the Worker can't describe says so under his club, beside the oth
   await expect(retry.locator(".retry-message")).toHaveText("Couldn't load");
   await expect(sheet.locator(".scout")).toHaveCount(1);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   pitchers[2] = PITCHERS[2];
@@ -499,6 +500,7 @@ test("with neither starter's numbers loaded, the Matchup says so once, and reads
   await expect(block.locator(".retry-title")).toHaveText("Couldn't load the starters' numbers");
   await expect(sheet.locator(".retry-side")).toHaveCount(0);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   Object.assign(pitchers, PITCHERS);
@@ -617,6 +619,7 @@ test("a club whose last starters didn't load reads them again on a tap on Try ag
   const mariners = sheet.locator(".scout").nth(1);
   await expect(mariners.locator(".retry-message")).toHaveText("Couldn't load who started lately");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   rotations.SEA = { ...ANGELS_ROTATION, club: "SEA" };

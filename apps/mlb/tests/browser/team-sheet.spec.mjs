@@ -16,6 +16,7 @@ import {
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -465,6 +466,7 @@ test("a player's sheet that didn't load says so over Try again, which shows his 
   const block = playerSheet.locator("#playerBody .retry-block");
   await expect(block.locator(".retry-title")).toHaveText("Couldn't load his numbers");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await answer();
@@ -487,6 +489,7 @@ test("a roster that didn't load says so over Try again, and reads again as the p
   const block = sheet.locator("#rosterBody .retry-block");
   await expect(block.locator(".retry-title")).toHaveText("Couldn't load the roster");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await answer();
