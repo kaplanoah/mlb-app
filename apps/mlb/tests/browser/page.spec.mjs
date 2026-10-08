@@ -404,6 +404,29 @@ test("the Games tab goes back to today's list when the page comes back after two
   await expectGameList(page, "Today", 1);
 });
 
+test("the Games tab moves its lists back to today's only once the page has drawn since coming back", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expectGameList(page, "Previous", 0);
+  await setHidden(page, true);
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.setSystemTime(now + 2 * 60 * 1000);
+
+  const positionOnReturn = await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    document.dispatchEvent(new Event("visibilitychange"));
+    const pages = /** @type {HTMLElement} */ (document.getElementById("games-pages"));
+    return Math.round(pages.scrollLeft / pages.clientWidth);
+  });
+
+  expect(positionOnReturn).toBe(0);
+  await expectGameList(page, "Today", 1);
+});
+
 test("the Games tab opens on today's list after two minutes away spent on another tab", async ({
   page,
 }) => {
