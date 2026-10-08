@@ -3,6 +3,13 @@ import * as MLBSnapshot from "../../page/js/snapshot.js";
 import PAGE_FILES from "#page-files/mlb";
 import { createAppWorker } from "../../../../shared/worker/app-worker.js";
 import { describeBoxScore } from "../../worker/src/box-score.js";
+import {
+  describeRoster,
+  indexSeasonStats,
+  listRosterRequest,
+  listSeasonStatsRequest,
+  nameRosterKey,
+} from "../../worker/src/rosters.js";
 import { SeasonStore, forwardToStore } from "../../worker/src/store.js";
 import {
   test,
@@ -28,6 +35,22 @@ export const BOX_SCORES = Object.fromEntries(
     id,
     describeBoxScore(id, feed),
   ]),
+);
+
+const ROSTERS_FIXTURE = loadFixture("2026-10-08-rosters");
+// The Guardians', Yankees', and Dodgers' rosters as the store keeps them, by their documents' paths.
+export const ROSTER_DOCS = Object.fromEntries(
+  Object.entries({ CLE: 114, NYY: 147, LAD: 119 }).map(([club, mlbTeamId]) => {
+    const { season, answers } = ROSTERS_FIXTURE;
+    const roster = describeRoster({
+      club,
+      season,
+      roster: answers[listRosterRequest(mlbTeamId, season)],
+      hitting: indexSeasonStats(answers[listSeasonStatsRequest(season, "hitting")]),
+      pitching: indexSeasonStats(answers[listSeasonStatsRequest(season, "pitching")]),
+    });
+    return [nameRosterKey(club), roster];
+  }),
 );
 
 export const buildFixtureSnapshot = (fixture) =>

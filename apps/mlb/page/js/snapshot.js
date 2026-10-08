@@ -43,6 +43,7 @@ const MLB_TEAM = {
   147: "NYY",
   158: "MIL",
 };
+export const listClubs = () => Object.values(MLB_TEAM);
 // Postseason placeholders have made-up ids, so this is null for them.
 export const readClubId = (mlbTeamId) => MLB_TEAM[mlbTeamId] || null;
 // The MLB id of one of the page's clubs, or null for a name that isn't one.
