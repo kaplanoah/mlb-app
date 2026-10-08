@@ -1,0 +1,62 @@
+// The tables of players' numbers on the sheets, like a box score's batters or a roster's bullpen:
+// a column of names under a label, then a column for each number.
+
+import { html } from "#shared/html.js";
+
+/** @typedef {import("#shared/html.js").Markup} Markup */
+/**
+ * A column's label and the number it shows from a row, by field or as read from the row.
+ * @typedef {readonly [string, string | ((row: any) => Markup | string | number | null | undefined)]} StatColumn
+ */
+
+/**
+ * Innings as the sheets write them. MLB counts them in thirds after the point: 5.2 is five and two
+ * thirds.
+ * @param {string | number} innings
+ */
+export function formatInnings(innings) {
+  const [whole, thirds] = String(innings).split(".");
+  return thirds && thirds !== "0" ? `${whole} ${thirds}/3` : whole;
+}
+
+/**
+ * @param {any} row
+ * @param {StatColumn[1]} reader
+ */
+const readValue = (row, reader) => (typeof reader === "function" ? reader(row) : row[reader]);
+
+/**
+ * A row's numbers, with a dash for one it hasn't any of.
+ * @param {any} row
+ * @param {readonly StatColumn[]} columns
+ */
+export const renderStatCells = (row, columns) =>
+  columns.map(([, reader]) => html`<td class="tabular">${readValue(row, reader) ?? "-"}</td>`);
+
+/**
+ * A row's name cell, with what goes beside the name, like his position.
+ * @param {Markup | string} name
+ * @param {Markup | string} [note]
+ */
+export const renderNameCell = (name, note = "") =>
+  html`<td class="team"><span class="box-name">${name}</span>${note}</td>`;
+
+/**
+ * @param {string} label
+ * @param {readonly StatColumn[]} columns
+ * @param {Markup[]} rows
+ */
+export const renderStatTable = (label, columns, rows) =>
+  html`<div class="box-wrap">
+    <table class="st box-table">
+      <thead>
+        <tr>
+          <th class="left">${label}</th>
+          ${columns.map(([heading]) => html`<th>${heading}</th>`)}
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  </div>`;

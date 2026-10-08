@@ -7,7 +7,12 @@ import {
   buildSnapshotWithStarters,
   EVENING_FIXTURE,
   ON_A_PHONE,
+  ROSTER_DOCS,
+  SEASON_2025,
+  chooseSeason,
+  matchPath,
 } from "./harness.mjs";
+import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
@@ -287,4 +292,66 @@ test.describe("on a phone", () => {
     await expectShown(teamSheet);
     await expect(gameSheet).toBeHidden();
   });
+});
+
+/**
+ * Opens a club's sheet from the standings, with the rosters the store keeps.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} club
+ * @param {{ store?: Record<string, object> }} [options]
+ */
+async function openClub(page, club, { store = ROSTER_DOCS } = {}) {
+  await openApp(page, { store });
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator(`.div-grid tr[data-team="${club}"] .team-open`).click();
+  return page.locator("#teamSheet");
+}
+
+test("a club's Roster pill slides to its hitters, starters, and bullpen, each name whole", async ({
+  page,
+}) => {
+  const sheet = await openClub(page, "LAD");
+  await sheet.getByRole("tab", { name: "Roster" }).click();
+  await expect(sheet.locator("#rosterSection")).toBeInViewport();
+  await expect(sheet.locator("#rosterBody .sheet-part-head h3")).toHaveText([
+    "Hitters",
+    "Starters",
+    "Bullpen",
+    "Injured list",
+  ]);
+  const squeezed = await sheet
+    .locator("#rosterBody td.team")
+    .evaluateAll((cells) =>
+      cells.filter((cell) => cell.scrollWidth > cell.clientWidth).map((cell) => cell.textContent),
+    );
+  expect(squeezed).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await sheet
+    .locator("#rosterBody .box-wrap")
+    .evaluateAll((wraps) => wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth).length);
+  expect(overflow).toBe(0);
+});
+
+test("a reload shows the open roster as it was while the page reads it again", async ({ page }) => {
+  const sheet = await openClub(page, "CLE");
+  await sheet.getByRole("tab", { name: "Roster" }).click();
+  await expect(sheet.locator("#rosterBody .box-name").first()).toHaveText("Jo Adell");
+  const release = await holdRequests(page, matchPath("/store/rosters/CLE"));
+
+  await page.reload();
+
+  await expect(sheet.getByRole("tab", { name: "Roster" })).toHaveAttribute("aria-selected", "true");
+  await expect(sheet.locator("#rosterBody .box-name").first()).toHaveText("Jo Adell");
+  await expect(sheet.locator("#rosterBody .placeholder")).toHaveCount(0);
+  release();
+});
+
+test("a past season's club says rosters show for the current season only", async ({ page }) => {
+  await openApp(page, { store: { ...ROSTER_DOCS, "seasons/2025": SEASON_2025 } });
+  await chooseSeason(page, "2025");
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
+  const sheet = page.locator("#teamSheet");
+  await sheet.getByRole("tab", { name: "Roster" }).click();
+  await expect(sheet.locator("#rosterBody")).toHaveText("Rosters show for the current season only");
 });

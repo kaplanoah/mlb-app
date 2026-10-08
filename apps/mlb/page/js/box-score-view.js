@@ -5,6 +5,7 @@
 import { html } from "#shared/html.js";
 import { renderPlainClub, renderTeamDot } from "./clubs.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
+import { renderNameCell, renderStatCells, renderStatTable } from "./stat-table.js";
 
 const SIDES = /** @type {const} */ (["away", "home"]);
 const INNINGS = 9;
@@ -32,43 +33,6 @@ const LINEUP_COLUMNS = /** @type {const} */ ([
 
 /** @typedef {{ away: string, home: string }} BoxScoreGame */
 
-/** @param {readonly (readonly [string, string])[]} columns */
-const renderHeads = (columns) => columns.map(([label]) => html`<th>${label}</th>`);
-
-/**
- * @param {any} row
- * @param {readonly (readonly [string, string])[]} columns
- */
-const renderCells = (row, columns) =>
-  columns.map(([, field]) => html`<td class="tabular">${row[field] ?? "-"}</td>`);
-
-/**
- * @param {string} label
- * @param {readonly (readonly [string, string])[]} columns
- * @param {import("#shared/html.js").Markup[]} rows
- */
-const renderTable = (label, columns, rows) =>
-  html`<div class="box-wrap">
-    <table class="st box-table">
-      <thead>
-        <tr>
-          <th class="left">${label}</th>
-          ${renderHeads(columns)}
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
-  </div>`;
-
-/**
- * @param {string} name
- * @param {import("#shared/html.js").Markup | string} note
- */
-const renderName = (name, note) =>
-  html`<td class="team"><span class="box-name">${name}</span>${note}</td>`;
-
 /** @param {any} batter */
 const renderPosition = (batter) => html`<span class="box-pos">${batter.position}</span>`;
 
@@ -83,16 +47,16 @@ const sumBatting = (batters) =>
 
 /** @param {any[]} batters */
 const renderBatting = (batters) =>
-  renderTable("Batters", BATTING_COLUMNS, [
+  renderStatTable("Batters", BATTING_COLUMNS, [
     ...batters.map(
       (batter) =>
         html`<tr class="${batter.isSub ? "box-sub" : ""}">
-          ${renderName(batter.name, renderPosition(batter))}${renderCells(batter, BATTING_COLUMNS)}
+          ${renderNameCell(batter.name, renderPosition(batter))}${renderStatCells(batter, BATTING_COLUMNS)}
         </tr>`,
     ),
     html`<tr class="box-total">
       <td class="team">Team</td>
-      ${renderCells(sumBatting(batters), BATTING_COLUMNS)}
+      ${renderStatCells(sumBatting(batters), BATTING_COLUMNS)}
     </tr>`,
   ]);
 
@@ -102,26 +66,26 @@ const renderDecision = (pitcher) =>
 
 /** @param {any[]} pitchers */
 const renderPitching = (pitchers) =>
-  renderTable(
+  renderStatTable(
     "Pitchers",
     PITCHING_COLUMNS,
     pitchers.map(
       (pitcher) =>
         html`<tr>
-          ${renderName(pitcher.name, renderDecision(pitcher))}${renderCells(pitcher, PITCHING_COLUMNS)}
+          ${renderNameCell(pitcher.name, renderDecision(pitcher))}${renderStatCells(pitcher, PITCHING_COLUMNS)}
         </tr>`,
     ),
   );
 
 /** @param {any[]} batters */
 const renderLineup = (batters) =>
-  renderTable(
+  renderStatTable(
     "Batters",
     LINEUP_COLUMNS,
     batters.map(
       (batter) =>
         html`<tr>
-          ${renderName(batter.name, renderPosition(batter))}${renderCells(batter, LINEUP_COLUMNS)}
+          ${renderNameCell(batter.name, renderPosition(batter))}${renderStatCells(batter, LINEUP_COLUMNS)}
         </tr>`,
     ),
   );

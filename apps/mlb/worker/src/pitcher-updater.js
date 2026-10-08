@@ -69,7 +69,7 @@ const nameReadsKey = (season) => `reads:${season}`;
  * How many of the games on the page's last night and today have ended, which grows as each ends.
  * @param {any} savedSeason
  */
-function countSlateFinals(savedSeason) {
+export function countSlateFinals(savedSeason) {
   const slate = savedSeason?.slate;
   if (!slate) return null;
   return [slate.lastNight, slate.today]

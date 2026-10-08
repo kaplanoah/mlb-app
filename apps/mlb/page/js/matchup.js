@@ -10,6 +10,7 @@ import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
+import { formatInnings } from "./stat-table.js";
 import { PENDING_TAPE_SIDE, renderTapeRow } from "#shared/tape.js";
 
 const SIDES = ["away", "home"];
@@ -110,12 +111,6 @@ function renderTape(sides) {
     ${rows}
     ${notes}
   </div>`;
-}
-
-// MLB counts innings in thirds after the point: 5.2 is five and two thirds.
-function formatInnings(innings) {
-  const [whole, thirds] = String(innings).split(".");
-  return thirds && thirds !== "0" ? `${whole} ${thirds}/3` : whole;
 }
 
 const formatStartDay = (date) => formatShortDate(readCalendarDate(date));
