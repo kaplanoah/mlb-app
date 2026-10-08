@@ -76,6 +76,10 @@
   --pager-label: var(--ink-dim);
   --updates-head: var(--gold);
   --sheet-part-head: var(--gold);
+  --network-logo-height: 13px;
+  --network-gap: 16px;
+  --logos-for-light: none;
+  --logos-for-dark: inline;
   --game-card-edge: var(--card-border);
   --game-card-live: var(--copper-ink);
   --game-card-won: var(--gold);

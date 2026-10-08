@@ -1872,7 +1872,7 @@ test.describe("on a phone", () => {
       });
   });
 
-  test("a tap on a name two over slides the pill's block straight there, leaving the name between as it is", async ({
+  test("a tap on a name two over slides the pill's block straight there, the name between turning only as the block passes over it", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1885,17 +1885,21 @@ test.describe("on a phone", () => {
     );
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.evaluate(() => {
-      const today = /** @type {Element} */ (document.getElementById("games-tab-today"));
-      const noted = /** @type {number[]} */ ([]);
+      const today = /** @type {HTMLElement} */ (document.getElementById("games-tab-today"));
+      const noted = /** @type {string[]} */ ([]);
       document
         .getElementById("games-pages")
         ?.addEventListener("scroll", () =>
-          noted.push(Number(getComputedStyle(today).getPropertyValue("--nearness"))),
+          noted.push(today.style.getPropertyValue("--cover-start")),
         );
       document.querySelector("#games-bar .pager-thumb")?.addEventListener("transitionrun", () => {
         /** @type {any} */ (window).thumbSlides += 1;
       });
-      Object.assign(window, { todayNearness: noted, thumbSlides: 0 });
+      today.addEventListener("transitionrun", (event) => {
+        if (/** @type {TransitionEvent} */ (event).propertyName === "--cover-start")
+          /** @type {any} */ (window).todayCoverSlides += 1;
+      });
+      Object.assign(window, { todayCovers: noted, thumbSlides: 0, todayCoverSlides: 0 });
     });
 
     await page.getByRole("tab", { name: "Next" }).click();
@@ -1908,9 +1912,17 @@ test.describe("on a phone", () => {
         page.locator("#games-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth),
       )
       .toBe(2);
-    const noted = await page.evaluate(() => /** @type {any} */ (window).todayNearness);
+    expect(await page.evaluate(() => /** @type {any} */ (window).todayCoverSlides)).toBeGreaterThan(
+      0,
+    );
+    const noted = await page.evaluate(() => /** @type {any} */ (window).todayCovers);
     expect(noted.length).toBeGreaterThan(0);
-    expect(Math.max(...noted)).toBe(0);
+    const settled = await page
+      .locator("#games-tab-today")
+      .evaluate((today) =>
+        /** @type {HTMLElement} */ (today).style.getPropertyValue("--cover-start"),
+      );
+    expect(new Set(noted)).toEqual(new Set([settled]));
     const { thumb, names } = await readPill(page);
     expect(thumb).toEqual({ left: names.Next.left, width: names.Next.width });
   });

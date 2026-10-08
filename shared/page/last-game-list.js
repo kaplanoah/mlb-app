@@ -1,5 +1,6 @@
-// The Games list someone was on, kept while they're away for less than an hour: long enough to
-// glance at another app and come back to it, short enough that the next sitting starts on Today.
+// The Games list someone was on, kept while they're away for less than two minutes: long enough
+// to glance at another app and come back to it, short enough that the next sitting starts on
+// Today.
 
 /** @typedef {"previous" | "today" | "next"} GameList */
 /** @typedef {{ list: string, leftAt: number }} LeftGameList */
@@ -7,13 +8,14 @@
 const LAST_GAME_LIST_KEY = "lastGameList";
 const GAME_LISTS = ["previous", "today", "next"];
 
-export const TODAY_AFTER_AWAY_MS = 60 * 60 * 1000;
+const TODAY_AFTER_AWAY_MS = 2 * 60 * 1000;
 
 /** @param {number} awayMs */
 export const isAwayLong = (awayMs) => awayMs >= TODAY_AFTER_AWAY_MS;
 
 /**
- * The list the Games view opens on: the one it was left on, unless that was an hour or more ago.
+ * The list the Games view opens on: the one it was left on, unless that was two minutes or more
+ * ago.
  * @param {LeftGameList | null} left
  * @param {number} now
  * @returns {GameList}

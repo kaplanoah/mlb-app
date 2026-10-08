@@ -1,5 +1,6 @@
 import { test, expect, openApp } from "./harness.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
+import { readPillNames } from "../../../../tests/browser/pill-names.mjs";
 import { expectShown, readLeft } from "../../../../tests/browser/sheet-row.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
@@ -451,11 +452,16 @@ test.describe("in full motion", () => {
     const readLefts = await startTrackingRoster(page);
 
     const release = await drag(page, { x: 330, y: 400 }, { x: -250 }, { durationMs: 1000 });
-    const swipe = await page
-      .locator("#teamTabRoster")
-      .evaluate((tab) => Number(getComputedStyle(tab).getPropertyValue("--nearness")));
-    expect(swipe).toBeGreaterThan(0.2);
-    expect(swipe).toBeLessThan(0.8);
+    const { thumb, names } = await readPillNames(page.locator("#teamSheet [role=tablist]"));
+    const roster = /** @type {any} */ (names.find(({ name }) => name === "Roster"));
+    const swiped = (thumb.right - roster.left) / (roster.right - roster.left);
+    expect(swiped).toBeGreaterThan(0.2);
+    expect(swiped).toBeLessThan(0.8);
+    for (const name of names) {
+      expect(name.coverStart, name.name).toBeCloseTo(thumb.left, 0);
+      expect(name.coverEnd, name.name).toBeCloseTo(thumb.right, 0);
+      expect(new Set(name.letterColors).size, name.name).toBe(2);
+    }
     expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
     await release();
     await expectShown(page.locator("#rosterSection"));

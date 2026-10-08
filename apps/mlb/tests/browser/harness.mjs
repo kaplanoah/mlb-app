@@ -19,6 +19,8 @@ const loadFixture = (name) =>
 export const EVENING_FIXTURE = loadFixture("2026-09-24-evening");
 // The 2025 season after the World Series, when nothing was left to play.
 export const FINAL_2025_FIXTURE = loadFixture("2025-final");
+// The evening of two division series games, with where each game is on.
+export const BROADCASTS_FIXTURE = loadFixture("2026-10-07-broadcasts");
 
 export const buildFixtureSnapshot = (fixture) =>
   MLBSnapshot.buildSnapshot(fixture.responses, {

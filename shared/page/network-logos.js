@@ -25,11 +25,39 @@ import { html } from "./html.js";
 /** @type {Channel[]} */
 const CHANNELS = [
   { name: "ABC", file: "abc.png", names: [], hasDarkVersion: true, scale: 1.22, nudge: 0.02 },
+  {
+    name: "Apple TV",
+    file: "apple-tv.svg",
+    names: [],
+    hasDarkVersion: true,
+    scale: 0.99,
+    nudge: 0.08,
+  },
   { name: "CNBC", file: "cnbc.svg", names: [], hasDarkVersion: true, scale: 1.24, nudge: 0.04 },
   { name: "ESPN", file: "espn.svg", names: [], scale: 0.81, nudge: -0.02 },
   { name: "ESPN2", file: "espn2.svg", names: [], scale: 0.81, nudge: -0.02 },
+  { name: "FOX", file: "fox.svg", names: [], hasDarkVersion: true, scale: 0.84, nudge: 0.02 },
+  {
+    name: "FOX One",
+    file: "fox-one.svg",
+    names: [],
+    hasDarkVersion: true,
+    scale: 0.86,
+    nudge: -0.02,
+  },
+  { name: "FS1", file: "fs1.svg", names: [], scale: 1.12 },
+  {
+    name: "HBO Max",
+    file: "hbo-max.svg",
+    names: [],
+    hasDarkVersion: true,
+    scale: 0.72,
+    nudge: -0.06,
+  },
+  { name: "MLB Network", file: "mlb-network.png", names: [], scale: 1.3, nudge: -0.04 },
   { name: "NBC", file: "nbc.svg", names: [], hasDarkVersion: true, scale: 0.94, nudge: 0.08 },
   { name: "NBCSN", file: "nbcsn.png", names: [], hasDarkVersion: true, scale: 1.06, nudge: -0.04 },
+  { name: "Netflix", file: "netflix.svg", names: [], scale: 0.92, nudge: -0.06 },
   {
     name: "Peacock",
     file: "peacock.svg",
@@ -39,6 +67,8 @@ const CHANNELS = [
     nudge: -0.02,
   },
   { name: "Prime Video", file: "prime-video.png", names: [], scale: 1.14, nudge: -0.06 },
+  { name: "SNY", file: "sny.png", names: [], hasDarkVersion: true, scale: 0.98, nudge: 0.08 },
+  { name: "TBS", file: "tbs.svg", names: [], hasDarkVersion: true, scale: 1.06 },
   { name: "USA Network", file: "usa.png", names: ["USA Net"], scale: 0.94 },
 ];
 

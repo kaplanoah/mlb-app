@@ -1733,6 +1733,9 @@ th[aria-sort="ascending"] .roster-caret {
   font-family: var(--display);
   font-weight: 600;
 }
+.updates-list .what {
+  line-height: 1.3;
+}
 .updates-list .series-score {
   white-space: nowrap;
 }
