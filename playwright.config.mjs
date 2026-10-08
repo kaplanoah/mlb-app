@@ -12,7 +12,8 @@ const appsWithBrowserTests = listApps().filter((app) =>
 );
 const findPort = (index) => FIRST_PORT + index;
 
-// iPhones run the pages in WebKit, so the at-rest specs run there too wherever it's installed.
+// iPhones run the pages in WebKit, so the at-rest specs, and the specs of what WebKit draws its own
+// way, run there too wherever it's installed.
 const hasWebKit = existsSync(webkit.executablePath());
 
 export default defineConfig({
@@ -49,7 +50,7 @@ export default defineConfig({
           {
             name: `${app}-webkit`,
             testDir: `apps/${app}/tests/browser`,
-            testMatch: "at-rest.spec.mjs",
+            testMatch: ["at-rest.spec.mjs", "news-photos.spec.mjs"],
             use: { ...devices["Desktop Safari"], baseURL: `http://127.0.0.1:${findPort(index)}` },
           },
         ]
