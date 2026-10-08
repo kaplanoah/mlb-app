@@ -206,6 +206,54 @@ test("under its lead, a card lists the stories that add to it, quieter than the 
 });
 
 /**
+ * The first card's summary and author line, and the theme's ink and mid ink, each as red, green,
+ * and blue.
+ * @param {import("@playwright/test").Page} page
+ */
+const readCardInks = (page) =>
+  page
+    .locator(".news-card")
+    .first()
+    .evaluate((card) => {
+      const context = /** @type {CanvasRenderingContext2D} */ (
+        document.createElement("canvas").getContext("2d")
+      );
+      const readChannels = (/** @type {Element} */ element) => {
+        context.fillStyle = getComputedStyle(element).color;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      };
+      const readToken = (/** @type {string} */ name) => {
+        const probe = card.appendChild(document.createElement("span"));
+        probe.style.color = `var(${name})`;
+        const channels = readChannels(probe);
+        probe.remove();
+        return channels;
+      };
+      return {
+        summary: readChannels(/** @type {Element} */ (card.querySelector(".news-summary"))),
+        authorLine: readChannels(/** @type {Element} */ (card.querySelector(".news-meta"))),
+        ink: readToken("--ink"),
+        midInk: readToken("--ink-mid"),
+      };
+    });
+
+for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
+  test(`a card's author line reads in mid ink, and its summary a step darker, short of the headline's ink, in ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await openNewsWithStories(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
+
+    const { summary, authorLine, ink, midInk } = await readCardInks(page);
+    expect(authorLine).toEqual(midInk);
+    expect(measureColorDistance(summary, ink)).toBeGreaterThan(0);
+    expect(measureColorDistance(summary, ink)).toBeLessThan(measureColorDistance(midInk, ink));
+  });
+}
+
+/**
  * The three stories, with each story's photo its own.
  * @param {string} photoUrl
  */

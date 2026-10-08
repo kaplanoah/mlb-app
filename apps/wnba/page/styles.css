@@ -2240,7 +2240,7 @@ table.standings tr.playoff-line + tr td {
 .news-meta {
   margin: 0;
   font-size: var(--size-glance);
-  color: var(--ink-dim);
+  color: var(--ink-mid);
 }
 /* The stories under a card's lead, quieter than it: a headline and its outlet each. */
 .news-more {
@@ -2276,11 +2276,12 @@ table.standings tr.playoff-line + tr td {
   color: inherit;
   text-decoration: none;
 }
+/* A step darker than mid ink, since Barlow's Regular reads thin through a few lines. */
 .news-summary {
   margin: 2px 0 0;
   font-size: var(--size-read);
   line-height: 1.45;
-  color: var(--ink-mid);
+  color: color-mix(in srgb, var(--ink-dim) 45%, var(--ink));
 }
 .news-foot {
   display: flex;
