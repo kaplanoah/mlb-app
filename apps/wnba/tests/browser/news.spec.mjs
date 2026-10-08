@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
@@ -132,6 +133,7 @@ test("the News tab shows a card for each story the Worker saves", async ({ page 
     findCard(page, "Film review").getByRole("link", { name: /^Read on ESPN/ }),
   ).toHaveAttribute("href", "https://example.com/espn");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 
@@ -202,6 +204,7 @@ test("under its lead, a card lists the stories that add to it, quieter than the 
     await readSize(page.locator("h3.news-title")),
   );
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 
@@ -398,6 +401,7 @@ test("a story opened from its Read button shows a check in place of its arrow, a
   const openedLabel = await espn.locator(".read-label").boundingBox();
   expect(Math.abs(openedLabel.width - unreadLabel.width)).toBeLessThan(0.5);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
 
   await page.reload();
   await expect(findCard(page, "Film review").locator(".read-check")).toHaveCount(1);

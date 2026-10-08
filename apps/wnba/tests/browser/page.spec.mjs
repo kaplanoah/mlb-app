@@ -6,6 +6,7 @@ import {
   listTouchHoverRules,
 } from "../../../../tests/browser/tap-states.mjs";
 import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
@@ -98,27 +99,32 @@ test("a score's glow is on its digits' svgs, since Safari draws no filter on an 
 test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
   await openApp(page);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("tab", { name: "Games" }).click();
   for (const list of ["Previous", "Today", "Next"]) {
     await page.getByRole("tab", { name: list }).click();
     await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
   }
   await page.getByRole("tab", { name: "Standings" }).click();
   await expect(page.locator("#standings-league tr").nth(2)).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("button", { name: "Team details: Minnesota Lynx" }).first().click();
   await expect(page.locator("#teamSheet table.players")).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
   await page.keyboard.press("Escape");
   await expect(page.locator("#teamSheet")).toBeHidden();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.locator("#settingsDialog")).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 
@@ -678,22 +684,23 @@ test("a game's dots, names, and time center on their capitals, level with each o
   }
 });
 
-test("a game that may never happen says If needed a step dimmer than a status like Final", async ({
+test("a game that may never happen says If needed in a status's dim ink, a weight lighter than Final", async ({
   page,
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const ifNeeded = page.locator("#games-next .if-needed").first();
   await expect(ifNeeded).toHaveText("If needed");
-  const [color, expected] = await ifNeeded.evaluate((element) => {
-    const probe = document.createElement("i");
-    probe.style.color = "color-mix(in srgb, var(--ink-dim) 70%, var(--raised))";
-    element.closest(".game-list")?.append(probe);
-    const colors = [getComputedStyle(element).color, getComputedStyle(probe).color];
-    probe.remove();
-    return colors;
-  });
-  expect(color).toBe(expected);
+  const final = page.locator("#gamePager .game-status", { hasText: "Final" }).first();
+  const readStyle = (/** @type {import("@playwright/test").Locator} */ locator) =>
+    locator.evaluate((element) => {
+      const { color, fontWeight } = getComputedStyle(element);
+      return { color, weight: Number(fontWeight) };
+    });
+
+  const [ifNeededStyle, finalStyle] = [await readStyle(ifNeeded), await readStyle(final)];
+  expect(ifNeededStyle.color).toBe(finalStyle.color);
+  expect(ifNeededStyle.weight).toBeLessThan(finalStyle.weight);
 });
 
 const TODAYS_GAMES = ["1042600132", "1042600112"];
@@ -927,6 +934,7 @@ test.describe("on a phone, the text", () => {
     await openApp(page, { isShowingUpdates: true });
     await expect(page.locator("#updates .what").first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
 
     await page.getByRole("tab", { name: "Games" }).click();
@@ -934,6 +942,7 @@ test.describe("on a phone, the text", () => {
       await page.getByRole("tab", { name: list }).click();
       await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
     }
 
@@ -941,12 +950,14 @@ test.describe("on a phone, the text", () => {
     const standings = page.locator("#standings-league");
     await expect(standings.locator("tbody tr").first()).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
 
     await standings.locator('tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
     await expect(sheet.locator(".team-game")).toHaveCount(3);
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(sheet).toBeHidden();
@@ -954,6 +965,7 @@ test.describe("on a phone, the text", () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await expect(page.locator("#settingsDialog")).toBeVisible();
     expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
     expect(await listStrayPeriods(page)).toEqual([]);
   });
 
