@@ -266,16 +266,22 @@ test("the topics a store kept before are removed", async () => {
   assert.equal(docs.stored.has("news/topics"), false);
 });
 
-test("the status counts each day's calls and tokens, and names the feeds that didn't answer", async () => {
+test("the status counts each day's calls and tokens and the run's requests, and names the feeds that didn't answer", async () => {
   const { docs, runJob } = createRun();
   const readFeed = createFetch();
 
-  await runJob(async (url, init) =>
-    String(url).includes("winsidr") ? new Response("down", { status: 503 }) : readFeed(url, init),
-  );
+  let requests = 0;
+  await runJob(async (url, init) => {
+    requests += 1;
+    return String(url).includes("winsidr")
+      ? new Response("down", { status: 503 })
+      : readFeed(url, init);
+  });
 
   const status = docs.stored.get("news/status");
   assert.deepEqual(status.missing, ["winsidr"]);
+  assert.equal(status.requests, requests);
+  assert.equal(status.lastFailure, null);
   assert.equal(status.problem, "");
   assert.deepEqual(status.usage["2026-10-05"], {
     calls: 3,
@@ -315,15 +321,19 @@ test("without an API key nothing is asked, and the status says why", async () =>
   assert.ok(listStoryStates(storage).includes("pending"));
 });
 
-test("a run whose call to Claude fails says so, and its stories wait for the next run", async () => {
+test("a run whose call to Claude fails says so, and keeps saying it last failed, and its stories wait for the next run", async () => {
   const { docs, storage, runJob } = createRun();
 
   await runJob(createFetch({ status: 529 }));
   assert.equal(docs.stored.get("news/status").problem, "Claude answered 529: Overloaded");
   assert.ok(!listStoryStates(storage).includes("kept"));
 
+  const failed = docs.stored.get("news/status").lastFailure;
+  assert.equal(failed.message, "Claude answered 529: Overloaded");
+
   await runJob(createFetch());
   assert.equal(docs.stored.get("news/status").problem, "");
+  assert.deepEqual(docs.stored.get("news/status").lastFailure, failed);
   assert.ok(listStoryStates(storage).includes("kept"));
 });
 

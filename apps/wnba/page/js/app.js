@@ -3,7 +3,7 @@ import { startCaughtUpSweep } from "#shared/caught-up-sweep.js";
 import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { setHtml } from "#shared/html.js";
-import { startDiagnostics } from "#shared/diagnostics.js";
+import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
 import {
@@ -212,6 +212,7 @@ async function boot() {
   startBracket();
   startStandings();
   session.db = createWorkerStore();
+  showJobStatuses(session.db, ["news", "players"]);
   drawLastSeen();
   reopenLastSheets();
   startCatchUpNote(session.db, renderStamp);

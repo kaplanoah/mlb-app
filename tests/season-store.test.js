@@ -1,6 +1,6 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { createSeasonStore, readStoreDoc } from "../shared/worker/season-store.js";
+import { addToJobCount, createSeasonStore, readStoreDoc } from "../shared/worker/season-store.js";
 import { createDurableObjectContext, fireNextAlarm } from "./durable-object-context.js";
 
 const ORIGIN = "https://app.example";
@@ -568,4 +568,31 @@ test("a page that opens on the release that last updated the season keeps its sc
 
   await store.alarm();
   assert.equal(updates.count, 0);
+});
+
+test("the Worker adds to a count a job keeps, which the job reads and the page can't change", async () => {
+  const context = createDurableObjectContext();
+  const SeasonStore = createSeasonStore({
+    ...QUIET_LEAGUE,
+    backgroundJobs: { players: { chooseDelay: () => 5 * MINUTE_MS, run: async () => {} } },
+  });
+  const store = new SeasonStore(context.ctx, {}, { now: () => NOW });
+  const env = {
+    STORE: {
+      idFromName: (/** @type {string} */ name) => name,
+      get: () => ({
+        fetch: (/** @type {string} */ url, /** @type {RequestInit} */ init) =>
+          store.fetch(new Request(url, init)),
+      }),
+    },
+  };
+
+  await addToJobCount(env, "players", "leagueReads");
+  await addToJobCount(env, "players", "leagueReads");
+
+  assert.equal(await store.createJobStorage("players").get("count:leagueReads"), 2);
+  await assert.rejects(addToJobCount(env, "news", "leagueReads"), /The store answered 404/);
+  const read = await store.fetch(new Request(`${ORIGIN}/count/players/leagueReads`));
+  assert.equal(read.status, 405);
+  assert.equal(await store.createJobStorage("players").get("count:leagueReads"), 2);
 });

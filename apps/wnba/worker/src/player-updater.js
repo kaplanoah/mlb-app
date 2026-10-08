@@ -1,6 +1,8 @@
 import { isSameJson } from "#shared/compare.js";
 import { createFeedKeeper } from "../../../../shared/worker/feed-keeper.js";
+import { countRequests, describeJobRun } from "../../../../shared/worker/job-status.js";
 import { describeError } from "../../../../shared/worker/responses.js";
+import { nameCountKey } from "../../../../shared/worker/season-store.js";
 import { isStillPlaying } from "../../page/js/series.js";
 import { TEAMS } from "../../page/js/teams.js";
 import {
@@ -34,12 +36,17 @@ import { fetchWnbaJson, hasTable, trimColumns } from "./wnba.js";
 // changed: each team's roster, each player's numbers, and the season's ranked numbers, which go
 // last, so a season that has them is whole. Each run also fills one season the store keeps from
 // before the current one, newest first, and a filled season is never read again, since a past
-// season doesn't change, unless the sheets come to read a column it was filled without.
+// season doesn't change, unless the sheets come to read a column it was filled without. Each run
+// ends by saving how it went in `players/status`, with how often a sheet had to read the league
+// for a player the store hadn't saved.
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const RUN_DELAY_MS = 5 * MINUTE_MS;
 const LEAGUE_NAME = "The WNBA";
+const STATUS_KEY = "players/status";
+export const PLAYER_JOB = "players";
+export const LEAGUE_READS_COUNT = "leagueReads";
 const TEAM_KEYS = Object.keys(TEAMS);
 
 const FEEDS = {
@@ -75,6 +82,27 @@ const PLAYER_LIST_COLUMNS = [
 const NO_ONE_OUT = [];
 
 /** @typedef {import("../../../../shared/worker/season-store.js").JobContext} JobContext */
+/**
+ * What a run did, for its status: how many times it read each feed, how many documents it saved
+ * in each collection, the past season it filled, and what went wrong.
+ * @typedef {object} RunLog
+ * @property {Record<string, number>} feeds
+ * @property {Record<string, number>} saved
+ * @property {{ season: number, isWhole: boolean } | null} pastSeason
+ * @property {string[]} failures
+ */
+/** @typedef {JobContext & { log: RunLog }} RunContext */
+
+/** @returns {RunLog} */
+const createRunLog = () => ({ feeds: {}, saved: {}, pastSeason: null, failures: [] });
+
+/**
+ * @param {Record<string, number>} counts
+ * @param {string} name
+ */
+const addOne = (counts, name) => {
+  counts[name] = (counts[name] ?? 0) + 1;
+};
 
 /** @param {number} season */
 const nameFilledKey = (season) => `filled:${season}`;
@@ -114,11 +142,11 @@ function createStoreKeeper() {
   const saved = new Map();
 
   /**
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {string} key
    * @param {any} doc
    */
-  async function saveDoc({ docs }, key, doc) {
+  async function saveDoc({ docs, log }, key, doc) {
     const text = JSON.stringify(doc);
     if (saved.get(key) === text) return;
     if (!saved.has(key) && isSameJson(await docs.read(key), doc)) {
@@ -127,11 +155,12 @@ function createStoreKeeper() {
     }
     await docs.write(key, doc);
     saved.set(key, text);
+    addOne(log.saved, key.split("/")[0]);
   }
 
   /**
    * Reads a feed trimmed to its columns, kept under them, so one kept with fewer is read again.
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {string} name which feed's limits apply
    * @param {string} url
    * @param {string} table
@@ -141,24 +170,30 @@ function createStoreKeeper() {
     /** @type {ReturnType<typeof createFeedKeeper>} */ (keeper).readFeed(
       name,
       `${url} ${columns.join(" ")}`,
-      async () =>
-        trimColumns(await fetchWnbaJson(context.fetchImpl, url, null, hasTable(table)), columns),
+      async () => {
+        addOne(context.log.feeds, name);
+        return trimColumns(
+          await fetchWnbaJson(context.fetchImpl, url, null, hasTable(table)),
+          columns,
+        );
+      },
     );
 
   /**
    * Who ESPN lists as out on a team today, or no one when ESPN hasn't answered.
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {string} team
    */
   const readOutNames = (context, team) =>
     /** @type {ReturnType<typeof createFeedKeeper>} */ (keeper)
-      .readFeed("out", team, async () =>
-        listOutNames(await fetchEspnRoster(context.fetchImpl, team, null)),
-      )
+      .readFeed("out", team, async () => {
+        addOne(context.log.feeds, "out");
+        return listOutNames(await fetchEspnRoster(context.fetchImpl, team, null));
+      })
       .catch(() => NO_ONE_OUT);
 
   /**
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {number} season
    */
   const readSeasonFeeds = (context, season) =>
@@ -192,7 +227,7 @@ function createStoreKeeper() {
 
   /**
    * Each team's roster answer, or null for one the league hasn't answered.
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {number} season
    */
   const readRosterFeeds = (context, season) =>
@@ -211,7 +246,7 @@ function createStoreKeeper() {
   /**
    * Who is out on each team, read only for a team that still plays this season, since a page shows
    * it only then.
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {any[] | null} series the season's series, or null for a past season
    */
   const readOutFeeds = (context, series) =>
@@ -222,7 +257,7 @@ function createStoreKeeper() {
     );
 
   /**
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {number} season
    * @param {{ leagueRosters: any[], outNames: string[][], playerList: any }} answers
    */
@@ -243,7 +278,7 @@ function createStoreKeeper() {
   }
 
   /**
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {number} season
    * @param {any[]} answers
    */
@@ -264,14 +299,14 @@ function createStoreKeeper() {
   /**
    * Saves a season's rosters, and its numbers once its stats feeds have answered, and says whether
    * every feed answered. A feed that doesn't answer leaves what it feeds as it was saved.
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {number} season
    * @param {any[] | null} series the season's series, or null for a past season
    */
   async function updateSeason(context, season, series) {
     const [stats, leagueRosters, outNames, playerList] = await Promise.all([
       readSeasonFeeds(context, season).catch((error) => {
-        console.error(`Reading ${season}'s stats failed: ${describeError(error)}`);
+        noteFailure(context, `Reading ${season}'s stats`, error);
         return null;
       }),
       readRosterFeeds(context, season),
@@ -291,32 +326,45 @@ function createStoreKeeper() {
 
   /**
    * Fills the newest past season the store keeps that it hasn't filled.
-   * @param {JobContext} context
+   * @param {RunContext} context
    * @param {number} current
    */
   async function fillPastSeason(context, current) {
     for (const season of await listPastSeasons(context.docs, current)) {
       if ((await context.storage.get(nameFilledKey(season))) === FILLED_COLUMNS) continue;
       const isWhole = await updateSeason(context, season, null);
+      context.log.pastSeason = { season, isWhole };
       if (isWhole) await context.storage.put(nameFilledKey(season), FILLED_COLUMNS);
       return;
     }
   }
 
   /**
+   * @param {RunContext} context
+   * @param {string} what what failed, as an error names it
+   * @param {unknown} error
+   */
+  function noteFailure(context, what, error) {
+    const failure = `${what} failed: ${describeError(error)}`;
+    console.error(failure);
+    context.log.failures.push(failure);
+  }
+
+  /**
+   * @param {RunContext} context
    * @param {string} what what failed, as an error names it
    * @param {() => Promise<unknown>} work
    */
-  async function logFailure(what, work) {
+  async function logFailure(context, what, work) {
     try {
       await work();
     } catch (error) {
-      console.error(`${what} failed: ${describeError(error)}`);
+      noteFailure(context, what, error);
     }
   }
 
-  /** @param {JobContext} context */
-  async function run(context) {
+  /** @param {RunContext} context */
+  async function keepPlayers(context) {
     keeper ??= createFeedKeeper({
       feeds: FEEDS,
       leagueName: LEAGUE_NAME,
@@ -327,10 +375,37 @@ function createStoreKeeper() {
     if (!Number.isInteger(current)) return;
     const savedSeason = await context.docs.read(`seasons/${current}`);
     await keeper.noteFinalCount(countFinals(savedSeason));
-    await logFailure(`Keeping ${current}'s players`, () =>
+    await logFailure(context, `Keeping ${current}'s players`, () =>
       updateSeason(context, current, savedSeason?.series ?? []),
     );
-    await logFailure("Filling a past season's players", () => fillPastSeason(context, current));
+    await logFailure(context, "Filling a past season's players", () =>
+      fillPastSeason(context, current),
+    );
+  }
+
+  /**
+   * @param {RunContext} context
+   * @param {{ startedAt: number, requests: number }} run
+   */
+  async function saveStatus({ docs, storage, now, log }, { startedAt, requests }) {
+    const stored = await docs.read(STATUS_KEY);
+    const failure = log.failures.join("; ");
+    await docs.write(STATUS_KEY, {
+      ...describeJobRun({ startedAt, endedAt: now(), requests, failure }, stored),
+      feeds: log.feeds,
+      saved: log.saved,
+      pastSeason: log.pastSeason,
+      leagueReads: (await storage.get(nameCountKey(LEAGUE_READS_COUNT))) ?? 0,
+    });
+  }
+
+  /** @param {JobContext} context */
+  async function run(context) {
+    const startedAt = context.now();
+    const counter = countRequests(context.fetchImpl);
+    const runContext = { ...context, fetchImpl: counter.fetchImpl, log: createRunLog() };
+    await keepPlayers(runContext);
+    await saveStatus(runContext, { startedAt, requests: counter.count });
   }
 
   return { run };

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   countSecondsLeft,
   describeDevice,
+  describeJobStatus,
   describeLoad,
   describeOpenSheets,
   describeTimeAway,
@@ -114,6 +115,29 @@ const PAGE_FACTS = {
   timeZone: "America/New_York",
   openedAt: Date.parse("2026-10-07T10:01:00Z"),
   returns: 3,
+  jobs: [
+    {
+      name: "news",
+      status: {
+        ranAt: "2026-10-07T12:00:00Z",
+        durationMs: 8000,
+        requests: 14,
+        lastFailure: null,
+      },
+    },
+    {
+      name: "players",
+      status: {
+        ranAt: "2026-10-07T12:15:00Z",
+        durationMs: 2000,
+        requests: 1,
+        lastFailure: {
+          at: "2026-10-06T23:40:00Z",
+          message: "Reading 2026's stats failed: The WNBA didn't answer",
+        },
+      },
+    },
+  ],
   now: new Date("2026-10-07T12:16:30Z"),
 };
 
@@ -131,6 +155,8 @@ test("the report opens with the release, the device, and the page's state", () =
         "Opened Wed, Oct 7 6:01:00 AM, 2 h 16 min ago",
         "Back from the background 3 times since",
         "Now Wed, Oct 7 8:16:30 AM, America/New_York",
+        "News job last ran Wed, Oct 7 8:00:00 AM, 14 requests",
+        "Players job last ran Wed, Oct 7 8:15:00 AM, 1 request, last failed Tue, Oct 6 7:40:00 PM: Reading 2026's stats failed: The WNBA didn't answer",
       ].join("\n"),
     );
   }));
@@ -153,6 +179,17 @@ test("a header in a browser, with no theme or release known, says so and leaves 
     assert.match(header, /^Back from the background 1 time since$/m);
     assert.doesNotMatch(header, /Theme/);
   }));
+
+test("a job's line says when it has no run saved, or its status couldn't be read", () => {
+  assert.equal(
+    describeJobStatus({ name: "players", status: undefined }),
+    "Players job: no run saved",
+  );
+  assert.equal(
+    describeJobStatus({ name: "news", status: null }),
+    "News job: status couldn't be read",
+  );
+});
 
 test("a record on request lists each open sheet and which one its dialog shows", () => {
   assert.deepEqual(

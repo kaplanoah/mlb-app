@@ -3,7 +3,7 @@
 // each part it draws whole (each `data-last-drawn` element) shows, frame by frame. The last few
 // records stay on this device. Once a record on request ends, its button shares them as a report
 // on a phone or tablet, or copies it on a computer, after a header that names the release, the
-// device, and the page's state, and before the logs of the viewport's changes (viewport-log.js)
+// device, the page's state, and how each of the store's background jobs last ran, and before the logs of the viewport's changes (viewport-log.js)
 // and of what each dialog's row of sheets does (sheet-log.js). It records nothing while it's off,
 // which it starts as.
 
@@ -62,8 +62,17 @@ const ON_REQUEST = "On request";
  *   timeZone: string,
  *   openedAt: number,
  *   returns: number,
+ *   jobs: JobStatus[],
  *   now: Date,
  * }} PageFacts
+ */
+/**
+ * A background job's status document, as the store last answered for it, or null when it
+ * couldn't be read.
+ * @typedef {{
+ *   name: string,
+ *   status: Partial<import("../worker/job-status.js").JobRunStatus> | null | undefined,
+ * }} JobStatus
  */
 
 /** @type {OpenRecord | null} */
@@ -80,6 +89,10 @@ const openedAt = Date.now();
 let returns = 0;
 /** @type {import("./release.js").Release | null} */
 let release = null;
+/** @type {(() => Promise<JobStatus[]>) | null} */
+let readJobStatuses = null;
+/** @type {JobStatus[]} */
+let jobStatuses = [];
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -353,6 +366,31 @@ const formatMoment = (date) => `${formatWeekdayAndDate(date)} ${formatClockTimeW
 /** @param {number} count */
 const countTimes = (count) => (count === 1 ? "1 time" : `${count} times`);
 
+/** @param {number} count */
+const countRequests = (count) => (count === 1 ? "1 request" : `${count} requests`);
+
+/** @param {string} name */
+const capitalize = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+
+/**
+ * One line on a background job's last run, from the status document it saves.
+ * @param {JobStatus} job
+ * @returns {string}
+ */
+export function describeJobStatus({ name, status }) {
+  const job = `${capitalize(name)} job`;
+  if (status === null) return `${job}: status couldn't be read`;
+  if (!status?.ranAt) return `${job}: no run saved`;
+  const { lastFailure } = status;
+  return [
+    `${job} last ran ${formatMoment(new Date(status.ranAt))}`,
+    countRequests(status.requests ?? 0),
+    lastFailure && `last failed ${formatMoment(new Date(lastFailure.at))}: ${lastFailure.message}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 /**
  * The lines that open the report, saying which release, on what device, in what state.
  * @param {PageFacts} facts
@@ -369,6 +407,7 @@ export const writeHeader = (facts) =>
     `Opened ${formatMoment(new Date(facts.openedAt))}, ${formatDuration(facts.now.getTime() - facts.openedAt)} ago`,
     `Back from the background ${countTimes(facts.returns)} since`,
     `Now ${formatMoment(facts.now)}, ${facts.timeZone}`,
+    ...facts.jobs.map(describeJobStatus),
   ]
     .filter(Boolean)
     .join("\n");
@@ -389,8 +428,37 @@ const readPageFacts = () => ({
   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   openedAt,
   returns,
+  jobs: jobStatuses,
   now: new Date(),
 });
+
+// A report started on request names how the jobs stand by the time its record ends.
+function refreshJobStatuses() {
+  readJobStatuses?.().then((read) => {
+    jobStatuses = read;
+  });
+}
+
+/**
+ * Has the report name how each of the store's background jobs last ran, from the status document
+ * each saves as `<name>/status`, read as Diagnostics starts recording and as each record on
+ * request starts.
+ * @param {{ doc: (path: string) => { get: () => Promise<{ data: () => any }> } }} store
+ * @param {string[]} names
+ */
+export function showJobStatuses(store, names) {
+  readJobStatuses = () =>
+    Promise.all(
+      names.map(async (name) => {
+        try {
+          return { name, status: (await store.doc(`${name}/status`).get()).data() };
+        } catch {
+          return { name, status: null };
+        }
+      }),
+    );
+  if (isRecording()) refreshJobStatuses();
+}
 
 /**
  * @param {string | undefined} navigationType a PerformanceNavigationTiming's type
@@ -565,7 +633,8 @@ function drawRecords() {
 function toggleRecording() {
   const isOn = !isRecording();
   saveSwitch(isOn);
-  if (!isOn) record = null;
+  if (isOn) refreshJobStatuses();
+  else record = null;
   reportStep = null;
   drawRecords();
 }
@@ -637,6 +706,7 @@ function followRecordButton() {
 
 function recordOnRequest() {
   startRecord(ON_REQUEST);
+  refreshJobStatuses();
   clearTimeout(reportTimer);
   reportStep = null;
   shownSecondsLeft = countSecondsLeft(0);

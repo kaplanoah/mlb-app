@@ -9,7 +9,8 @@ import { describeError, respondError, respondJson } from "./responses.js";
 // the updates, and those can wait a little, so updates come less often until a page opens. Each
 // page says which documents it watches, and hears only of changes to those. A league can keep
 // details of the games pages have open, like a box score, read with each update while they need
-// it, and run work of its own beside the season's updates, like reading the news.
+// it, and run work of its own beside the season's updates, like reading the news. The Worker, and
+// never the page, can add to a count a job keeps, like how often a sheet had to read the league.
 
 /**
  * What a league's own work gets from the store: its documents, storage of its own under keys the
@@ -67,6 +68,12 @@ const STALE_MS = 15 * 60e3;
 // store's paths can't name.
 const SCHEDULE_KEY = "poll:schedule";
 const MAX_WATCHED = 50;
+
+/**
+ * Where a job's storage keeps a count the Worker adds to.
+ * @param {string} name
+ */
+export const nameCountKey = (name) => `count:${name}`;
 
 const isPlainObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 
@@ -182,6 +189,7 @@ export function createSeasonStore(league) {
       const { pathname, searchParams } = new URL(request.url);
       if (pathname === "/watch") return this.acceptWatcher(request);
       if (pathname.startsWith("/push/")) return this.push.serveRequest(request, pathname);
+      if (pathname.startsWith("/count/")) return this.addToCount(request, pathname);
       const path = readPath(pathname);
       if (!path) return respondError(404, "not_found", "No such path.");
       if (request.method !== "GET") return respondError(405, "method_not_allowed", "GET only.");
@@ -207,6 +215,19 @@ export function createSeasonStore(league) {
         await this.ctx.storage.put(SCHEDULE_KEY, { ...schedule, dueAt });
       const alarmAt = await this.ctx.storage.getAlarm();
       if (alarmAt === null || alarmAt > dueAt) await this.ctx.storage.setAlarm(dueAt);
+    }
+
+    // Kept in the job's own storage, where its next run reads it.
+    async addToCount(request, pathname) {
+      if (request.method !== "POST") return respondError(405, "method_not_allowed", "POST only.");
+      const [, , job, name, ...rest] = pathname.split("/");
+      const isJob = Object.hasOwn(league.backgroundJobs ?? {}, job);
+      if (!isJob || !NAME_PATTERN.test(name ?? "") || rest.length)
+        return respondError(404, "not_found", "No such count.");
+      const storage = this.createJobStorage(job);
+      const count = ((await storage.get(nameCountKey(name))) ?? 0) + 1;
+      await storage.put(nameCountKey(name), count);
+      return respondJson({ count });
     }
 
     async listDocs(collection, searchParams) {
@@ -471,4 +492,17 @@ export async function readStoreDoc(env, key) {
   const response = await findStore(env).fetch(`https://store/store/${key}`);
   if (!response.ok) throw new Error(`The store answered ${response.status} for ${key}`);
   return (await response.json()).data;
+}
+
+/**
+ * Adds one to a count a background job keeps, for the Worker's own routes.
+ * @param {any} env the Worker's bindings
+ * @param {string} job the job's name, as the league's `backgroundJobs` keys it
+ * @param {string} name what it counts
+ */
+export async function addToJobCount(env, job, name) {
+  const response = await findStore(env).fetch(`https://store/count/${job}/${name}`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`The store answered ${response.status} for ${job}'s ${name}`);
 }
