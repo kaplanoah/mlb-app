@@ -999,3 +999,15 @@ test("the schedule asks MLB where each game is on, in the same request as its ga
   const hydrate = new URL(schedule, MLBSnapshot.MLB_API).searchParams.get("hydrate");
   assert.ok(hydrate.split(",").includes("broadcasts"));
 });
+
+test("a channel's app, or its owner's name for it, shows as the channel, once", () => {
+  const fixture = JSON.parse(JSON.stringify(BROADCASTS));
+  const game = fixture.responses.schedule.dates
+    .find((day) => day.date === "2026-10-07")
+    .games.find((each) => each.teams.home.team.id === 135);
+  const [first, second] = game.broadcasts.filter((broadcast) => broadcast.type === "TV");
+  first.name = "ESPN/ESPN App";
+  second.name = "Amazon Prime Video";
+  const snapshot = buildSnapshot(fixture);
+  assert.deepEqual(findSlateGame(snapshot, "MIL", "SD").networks, ["ESPN", "Prime Video"]);
+});

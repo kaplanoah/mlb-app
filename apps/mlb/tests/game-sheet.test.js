@@ -26,14 +26,14 @@ test("a game still to come shows where to watch it, between its row and its star
   const markup = renderSlateGame((game) => game.away === "MIL" && game.home === "SD");
   const where = markup.indexOf('aria-label="Where to watch"');
   assert.ok(markup.indexOf("game-row") < where && where < markup.indexOf("starters-open"));
-  assert.match(markup, /FS1/);
-  assert.match(markup, /FOX ONE/);
+  assert.match(markup, /alt="FS1"/);
+  assert.match(markup, /alt="FOX One"/);
 });
 
 test("a live game still shows where it's on", () => {
   const markup = renderSlateGame((game) => game.away === "CLE" && game.state === "live");
   assert.match(markup, /aria-label="Where to watch"/);
-  assert.match(markup, /TruTV/);
+  assert.match(markup, /<span class="network-name">TruTV<\/span>/);
 });
 
 test("a game that has ended no longer says where it was on", () => {

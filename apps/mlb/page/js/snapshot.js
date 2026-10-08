@@ -509,13 +509,17 @@ function readPitcherIn(linescore, teamId) {
 // streaming service too names both, split by a slash.
 const SPONSOR_OR_NOTE = /,?\s+(presented by\b.*|\(.*\))$/i;
 
+// MLB names a channel's app, or a channel by its owner's name, where the line shows the channel.
+const CHANNEL_NAMES = { "ESPN App": "ESPN", "Amazon Prime Video": "Prime Video" };
+
 /** @param {{ name?: string }} broadcast */
 const listChannelNames = (broadcast) =>
   (broadcast.name ?? "")
     .replace(SPONSOR_OR_NOTE, "")
     .split("/")
     .map((name) => name.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((name) => CHANNEL_NAMES[name] ?? name);
 
 const isEnglishTv = (broadcast) => broadcast.type === "TV" && broadcast.language === "en";
 
