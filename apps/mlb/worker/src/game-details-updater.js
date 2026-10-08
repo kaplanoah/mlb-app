@@ -21,7 +21,7 @@ const GIVE_UP_MS = 2 * 60 * MINUTE_MS;
 /** @typedef {{ firstReadAt: number, readAt: number, isDone: boolean }} GameRead */
 
 /** @param {number} season */
-const nameReadsKey = (season) => `box-score-reads:${season}`;
+const nameReadsKey = (season) => `final-reads:${season}`;
 
 /** @param {any} slate */
 const listFinalsLatestFirst = (slate) =>

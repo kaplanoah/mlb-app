@@ -76,6 +76,7 @@ test("a final's box score has each inning's runs, each club's runs, hits, and er
     home: { runs: 1, hits: 5, errors: 2 },
   });
   assert.deepEqual(boxScore.away.batters[0], {
+    id: 605141,
     name: "Betts",
     position: "SS",
     isSub: false,
@@ -121,6 +122,7 @@ test("before first pitch, a club's posted lineup has each batter's season so far
   assert.deepEqual(boxScore.innings, []);
   assert.equal(boxScore.away.batters.length, 9);
   assert.deepEqual(boxScore.away.batters[0], {
+    id: 650490,
     name: "Díaz, Y",
     position: "DH",
     average: ".293",

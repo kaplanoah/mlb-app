@@ -36,7 +36,9 @@ const describeClub = (club, mlbTeamId) =>
 function readParts(markup) {
   return [...markup.matchAll(/<h3>([^<]*)<\/h3>([\s\S]*?)<\/section>/g)].map(([, title, body]) => [
     title,
-    [...body.matchAll(/<span class="box-name">([^<]*)<\/span\s*>/g)].map(([, name]) => name),
+    [...body.matchAll(/class="player-open box-name"[^>]*>([^<]*)<\/button>/g)].map(
+      ([, name]) => name,
+    ),
   ]);
 }
 
@@ -82,7 +84,7 @@ test("each row shows the season's numbers for the player's job, innings in third
   assert.deepEqual(readRow(markup, "Cade Smith"), ["1.95", "41", "74", "107"]);
   assert.match(
     markup,
-    /<span class="roster-number tabular">38<\/span\s*><span class="box-name">Steven Kwan</,
+    /<span class="roster-number tabular">38<\/span\s*><button type="button" class="player-open box-name" data-player="680757" data-player-club="CLE" data-player-name="Steven Kwan" data-player-number="38">Steven Kwan<\/button>/,
   );
 });
 
@@ -95,7 +97,7 @@ test("a two-way player is with both the hitters and the pitchers, and the injure
   assert.equal(parts.get("Injured list")?.length, 7);
   assert.match(
     markup,
-    /Blake Treinen<\/span\s*><span class="box-pos">P<\/span\s*><span class="injured-status">15-day IL</,
+    /Blake Treinen<\/button><span class="box-pos">P<\/span\s*><span class="injured-status">15-day IL</,
   );
 });
 
