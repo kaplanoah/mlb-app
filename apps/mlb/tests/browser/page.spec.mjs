@@ -375,19 +375,7 @@ test("on a phone, tapping the Games tab while it shows today's list scrolls back
   await expectGameList(page, "Today", 1);
 });
 
-test("the Games tab keeps its list when the page comes back within the hour", async ({ page }) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await expectGameList(page, "Previous", 0);
-
-  await comeBackAfter(page, 59);
-
-  await expectGameList(page, "Previous", 0);
-});
-
-test("the Games tab goes back to today's list when the page comes back after an hour away", async ({
+test("the Games tab keeps its list when the page comes back within two minutes", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -396,12 +384,26 @@ test("the Games tab goes back to today's list when the page comes back after an 
   await page.getByRole("tab", { name: "Previous" }).click();
   await expectGameList(page, "Previous", 0);
 
-  await comeBackAfter(page, 60);
+  await comeBackAfter(page, 1);
+
+  await expectGameList(page, "Previous", 0);
+});
+
+test("the Games tab goes back to today's list when the page comes back after two minutes away", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expectGameList(page, "Previous", 0);
+
+  await comeBackAfter(page, 2);
 
   await expectGameList(page, "Today", 1);
 });
 
-test("the Games tab opens on today's list after an hour away spent on another tab", async ({
+test("the Games tab opens on today's list after two minutes away spent on another tab", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -411,7 +413,7 @@ test("the Games tab opens on today's list after an hour away spent on another ta
   await expectGameList(page, "Next", 2);
   await page.getByRole("tab", { name: "Bracket" }).click();
 
-  await comeBackAfter(page, 60);
+  await comeBackAfter(page, 2);
   await page.getByRole("tab", { name: "Games" }).click();
 
   await expectGameList(page, "Today", 1);
