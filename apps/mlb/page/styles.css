@@ -52,7 +52,7 @@
   --copper-ink: #cd9566;
   --al: #7fb0c8;
   --nl: #e0a2a2;
-  --out: #8a7a6a;
+  --out: #998b7d;
   --accent: var(--gold);
   --accent-ink: var(--gold-ink);
   --focus-ring: var(--copper-ink);
@@ -1136,9 +1136,10 @@ body.kbd .rank-item .grip:focus {
   background: color-mix(in srgb, var(--ink) 15%, transparent);
   color: var(--ink);
 }
+/* The word takes a step toward cream to read on the taupe's own wash. */
 .status-chip.out {
   background: color-mix(in srgb, var(--out) 25%, transparent);
-  color: var(--out);
+  color: color-mix(in srgb, var(--out) 65%, var(--ink));
 }
 .status-chip.champ {
   background: var(--gold);

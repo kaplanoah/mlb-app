@@ -711,7 +711,7 @@ const LAPTOP = { width: 1280, height: 800 };
 
 const CREAM = "rgb(241, 234, 212)";
 const GREEN = "rgb(127, 168, 143)";
-const TAUPE = "rgb(138, 122, 106)";
+const TAUPE = "rgb(153, 139, 125)";
 const GOLD = "rgb(244, 193, 92)";
 
 test("the Games tab bolds each winner and dims only the clubs that are out", async ({ page }) => {
@@ -754,6 +754,7 @@ test("the bracket shows an eliminated club in taupe, without a line through its 
     .first();
   await expect(eliminated).toHaveCSS("color", TAUPE);
   await expect(eliminated).toHaveCSS("text-decoration-line", "none");
+  expect(await listLowContrastText(page)).toEqual([]);
 });
 
 test("a club's seed is labeled beside its card only where it enters the bracket: its Wild Card slot or its bye's Division Series slot", async ({
