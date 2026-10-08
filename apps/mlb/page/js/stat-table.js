@@ -42,21 +42,26 @@ export const renderNameCell = (name, note = "") =>
   html`<td class="team"><span class="box-name">${name}</span>${note}</td>`;
 
 /**
+ * A table whose rows each open wherever they're tapped clips the button that reaches over each
+ * row to the table's sides (row-button.css).
  * @param {string} label
  * @param {readonly StatColumn[]} columns
  * @param {Markup[]} rows
+ * @param {{ opensRows?: boolean }} [options]
  */
-export const renderStatTable = (label, columns, rows) =>
+export const renderStatTable = (label, columns, rows, { opensRows = false } = {}) =>
   html`<div class="box-wrap">
-    <table class="st box-table">
-      <thead>
-        <tr>
-          <th class="left">${label}</th>
-          ${columns.map(([heading]) => html`<th>${heading}</th>`)}
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
+    <div class="${opensRows ? "row-button-clip" : ""}">
+      <table class="st box-table">
+        <thead>
+          <tr>
+            <th class="left">${label}</th>
+            ${columns.map(([heading]) => html`<th>${heading}</th>`)}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
   </div>`;

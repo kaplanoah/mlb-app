@@ -1,0 +1,158 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describePlayerNote, renderPlayerBody, renderPlayerFacts } from "../page/js/player-view.js";
+import {
+  describeHitters,
+  describePlayer,
+  indexPeople,
+  listPeopleRequest,
+} from "../worker/src/players.js";
+import {
+  indexSeasonStats,
+  listRosterRequest,
+  listSeasonStatsRequest,
+} from "../worker/src/rosters.js";
+
+// What MLB answered early on Oct 8: the Guardians' and Dodgers' rosters, their players' seasons and
+// facts, and the hitters MLB ranks.
+const FIXTURE = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-08-rosters.json`, "utf8"),
+);
+const { season, answers } = FIXTURE;
+/** @param {"hitting" | "pitching"} group @param {object} [options] */
+const index = (group, options) =>
+  indexSeasonStats(answers[listSeasonStatsRequest(season, group, options)]);
+const NUMBERS = {
+  hitting: index("hitting"),
+  pitching: index("pitching"),
+  postseasonHitting: index("hitting", { gameType: "P" }),
+  postseasonPitching: index("pitching", { gameType: "P" }),
+};
+const PEOPLE = indexPeople(answers[listPeopleRequest(season)]);
+const HITTERS = describeHitters(
+  answers[listSeasonStatsRequest(season, "hitting", { pool: "qualified" })],
+);
+// Four qualified starters, the first standing in for Tanner Bibee.
+const STARTERS = {
+  starters: [
+    { id: 676440, era: 4.36, k9: 7.1, bb9: 2.6, speed: 94 },
+    { id: 1, era: 3.1, k9: 9.5, bb9: 2.1, speed: 96.2 },
+    { id: 2, era: 4.9, k9: 6.8, bb9: 3.4, speed: 91.5 },
+    { id: 3, era: 5.5, k9: 6, bb9: 4, speed: 90 },
+  ],
+};
+const BIBEE_SIDE = {
+  line: { starts: 33, era: "4.36", k9: 7.1, bb9: 2.6, speed: 94 },
+  pitches: [{ code: "FF", name: "Four-Seam Fastball", share: 0.24, mph: 94.2 }],
+};
+
+/**
+ * Markup's text as it reads: each tag a space, runs of space one, and its separators as dots.
+ * @param {unknown} markup
+ */
+const readText = (markup) =>
+  String(markup)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&bull;/g, "•")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * @param {number} mlbTeamId
+ * @param {string} club
+ * @param {string} name
+ */
+function describeRostered(mlbTeamId, club, name) {
+  const entry = answers[listRosterRequest(mlbTeamId, season)].roster.find(
+    (/** @type {any} */ each) => each.person.fullName === name,
+  );
+  return describePlayer({ ...NUMBERS, entry, club, season, person: PEOPLE.get(entry.person.id) });
+}
+
+/**
+ * @param {any} player
+ * @param {{ starters?: any, side?: any }} [ranked]
+ */
+const renderText = (player, { starters = null, side = null } = {}) =>
+  readText(renderPlayerBody({ player, hitters: HITTERS, starters, side, isLoading: false }));
+
+test("a hitter's sheet notes his club and number, and lists his facts in a row", () => {
+  const kwan = describeRostered(114, "CLE", "Steven Kwan");
+  assert.equal(readText(describePlayerNote(kwan)), "Guardians • #38");
+  assert.equal(
+    readText(renderPlayerFacts(kwan, false)),
+    `Pos LF B/T L/L Age 29 Ht 5'8" Wt 170 Debut 2022`,
+  );
+});
+
+test("a hitter's season shows his totals, then each ranked number with his rank among the qualified hitters", () => {
+  const text = renderText(describeRostered(114, "CLE", "Steven Kwan"));
+  assert.match(text, /Season 637 PA H 152 R 80 RBI 32 BB 85 K 62/);
+  assert.match(text, /AVG \.282 20th of 135/);
+  assert.match(text, /OBP \.382 7th of 135/);
+  assert.match(text, /BB% 13\.3% 13th of 135/);
+  assert.match(text, /K% 9\.7% 5th of 135/);
+  assert.match(
+    text,
+    /K% ranked by fewest Rank among qualified hitters \(3\.1 plate appearances per team game\)/,
+  );
+});
+
+test("his postseason shows over his season, as one line", () => {
+  const text = renderText(describeRostered(114, "CLE", "Steven Kwan"));
+  assert.match(text, /^Postseason 3 games 2-13 • \.154 AVG • 2 R • 1 RBI • 1 BB • 1 K Season/);
+});
+
+test("a hitter MLB doesn't rank shows his numbers without ranks, and says when he'll be ranked", () => {
+  const text = renderText(describeRostered(114, "CLE", "Angel Genao"));
+  assert.match(text, /AVG \.213 OBP/);
+  assert.doesNotMatch(text, / of 135|ranked by fewest/);
+  assert.match(text, /Ranked once he has 3\.1 plate appearances per team game$/);
+});
+
+test("a starter's season ranks his numbers among the qualified starters, and shows what he throws", () => {
+  const text = renderText(describeRostered(114, "CLE", "Tanner Bibee"), {
+    starters: STARTERS,
+    side: BIBEE_SIDE,
+  });
+  assert.match(text, /Season 33 starts W-L 7-15 IP 188 ERA 4\.36 K 148 BB 55/);
+  assert.match(
+    text,
+    /ERA 4\.36 2nd of 4 K\/9 7\.1 2nd of 4 BB\/9 2\.6 2nd of 4 Velo 94\.0 2nd of 4/,
+  );
+  assert.match(
+    text,
+    /ERA and BB\/9 ranked by fewest Rank among qualified starters \(1 inning per team game\)/,
+  );
+  assert.match(text, /What he throws/);
+});
+
+test("a reliever's season shows his totals alone", () => {
+  const text = renderText(describeRostered(114, "CLE", "Cade Smith"));
+  assert.match(text, /Season 69 games ERA 1\.95 SV 41 IP 74 K 107 BB 23$/);
+  assert.doesNotMatch(text, /Rank among/);
+});
+
+test("a two-way player's sheet shows his hitting season, then his pitching under its own title", () => {
+  const text = renderText(describeRostered(119, "LAD", "Shohei Ohtani"));
+  assert.match(text, /Season 618 PA .* Pitching 14 starts W-L 8-2 IP 85 2\/3 ERA 1\.79/);
+});
+
+test("a sheet still loading holds its shape, and one that didn't load says so", () => {
+  const loading = String(
+    renderPlayerBody({ player: null, hitters: null, starters: null, side: null, isLoading: true }),
+  );
+  assert.match(loading, /placeholder/);
+  const failed = renderPlayerBody({
+    player: null,
+    hitters: null,
+    starters: null,
+    side: null,
+    isLoading: false,
+  });
+  assert.match(readText(failed), /Couldn't load his numbers/);
+});

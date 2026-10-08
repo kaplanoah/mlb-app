@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { readEasternDay } from "#shared/days.js";
 import { listClubs, readMlbTeamId } from "../page/js/snapshot.js";
+import {
+  describeHitters,
+  listPeopleRequest,
+  nameHittersKey,
+  namePlayerKey,
+} from "../worker/src/players.js";
 import { createRosterJob, listTransactionsRequest } from "../worker/src/roster-updater.js";
 import {
   describeRoster,
@@ -24,6 +30,11 @@ const MINUTE_MS = 60 * 1000;
 const TODAY = readEasternDay(NOW).date;
 const HITTING = listSeasonStatsRequest(SEASON, "hitting");
 const PITCHING = listSeasonStatsRequest(SEASON, "pitching");
+const POSTSEASON_HITTING = listSeasonStatsRequest(SEASON, "hitting", { gameType: "P" });
+const POSTSEASON_PITCHING = listSeasonStatsRequest(SEASON, "pitching", { gameType: "P" });
+const QUALIFIED = listSeasonStatsRequest(SEASON, "hitting", { pool: "qualified" });
+const PEOPLE = listPeopleRequest(SEASON);
+const NUMBERS = [HITTING, PITCHING, POSTSEASON_HITTING, POSTSEASON_PITCHING, QUALIFIED];
 const TRANSACTIONS = listTransactionsRequest(TODAY);
 const RECORDED = { CLE: 114, NYY: 147, LAD: 119 };
 
@@ -33,14 +44,11 @@ const nameClubRequest = (club) =>
 
 /**
  * MLB's answers, by request, each a copy a test can change: a club the fixture didn't record
- * answers with the Guardians' roster.
+ * answers with an empty roster.
  */
 function listAnswers() {
   const answers = structuredClone(FIXTURE.answers);
-  for (const club of listClubs())
-    answers[nameClubRequest(club)] ??= structuredClone(
-      FIXTURE.answers[listRosterRequest(RECORDED.CLE, SEASON)],
-    );
+  for (const club of listClubs()) answers[nameClubRequest(club)] ??= { roster: [] };
   return answers;
 }
 
@@ -194,7 +202,7 @@ test("every club's roster fills six a run, after one read of every player's numb
   }
 
   assert.deepEqual(runs[0].slice(0, 1), [TRANSACTIONS]);
-  assert.deepEqual(runs[0].slice(-2), [HITTING, PITCHING]);
+  assert.deepEqual(runs[0].slice(-NUMBERS.length - 1), [...NUMBERS, PEOPLE]);
   assert.deepEqual(
     runs.map((requests) => listRosterClubs(requests).length),
     [6, 6, 6, 6, 6, 0],
@@ -207,8 +215,19 @@ test("every club's roster fills six a run, after one read of every player's numb
     [],
   );
   assert.deepEqual(new Set(listRosterClubs(runs.flat())), new Set(listClubs()));
-  assert.equal(run.docs.writes.length, 30);
+  assert.equal(run.docs.writes.filter((key) => key.startsWith("rosters/")).length, 30);
   assert.equal(run.docs.stored.get(nameRosterKey("LAD")).players.length, 33);
+  const rostered = ["CLE", "NYY", "LAD"].map(
+    (club) => run.docs.stored.get(nameRosterKey(club)).players.length,
+  );
+  assert.equal(
+    run.docs.writes.filter((key) => key.startsWith("players/")).length,
+    rostered.reduce((total, count) => total + count, 0),
+  );
+  assert.deepEqual(
+    run.docs.stored.get(nameHittersKey(SEASON)),
+    describeHitters(FIXTURE.answers[QUALIFIED]),
+  );
 });
 
 test("a transaction not seen before reads again only the rosters of the clubs it names", async () => {
@@ -236,7 +255,7 @@ test("a transaction not seen before reads again only the rosters of the clubs it
   assert.deepEqual(run.takeRequests(), [], "each read once");
 });
 
-test("a game's end reads every player's numbers again, and saves only the rosters that changed", async () => {
+test("a game's end reads every player's numbers again, and saves only the rosters and players that changed", async () => {
   const run = createRun();
   await fillRosters(run);
   const kwan = run.answers[HITTING].stats[0].splits.find(
@@ -247,13 +266,11 @@ test("a game's end reads every player's numbers again, and saves only the roster
   kwan.stat.plateAppearances += 4;
   await run.runJob();
 
-  assert.deepEqual(run.takeRequests(), [HITTING, PITCHING]);
+  assert.deepEqual(run.takeRequests(), NUMBERS);
   assert.deepEqual(
-    [...new Set(run.docs.writes)].filter((key) => key.startsWith("rosters/")).length,
-    listClubs().filter((club) => !["NYY", "LAD"].includes(club)).length,
-    "every club answering with the Guardians' roster",
+    run.docs.writes.filter((key) => !key.startsWith("seasons/")),
+    [nameRosterKey("CLE"), namePlayerKey(SEASON, 680757)],
   );
-  assert.ok(!run.docs.writes.includes(nameRosterKey("NYY")));
 });
 
 test("runs with nothing new read only the day's transactions, once they're old, and save nothing", async () => {
@@ -309,4 +326,5 @@ test("rosters don't wait on every player's numbers, which save once MLB answers 
     12,
     "the twelve read so far",
   );
+  assert.ok(run.docs.writes.includes(namePlayerKey(SEASON, 680757)));
 });

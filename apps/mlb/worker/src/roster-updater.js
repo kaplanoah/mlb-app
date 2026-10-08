@@ -4,8 +4,17 @@ import { listClubs, readClubId, readMlbTeamId } from "../../page/js/snapshot.js"
 import { fetchMlbJson } from "./mlb.js";
 import { countSlateFinals } from "./pitcher-updater.js";
 import {
+  describeHitters,
+  describePlayer,
+  indexPeople,
+  listPeopleRequest,
+  nameHittersKey,
+  namePlayerKey,
+} from "./players.js";
+import {
   describeRoster,
   indexSeasonStats,
+  isOnRoster,
   listRosterRequest,
   listSeasonStatsRequest,
   nameRosterKey,
@@ -13,12 +22,14 @@ import {
 import { createFeedKeeper } from "../../../../shared/worker/feed-keeper.js";
 import { describeError } from "../../../../shared/worker/responses.js";
 
-// Keeps each club's roster for the current season, so its sheet's Roster section reads only the
-// store. A club's roster changes only with a transaction, which MLB lists for the whole league in
-// one request, so each run reads that list once it's old, and reads again only the rosters of the
-// clubs with a transaction it hasn't seen, a few clubs a run, and every club's once a day in case
-// one was missed. Every player's numbers are read as a game ends, and each club's roster is saved
-// again only when it changed.
+// Keeps each club's roster and each player on it for the current season, so a club's Roster
+// section and a player's sheet read only the store. A club's roster changes only with a
+// transaction, which MLB lists for the whole league in one request, so each run reads that list
+// once it's old, and reads again only the rosters of the clubs with a transaction it hasn't seen, a
+// few clubs a run, and every club's once a day in case one was missed. Every player's numbers, in
+// the regular season and the postseason, and the hitters MLB ranks, are read as a game ends, and
+// MLB's list of every player, with his facts, once a day. Each roster and player is saved again
+// only when it changed.
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -30,9 +41,15 @@ const LEAGUE_NAME = "MLB";
 const FEEDS = {
   rosterStats: { maxAgeMs: 6 * HOUR_MS, changesWithGames: true },
   transactions: { maxAgeMs: 30 * MINUTE_MS, changesWithGames: false },
+  people: { maxAgeMs: 24 * HOUR_MS, changesWithGames: false },
 };
 
 /** @typedef {import("../../../../shared/worker/season-store.js").JobContext} JobContext */
+/**
+ * Every player's numbers this season, by id, and his facts, and the hitters MLB ranks. A table MLB
+ * hasn't answered is empty.
+ * @typedef {import("./players.js").PlayerNumbers & { people: Map<number, any>, qualified: any }} SeasonNumbers
+ */
 /**
  * When each club's roster was read, which clubs have a transaction since, and the transactions
  * seen so far, none before the list is first read.
@@ -120,14 +137,45 @@ function createStoreKeeper() {
 
   /**
    * @param {JobContext} context
-   * @param {number} season
+   * @param {string} path
    */
-  const readSeasonStats = (context, season) =>
-    Promise.all(
-      [listSeasonStatsRequest(season, "hitting"), listSeasonStatsRequest(season, "pitching")].map(
-        (path) => readFeed("rosterStats", path, () => fetchJson(context, path)),
-      ),
-    );
+  const readStats = (context, path) =>
+    readFeed("rosterStats", path, () => fetchJson(context, path));
+
+  /**
+   * Every player's numbers and facts, or null when MLB hasn't answered the regular season's. The
+   * postseason's, the ranked hitters', and the facts stand empty while MLB doesn't answer them.
+   * @param {JobContext} context
+   * @param {number} season
+   * @returns {Promise<SeasonNumbers | null>}
+   */
+  async function readSeasonNumbers(context, season) {
+    const [hitting, pitching, postseasonHitting, postseasonPitching, qualified, people] =
+      await Promise.allSettled([
+        readStats(context, listSeasonStatsRequest(season, "hitting")),
+        readStats(context, listSeasonStatsRequest(season, "pitching")),
+        readStats(context, listSeasonStatsRequest(season, "hitting", { gameType: "P" })),
+        readStats(context, listSeasonStatsRequest(season, "pitching", { gameType: "P" })),
+        readStats(context, listSeasonStatsRequest(season, "hitting", { pool: "qualified" })),
+        readFeed("people", String(season), () => fetchJson(context, listPeopleRequest(season))),
+      ]);
+    if (hitting.status === "rejected" || pitching.status === "rejected") {
+      logFailure("every player's numbers")(
+        hitting.status === "rejected" ? hitting.reason : /** @type {any} */ (pitching).reason,
+      );
+      return null;
+    }
+    /** @param {PromiseSettledResult<any>} result */
+    const readAnswer = (result) => (result.status === "fulfilled" ? result.value : null);
+    return {
+      hitting: indexSeasonStats(hitting.value),
+      pitching: indexSeasonStats(pitching.value),
+      postseasonHitting: indexSeasonStats(readAnswer(postseasonHitting)),
+      postseasonPitching: indexSeasonStats(readAnswer(postseasonPitching)),
+      qualified: readAnswer(qualified),
+      people: indexPeople(readAnswer(people)),
+    };
+  }
 
   /**
    * @param {JobContext} context
@@ -199,14 +247,33 @@ function createStoreKeeper() {
   }
 
   /**
-   * Saves each club's roster that has been read, with every player's numbers as they are now.
+   * Saves each player on a club's roster, as his numbers are now.
    * @param {JobContext} context
    * @param {number} season
-   * @param {[any, any]} stats
+   * @param {string} club
+   * @param {any} roster MLB's answer for the club's roster
+   * @param {SeasonNumbers} numbers
    */
-  async function saveRosters(context, season, [hittingTable, pitchingTable]) {
-    const hitting = indexSeasonStats(hittingTable);
-    const pitching = indexSeasonStats(pitchingTable);
+  async function savePlayers(context, season, club, roster, numbers) {
+    for (const entry of (roster?.roster ?? []).filter(isOnRoster)) {
+      const person = numbers.people.get(entry.person.id) ?? null;
+      await saveDoc(
+        context,
+        namePlayerKey(season, entry.person.id),
+        describePlayer({ ...numbers, entry, club, season, person }),
+      );
+    }
+  }
+
+  /**
+   * Saves each club's roster that has been read, and each player on it, with every player's
+   * numbers as they are now, and the hitters MLB ranks.
+   * @param {JobContext} context
+   * @param {number} season
+   * @param {SeasonNumbers} numbers
+   */
+  async function saveRosters(context, season, numbers) {
+    const { hitting, pitching } = numbers;
     for (const club of listClubs()) {
       const roster = await context.storage.get(nameAnswerKey(season, club));
       if (!roster) continue;
@@ -215,7 +282,10 @@ function createStoreKeeper() {
         nameRosterKey(club),
         describeRoster({ club, season, roster, hitting, pitching }),
       );
+      await savePlayers(context, season, club, roster, numbers);
     }
+    if (numbers.qualified)
+      await saveDoc(context, nameHittersKey(season), describeHitters(numbers.qualified));
   }
 
   /**
@@ -230,10 +300,8 @@ function createStoreKeeper() {
     if (transactions) reads = noteTransactions(reads, transactions);
     reads = await readDueRosters(context, season, reads);
     if (!isSameJson(stored, reads)) await context.storage.put(nameReadsKey(season), reads);
-    const stats = await readSeasonStats(context, season).catch(
-      logFailure("every player's numbers"),
-    );
-    if (stats) await saveRosters(context, season, stats);
+    const numbers = await readSeasonNumbers(context, season);
+    if (numbers) await saveRosters(context, season, numbers);
   }
 
   /** @param {JobContext} context */
