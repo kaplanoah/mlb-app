@@ -171,7 +171,7 @@ test("a club's name in a game's sheet opens its sheet over it, whose back button
   await expectShown(gameSheet);
 });
 
-test("a club's row in the standings opens its sheet, with its race and titles, and its close button closes it", async ({
+test("a club's row in the standings opens its sheet, with its nearest games, race, and titles, and its close button closes it", async ({
   page,
 }) => {
   await openApp(page);
@@ -182,7 +182,7 @@ test("a club's row in the standings opens its sheet, with its race and titles, a
   await expect(sheet.locator("#teamTitle")).toHaveText(/Mariners/);
   await expect(sheet.locator(".sheet-part h3")).toHaveText(["Season", "Titles"]);
   await expect(sheet.locator(".team-stat .team-label").first()).toHaveText("AL West");
-  await expect(sheet.locator(".team-detail .team-label")).toHaveText("Next");
+  await expect(sheet.locator(".game-card h3")).toHaveText(["Last game", "Next game"]);
   await expect(sheet.locator(".team-titles")).toHaveText("None yet");
   await expect(sheet).toContainText("Since 1977");
 
@@ -225,7 +225,7 @@ test("a club's sheet title is its dot and name, in the page's own type, not in c
     "color",
     "rgb(244, 193, 92)",
   );
-  await expect(page.locator("#teamSheet .team-detail .team-label")).toHaveCSS(
+  await expect(page.locator("#teamSheet .team-stat .team-label").first()).toHaveCSS(
     "color",
     "rgb(127, 168, 143)",
   );
@@ -253,4 +253,38 @@ test("a club's name under the pointer shifts its color a little toward the accen
 
   await expect.poll(readColor).not.toBe(before);
   await expect(name).toHaveCSS("text-decoration-line", "none");
+});
+
+test.describe("on a phone", () => {
+  test.use(ON_A_PHONE);
+
+  test("a finger on a club's card of a game lands on its button, and opens the game's sheet over the club's, which its back arrow returns to", async ({
+    page,
+  }) => {
+    await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await page.locator('.div-grid tr[data-team="HOU"] .team-open').click();
+    const teamSheet = page.locator("#teamSheet");
+    await expect(teamSheet.locator(".game-card h3")).toHaveText(["Last game", "Next game"]);
+    const card = teamSheet.getByRole("button", { name: ASTROS_AT_ATHLETICS });
+    await expect(card).toContainText("@");
+
+    const box = await card.boundingBox();
+    if (!box) throw new Error("The card isn't shown");
+    const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const landsOn = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.game,
+      spot,
+    );
+    expect(landsOn).toBe("2026-09-24 HOU ATH 1");
+    await page.touchscreen.tap(spot.x, spot.y);
+
+    const gameSheet = page.locator("#gameSheet");
+    await expect(gameSheet.getByRole("heading", { level: 2 })).toHaveText("Astros @ Athletics");
+    await expectShown(gameSheet);
+    await expectSteppedAway(teamSheet);
+    await gameSheet.getByRole("button", { name: "Back to Team", exact: true }).click();
+    await expectShown(teamSheet);
+    await expect(gameSheet).toBeHidden();
+  });
 });

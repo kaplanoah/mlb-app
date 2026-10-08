@@ -2,6 +2,8 @@ import {
   test,
   expect,
   openApp,
+  BROADCASTS_FIXTURE,
+  buildFixtureSnapshot,
   buildSnapshotWithStarters,
   swipeSheetDown,
   matchPath,
@@ -139,6 +141,36 @@ test("tapping a game opens its sheet on Game: its row, then its starters on one 
   const starters = sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS });
   await expect(starters).toHaveText(/^\s*Blubaugh\s*R\s*vs\s*Springs\s*L\s*$/);
   await expect(starters.locator(".dot")).toHaveCount(2);
+});
+
+test("a game still to come shows where it's on between its row and its starters, each logo in its version for a dark sheet", async ({
+  page,
+}) => {
+  await openApp(page, {
+    now: BROADCASTS_FIXTURE.now,
+    snapshots: { 2026: buildFixtureSnapshot(BROADCASTS_FIXTURE) },
+  });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Today" }).click();
+  await page
+    .getByRole("tabpanel", { name: "Today" })
+    .getByRole("button", { name: /^Game details: Brewers at Padres/ })
+    .click();
+  const sheet = page.locator("#gameSheet");
+  const line = sheet.getByRole("group", { name: "Where to watch" });
+  await expect(line.getByRole("img", { name: "FS1" })).toBeVisible();
+  await expect(line.locator(".for-dark")).toHaveAttribute("alt", "FOX One");
+  await expect(line.locator(".for-dark")).toBeVisible();
+  await expect(line.locator(".for-light")).toBeHidden();
+  const [row, where, starters] = await Promise.all(
+    [sheet.locator("#gameBody .game-row"), line, sheet.locator(".starters-open")].map((part) =>
+      part.boundingBox(),
+    ),
+  );
+  expect(where.y).toBeGreaterThanOrEqual(row.y + row.height);
+  expect(starters.y).toBeGreaterThanOrEqual(where.y + where.height);
+  const fs1 = await line.getByRole("img", { name: "FS1" }).boundingBox();
+  expect(fs1.height).toBeCloseTo(13 * 1.12, 0);
 });
 
 test("a tap on the starters slides to Matchup, with them face to face, and the close button closes it", async ({

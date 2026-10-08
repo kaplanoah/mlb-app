@@ -42,9 +42,21 @@
 /*
  * The lists' names sit in a row as plain words, over a block of the accent under the shown one.
  * pill-thumb.js sets the block's --thumb-left and --thumb-width, between two names mid-swipe, and
- * each name's --nearness, which runs from 0 to 1 as the block reaches it and turns its words the
- * color on the accent. A tap slides the block straight to its name.
+ * where the block starts and ends over each name, its --cover-start and --cover-end. Each letter is
+ * the color on the accent where the block is under it and the label's color where it isn't, so
+ * mid-swipe a name splits at the block's edge, never fading through a color between the two. A tap
+ * slides the block straight to its name.
  */
+@property --cover-start {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --cover-end {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
 .pager-tabs {
   position: relative;
   display: flex;
@@ -72,15 +84,21 @@
   letter-spacing: 0.09em;
   border: 0;
   border-radius: var(--radius-control);
-  background: none;
-  color: color-mix(in srgb, var(--accent-ink) calc(var(--nearness) * 100%), var(--pager-label));
+  background: linear-gradient(
+    to right,
+    var(--pager-label) var(--cover-start),
+    var(--accent-ink) var(--cover-start) var(--cover-end),
+    var(--pager-label) var(--cover-end)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   padding: 8px 14px;
   cursor: pointer;
-  --nearness: 0;
 }
-/* Before the page's code places the block, the shown list's name is in the color on the accent. */
+/* Before the page's code places the block, it covers the shown list's name. */
 .pager-tabs button[aria-selected="true"] {
-  --nearness: 1;
+  --cover-end: 100%;
 }
 @media (prefers-reduced-motion: no-preference) {
   .pager-tabs.is-sliding .pager-thumb {
@@ -89,7 +107,9 @@
       width 0.25s ease-out;
   }
   .pager-tabs.is-sliding button {
-    transition: color 0.25s ease-out;
+    transition:
+      --cover-start 0.25s ease-out,
+      --cover-end 0.25s ease-out;
   }
 }
 /* A swiped list slides off the screen, not off the gutter. The lists' row is as tall as the shown

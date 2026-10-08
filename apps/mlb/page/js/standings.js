@@ -99,7 +99,7 @@ function describeComingGame(next, now) {
  * delayed, or null when it has none to show.
  * @returns {{ text: import("#shared/html.js").Markup | string, classes: string[] } | null}
  */
-export function describeNextGame(row, { isOut = false, now = Date.now() } = {}) {
+function describeNextGame(row, { isOut = false, now = Date.now() } = {}) {
   const gameUnderWay = findGameUnderWay(row.id, now);
   if (gameUnderWay && (!isOut || gameUnderWay.postseason))
     return describeGameUnderWayWithDelay(gameUnderWay, row.id);

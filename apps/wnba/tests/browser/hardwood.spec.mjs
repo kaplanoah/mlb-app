@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { readPillNames } from "../../../../tests/browser/pill-names.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -174,13 +175,24 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     const fill = await page
       .locator("#games-bar .pager-thumb")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
-    const name = await chosen.evaluate((element) => getComputedStyle(element).color);
     expect(await readChannels(page, fill)).toEqual(orange);
-    expect(await readChannels(page, name)).toEqual(onOrange);
-    const other = page.locator("#games-bar .pager-tabs button:not(.active)").first();
-    const otherName = await other.evaluate((element) => getComputedStyle(element).color);
-    expect(await readChannels(page, otherName)).toEqual(ink);
-    await expect(other).toHaveCSS("font-weight", "500");
+    const { names } = await readPillNames(page.locator("#games-bar [role=tablist]"));
+    for (const name of names) {
+      const letterColors = await Promise.all(
+        name.letterColors.map((color) => readChannels(page, color)),
+      );
+      expect(letterColors, name.name).toEqual([ink, onOrange, onOrange, ink]);
+      expect(name.textColor, name.name).toBe("rgba(0, 0, 0, 0)");
+    }
+    const [previous, ...others] = names;
+    expect(Math.round(previous.coverStart)).toBe(Math.round(previous.left));
+    expect(Math.round(previous.coverEnd)).toBe(Math.round(previous.right));
+    for (const other of others)
+      expect(Math.round(other.coverEnd), other.name).toBeLessThanOrEqual(Math.round(other.left));
+    await expect(page.locator("#games-bar .pager-tabs button:not(.active)").first()).toHaveCSS(
+      "font-weight",
+      "500",
+    );
   });
 }
 

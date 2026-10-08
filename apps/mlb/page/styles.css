@@ -80,6 +80,10 @@
   --network-gap: 16px;
   --logos-for-light: none;
   --logos-for-dark: inline;
+  --game-card-edge: var(--card-border);
+  --game-card-live: var(--copper-ink);
+  --game-card-won: var(--gold);
+  --game-card-team-font: inherit;
   --game-row-height: 82.5px;
   --game-side-offset: 0px;
   --game-label-offset: -21px;
@@ -1802,15 +1806,6 @@ body.kbd .rank-item .grip:focus {
   font-size: 1.05rem;
   font-weight: 550;
 }
-.team-detail {
-  font-weight: 400;
-}
-.team-detail b {
-  font-weight: 550;
-}
-.team-detail > .team-label {
-  margin-right: 12px;
-}
 .team-titles {
   margin: 0;
   font-size: var(--size-glance);
@@ -1819,14 +1814,17 @@ body.kbd .rank-item .grip:focus {
 .team-titles b {
   font-weight: 550;
 }
-.team-next {
-  color: var(--ink-mid);
+/* The cards of the club's nearest games sit under the sheet's top and reach nearer its sides than
+   its text, so three fit on a small phone. */
+.team-sheet-body > .game-cards {
+  margin: 8px -13.5px 0;
 }
-.team-next.live {
-  color: var(--copper-ink);
+.game-card-opponent .dot {
+  width: 9.5px;
+  height: 9.5px;
 }
-.team-next.delayed {
-  color: var(--gold);
+.game-card-score {
+  font-weight: 550;
 }
 .team-series {
   display: grid;

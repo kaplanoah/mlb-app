@@ -4,10 +4,10 @@ import {
   chooseGameList,
   readLastGameList,
   saveLastGameList,
-  TODAY_AFTER_AWAY_MS,
 } from "../shared/page/last-game-list.js";
 
 const NOW = Date.parse("2026-10-02T01:00:00Z");
+const MINUTE_MS = 60 * 1000;
 
 /** @param {Partial<Storage>} storage */
 const useStorage = (storage) =>
@@ -17,13 +17,13 @@ const refuseAccess = () => {
   throw new Error("Access denied");
 };
 
-test("the Games view opens on the list it was left on less than an hour ago", () => {
-  const left = { list: "previous", leftAt: NOW - TODAY_AFTER_AWAY_MS + 1 };
+test("the Games view opens on the list it was left on less than two minutes ago", () => {
+  const left = { list: "previous", leftAt: NOW - 2 * MINUTE_MS + 1 };
   assert.equal(chooseGameList(left, NOW), "previous");
 });
 
-test("the Games view opens on Today once it was left an hour ago or more", () => {
-  const left = { list: "next", leftAt: NOW - TODAY_AFTER_AWAY_MS };
+test("the Games view opens on Today once it was left two minutes ago or more", () => {
+  const left = { list: "next", leftAt: NOW - 2 * MINUTE_MS };
   assert.equal(chooseGameList(left, NOW), "today");
 });
 

@@ -32,6 +32,12 @@ export const RELEASE_NOTES = [{ at: "2026-09-30T20:55:00Z", text: html\`Tap a ga
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test("a release note's lines sit 1.3 apart", async ({ page }) => {
+    await serveReleaseNote(page);
+    await openApp(page, { isShowingUpdates: true });
+    await expect(page.locator("#updates .updates-notes .what")).toHaveCSS("line-height", "20.8px");
+  });
+
   test("the Updates box opens on the latest day's playoff finals, newest first, until it's dismissed, and then lists only what's new", async ({
     page,
   }) => {

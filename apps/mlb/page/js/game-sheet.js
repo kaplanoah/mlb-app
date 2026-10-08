@@ -1,7 +1,8 @@
-// The sheet every game opens, from its row or an update about it, in two sections under pills:
-// Game, the game's row with its score and status as the store updates them, where to watch it, and
-// its starters on one line that slides to Matchup, which sets the two face to face (matchup.js).
-// Phones show it over the whole screen, wider screens as a modal, like Settings.
+// The sheet every game opens, from its row, an update about it, or its card on a club's sheet, in
+// two sections under pills: Game, the game's row with its score and status as the store updates
+// them, where to watch it, and its starters on one line that slides to Matchup, which sets the two
+// face to face (matchup.js). Phones show it over the whole screen, wider screens as a modal, like
+// Settings.
 
 import { renderTeamDot } from "./clubs.js";
 import {
@@ -9,6 +10,7 @@ import {
   formatGameDay,
   listSlateGames,
   nameGame,
+  nameGameKey,
   renderArm,
   renderGameFaceOff,
 } from "./games-view.js";
@@ -39,22 +41,21 @@ let sections = null;
 const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gameSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
-// A doubleheader's two games share their day and clubs, so its game number tells them apart.
-/** @param {MatchupGame} game */
-const nameGameKey = (game) => `${game.date} ${game.away} ${game.home} ${game.doubleheader || 1}`;
-
 /**
- * The game as the slate has it now, or as it was when the sheet opened, once the slate has moved
- * past its day.
- * @param {MatchupGame} game
- * @returns {MatchupGame}
+ * The game as the slate has it now, with whether it's today's, when a club yet to name its starter
+ * shows who it might be.
+ * @param {string} key
+ * @returns {MatchupGame | null}
  */
-function readCurrentGame(game) {
+function findGame(key) {
   const slate = session.state?.slate;
-  const key = nameGameKey(game);
-  const current = slate && listSlateGames(slate).find((each) => nameGameKey(each) === key);
-  return current ? { ...current, today: current.date === slate.today.date } : game;
+  const game = slate && listSlateGames(slate).find((each) => nameGameKey(each) === key);
+  return game ? { ...game, today: game.date === slate.today.date } : null;
 }
+
+// Once the slate has moved past a game's day, the sheet shows it as it was when it opened.
+/** @param {MatchupGame} game */
+const readCurrentGame = (game) => findGame(nameGameKey(game)) ?? game;
 
 /** @param {MatchupGame} game */
 const renderWhen = (game) => joinWithSeparator([formatGameDay(game.date), describeStart(game)]);
@@ -147,14 +148,18 @@ function reopenGameSheet(saved) {
 export const refreshGameSheet = () => renderSheet();
 
 /** @param {HTMLElement} button */
-const readRowGame = (button) => JSON.parse(button.dataset.game ?? "null");
+const findButtonGame = (button) => findGame(button.dataset.game ?? "");
 
 /** @param {HTMLElement} button */
-const openFromRow = (button) => openGameSheet(readRowGame(button));
+function openFromButton(button) {
+  const game = findButtonGame(button);
+  if (game) openGameSheet(game);
+}
 
 /** @param {HTMLElement} button */
-function prepareFromRow(button) {
-  const game = readRowGame(button);
+function prepareFromButton(button) {
+  const game = findButtonGame(button);
+  if (!game) return;
   for (const side of listSides(game)) loadSide(side, game, session.activeYear);
 }
 
@@ -167,11 +172,12 @@ function showMatchupOnTap(event) {
 export function startGameSheet() {
   const sheet = findSheet();
   sections = wireSheetSections(sheet);
-  for (const holder of ["games-pages", "updates"])
-    watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
+  for (const holder of ["games-pages", "updates", "teamBody"])
+    watchGameOpens(findElement(holder), { open: openFromButton, prepare: prepareFromButton });
   findElement("gameBody").addEventListener("click", showMatchupOnTap);
   wireSheet(sheet, {
     closeButton: findElement("gameCloseBtn"),
+    backButton: findElement("gameBackBtn"),
     findScroller: sections.findShownSection,
     keeper: { read: readShownGame, reopen: reopenGameSheet },
     name: "Game",

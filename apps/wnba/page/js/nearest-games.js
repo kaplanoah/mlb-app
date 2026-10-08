@@ -1,5 +1,7 @@
 // Runs in both the browser page and the Worker, so it uses no DOM and no globals.
 
+import { findNearestGames } from "#shared/nearest-games.js";
+
 /** @typedef {{ id: string, state: string, series?: string | null, away: { team: string | null }, home: { team: string | null } }} SeasonGame */
 
 /**
@@ -21,13 +23,8 @@ const hasBothTeams = (game) => !!(game.away.team && game.home.team);
  * @param {Set<string>} decidedSeries
  * @returns {{ last: Game | null, now: Game | null, next: Game | null }}
  */
-export function findNearestGames(games, team, decidedSeries) {
-  const own = games.filter((game) => isPlaying(game, team));
-  const isPlayable = (/** @type {Game} */ game) =>
-    hasBothTeams(game) && !decidedSeries.has(game.series ?? "");
-  return {
-    last: own.findLast((game) => game.state === "final") ?? null,
-    now: own.find((game) => game.state === "live") ?? null,
-    next: own.find((game) => game.state === "pre" && isPlayable(game)) ?? null,
-  };
-}
+export const findTeamNearestGames = (games, team, decidedSeries) =>
+  findNearestGames(
+    games.filter((game) => isPlaying(game, team)),
+    (game) => hasBothTeams(game) && !decidedSeries.has(game.series ?? ""),
+  );
