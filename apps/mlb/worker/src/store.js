@@ -9,6 +9,7 @@ import { findNotableUpdates, listNotifications } from "./notifications.js";
 import { createOldRecordsJob } from "./old-records.js";
 import { createPastSeasonsJob } from "./past-seasons.js";
 import { createPitcherJob } from "./pitcher-updater.js";
+import { createRosterJob } from "./roster-updater.js";
 import * as SeasonUpdater from "./season-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
 import { createWatchedGameLoader } from "./watched-games.js";
@@ -35,5 +36,6 @@ export const SeasonStore = createSeasonStore({
     pastSeasons: createPastSeasonsJob(),
     oldRecords: createOldRecordsJob(),
     pitchers: createPitcherJob(),
+    rosters: createRosterJob(),
   },
 });

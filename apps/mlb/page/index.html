@@ -312,8 +312,45 @@
                 <p class="sheet-note team-note" id="teamNote" data-last-drawn></p>
               </div>
             </div>
+            <div class="pager-tabs" role="tablist" aria-label="Team">
+              <span class="pager-thumb" aria-hidden="true"></span>
+              <button
+                type="button"
+                role="tab"
+                id="teamTabTeam"
+                data-tab="team"
+                aria-controls="teamSection"
+                aria-selected="true"
+                class="active"
+              >
+                Team
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="teamTabRoster"
+                data-tab="roster"
+                aria-controls="rosterSection"
+                aria-selected="false"
+                tabindex="-1"
+              >
+                Roster
+              </button>
+            </div>
           </div>
-          <div class="team-sheet-body" id="teamBody" data-last-drawn></div>
+        </div>
+        <div class="sheet-sections">
+          <div class="sheet-section" id="teamSection" role="tabpanel" aria-labelledby="teamTabTeam">
+            <div class="team-sheet-body" id="teamBody" data-last-drawn></div>
+          </div>
+          <div
+            class="sheet-section"
+            id="rosterSection"
+            role="tabpanel"
+            aria-labelledby="teamTabRoster"
+          >
+            <div class="team-sheet-body roster-body" id="rosterBody" data-last-drawn></div>
+          </div>
         </div>
       </section>
     </div>

@@ -11,6 +11,7 @@ import {
   readKept,
   SEASON_2025,
   buildSeasonRecord,
+  ROSTER_DOCS,
 } from "./harness.mjs";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
@@ -1918,7 +1919,7 @@ for (const { screen, viewport } of [
     test.use({ viewport });
 
     test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
-      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() }, store: ROSTER_DOCS });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
@@ -1938,8 +1939,12 @@ for (const { screen, viewport } of [
       await expect(page.locator("table.st tbody tr").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
-      await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
+      await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
       await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
+      expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
+      await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
+      await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
@@ -1951,7 +1956,7 @@ for (const { screen, viewport } of [
     });
 
     test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
-      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() }, store: ROSTER_DOCS });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
       await page.getByRole("tab", { name: "Games" }).click();
@@ -1967,8 +1972,11 @@ for (const { screen, viewport } of [
       await page.getByRole("tab", { name: "Standings" }).click();
       await expect(page.locator("table.st tbody tr").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
-      await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
+      await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
       await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+      await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
+      await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();

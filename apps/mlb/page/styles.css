@@ -1446,6 +1446,33 @@ table.st.line-score td.team .club {
   align-items: center;
   gap: 6px;
 }
+/* A club's Roster section: its hitters, starters, and bullpen, then its injured list. */
+.roster-body {
+  padding-top: 8px;
+}
+.roster-number {
+  display: inline-block;
+  min-width: 2ch;
+  margin-right: 8px;
+  text-align: right;
+  color: var(--ink-dim);
+}
+.injured-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-glance);
+}
+.injured-list li {
+  display: flex;
+  align-items: baseline;
+}
+.injured-status {
+  margin-left: auto;
+  color: var(--copper-ink);
+}
 .matchup-body {
   display: grid;
   gap: 22px;
