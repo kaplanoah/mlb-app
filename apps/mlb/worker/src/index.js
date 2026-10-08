@@ -1,15 +1,19 @@
 import PAGE_FILES from "#page-files/mlb";
 import { createAppWorker } from "../../../../shared/worker/app-worker.js";
 import { createBoxScoreServer } from "./box-score.js";
+import { LEAGUE_READS_COUNT, PITCHER_JOB } from "./pitcher-updater.js";
 import { createPitcherServer } from "./pitchers.js";
 import { createRotationServer } from "./rotations.js";
 import { createSnapshotServer } from "./snapshot.js";
-import { SeasonStore, forwardToStore, readStoreDoc } from "./store.js";
+import { SeasonStore, addToJobCount, forwardToStore, readStoreDoc } from "./store.js";
 
 const boxScores = createBoxScoreServer();
 const snapshots = createSnapshotServer();
 const pitchers = createPitcherServer();
 const rotations = createRotationServer();
+
+/** @param {any} env */
+const createLeagueReadCounter = (env) => () => addToJobCount(env, PITCHER_JOB, LEAGUE_READS_COUNT);
 
 export default createAppWorker({
   pageFiles: PAGE_FILES,
@@ -17,8 +21,10 @@ export default createAppWorker({
   forwardToStore,
   reads: {
     "/box-score": (url, env) => boxScores.serveBoxScore(url, (key) => readStoreDoc(env, key)),
-    "/pitcher": (url, env) => pitchers.servePitcher(url, (key) => readStoreDoc(env, key)),
-    "/rotation": (url, env) => rotations.serveRotation(url, (key) => readStoreDoc(env, key)),
+    "/pitcher": (url, env) =>
+      pitchers.servePitcher(url, (key) => readStoreDoc(env, key), createLeagueReadCounter(env)),
+    "/rotation": (url, env) =>
+      rotations.serveRotation(url, (key) => readStoreDoc(env, key), createLeagueReadCounter(env)),
   },
 });
 

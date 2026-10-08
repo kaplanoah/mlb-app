@@ -131,6 +131,7 @@ const PAGE_FACTS = {
         ranAt: "2026-10-07T12:15:00Z",
         durationMs: 2000,
         requests: 1,
+        leagueReads: 3,
         lastFailure: {
           at: "2026-10-06T23:40:00Z",
           message: "Reading 2026's stats failed: The WNBA didn't answer",
@@ -156,7 +157,7 @@ test("the report opens with the release, the device, and the page's state", () =
         "Back from the background 3 times since",
         "Now Wed, Oct 7 8:16:30 AM, America/New_York",
         "News job last ran Wed, Oct 7 8:00:00 AM, 14 requests",
-        "Players job last ran Wed, Oct 7 8:15:00 AM, 1 request, last failed Tue, Oct 6 7:40:00 PM: Reading 2026's stats failed: The WNBA didn't answer",
+        "Players job last ran Wed, Oct 7 8:15:00 AM, 1 request, sheets read the league 3 times, last failed Tue, Oct 6 7:40:00 PM: Reading 2026's stats failed: The WNBA didn't answer",
       ].join("\n"),
     );
   }));

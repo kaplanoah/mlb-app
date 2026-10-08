@@ -68,10 +68,14 @@ const ON_REQUEST = "On request";
  */
 /**
  * A background job's status document, as the store last answered for it, or null when it
- * couldn't be read.
+ * couldn't be read, with how often a sheet read the league for what the job should have kept, for
+ * a job that counts it.
  * @typedef {{
  *   name: string,
- *   status: Partial<import("../worker/job-status.js").JobRunStatus> | null | undefined,
+ *   status:
+ *     | Partial<import("../worker/job-status.js").JobRunStatus & { leagueReads: number }>
+ *     | null
+ *     | undefined,
  * }} JobStatus
  */
 
@@ -385,6 +389,8 @@ export function describeJobStatus({ name, status }) {
   return [
     `${job} last ran ${formatMoment(new Date(status.ranAt))}`,
     countRequests(status.requests ?? 0),
+    Number.isInteger(status.leagueReads) &&
+      `sheets read the league ${countTimes(Number(status.leagueReads))}`,
     lastFailure && `last failed ${formatMoment(new Date(lastFailure.at))}: ${lastFailure.message}`,
   ]
     .filter(Boolean)

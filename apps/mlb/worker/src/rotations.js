@@ -1,13 +1,14 @@
 import { addDays } from "#shared/days.js";
 import { readClubId, readMlbTeamId } from "../../page/js/snapshot.js";
 import { DATE_RULE, fetchMlbJson, readDateParam } from "./mlb.js";
-import { listGameLogRequest, listStarts } from "./pitchers.js";
+import { listGameLogRequest, listStarts, noteLeagueRead } from "./pitchers.js";
 import { describeError, respondJson } from "../../../../shared/worker/responses.js";
 
 // A club that hasn't named a game's starter: who started its last games, how each of those starts
 // went, and the rest each pitcher would have by the game's day. The store keeps each club's
 // recent starts for the current season (pitcher-updater.js), so the sheet reads MLB itself only
-// for a day the store's starts don't reach back to.
+// for a day the store's starts don't reach back to, and the store counts each time it does for the
+// current season.
 
 // A club's starts change at most once a game.
 const ROTATION_CACHE_SECONDS = 10 * 60;
@@ -222,19 +223,25 @@ export function createRotationServer({ fetchImpl = (input, init) => fetch(input,
   }
 
   /**
-   * The club's starts the store keeps, or null when they don't reach back two weeks before `date`,
-   * or can't be read.
+   * The club's starts the store keeps, null when they don't reach back two weeks before `date`, and
+   * whether `date` is in the store's current season, each null when it can't be read.
    * @param {string} club
    * @param {string} date
    * @param {(key: string) => Promise<any>} readDoc
    */
   async function readSavedStarts(club, date, readDoc) {
     try {
-      const saved = await readDoc(nameRotationKey(Number(date.slice(0, 4)), club));
-      return saved && saved.from <= addDays(date, -LOOKBACK_DAYS) ? saved : null;
+      const [saved, current] = await Promise.all([
+        readDoc(nameRotationKey(Number(date.slice(0, 4)), club)),
+        readDoc("live/current"),
+      ]);
+      return {
+        clubStarts: saved && saved.from <= addDays(date, -LOOKBACK_DAYS) ? saved : null,
+        isCurrentSeason: Number(date.slice(0, 4)) === current?.season,
+      };
     } catch (error) {
       console.error(`Reading ${club}'s starts from the store failed: ${describeError(error)}`);
-      return null;
+      return { clubStarts: null, isCurrentSeason: false };
     }
   }
 
@@ -242,15 +249,21 @@ export function createRotationServer({ fetchImpl = (input, init) => fetch(input,
    * @param {URL} url
    * @param {(key: string) => Promise<any>} [readDoc] the store's documents, when the Worker has a
    *   store
+   * @param {() => Promise<void>} [countLeagueRead] adds one to the store's count of sheets read
+   *   from MLB
    */
-  async function serveRotation(url, readDoc) {
+  async function serveRotation(url, readDoc, countLeagueRead) {
     const club = url.searchParams.get("club") ?? "";
     if (!readMlbTeamId(club)) return respondJson({ error: "club must be an MLB club" }, 400);
     const date = readDateParam(url.searchParams);
     if (date == null) return respondJson({ error: DATE_RULE }, 400);
     try {
       const saved = readDoc ? await readSavedStarts(club, date, readDoc) : null;
-      const clubStarts = saved ?? (await fetchClubStarts(club, date));
+      const hasStoreGap = Boolean(saved?.isCurrentSeason && !saved.clubStarts);
+      const [clubStarts] = await Promise.all([
+        saved?.clubStarts ?? fetchClubStarts(club, date),
+        hasStoreGap && countLeagueRead && noteLeagueRead(`${club}'s starts`, countLeagueRead),
+      ]);
       return respondJson(describeRotation(clubStarts, date));
     } catch (error) {
       return respondJson({ error: `Couldn't read MLB: ${describeError(error)}` }, 502);
