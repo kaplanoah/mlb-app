@@ -2,6 +2,7 @@
 // a column of names under a label, then a column for each number.
 
 import { html } from "#shared/html.js";
+import { renderPlayerButton } from "./player-button.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
 /**
@@ -11,12 +12,13 @@ import { html } from "#shared/html.js";
 
 /**
  * Innings as the sheets write them. MLB counts them in thirds after the point: 5.2 is five and two
- * thirds.
+ * thirds, and 0.2 just two thirds.
  * @param {string | number} innings
  */
 export function formatInnings(innings) {
   const [whole, thirds] = String(innings).split(".");
-  return thirds && thirds !== "0" ? `${whole} ${thirds}/3` : whole;
+  if (!thirds || thirds === "0") return whole;
+  return whole === "0" ? `${thirds}/3` : `${whole} ${thirds}/3`;
 }
 
 /**
@@ -34,29 +36,39 @@ export const renderStatCells = (row, columns) =>
   columns.map(([, reader]) => html`<td class="tabular">${readValue(row, reader) ?? "-"}</td>`);
 
 /**
- * A row's name cell, with what goes beside the name, like his position.
- * @param {Markup | string} name
- * @param {Markup | string} [note]
+ * A player's name cell, with what goes before his name, like his number, and after it, like his
+ * position. His name is the button that opens his sheet wherever the row is tapped, but for a
+ * player kept without his id, whose name shows plainly.
+ * @param {{ id?: number, name: string, number?: string }} player
+ * @param {string} club
+ * @param {{ lead?: Markup | string, note?: Markup | string }} [beside]
  */
-export const renderNameCell = (name, note = "") =>
-  html`<td class="team"><span class="box-name">${name}</span>${note}</td>`;
+export const renderPlayerCell = (player, club, { lead = "", note = "" } = {}) =>
+  player.id
+    ? html`<td class="team row-button-cell">${lead}${renderPlayerButton(/** @type {{ id: number, name: string }} */ (player), club)}${note}</td>`
+    : html`<td class="team">${lead}<span class="box-name">${player.name}</span>${note}</td>`;
 
 /**
+ * A table whose rows each open wherever they're tapped clips the button that reaches over each
+ * row to the table's sides (row-button.css).
  * @param {string} label
  * @param {readonly StatColumn[]} columns
  * @param {Markup[]} rows
+ * @param {{ opensRows?: boolean }} [options]
  */
-export const renderStatTable = (label, columns, rows) =>
+export const renderStatTable = (label, columns, rows, { opensRows = false } = {}) =>
   html`<div class="box-wrap">
-    <table class="st box-table">
-      <thead>
-        <tr>
-          <th class="left">${label}</th>
-          ${columns.map(([heading]) => html`<th>${heading}</th>`)}
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
+    <div class="${opensRows ? "row-button-clip" : ""}">
+      <table class="st box-table">
+        <thead>
+          <tr>
+            <th class="left">${label}</th>
+            ${columns.map(([heading]) => html`<th>${heading}</th>`)}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
   </div>`;

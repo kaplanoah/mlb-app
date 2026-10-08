@@ -353,6 +353,45 @@
           </div>
         </div>
       </section>
+
+      <section
+        id="playerSheet"
+        class="sheet-page player-sheet"
+        aria-labelledby="playerTitle"
+        hidden
+      >
+        <div class="sheet-content">
+          <div class="sheet-top">
+            <div class="sheet-head">
+              <button type="button" class="sheet-close" id="playerCloseBtn">
+                <!-- Phosphor's caret-down, at its Light weight. -->
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M212.24,100.24l-80,80a6,6,0,0,1-8.48,0l-80-80a6,6,0,0,1,8.48-8.48L128,167.51l75.76-75.75a6,6,0,0,1,8.48,8.48Z"
+                  />
+                </svg>
+                <span class="sheet-close-label">Close</span>
+              </button>
+              <button type="button" class="sheet-back" id="playerBackBtn" hidden>
+                <!-- Phosphor's arrow-left, at its Light weight. -->
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M222,128a6,6,0,0,1-6,6H54.49l61.75,61.76a6,6,0,1,1-8.48,8.48l-72-72a6,6,0,0,1,0-8.48l72-72a6,6,0,0,1,8.48,8.48L54.49,122H216A6,6,0,0,1,222,128Z"
+                  />
+                </svg>
+                <span class="sheet-back-label">Back</span>
+              </button>
+              <div class="sheet-title">
+                <h2 id="playerTitle" class="team-title" data-last-drawn>Player</h2>
+                <p class="sheet-note team-note" id="playerNote" data-last-drawn></p>
+                <p class="sheet-note team-note" id="playerPlace" data-last-drawn></p>
+              </div>
+            </div>
+            <div class="player-facts-slot" id="playerFacts" data-last-drawn></div>
+          </div>
+          <div class="team-sheet-body player-body" id="playerBody" data-last-drawn></div>
+        </div>
+      </section>
     </div>
   </dialog>
 
