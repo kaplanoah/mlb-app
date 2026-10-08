@@ -20,6 +20,30 @@ const findDay = (page, day) => page.locator(`#seasonGames .listed-day[data-day="
 const findCell = (page, day) => page.locator(`#seasonGames .day-cell[data-day="${day}"]`);
 
 /**
+ * Opens the page on the whole season, once the store's list of every game has arrived, which
+ * comes after the season and draws the list again.
+ * @param {import("@playwright/test").Page} page
+ */
+async function openWholeSeason(page) {
+  const app = await openApp(page, { isWholeSeason: true });
+  await expect(page.locator("#seasonGames .listed-day").first()).toHaveAttribute(
+    "data-day",
+    /^2026-05-/,
+  );
+  return app;
+}
+
+/**
+ * Opens the whole season on the Games tab.
+ * @param {import("@playwright/test").Page} page
+ */
+async function openSeasonGames(page) {
+  const app = await openWholeSeason(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  return app;
+}
+
+/**
  * Expects `day` at the top of the list, chosen in the strip, and a finger just under the bar
  * landing on it.
  * @param {import("@playwright/test").Page} page
@@ -49,8 +73,7 @@ test.describe("with reduced motion", () => {
   test("the Games view opens on today, under a strip of every day from the season's first game to its last, today's chosen and named for its month", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
     await expect(page.locator("#seasonGames .strip-month")).toHaveText("September");
     const today = findCell(page, "2026-09-30");
@@ -79,8 +102,7 @@ test.describe("with reduced motion", () => {
   test("scrolling the games moves the strip's chosen day and its month to the day at the top", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
     const august = await page
       .locator('#seasonGames .listed-day[data-day^="2026-08-1"]')
@@ -100,8 +122,7 @@ test.describe("with reduced motion", () => {
   test("a tap on a day brings its games to the top, a tap on Today brings today back, and so does a tap on Games while it shows", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
 
     await findCell(page, "2026-09-20").click();
@@ -122,8 +143,7 @@ test.describe("with reduced motion", () => {
   });
 
   test("Today looks the same on today as on any other day", async ({ page }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
     const goToday = page.locator("#seasonGames .go-today");
     const readLook = () =>
@@ -143,8 +163,7 @@ test.describe("with reduced motion", () => {
   });
 
   test("a day without games can't be chosen, and a tap on it moves nothing", async ({ page }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
     const quiet = page.locator("#seasonGames .day-cell:disabled").last();
     await quiet.scrollIntoViewIfNeeded();
@@ -162,8 +181,7 @@ test.describe("with reduced motion", () => {
   test("the header holds still while the games scroll under the bar, which ends in a line once a day is under it", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
     const header = await page.locator("header.top").boundingBox();
     await expect(page.locator("#seasonGames .day-bar")).toHaveClass(/stuck/);
@@ -182,8 +200,7 @@ test.describe("with reduced motion", () => {
   test("after two minutes away, the list goes back to today, and after less it stays where it was", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await findCell(page, "2026-09-20").click();
     await expectDayAtTop(page, "2026-09-20");
     const setHidden = (/** @type {boolean} */ hidden) =>
@@ -208,8 +225,7 @@ test.describe("with reduced motion", () => {
   test("a game the Worker saves redraws its day, and a game added to an earlier day leaves the day at the top where it is", async ({
     page,
   }) => {
-    const app = await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    const app = await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
 
     await app.changeSeason((season) => {
@@ -227,8 +243,7 @@ test.describe("with reduced motion", () => {
   test("a tab left while on another day shows the same day when it's shown again", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
-    await page.getByRole("tab", { name: "Games" }).click();
+    await openSeasonGames(page);
     await findCell(page, "2026-09-20").click();
     await expectDayAtTop(page, "2026-09-20");
 
@@ -242,7 +257,7 @@ test.describe("with reduced motion", () => {
   test("a page that opens on another tab opens the Games list on today once it's shown", async ({
     page,
   }) => {
-    await openApp(page, { isWholeSeason: true });
+    await openWholeSeason(page);
     await expect(page.locator("#stamp")).toBeVisible();
 
     await page.getByRole("tab", { name: "Games" }).click();
@@ -254,15 +269,18 @@ test.describe("with reduced motion", () => {
 test("a tap on Today flies the list there on a spring, never stepping back, and lands on today", async ({
   page,
 }) => {
-  await openApp(page, { isWholeSeason: true });
-  await page.getByRole("tab", { name: "Games" }).click();
+  await openSeasonGames(page);
   await findCell(page, "2026-09-29").click();
   await page.clock.runFor(1000);
   await expectDayAtTop(page, "2026-09-29");
-  await findList(page).evaluate((list) => {
+  // Each frame comes only as the test moves the clock, however slow the machine draws.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+  await page.evaluate(() => {
     const tops = /** @type {number[]} */ ([]);
     const note = () => {
-      tops.push(list.scrollTop);
+      tops.push(
+        /** @type {Element} */ (document.querySelector("#seasonGames .day-list")).scrollTop,
+      );
       if (tops.length < 120) requestAnimationFrame(note);
     };
     requestAnimationFrame(note);
