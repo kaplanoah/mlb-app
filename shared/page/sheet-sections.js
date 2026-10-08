@@ -1,6 +1,6 @@
-import { createPillThumb } from "./pill-thumb.js";
+import { showPillName } from "./pill-thumb.js";
 import { createSlidePanels } from "./slide-panels.js";
-import { selectTab, wireTabs } from "./tabs.js";
+import { wireTabs } from "./tabs.js";
 
 // A sheet's sections under the pills in its top, like a WNBA team's Team and Roster, one shown at a
 // time, side by side, as slide-panels.js moves them: a tap on a pill slides to its section, and a
@@ -21,19 +21,13 @@ export function wireSheetSections(sheet) {
     (tab) =>
       /** @type {HTMLElement} */ (document.getElementById(tab.getAttribute("aria-controls") ?? "")),
   );
-  const thumb = createPillThumb(tabList);
-
   const findShownSection = () => sections[panels.readShown()];
 
   const panels = createSlidePanels(row, {
     listPanels: () => sections,
     place: (index, position) => index - position,
     canGo: (direction) => keys[panels.readShown() + direction] !== undefined,
-    onShow: (index, isSliding) => {
-      selectTab(tabs, keys[index]);
-      thumb.moveThumb(index, { isSliding });
-    },
-    onDrag: (position) => thumb.moveThumb(position),
+    onShow: (index, isSliding) => showPillName(tabList, keys[index], { isHandoff: isSliding }),
   });
 
   /**
