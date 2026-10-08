@@ -345,7 +345,7 @@ header.top h1 {
 /* Centered under its pill, its capitals a touch above the middle of the date's number beside a
    list's first game, where it looks level to the eye. */
 .pager-page .empty-note {
-  margin-top: 33px;
+  margin-top: 31.5px;
   text-align: center;
 }
 
