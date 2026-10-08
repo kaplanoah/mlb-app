@@ -47,7 +47,8 @@ test("the page asks for its code, and the right one, however it's typed, opens t
   await expect(page.getByRole("tab", { name: "Bracket" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Open" }).click();
-  await expect(page.getByRole("alert")).toHaveText("Type the code first.");
+  await expect(page.getByRole("alert")).toHaveText("Type the code first");
+  expect(await listStrayPeriods(page)).toEqual([]);
 
   await sendCode(page, "fastbrake");
   await expect(page.getByRole("alert")).toHaveText(

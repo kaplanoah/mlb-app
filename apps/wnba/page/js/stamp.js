@@ -159,12 +159,12 @@ export function renderStampLines(season, now) {
  */
 function describeFeedProblem(status) {
   if (!status?.error) return "";
-  if (status.error !== "wnba_feeds_missing") return "The WNBA isn't answering right now.";
+  if (status.error !== "wnba_feeds_missing") return "The WNBA isn't answering right now";
   const feeds = String(status.detail ?? "")
     .split(", ")
     .map((feed) => FEED_NAMES[feed] ?? feed);
-  const standIn = status.standIn === "espn" ? " Scores are from ESPN for now." : "";
-  return `The WNBA stopped sending ${feeds.join(" and ")}.${standIn}`;
+  const stopped = `The WNBA stopped sending ${feeds.join(" and ")}`;
+  return status.standIn === "espn" ? `${stopped}. Scores are from ESPN for now.` : stopped;
 }
 
 /**

@@ -84,15 +84,11 @@ function renderCatchUpLine(now) {
   if (!isBehind) return null;
   const asOf = renderAsOf(now);
   if (navigator.onLine === false)
-    return renderLine(
-      OFFLINE_ICON,
-      asOf ? html`You're offline. ${asOf}.` : "You're offline.",
-      true,
-    );
+    return renderLine(OFFLINE_ICON, asOf ? html`You're offline. ${asOf}.` : "You're offline", true);
   if (isStalled)
     return renderLine(
       RING,
-      asOf ? html`Can't reach the server. ${asOf}.` : "Can't reach the server.",
+      asOf ? html`Can't reach the server. ${asOf}.` : "Can't reach the server",
       true,
     );
   if (isUpdatingShown) return renderLine(RING, asOf ?? "Getting the latest scores", false);

@@ -721,8 +721,9 @@ function addStarters(fixture, probables, people) {
   copy.responses.pitchers = { people };
   return copy;
 }
-const describePerson = (id, useLastName, hand, era) => ({
+const describePerson = (id, [useName, useLastName], hand, era) => ({
   id,
+  ...(useName && { useName }),
   useLastName,
   pitchHand: { code: hand },
   ...(era && { stats: [{ splits: [{ stat: { era } }] }] }),
@@ -743,22 +744,22 @@ const EVENING_STARTERS = {
   824703: [6, null], // CHC at BOS, tomorrow
 };
 const EVENING_PEOPLE = [
-  describePerson(1, "Liberatore", "L", "4.10"),
-  describePerson(2, "Keller", "R", "3.40"),
-  describePerson(3, "Bibee", "R", "3.62"),
-  describePerson(4, "Crochet", "L", "2.51"),
-  describePerson(5, "King", "R", null),
+  describePerson(1, ["Matthew", "Liberatore"], "L", "4.10"),
+  describePerson(2, ["Mitch", "Keller"], "R", "3.40"),
+  describePerson(3, ["Tanner", "Bibee"], "R", "3.62"),
+  describePerson(4, ["Garrett", "Crochet"], "L", "2.51"),
+  describePerson(5, [null, "King"], "R", null),
 ];
 
-test("starters: every game listed names each club's starter, his arm, and his ERA", () => {
+test("starters: every game listed names each club's starter, with his first name when MLB gives one, his arm, and his ERA", () => {
   const snapshot = buildSnapshot(addStarters(EVENING, EVENING_STARTERS, EVENING_PEOPLE));
   assert.deepEqual(findSlateGame(snapshot, "STL", "PIT").starters, [
-    { id: 1, name: "Liberatore", hand: "L", era: "4.10" },
-    { id: 2, name: "Keller", hand: "R", era: "3.40" },
+    { id: 1, name: "Liberatore", firstName: "Matthew", hand: "L", era: "4.10" },
+    { id: 2, name: "Keller", firstName: "Mitch", hand: "R", era: "3.40" },
   ]);
   assert.deepEqual(findSlateGame(snapshot, "CLE", "BOS").starters, [
-    { id: 3, name: "Bibee", hand: "R", era: "3.62" },
-    { id: 4, name: "Crochet", hand: "L", era: "2.51" },
+    { id: 3, name: "Bibee", firstName: "Tanner", hand: "R", era: "3.62" },
+    { id: 4, name: "Crochet", firstName: "Garrett", hand: "L", era: "2.51" },
   ]);
   assert.deepEqual(findSlateGame(snapshot, "SD", "LAD").starters, [
     { id: 5, name: "King", hand: "R", era: null },

@@ -179,7 +179,9 @@ test("a sheet still loading holds its shape, and one that didn't load says so", 
     isUnkept: false,
     isLoading: false,
   });
-  assert.match(readText(failed), /Couldn't load his numbers/);
+  assert.equal(readText(failed), "Couldn't load his numbers Try again");
+  assert.match(String(failed), /class="retry-block"/);
+  assert.match(String(failed), /class="retry-button filled" data-retry/);
 });
 
 test("a hitter's last games follow his season, newest first, each with whom he played, where, and his line", () => {

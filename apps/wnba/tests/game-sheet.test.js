@@ -249,13 +249,17 @@ test("a preview lists each team's five saved leading scorers, as its team sheet 
   assert.equal(aces[1], "A'ja Wilson 26.2 9.4 3.2 52.7 32.0");
 });
 
-test("a preview missing a part says so, and a split season series says that", () => {
-  const text = readText(
-    renderFeverAtAces({ season: { ...SEASON, standings: [], leaders: [] }, meetings: null }),
-  );
-  assert.match(text, /Couldn't load this season's meetings\./);
-  assert.match(text, /Couldn't load the standings\./);
-  assert.match(text, /Couldn't load the players' averages\./);
+test("a preview missing a part says so, with Try again for the meetings it reads, and a split season series says that", () => {
+  const missing = renderFeverAtAces({
+    season: { ...SEASON, standings: [], leaders: [] },
+    meetings: null,
+  });
+  const text = readText(missing);
+  assert.match(text, /Couldn't load this season's meetings(?!\.) Try again/);
+  assert.match(text, /Couldn't load the standings(?!\.)/);
+  assert.match(text, /Couldn't load the players' averages(?!\.)/);
+  assert.match(missing.text, /class="retry-note"/);
+  assert.equal(missing.text.split("data-retry").length - 1, 1);
 
   const { meetings } = describePreview(GAMES.preview.schedule, { season: 2026, ...FEVER_AT_ACES });
   const split = meetings.filter((meeting) => meeting.id !== "1022600153");

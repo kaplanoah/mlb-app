@@ -8,7 +8,7 @@ import { TEAMS } from "./teams.js";
 // The Worker keeps each season's record in the store as it plays out, says which season is
 // current, and pushes every change to the page, which the shared season reader follows.
 
-const UNREACHABLE = "Can't reach the page's server right now.";
+const UNREACHABLE = "Can't reach the page's server right now";
 
 /** @type {ReturnType<typeof createSeasonReader> | null} */
 let reader = null;

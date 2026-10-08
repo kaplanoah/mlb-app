@@ -1,4 +1,5 @@
-import { test, expect, openApp, openGameSheet } from "./harness.mjs";
+import { test, expect, openApp, openGameSheet, matchPath } from "./harness.mjs";
+import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
@@ -205,4 +206,29 @@ test("her sheet, which reads her numbers again, the roster, and the team's sheet
   await expect(sheet.locator(".player-curve b")).toHaveCount(8);
   await sheet.getByRole("button", { name: "Back to Team" }).click();
   await expect(page.locator("#rosterSection .roster-coach")).toBeVisible();
+});
+
+test("her sheet that didn't load says so over Try again, which holds its shape as it reads her again", async ({
+  page,
+}) => {
+  await openApp(page);
+  const roster = await openLibertyRoster(page);
+  /** @param {import("@playwright/test").Route} route */
+  const refuse = (route) => route.fulfill({ status: 502, json: { error: "test" } });
+  await page.route(matchPath("/player"), refuse);
+  await roster.getByRole("button", { name: "Breanna Stewart" }).click();
+  const sheet = page.locator("#playerSheet");
+  const block = sheet.locator("#playerBody .retry-block");
+  await expect(block.locator(".retry-title")).toHaveText("Couldn't load her numbers");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  await page.unroute(matchPath("/player"), refuse);
+  const release = await holdRequests(page, matchPath("/player"));
+  await block.getByRole("button", { name: "Try again" }).click();
+  await expect(sheet.locator("#playerBody .placeholder").first()).toBeVisible();
+  release();
+  await expect(sheet.locator(".player-facts")).toBeVisible();
+  await expect(block).toHaveCount(0);
 });

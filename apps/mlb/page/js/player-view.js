@@ -8,6 +8,7 @@ import { formatShortDate, readCalendarDate } from "#shared/days.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { rankAmong, renderRankRow } from "#shared/rank-curve.js";
+import { renderRetryBlock } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { nameTeam, renderTeamDot } from "./clubs.js";
 import { renderPitchMix } from "./pitch-mix.js";
@@ -360,8 +361,7 @@ export function renderPlayerBody(shown) {
   if (!player && isLoading) return renderPending();
   if (!player && shown.isUnkept)
     return html`<p class="sheet-message">His numbers show while he's on a club's roster</p>`;
-  if (!player)
-    return html`<p class="sheet-message">Couldn't load his numbers. Close and try again in a minute.</p>`;
+  if (!player) return renderRetryBlock("Couldn't load his numbers");
   const isTwoWay = Boolean(player.hitting && player.pitching && player.position !== "P");
   const hitting =
     player.hitting && player.position !== "P"

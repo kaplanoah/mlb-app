@@ -7,6 +7,7 @@ import { readCalendarDate } from "#shared/days.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { renderRankRow } from "#shared/rank-curve.js";
+import { renderRetryBlock } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderTeamDetail } from "#shared/team-sheet.js";
 import { renderDot, renderTeamName } from "./clubs.js";
@@ -360,8 +361,7 @@ const renderPending = () =>
  */
 export function renderPlayerBody({ player, isLoading, season, isPastSeason, now }) {
   if (!player && isLoading) return renderPending();
-  if (!player)
-    return renderSheetMessage("Couldn't load her numbers. Close and try again in a minute.");
+  if (!player) return renderRetryBlock("Couldn't load her numbers");
   const hasPlayed = !!(player.lastGame || player.regularSeason);
   const noGames = isPastSeason ? "No games this season" : "No games yet this season";
   return html`${hasPlayed ? renderLastGame(player, now) : renderSheetMessage(noGames)}

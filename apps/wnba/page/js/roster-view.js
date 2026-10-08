@@ -6,8 +6,8 @@
 
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import { renderRetryBlock } from "#shared/retry.js";
 import { renderPlayerButton } from "./player-button.js";
-import { renderSheetMessage } from "./sheet-parts.js";
 
 /** @typedef {import("#shared/html.js").Markup} Markup */
 /** @typedef {{ id: string, number: string | null, firstName: string, lastName: string, position: string | null, height: string | null, age: number | null, college: string | null, country: string | null, isOut: boolean, debut: number | null }} RosterPlayer */
@@ -332,8 +332,7 @@ const renderCoach = (coach) =>
  */
 export function renderRoster({ roster, averages, sort, isLoading, showsOut }) {
   if (!roster && isLoading) return renderPendingTables(sort);
-  if (!roster)
-    return renderSheetMessage("Couldn't load the roster. Close and try again in a minute.");
+  if (!roster) return renderRetryBlock("Couldn't load the roster");
   const rows = sortRows(matchAverages(roster.players, averages), sort);
   return html`${renderTables({
     pinnedRows: rows.map((row) => renderPinnedRow(row, roster.team, showsOut)),

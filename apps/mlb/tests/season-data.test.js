@@ -125,7 +125,7 @@ test("a season the store can't answer shows as an empty one, and says so", async
   await loadSeason();
 
   assert.deepEqual(session.season, { year: 2026, teams: {}, series: {}, log: [] });
-  assert.equal(session.problem, "Can't reach the page's server right now.");
+  assert.equal(session.problem, "Can't reach the page's server right now");
 });
 
 test("a record in a version the page doesn't read isn't shown, and the page checks for a newer release", async () => {
