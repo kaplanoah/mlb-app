@@ -11,6 +11,7 @@ import {
   FINAL_2025_FIXTURE,
 } from "./harness.mjs";
 import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -605,4 +606,5 @@ test("a club that's out looks like the rest, and its chip just says Out", async 
     .locator("#rankList .team-name")
     .evaluateAll((names) => names.map((name) => getComputedStyle(name).color));
   expect(new Set(nameColors).size).toBe(1);
+  expect(await listLowContrastText(page)).toEqual([]);
 });
