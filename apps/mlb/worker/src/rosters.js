@@ -79,7 +79,7 @@ export function listSeasonStatsRequest(season, group, { gameType = "R", pool = "
  * @param {any} stat
  * @param {string[]} columns
  */
-const trimStats = (stat, columns) =>
+export const trimStats = (stat, columns) =>
   Object.fromEntries(
     columns.filter((column) => column in stat).map((column) => [column, stat[column]]),
   );

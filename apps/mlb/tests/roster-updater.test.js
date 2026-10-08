@@ -52,6 +52,26 @@ function listAnswers() {
   return answers;
 }
 
+/** @param {string} path */
+const isGameLogRequest = (path) => path.startsWith("/api/v1/people?personIds=");
+
+/**
+ * The players a request for game logs names, by id.
+ * @param {string} path
+ */
+const readGameLogIds = (path) =>
+  (/personIds=([\d,]+)/.exec(path)?.[1] ?? "").split(",").map(Number);
+
+/**
+ * MLB's answer for some players' game logs, from the ones the fixture recorded.
+ * @param {string} path
+ */
+const answerGameLogs = (path) => ({
+  people: readGameLogIds(path)
+    .map((id) => FIXTURE.gameLogs[id])
+    .filter(Boolean),
+});
+
 /** @param {Record<string, any>} answers */
 function createMlbFetch(answers) {
   /** @type {string[]} */
@@ -61,7 +81,9 @@ function createMlbFetch(answers) {
   const fetchImpl = async (url) => {
     const path = url.slice(MLB_API.length);
     requests.push(path);
-    if (refused.has(path) || !(path in answers)) return new Response("", { status: 503 });
+    if (refused.has(path)) return new Response("", { status: 503 });
+    if (isGameLogRequest(path)) return new Response(JSON.stringify(answerGameLogs(path)));
+    if (!(path in answers)) return new Response("", { status: 503 });
     return new Response(JSON.stringify(answers[path]));
   };
   return { requests, refused, fetchImpl };
@@ -149,14 +171,22 @@ const listRosterClubs = (requests) =>
     .map((id) => listClubs().find((club) => readMlbTeamId(club) === Number(id)));
 
 /** Runs the job until every club's roster is read, five minutes apart. */
+/**
+ * Runs the job until every club's roster is read, and every player's last games have settled,
+ * five minutes apart.
+ */
 async function fillRosters(run) {
-  for (let filled = 0; filled < 5; filled += 1) {
+  for (let filled = 0; filled < 9; filled += 1) {
     await run.runJob();
     run.wait(5);
   }
   run.takeRequests();
   run.docs.writes.length = 0;
 }
+
+/** @param {string[]} requests */
+const listLeagueRequests = (requests) =>
+  requests.filter((path) => !path.includes("/roster") && !isGameLogRequest(path));
 
 test("each club's roster has its active players and its injured list, each with his season so far", () => {
   const answers = FIXTURE.answers;
@@ -201,8 +231,10 @@ test("every club's roster fills six a run, after one read of every player's numb
     run.wait(5);
   }
 
-  assert.deepEqual(runs[0].slice(0, 1), [TRANSACTIONS]);
-  assert.deepEqual(runs[0].slice(-NUMBERS.length - 1), [...NUMBERS, PEOPLE]);
+  assert.deepEqual(
+    new Set(listLeagueRequests(runs[0])),
+    new Set([TRANSACTIONS, ...NUMBERS, PEOPLE]),
+  );
   assert.deepEqual(
     runs.map((requests) => listRosterClubs(requests).length),
     [6, 6, 6, 6, 6, 0],
@@ -211,7 +243,7 @@ test("every club's roster fills six a run, after one read of every player's numb
     runs
       .slice(1)
       .flat()
-      .filter((path) => !path.includes("/roster")),
+      .filter((path) => !path.includes("/roster") && !isGameLogRequest(path)),
     [],
   );
   assert.deepEqual(new Set(listRosterClubs(runs.flat())), new Set(listClubs()));
@@ -245,10 +277,7 @@ test("a transaction not seen before reads again only the rosters of the clubs it
   await run.runJob();
 
   const requests = run.takeRequests();
-  assert.deepEqual(
-    requests.filter((path) => !path.includes("/roster")),
-    [TRANSACTIONS],
-  );
+  assert.deepEqual(listLeagueRequests(requests), [TRANSACTIONS]);
   assert.deepEqual(listRosterClubs(requests).sort(), ["LAD", "MIL"]);
   run.wait(5);
   await run.runJob();
@@ -264,9 +293,12 @@ test("a game's end reads every player's numbers again, and saves only the roster
 
   await run.endGames(1);
   kwan.stat.plateAppearances += 4;
+  kwan.stat.gamesPlayed += 1;
   await run.runJob();
 
-  assert.deepEqual(run.takeRequests(), NUMBERS);
+  const requests = run.takeRequests();
+  assert.deepEqual(new Set(listLeagueRequests(requests)), new Set(NUMBERS));
+  assert.deepEqual(requests.filter(isGameLogRequest).map(readGameLogIds), [[680757]]);
   assert.deepEqual(
     run.docs.writes.filter((key) => !key.startsWith("seasons/")),
     [nameRosterKey("CLE"), namePlayerKey(SEASON, 680757)],
@@ -327,4 +359,62 @@ test("rosters don't wait on every player's numbers, which save once MLB answers 
     "the twelve read so far",
   );
   assert.ok(run.docs.writes.includes(namePlayerKey(SEASON, 680757)));
+});
+
+test("each rostered player's last games are read as his club's roster arrives, a few batches a run, and once more as they settle", async () => {
+  const run = createRun();
+  /** @type {number[][]} */
+  const runs = [];
+  for (let index = 0; index < 9; index += 1) {
+    await run.runJob();
+    runs.push(run.takeRequests().filter(isGameLogRequest).flatMap(readGameLogIds));
+    run.wait(5);
+  }
+  for (let index = 0; index < 6; index += 1) {
+    await run.runJob();
+    assert.deepEqual(run.takeRequests().filter(isGameLogRequest), [], "settled");
+    run.wait(5);
+  }
+
+  const rostered = Object.keys(FIXTURE.gameLogs).map(Number);
+  const reads = runs.flat();
+  for (const id of rostered)
+    assert.equal(reads.filter((each) => each === id).length, 2, `${id} read twice`);
+  assert.ok(runs.every((ids) => ids.length <= 4 * 30));
+  const kwan = run.docs.stored.get(namePlayerKey(SEASON, 680757));
+  assert.equal(kwan.lastGames.hitting.length, 5);
+  assert.equal(kwan.lastGames.hitting[0].date, "2026-10-07");
+});
+
+test("a batch of last games MLB doesn't answer is read on the next run", async () => {
+  const run = createRun();
+  await run.runJob();
+  const first = run.takeRequests().filter(isGameLogRequest);
+  for (const path of first) run.refused.add(path);
+  run.wait(5);
+  await run.runJob();
+  const retried = run.takeRequests().filter(isGameLogRequest);
+  assert.deepEqual(retried.slice(0, first.length), first);
+});
+
+test("a run reads at most four batches of thirty players' last games", async () => {
+  const run = createRun();
+  const guardians = FIXTURE.answers[listRosterRequest(RECORDED.CLE, SEASON)];
+  for (const [index, club] of listClubs().entries()) {
+    if (club in RECORDED) continue;
+    run.answers[nameClubRequest(club)] = {
+      roster: guardians.roster.map((/** @type {any} */ entry) => ({
+        ...entry,
+        person: { ...entry.person, id: entry.person.id + (index + 1) * 10_000_000 },
+      })),
+    };
+  }
+  /** @type {number[]} */
+  const batches = [];
+  for (let index = 0; index < 12; index += 1) {
+    await run.runJob();
+    batches.push(run.takeRequests().filter(isGameLogRequest).length);
+    run.wait(5);
+  }
+  assert.ok(Math.max(...batches) === 4, `at most four a run: ${batches}`);
 });

@@ -5,12 +5,15 @@ import { fetchMlbJson } from "./mlb.js";
 import { countSlateFinals } from "./pitcher-updater.js";
 import {
   describeHitters,
+  describeLastGames,
   describePlayer,
   indexPeople,
+  listGameLogRequest,
   listPeopleRequest,
   nameHittersKey,
   namePlayerKey,
 } from "./players.js";
+import { splitIntoBatches } from "./pitchers.js";
 import {
   describeRoster,
   indexSeasonStats,
@@ -19,7 +22,7 @@ import {
   listSeasonStatsRequest,
   nameRosterKey,
 } from "./rosters.js";
-import { createFeedKeeper } from "../../../../shared/worker/feed-keeper.js";
+import { SETTLE_MS, createFeedKeeper } from "../../../../shared/worker/feed-keeper.js";
 import { describeError } from "../../../../shared/worker/responses.js";
 
 // Keeps each club's roster and each player on it for the current season, so a club's Roster
@@ -28,13 +31,16 @@ import { describeError } from "../../../../shared/worker/responses.js";
 // once it's old, and reads again only the rosters of the clubs with a transaction it hasn't seen, a
 // few clubs a run, and every club's once a day in case one was missed. Every player's numbers, in
 // the regular season and the postseason, and the hitters MLB ranks, are read as a game ends, and
-// MLB's list of every player, with his facts, once a day. Each roster and player is saved again
-// only when it changed.
+// MLB's list of every player, with his facts, once a day. Each player's last games are read, a
+// batch at a time, as his games add up, and once more as they settle. Each roster and player is
+// saved again only when it changed.
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const RUN_DELAY_MS = 5 * MINUTE_MS;
 const CLUBS_PER_RUN = 6;
+// Every rostered player's first read spreads over a few runs, while a night's games need few.
+const GAME_LOG_BATCHES_PER_RUN = 4;
 const ROSTER_MAX_AGE_MS = 24 * HOUR_MS;
 const LEAGUE_NAME = "MLB";
 
@@ -56,8 +62,39 @@ const FEEDS = {
  * @typedef {{ readAt: Record<string, number>, changed: string[], seen: number[] | null }} RosterReads
  */
 
+/**
+ * When a player's last games were read, and how many games he had then.
+ * @typedef {{ games: number, at: number, isSettled: boolean }} GameLogRead
+ */
+
 /** @param {number} season */
 const nameReadsKey = (season) => `roster-reads:${season}`;
+
+/** @param {number} season */
+const nameGameLogReadsKey = (season) => `game-log-reads:${season}`;
+
+/** @param {number} season */
+const nameLastGamesPrefix = (season) => `last-games:${season}:`;
+
+/**
+ * A player's games in every table, regular season and postseason, which grows as he plays.
+ * @param {import("./players.js").PlayerNumbers} numbers
+ * @param {number} id
+ */
+const countGames = (numbers, id) =>
+  [numbers.hitting, numbers.pitching, numbers.postseasonHitting, numbers.postseasonPitching]
+    .map((table) => table.get(id)?.gamesPlayed ?? 0)
+    .reduce((total, games) => total + games, 0);
+
+/**
+ * A player's games reach MLB's logs a little after his game ends, so one read as he plays is read
+ * once more as they settle.
+ * @param {GameLogRead | undefined} read
+ * @param {number} games
+ * @param {number} now
+ */
+const isGameLogDue = (read, games, now) =>
+  !read || read.games !== games || (!read.isSettled && now - read.at >= SETTLE_MS);
 
 /**
  * @param {number} season
@@ -253,16 +290,78 @@ function createStoreKeeper() {
    * @param {string} club
    * @param {any} roster MLB's answer for the club's roster
    * @param {SeasonNumbers} numbers
+   * @param {Map<string, any>} lastGames each player's, by the key it's kept under
    */
-  async function savePlayers(context, season, club, roster, numbers) {
+  async function savePlayers(context, season, club, roster, numbers, lastGames) {
     for (const entry of (roster?.roster ?? []).filter(isOnRoster)) {
-      const person = numbers.people.get(entry.person.id) ?? null;
+      const id = entry.person.id;
+      const person = numbers.people.get(id) ?? null;
       await saveDoc(
         context,
-        namePlayerKey(season, entry.person.id),
-        describePlayer({ ...numbers, entry, club, season, person }),
+        namePlayerKey(season, id),
+        describePlayer({
+          ...numbers,
+          entry,
+          club,
+          season,
+          person,
+          lastGames: lastGames.get(`${nameLastGamesPrefix(season)}${id}`) ?? null,
+        }),
       );
     }
+  }
+
+  /**
+   * The players on every roster read so far, by id, from each club's kept answer.
+   * @param {JobContext} context
+   * @param {number} season
+   */
+  async function listRosteredIds(context, season) {
+    const ids = [];
+    for (const club of listClubs()) {
+      const roster = await context.storage.get(nameAnswerKey(season, club));
+      for (const entry of (roster?.roster ?? []).filter(isOnRoster)) ids.push(entry.person.id);
+    }
+    return ids;
+  }
+
+  /**
+   * Reads the last games of the rostered players who have played since they were last read, a
+   * few batches a run, and keeps each one's. A batch MLB doesn't answer is read on a later run.
+   * @param {JobContext} context
+   * @param {number} season
+   * @param {SeasonNumbers} numbers
+   */
+  async function readDueGameLogs(context, season, numbers) {
+    /** @type {Record<string, GameLogRead>} */
+    const reads = (await context.storage.get(nameGameLogReadsKey(season))) ?? {};
+    const now = context.now();
+    const due = (await listRosteredIds(context, season)).filter((id) =>
+      isGameLogDue(reads[id], countGames(numbers, id), now),
+    );
+    const batches = splitIntoBatches(due).slice(0, GAME_LOG_BATCHES_PER_RUN);
+    if (!batches.length) return;
+    const today = readEasternDay(now).date;
+    const results = await Promise.allSettled(
+      batches.map((batch) => fetchJson(context, listGameLogRequest(season, batch, today))),
+    );
+    for (const [index, result] of results.entries()) {
+      if (result.status === "rejected") {
+        console.error(`Reading players' last games failed: ${describeError(result.reason)}`);
+        continue;
+      }
+      const people = new Map(
+        (result.value?.people ?? []).map((/** @type {any} */ person) => [person.id, person]),
+      );
+      for (const id of batches[index]) {
+        const person = people.get(id);
+        const lastGames = person ? describeLastGames(person) : { hitting: [], pitching: [] };
+        await context.storage.put(`${nameLastGamesPrefix(season)}${id}`, lastGames);
+        const games = countGames(numbers, id);
+        reads[id] = { games, at: now, isSettled: reads[id]?.games === games };
+      }
+    }
+    await context.storage.put(nameGameLogReadsKey(season), reads);
   }
 
   /**
@@ -274,6 +373,7 @@ function createStoreKeeper() {
    */
   async function saveRosters(context, season, numbers) {
     const { hitting, pitching } = numbers;
+    const lastGames = await context.storage.list(nameLastGamesPrefix(season));
     for (const club of listClubs()) {
       const roster = await context.storage.get(nameAnswerKey(season, club));
       if (!roster) continue;
@@ -282,7 +382,7 @@ function createStoreKeeper() {
         nameRosterKey(club),
         describeRoster({ club, season, roster, hitting, pitching }),
       );
-      await savePlayers(context, season, club, roster, numbers);
+      await savePlayers(context, season, club, roster, numbers, lastGames);
     }
     if (numbers.qualified)
       await saveDoc(context, nameHittersKey(season), describeHitters(numbers.qualified));
@@ -301,7 +401,9 @@ function createStoreKeeper() {
     reads = await readDueRosters(context, season, reads);
     if (!isSameJson(stored, reads)) await context.storage.put(nameReadsKey(season), reads);
     const numbers = await readSeasonNumbers(context, season);
-    if (numbers) await saveRosters(context, season, numbers);
+    if (!numbers) return;
+    await readDueGameLogs(context, season, numbers);
+    await saveRosters(context, season, numbers);
   }
 
   /** @param {JobContext} context */

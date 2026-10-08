@@ -13,6 +13,7 @@ import {
 } from "../../worker/src/pitchers.js";
 import {
   describeHitters,
+  describeLastGames,
   describePlayer,
   indexPeople,
   listPeopleRequest,
@@ -97,6 +98,7 @@ function buildPlayerDocs() {
         club,
         season,
         person: people.get(entry.person.id) ?? null,
+        lastGames: describeLastGames(ROSTERS_FIXTURE.gameLogs[entry.person.id] ?? {}),
       });
       return [namePlayerKey(season, entry.person.id), player];
     }),

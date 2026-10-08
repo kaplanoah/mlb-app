@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   describeHitters,
+  describeLastGames,
   describePlayer,
   indexPeople,
   listPeopleRequest,
@@ -100,4 +101,20 @@ test("the ranked hitters each have the numbers a sheet ranks, walks and strikeou
       strikeoutRate: 0.097,
     },
   );
+});
+
+test("a player's last games are his five newest at the plate and on the mound, with whom he played and where", () => {
+  const kwan = describeLastGames(FIXTURE.gameLogs[680757]);
+  assert.equal(kwan.hitting.length, 5);
+  assert.deepEqual(
+    kwan.hitting.map((/** @type {any} */ game) => game.date),
+    [...kwan.hitting.map((/** @type {any} */ game) => game.date)].sort().reverse(),
+  );
+  assert.deepEqual(
+    { opponent: kwan.hitting[0].opponent, isHome: kwan.hitting[0].isHome },
+    { opponent: "CWS", isHome: false },
+  );
+  assert.deepEqual(kwan.pitching, []);
+  const bibee = describeLastGames(FIXTURE.gameLogs[676440]);
+  assert.ok(bibee.pitching.length > 0 && bibee.pitching[0].inningsPitched);
 });

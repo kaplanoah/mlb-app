@@ -1,5 +1,7 @@
+import { addDays } from "#shared/days.js";
+import { readClubId } from "../../page/js/snapshot.js";
 import { readLeagueRows } from "./pitchers.js";
-import { trimHitting, trimPitching } from "./rosters.js";
+import { trimHitting, trimPitching, trimStats } from "./rosters.js";
 
 // What each player's sheet shows: his facts, from MLB's list of every player this season, and his
 // regular season and postseason so far, at the plate and on the mound, from every player's numbers;
@@ -22,6 +24,36 @@ const PEOPLE_FIELDS = [
   "code",
 ].join(",");
 const USA = "USA";
+const GAME_LOG_FIELDS = [
+  "people",
+  "id",
+  "stats",
+  "group",
+  "displayName",
+  "splits",
+  "date",
+  "isHome",
+  "opponent",
+  "stat",
+  "atBats",
+  "hits",
+  "doubles",
+  "triples",
+  "homeRuns",
+  "rbi",
+  "baseOnBalls",
+  "strikeOuts",
+  "inningsPitched",
+  "runs",
+].join(",");
+// A player's last games are read from the last few weeks, so each read stays small.
+const GAME_LOG_DAYS = 30;
+const LAST_GAMES = 5;
+// What a game's line shows at the plate and on the mound.
+const GAME_COLUMNS = {
+  hitting: ["atBats", "hits", "doubles", "triples", "homeRuns", "rbi", "baseOnBalls"],
+  pitching: ["inningsPitched", "runs", "strikeOuts"],
+};
 
 /**
  * @param {number} season
@@ -38,6 +70,49 @@ export const nameHittersKey = (season) => `hitters/${season}`;
  */
 export const listPeopleRequest = (season) =>
   `/api/v1/sports/1/players?season=${season}&fields=${PEOPLE_FIELDS}`;
+
+/**
+ * Some players' games at the plate and on the mound in the last few weeks, regular season and
+ * postseason together.
+ * @param {number} season
+ * @param {number[]} ids
+ * @param {string} today the league's day, as YYYY-MM-DD
+ */
+export const listGameLogRequest = (season, ids, today) =>
+  `/api/v1/people?personIds=${[...ids].sort((first, second) => first - second).join(",")}` +
+  `&hydrate=stats(group=[hitting,pitching],type=[gameLog],season=${season},gameType=[R,P],` +
+  `startDate=${addDays(today, -GAME_LOG_DAYS)},endDate=${today})&fields=${GAME_LOG_FIELDS}`;
+
+/**
+ * His games in one group of MLB's game logs, newest first, the few his sheet shows.
+ * @param {any} person
+ * @param {"hitting" | "pitching"} group
+ */
+function listLastGames(person, group) {
+  const log = (person.stats ?? []).find(
+    (/** @type {any} */ stats) => stats.group?.displayName === group,
+  );
+  return (log?.splits ?? [])
+    .map((/** @type {any} */ game) => ({
+      date: game.date,
+      opponent: readClubId(game.opponent?.id),
+      isHome: game.isHome === true,
+      ...trimStats(game.stat ?? {}, GAME_COLUMNS[group]),
+    }))
+    .sort((/** @type {any} */ first, /** @type {any} */ second) =>
+      second.date.localeCompare(first.date),
+    )
+    .slice(0, LAST_GAMES);
+}
+
+/**
+ * A player's last games at the plate and on the mound, from MLB's game logs.
+ * @param {any} person a person in MLB's answer to listGameLogRequest
+ */
+export const describeLastGames = (person) => ({
+  hitting: listLastGames(person, "hitting"),
+  pitching: listLastGames(person, "pitching"),
+});
 
 /**
  * Each player's facts in MLB's list, by id.
@@ -86,10 +161,10 @@ const readNumbers = (table, id, trim) => (table.has(id) ? trim(table.get(id)) : 
 
 /**
  * A player's sheet: his facts, and his season at the plate and on the mound, regular and post.
- * @param {PlayerNumbers & { entry: any, club: string, season: number, person: any }} sources
- *   `entry` is his line on the club's roster
+ * @param {PlayerNumbers & { entry: any, club: string, season: number, person: any, lastGames?: any }} sources
+ *   `entry` is his line on the club's roster, and `lastGames` what describeLastGames found
  */
-export function describePlayer({ entry, club, season, person, ...numbers }) {
+export function describePlayer({ entry, club, season, person, lastGames = null, ...numbers }) {
   const id = entry.person.id;
   return {
     id,
@@ -103,6 +178,7 @@ export function describePlayer({ entry, club, season, person, ...numbers }) {
     pitching: readNumbers(numbers.pitching, id, trimPitching),
     postseasonHitting: readNumbers(numbers.postseasonHitting, id, trimHitting),
     postseasonPitching: readNumbers(numbers.postseasonPitching, id, trimPitching),
+    lastGames,
   };
 }
 

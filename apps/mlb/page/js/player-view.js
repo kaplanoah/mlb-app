@@ -1,9 +1,10 @@
 // A player's sheet: his name over his club and number, and where he was born, his facts in a row
 // in the sheet's top, then his postseason while he has one, then his regular season: a hitter's
 // totals over each number MLB's ranked hitters are ranked in, and a starter's over each number MLB's
-// qualified starters are, with what he throws, or a reliever's totals alone. A two-way player shows
-// both, his pitching under its own title.
+// qualified starters are, with what he throws, or a reliever's totals alone, each followed by his
+// last few games. A two-way player shows both, his pitching under its own title.
 
+import { formatShortDate, readCalendarDate } from "#shared/days.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { rankAmong, renderRankRow } from "#shared/rank-curve.js";
@@ -14,7 +15,7 @@ import { formatInnings } from "./stat-table.js";
 
 /**
  * A player as the store keeps him.
- * @typedef {{ id: number, season: number, club: string, name: string, number: string, position: string, facts: PlayerFacts | null, hitting: any, pitching: any, postseasonHitting: any, postseasonPitching: any }} Player
+ * @typedef {{ id: number, season: number, club: string, name: string, number: string, position: string, facts: PlayerFacts | null, hitting: any, pitching: any, postseasonHitting: any, postseasonPitching: any, lastGames?: { hitting: any[], pitching: any[] } | null }} Player
  * @typedef {{ bats: string | null, throws: string | null, age: number | null, height: string | null, weight: number | null, debut: number | null, birthplace: string | null }} PlayerFacts
  */
 /**
@@ -258,6 +259,54 @@ function renderStarterRanks(player, starters, side) {
 }
 
 /**
+ * A count of something in a game line, as "2 RBI", or just "RBI" for one, or nothing for none.
+ * @param {number | undefined} count
+ * @param {string} label
+ */
+const countInLine = (count, label) => (!count ? null : count === 1 ? label : `${count} ${label}`);
+
+/** @param {any} game a game in his log at the plate */
+const describeBattingGame = (game) =>
+  [
+    `${game.hits}-${game.atBats}`,
+    countInLine(game.doubles, "2B"),
+    countInLine(game.triples, "3B"),
+    countInLine(game.homeRuns, "HR"),
+    countInLine(game.rbi, "RBI"),
+    countInLine(game.baseOnBalls, "BB"),
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+/** @param {any} game a game in his log on the mound */
+const describePitchingGame = (game) =>
+  `${formatInnings(game.inningsPitched)} IP, ${game.runs} R, ${game.strikeOuts} K`;
+
+/**
+ * His last few games, newest first, each with its day, its opponent, and his line in it, or
+ * nothing while the store hasn't read them.
+ * @param {string} title
+ * @param {any[] | undefined} games
+ * @param {(game: any) => string} describe
+ */
+function renderLastGames(title, games, describe) {
+  if (!games?.length) return html``;
+  return renderSheetPart(
+    title,
+    html`<ul class="recent-starts">
+      ${games.map(
+        (game) =>
+          html`<li>
+            <span class="tabular">${formatShortDate(readCalendarDate(game.date))}</span
+            ><span>${game.opponent ? `${game.isHome ? "vs" : "@"} ${nameTeam(game.opponent)}` : ""}</span
+            ><span class="tabular">${describe(game)}</span>
+          </li>`,
+      )}
+    </ul>`,
+  );
+}
+
+/**
  * A pitcher's season: a starter's totals over his ranked numbers and what he throws, or a
  * reliever's totals.
  * @param {Player} player
@@ -266,8 +315,9 @@ function renderStarterRanks(player, starters, side) {
  */
 function renderPitching(player, { starters, side }, title) {
   const { pitching } = player;
+  const games = player.lastGames?.pitching;
   if (!isStarter(pitching))
-    return renderSheetPart(
+    return html`${renderSheetPart(
       title,
       renderTotals([
         ["ERA", pitching.era],
@@ -277,7 +327,7 @@ function renderPitching(player, { starters, side }, title) {
         ["BB", pitching.baseOnBalls],
       ]),
       countWord(pitching.gamesPlayed, "game"),
-    );
+    )}${renderLastGames("Last games", games, describePitchingGame)}`;
   const pitches = side?.pitches?.length
     ? renderSheetPart("What he throws", renderPitchMix(side.pitches))
     : html``;
@@ -291,7 +341,7 @@ function renderPitching(player, { starters, side }, title) {
       ["BB", pitching.baseOnBalls],
     ])}${renderStarterRanks(player, starters, side)}`,
     countWord(pitching.gamesStarted, "start"),
-  )}${pitches}`;
+  )}${pitches}${renderLastGames("Last starts", games, describePitchingGame)}`;
 }
 
 const renderPending = () =>
@@ -311,7 +361,9 @@ export function renderPlayerBody(shown) {
     return html`<p class="sheet-message">Couldn't load his numbers. Close and try again in a minute.</p>`;
   const isTwoWay = Boolean(player.hitting && player.pitching && player.position !== "P");
   const hitting =
-    player.hitting && player.position !== "P" ? renderHitting(player, shown.hitters) : html``;
+    player.hitting && player.position !== "P"
+      ? html`${renderHitting(player, shown.hitters)}${renderLastGames("Last games", player.lastGames?.hitting, describeBattingGame)}`
+      : html``;
   const pitching = player.pitching
     ? renderPitching(player, shown, isTwoWay ? "Pitching" : "Season")
     : html``;

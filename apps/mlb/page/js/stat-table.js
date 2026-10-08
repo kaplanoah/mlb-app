@@ -11,12 +11,13 @@ import { html } from "#shared/html.js";
 
 /**
  * Innings as the sheets write them. MLB counts them in thirds after the point: 5.2 is five and two
- * thirds.
+ * thirds, and 0.2 just two thirds.
  * @param {string | number} innings
  */
 export function formatInnings(innings) {
   const [whole, thirds] = String(innings).split(".");
-  return thirds && thirds !== "0" ? `${whole} ${thirds}/3` : whole;
+  if (!thirds || thirds === "0") return whole;
+  return whole === "0" ? `${thirds}/3` : `${whole} ${thirds}/3`;
 }
 
 /**

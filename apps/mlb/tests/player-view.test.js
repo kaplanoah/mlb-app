@@ -4,10 +4,12 @@ import { readFileSync } from "node:fs";
 import { describePlayerNote, renderPlayerBody, renderPlayerFacts } from "../page/js/player-view.js";
 import {
   describeHitters,
+  describeLastGames,
   describePlayer,
   indexPeople,
   listPeopleRequest,
 } from "../worker/src/players.js";
+import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
 import {
   indexSeasonStats,
   listRosterRequest,
@@ -20,6 +22,7 @@ const FIXTURE = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2026-10-08-rosters.json`, "utf8"),
 );
 const { season, answers } = FIXTURE;
+useTimeZone(EASTERN);
 /** @param {"hitting" | "pitching"} group @param {object} [options] */
 const index = (group, options) =>
   indexSeasonStats(answers[listSeasonStatsRequest(season, group, options)]);
@@ -70,7 +73,9 @@ function describeRostered(mlbTeamId, club, name) {
   const entry = answers[listRosterRequest(mlbTeamId, season)].roster.find(
     (/** @type {any} */ each) => each.person.fullName === name,
   );
-  return describePlayer({ ...NUMBERS, entry, club, season, person: PEOPLE.get(entry.person.id) });
+  const id = entry.person.id;
+  const lastGames = describeLastGames(FIXTURE.gameLogs[id]);
+  return describePlayer({ ...NUMBERS, entry, club, season, person: PEOPLE.get(id), lastGames });
 }
 
 /**
@@ -111,7 +116,10 @@ test("a hitter MLB doesn't rank shows his numbers without ranks, and says when h
   const text = renderText(describeRostered(114, "CLE", "Angel Genao"));
   assert.match(text, /AVG \.213 OBP/);
   assert.doesNotMatch(text, / of 135|ranked by fewest/);
-  assert.match(text, /Ranked once he has 3\.1 plate appearances per team game$/);
+  assert.match(
+    text,
+    /Ranked once he has 3\.1 plate appearances per team game Last games Oct 7 @ White Sox 1-1, 2B, RBI /,
+  );
 });
 
 test("a starter's season ranks his numbers among the qualified starters, and shows what he throws", () => {
@@ -133,7 +141,7 @@ test("a starter's season ranks his numbers among the qualified starters, and sho
 
 test("a reliever's season shows his totals alone", () => {
   const text = renderText(describeRostered(114, "CLE", "Cade Smith"));
-  assert.match(text, /Season 69 games ERA 1\.95 SV 41 IP 74 K 107 BB 23$/);
+  assert.match(text, /Season 69 games ERA 1\.95 SV 41 IP 74 K 107 BB 23 Last games/);
   assert.doesNotMatch(text, /Rank among/);
 });
 
@@ -155,4 +163,22 @@ test("a sheet still loading holds its shape, and one that didn't load says so", 
     isLoading: false,
   });
   assert.match(readText(failed), /Couldn't load his numbers/);
+});
+
+test("a hitter's last games follow his season, newest first, each with whom he played, where, and his line", () => {
+  const text = renderText(describeRostered(114, "CLE", "Steven Kwan"));
+  assert.match(text, /Last games Oct 7 @ White Sox 1-6, RBI Oct 5 vs White Sox 1-4 /);
+});
+
+test("a starter's last starts follow what he throws, and a reliever's last games follow his totals", () => {
+  const bibee = renderText(describeRostered(114, "CLE", "Tanner Bibee"), {
+    starters: STARTERS,
+    side: BIBEE_SIDE,
+  });
+  assert.match(bibee, /What he throws .* Last starts Sep 26 @ Royals 6 IP, 3 R, 6 K/);
+  const smith = renderText(describeRostered(114, "CLE", "Cade Smith"));
+  assert.match(
+    smith,
+    /BB 23 Last games Oct 7 @ White Sox 2 IP, 0 R, 5 K .* Sep 26 @ Royals 2\/3 IP, 0 R, 0 K /,
+  );
 });
