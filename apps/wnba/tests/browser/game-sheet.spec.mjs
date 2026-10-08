@@ -14,6 +14,7 @@ import {
   waitForTimedMotions,
 } from "../../../../tests/browser/sheet-motions.mjs";
 import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-row.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { readOklab } from "../../page/js/sheet-colors.js";
@@ -584,20 +585,24 @@ for (const { screen, viewport } of [
       await expect(page.locator(".bonus").first()).toBeAttached();
       await expect(sheet.locator(".line-score th.now")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.locator(".clock").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       const final = await openGameSheet(page, ACES_AT_FEVER);
       await expect(final.locator(".line-score")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(final).toBeHidden();
       const preview = await openGameSheet(page, FEVER_AT_ACES);
       await expect(preview.locator(".meeting-score").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
     });
   });
@@ -1284,6 +1289,7 @@ test("a game yet to end whose channels aren't listed yet says to check back, und
   const faceOff = await sheet.locator(".faceoff-score").boundingBox();
   expect((await note.boundingBox()).y).toBeGreaterThan(faceOff.y + faceOff.height);
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
 

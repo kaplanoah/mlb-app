@@ -1,6 +1,7 @@
 /*
  * The apps' type scale. Pages link it before the other shared stylesheets, and every size under
- * 16px is one of these, or one of settings' two. Sizes and weights are Barlow's: an app whose font draws larger or smaller
+ * 16px is one of these or one of settings' two, or half a pixel over one, like the WNBA roster's
+ * player numbers at 14.5px. Sizes and weights are Barlow's: an app whose font draws larger or smaller
  * than Barlow at the same size gives that font's @font-face a size-adjust, so 14px looks the same
  * in every font, and a font that reads heavier, like Chivo Mono, sets each weight 50 under. A font
  * that still looks larger or smaller at some step sets its own value for it, as Chivo Mono and

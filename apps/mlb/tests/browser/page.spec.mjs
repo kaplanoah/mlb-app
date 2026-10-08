@@ -18,6 +18,7 @@ import {
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import { readFilledNames } from "../../../../tests/browser/pill-names.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import {
@@ -1904,35 +1905,42 @@ for (const { screen, viewport } of [
       });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.getByRole("tab", { name: "Games" }).click();
       for (const list of ["Previous", "Today", "Next"]) {
         await page.getByRole("tab", { name: list }).click();
         await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
         expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listLowContrastText(page)).toEqual([]);
         expect(await listStrayPeriods(page)).toEqual([]);
       }
       for (const section of await showGameSections(page)) {
         await section();
         expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listLowContrastText(page)).toEqual([]);
         expect(await listStrayPeriods(page)).toEqual([]);
       }
       await page.getByRole("tab", { name: "Standings" }).click();
       await expect(page.locator("table.st tbody tr").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
       await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
       await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
       for (const player of ["Steven Kwan", "Tanner Bibee"]) {
         await page.locator("#rosterBody").getByRole("button", { name: player }).click();
         await expect(page.locator("#playerBody .sheet-part").first()).toBeVisible();
         expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listLowContrastText(page)).toEqual([]);
         expect(await listStrayPeriods(page)).toEqual([]);
         await page.locator("#playerSheet").getByRole("button", { name: "Back" }).click();
         await expect(page.locator("#playerSheet")).toBeHidden();
@@ -1942,6 +1950,7 @@ for (const { screen, viewport } of [
       await openSettings(page);
       await expect(page.locator("#settingsDialog")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
     });
 
