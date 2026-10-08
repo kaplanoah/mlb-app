@@ -244,6 +244,41 @@ test.describe("on a phone, the Games lists", () => {
     });
   }
 
+  test("take the list Safari moves them to without a scrollend, so its games open", async ({
+    page,
+  }) => {
+    await page.addInitScript(() =>
+      addEventListener("scrollend", (event) => event.stopImmediatePropagation(), { capture: true }),
+    );
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    const pages = page.locator("#games-pages");
+    await expect(page.locator("#games-today")).toContainText("Dream");
+
+    await pages.evaluate(
+      (element) =>
+        new Promise((resolve) => {
+          element.addEventListener("scroll", resolve, { once: true });
+          element.scrollTo({ left: element.clientWidth * 2, behavior: "instant" });
+        }),
+    );
+    await page.clock.runFor(200);
+
+    await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
+    await expect(pages).toHaveAttribute("data-settled-by", "timer");
+    const game = page.locator("#games-next .game-open").first();
+    const box = await game.boundingBox();
+    const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const landsOn = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest(".game-open")?.closest("#games-next")?.id,
+      spot,
+    );
+    expect(landsOn).toBe("games-next");
+    await page.touchscreen.tap(spot.x, spot.y);
+    await expect(page.locator("#gameSheet")).toBeVisible();
+  });
+
   test("reach the screen's edges, so a swiped list slides off the screen", async ({ page }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Games" }).click();

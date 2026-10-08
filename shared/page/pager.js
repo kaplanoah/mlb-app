@@ -16,7 +16,7 @@ import { selectTab, wireTabs } from "./tabs.js";
  * @property {string} openOn the list shown first
  */
 
-// Without scrollend, the lists count as at rest once they haven't scrolled for this long.
+// The lists count as at rest once they haven't scrolled for this long, where scrollend doesn't say so.
 const SETTLE_DELAY_MS = 150;
 const hasScrollend = () => "onscrollend" in window;
 
@@ -169,7 +169,18 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   function scheduleSettle() {
     clearTimeout(settleTimer);
-    settleTimer = setTimeout(() => settleSwipe("timer"), SETTLE_DELAY_MS);
+    settleTimer = setTimeout(settleAfterQuiet, SETTLE_DELAY_MS);
+  }
+
+  // Safari can move the lists without firing scrollend, so lists that stop on a list other than the
+  // shown one settle there even where the browser has scrollend. Anywhere else, a finger may still
+  // be holding them, so where the browser has scrollend, only it settles them.
+  function settleAfterQuiet() {
+    const pages = findPages();
+    const restingList = keys[Math.round(readSwipePosition(pages))];
+    const isOnAnotherList = restingList !== shownList && isAtList(pages, restingList);
+    if (hasScrollend() && !isOnAnotherList) return;
+    settleSwipe("timer");
   }
 
   // Changing the lists' height or inertness mid-swipe can stop Safari's swipe short of a list, so
@@ -194,7 +205,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     const pages = findPages();
     if (!pages.clientWidth) return;
     if (!scrollTarget) thumb.moveThumb(readSwipePosition(pages));
-    if (!hasScrollend()) scheduleSettle();
+    scheduleSettle();
   }
 
   /** @param {string} key */
