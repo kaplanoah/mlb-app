@@ -65,6 +65,19 @@ test("the page's font comes from its own server, in every weight from one file",
   expect(fontRequests).toEqual(["/fonts/chivo-mono-latin.woff2"]);
 });
 
+test("on a day without games, the Games tab starts on Next", async ({ page }) => {
+  const { slate } = buildSeasonRecord(buildFixtureSnapshot(EVENING_FIXTURE));
+  await openApp(page, {
+    store: { "seasons/2026": { slate: { ...slate, today: { ...slate.today, games: [] } } } },
+  });
+  await page.getByRole("tab", { name: "Games" }).click();
+
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  await expect(shownGames).toHaveId("games-next");
+  await expect(shownGames.locator(".game-row").first()).toBeVisible();
+  await expect(page.locator("#games-today")).toHaveText("No games today");
+});
+
 test("the Games tab lists today's games and every game on each club's previous and next date", async ({
   page,
 }) => {

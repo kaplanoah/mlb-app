@@ -6,6 +6,7 @@ import { renderDot } from "../page/js/clubs.js";
 import { readGameDay } from "../page/js/days.js";
 import {
   describeFinalInSeries,
+  findListsWithGames,
   renderGames,
   renderHeadline,
   sortGamesByDay,
@@ -157,6 +158,22 @@ test("a final dims the loser, and a game not yet played shows its start in the v
     assert.match(readGameList(SEASON, "today"), /^Sep 30 Wed 4 Dream 1st Rd 1-0 7:00 PM 5 Mystics/);
     const western = checkInTimeZone("America/Los_Angeles", () => readGameList(SEASON, "today"));
     assert.match(western, /^Sep 30 Wed 4 Dream 1st Rd 1-0 4:00 PM 5 Mystics/);
+  }));
+
+test("which Games lists have games: today's and the ones ahead", () =>
+  inEastern(() => {
+    const TODAYS = ["1042600132", "1042600112"];
+    const dayOff = { ...SEASON, games: SEASON.games.filter((game) => !TODAYS.includes(game.id)) };
+    const onlyResults = { ...SEASON, games: SEASON.games.filter((game) => game.state === "final") };
+    assert.deepEqual(findListsWithGames(SEASON, NOW), { hasGamesToday: true, hasGamesAhead: true });
+    assert.deepEqual(findListsWithGames(dayOff, NOW), {
+      hasGamesToday: false,
+      hasGamesAhead: true,
+    });
+    assert.deepEqual(findListsWithGames(onlyResults, NOW), {
+      hasGamesToday: false,
+      hasGamesAhead: false,
+    });
   }));
 
 test("a game a finished series no longer needs is left off, and an empty list says so", () =>
