@@ -23,11 +23,11 @@ import {
   describeGameLabel,
   describeInning,
   describeStart,
-  listSlateGames,
   nameGameKey,
   nameRound,
 } from "./games-view.js";
 import { session } from "./session.js";
+import { listSlateGames } from "./slate.js";
 import { SEASON_GAMES } from "./snapshot.js";
 import { describeDivisionLead } from "./standings.js";
 import { TEAMS } from "./teams.js";

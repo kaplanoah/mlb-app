@@ -7,6 +7,7 @@ import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
 import { session } from "./session.js";
+import { listSlateList } from "./slate.js";
 
 const HALF_INNING_LABELS = { top: "Top", middle: "Mid", bottom: "Bot", end: "End" };
 const OUT_LIGHTS = 2;
@@ -234,25 +235,14 @@ function groupByDay(games, isNewestFirst) {
   }));
 }
 
-function listGames(slate, list) {
-  if (list === "previous") return slate.previous || [];
-  if (list === "next") return slate.next || [];
-  const { date, games, postponed = [] } = slate.today;
-  return [...games, ...postponed].map((game) => ({ date, ...game }));
-}
-
 function describeMissingSlate() {
   if (session.activeYear !== session.currentSeason) return "Games show for the current season only";
   return "Games appear here as soon as the page can reach MLB";
 }
 
-/** Every game the slate lists, each with its day. */
-export const listSlateGames = (slate) =>
-  ["previous", "today", "next"].flatMap((list) => listGames(slate, list));
-
 export function renderGameList(slate, list) {
   if (!slate) return html`<p class="stand-empty">${describeMissingSlate()}</p>`;
-  const games = listGames(slate, list);
+  const games = listSlateList(slate, list);
   if (!games.length) return html`<p class="stand-empty">${EMPTY_LIST_TEXT[list]}</p>`;
   const isToday = list === "today";
   return html`${groupByDay(games, list === "previous").map(

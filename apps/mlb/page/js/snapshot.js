@@ -551,6 +551,7 @@ function normalizeGame(game) {
   const state = readGameState(status);
   const league = /^(AL|NL)\b/.exec(game.seriesDescription || "");
   return {
+    id: String(game.gamePk),
     type: game.gameType,
     date: game.officialDate,
     start: game.gameDate,
@@ -629,7 +630,13 @@ const isWatchable = (game) =>
   (game.state === "pre" || game.state === "live") && game.networks.length > 0;
 
 function summarizeGame(game, pitchers) {
-  const summary = { away: game.away.id, home: game.home.id, state: game.state, start: game.start };
+  const summary = {
+    id: game.id,
+    away: game.away.id,
+    home: game.home.id,
+    state: game.state,
+    start: game.start,
+  };
   if (game.tbd) summary.tbd = true;
   if (game.doubleheader) summary.doubleheader = game.doubleheader;
   if (game.type !== "R") summary.postseason = true;
