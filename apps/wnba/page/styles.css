@@ -120,6 +120,9 @@
   /* Bracket and game cards sit most of the way from the floor to --card, so they stand out
      without glare. */
   --tile: color-mix(in oklab, var(--card) 75%, var(--bg));
+  /* How much teal washes a bracket's winner's row. Teal shows less over the dark wood, so Walnut
+     takes more. */
+  --won-row-wash: 9%;
   --line: color-mix(in srgb, var(--card-border) 80%, var(--ink) 20%);
   --now: var(--orange);
   --now-ink: var(--orange-ink);
@@ -221,6 +224,7 @@
   --dot-light: rgba(255, 255, 255, 0.15);
   --logos-for-light: none;
   --logos-for-dark: inline;
+  --won-row-wash: 12%;
   color-scheme: dark;
 }
 
@@ -1710,6 +1714,17 @@ th[aria-sort="ascending"] .roster-caret {
 }
 .team-line.out .dot {
   opacity: 0.55;
+}
+.team-line.out :is(.team-name, .wins) {
+  opacity: 0.95;
+}
+/* A series' winner's row takes a wash of the result's teal, so a decided card reads at a glance. */
+.team-line.won {
+  background: color-mix(in srgb, var(--result) var(--won-row-wash), transparent);
+}
+/* Matched by eye: a name a pixel higher looks centered on its row beside the dot and wins. */
+.team-line .team-name {
+  translate: 0 -1px;
 }
 @media (min-width: 700px) {
   .bracket {
