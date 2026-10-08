@@ -3,6 +3,7 @@ import {
   expect,
   openApp,
   BOX_SCORES,
+  PLAYER_DOCS,
   BROADCASTS_FIXTURE,
   buildFixtureSnapshot,
   buildSnapshotWithStarters,
@@ -718,13 +719,14 @@ for (const { screen, viewport, smallest } of [
  * @param {import("@playwright/test").Page} page
  * @param {"Previous" | "Today"} list
  * @param {string} game the start of its button's name
- * @param {{ boxScores?: Record<string, object> }} [options]
+ * @param {{ boxScores?: Record<string, object>, store?: Record<string, object> }} [options]
  */
-async function openOctoberGame(page, list, game, { boxScores = BOX_SCORES } = {}) {
+async function openOctoberGame(page, list, game, { boxScores = BOX_SCORES, store = {} } = {}) {
   const app = await openApp(page, {
     now: BROADCASTS_FIXTURE.now,
     snapshots: { 2026: buildFixtureSnapshot(BROADCASTS_FIXTURE) },
     boxScores,
+    store,
   });
   await page.getByRole("tab", { name: "Games" }).click();
   await page.getByRole("tab", { name: list }).click();
@@ -766,12 +768,26 @@ test("a final's Game section shows its innings, then each club's batters and pit
     ),
   );
   expect(firstPart.y).toBeGreaterThanOrEqual(row.y + row.height);
+  // Each player's button reaches over his whole row, so a name is whole when what follows it ends
+  // before the row's first number, and no table scrolls sideways.
   const squeezed = await sheet
-    .locator(".box-table td.team, .line-score td.team")
-    .evaluateAll((cells) =>
-      cells.filter((cell) => cell.scrollWidth > cell.clientWidth).map((cell) => cell.textContent),
+    .locator(".box-table tbody tr, .line-score tbody tr")
+    .evaluateAll((rows) =>
+      rows
+        .filter((row) => {
+          const cell = row.querySelector("td.team");
+          const name = cell?.lastElementChild ?? cell;
+          const nameEnd = name?.getBoundingClientRect().right ?? 0;
+          const number = row.querySelector("td.tabular")?.getBoundingClientRect().left ?? Infinity;
+          return nameEnd > number;
+        })
+        .map((row) => row.textContent),
     );
   expect(squeezed).toEqual([]);
+  const wideTables = await sheet
+    .locator(".box-wrap")
+    .evaluateAll((wraps) => wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth).length);
+  expect(wideTables).toBe(0);
   expect(await listOffScaleText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 });
@@ -852,4 +868,47 @@ test("a reload shows the open box score before the page's code arrives, and the 
   ]);
   heldBoxScore();
   await expect(sheet.locator(".line-score")).toBeVisible();
+});
+
+test("a tap anywhere on a box score's row opens its player's sheet over the game's, which a back arrow returns to", async ({
+  page,
+}) => {
+  const { sheet } = await openOctoberGame(page, "Previous", "Dodgers at Braves", {
+    store: PLAYER_DOCS,
+  });
+  const row = sheet.locator(".box-table tbody tr").filter({ hasText: "Betts" }).first();
+  const atBats = await row.locator("td.tabular").first().boundingBox();
+  if (!atBats) throw new Error("Betts's row isn't shown");
+  const center = { x: atBats.x + atBats.width / 2, y: atBats.y + atBats.height / 2 };
+  const landsOn = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.player ?? null,
+    center,
+  );
+  expect(landsOn).toBe("605141");
+  await page.mouse.click(center.x, center.y);
+
+  const playerSheet = page.locator("#playerSheet");
+  await expect(playerSheet.locator("#playerTitle")).toHaveText("Mookie Betts");
+  await playerSheet.getByRole("button", { name: "Back" }).click();
+  await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Dodgers @ Braves");
+  await expect(playerSheet).toBeHidden();
+
+  await sheet.locator(".box-table").getByRole("button", { name: "Sale" }).click();
+  await expect(playerSheet.locator("#playerBody")).toHaveText(
+    "His numbers show while he's on a club's roster",
+  );
+});
+
+test("a starter's name in the matchup opens his sheet", async ({ page }) => {
+  const { sheet } = await openOctoberGame(page, "Today", "Guardians at White Sox", {
+    store: PLAYER_DOCS,
+  });
+  await sheet.getByRole("tab", { name: "Matchup" }).click();
+  const starter = sheet.locator("#matchupBody .pitcher-id.away .player-open");
+  await expect(starter).toBeVisible();
+  const name = await starter.getAttribute("data-player-name");
+  await starter.click();
+  await expect(page.locator("#playerSheet #playerTitle")).toContainText(
+    (name ?? "").split(" ").at(-1) ?? "",
+  );
 });

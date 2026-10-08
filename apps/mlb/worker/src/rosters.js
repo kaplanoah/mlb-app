@@ -15,24 +15,21 @@ const ROSTER_FIELDS = [
   "status",
   "description",
 ].join(",");
-const HITTING_FIELDS = [
-  "stats",
-  "splits",
-  "player",
-  "id",
-  "stat",
-  "plateAppearances",
-  "avg",
-  "homeRuns",
-  "rbi",
-  "ops",
-].join(",");
-const PITCHING_FIELDS = [
-  "stats",
-  "splits",
-  "player",
-  "id",
-  "stat",
+// What a roster's rows show, and what a player's sheet shows beside them.
+const HITTING_COLUMNS = ["plateAppearances", "avg", "homeRuns", "rbi", "ops"];
+const PLAYER_HITTING_COLUMNS = [
+  ...HITTING_COLUMNS,
+  "gamesPlayed",
+  "atBats",
+  "hits",
+  "runs",
+  "baseOnBalls",
+  "strikeOuts",
+  "obp",
+  "slg",
+  "stolenBases",
+];
+const PITCHING_COLUMNS = [
   "gamesPlayed",
   "gamesStarted",
   "era",
@@ -41,7 +38,9 @@ const PITCHING_FIELDS = [
   "inningsPitched",
   "strikeOuts",
   "saves",
-].join(",");
+];
+const PLAYER_PITCHING_COLUMNS = [...PITCHING_COLUMNS, "baseOnBalls"];
+const LEAGUE_TABLE_FIELDS = ["stats", "splits", "player", "id", "stat"];
 const ACTIVE = "Active";
 // MLB's word for a stay on the injured list, as in "Injured 15-Day".
 const INJURED = /^Injured\b/;
@@ -61,13 +60,35 @@ export const listRosterRequest = (mlbTeamId, season) =>
   `/api/v1/teams/${mlbTeamId}/roster?rosterType=40Man&season=${season}&fields=${ROSTER_FIELDS}`;
 
 /**
- * Every player's regular season so far, at the plate or on the mound.
+ * Every player's season so far, at the plate or on the mound, in the regular season (R) or the
+ * postseason (P), or only the hitters MLB ranks, who have had 3.1 plate appearances per team game.
  * @param {number} season
  * @param {"hitting" | "pitching"} group
+ * @param {{ gameType?: "R" | "P", pool?: "all" | "qualified" }} [options]
  */
-export const listSeasonStatsRequest = (season, group) =>
-  `/api/v1/stats?stats=season&group=${group}&season=${season}&gameType=R&sportId=1` +
-  `&playerPool=all&limit=3000&fields=${group === "hitting" ? HITTING_FIELDS : PITCHING_FIELDS}`;
+export function listSeasonStatsRequest(season, group, { gameType = "R", pool = "all" } = {}) {
+  const columns = group === "hitting" ? PLAYER_HITTING_COLUMNS : PLAYER_PITCHING_COLUMNS;
+  return (
+    `/api/v1/stats?stats=season&group=${group}&season=${season}&gameType=${gameType}&sportId=1` +
+    `&playerPool=${pool}&limit=3000&fields=${[...LEAGUE_TABLE_FIELDS, ...columns].join(",")}`
+  );
+}
+
+/**
+ * A player's numbers, kept to the columns named.
+ * @param {any} stat
+ * @param {string[]} columns
+ */
+export const trimStats = (stat, columns) =>
+  Object.fromEntries(
+    columns.filter((column) => column in stat).map((column) => [column, stat[column]]),
+  );
+
+/** @param {any} stat */
+export const trimHitting = (stat) => trimStats(stat, PLAYER_HITTING_COLUMNS);
+
+/** @param {any} stat */
+export const trimPitching = (stat) => trimStats(stat, PLAYER_PITCHING_COLUMNS);
 
 /**
  * Each player's numbers in one of MLB's league tables, by id.
@@ -103,13 +124,13 @@ function describePlayer(entry, hitting, pitching) {
   };
   return {
     ...player,
-    ...(hitting.has(id) && { hitting: hitting.get(id) }),
-    ...(pitching.has(id) && { pitching: pitching.get(id) }),
+    ...(hitting.has(id) && { hitting: trimStats(hitting.get(id), HITTING_COLUMNS) }),
+    ...(pitching.has(id) && { pitching: trimStats(pitching.get(id), PITCHING_COLUMNS) }),
   };
 }
 
 /** @param {any} entry */
-const isOnRoster = (entry) => {
+export const isOnRoster = (entry) => {
   const status = entry.status?.description ?? "";
   return status === ACTIVE || INJURED.test(status);
 };

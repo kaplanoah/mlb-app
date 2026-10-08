@@ -27,6 +27,7 @@ import {
 } from "./season-data.js";
 import { composeState, session, readSeasonYear } from "./session.js";
 import { startSettings } from "./settings.js";
+import { startPlayerSheet } from "./player-sheet.js";
 import { fillRoster, readShownRoster, reopenRoster } from "./roster-section.js";
 import { renderTeamSheet } from "./team-view.js";
 import { TEAMS } from "./teams.js";
@@ -88,6 +89,7 @@ function wireControls() {
     fillSections: fillRoster,
     sectionsKeeper: { read: readShownRoster, reopen: reopenRoster },
   });
+  startPlayerSheet();
   startSettings();
   startHomeScreen();
   const picker = findYearPicker();

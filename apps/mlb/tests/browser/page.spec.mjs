@@ -11,6 +11,8 @@ import {
   readKept,
   SEASON_2025,
   buildSeasonRecord,
+  PITCHER_SIDES,
+  PLAYER_DOCS,
   ROSTER_DOCS,
 } from "./harness.mjs";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
@@ -1913,7 +1915,11 @@ for (const { screen, viewport } of [
     test.use({ viewport });
 
     test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
-      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() }, store: ROSTER_DOCS });
+      await openApp(page, {
+        snapshots: { 2026: buildSnapshotWithStarters() },
+        store: { ...ROSTER_DOCS, ...PLAYER_DOCS },
+        pitchers: PITCHER_SIDES,
+      });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
@@ -1941,6 +1947,14 @@ for (const { screen, viewport } of [
       await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
+      for (const player of ["Steven Kwan", "Tanner Bibee"]) {
+        await page.locator("#rosterBody").getByRole("button", { name: player }).click();
+        await expect(page.locator("#playerBody .sheet-part").first()).toBeVisible();
+        expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listStrayPeriods(page)).toEqual([]);
+        await page.locator("#playerSheet").getByRole("button", { name: "Back" }).click();
+        await expect(page.locator("#playerSheet")).toBeHidden();
+      }
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();
       await openSettings(page);
@@ -1950,7 +1964,11 @@ for (const { screen, viewport } of [
     });
 
     test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
-      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() }, store: ROSTER_DOCS });
+      await openApp(page, {
+        snapshots: { 2026: buildSnapshotWithStarters() },
+        store: { ...ROSTER_DOCS, ...PLAYER_DOCS },
+        pitchers: PITCHER_SIDES,
+      });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
       await page.getByRole("tab", { name: "Games" }).click();
@@ -1972,6 +1990,13 @@ for (const { screen, viewport } of [
       await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
       await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
+      for (const player of ["Steven Kwan", "Tanner Bibee"]) {
+        await page.locator("#rosterBody").getByRole("button", { name: player }).click();
+        await expect(page.locator("#playerBody .sheet-part").first()).toBeVisible();
+        expect(await listTapsOffButtons(page)).toEqual([]);
+        await page.locator("#playerSheet").getByRole("button", { name: "Back" }).click();
+        await expect(page.locator("#playerSheet")).toBeHidden();
+      }
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();
       await openSettings(page);

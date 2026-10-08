@@ -7,6 +7,8 @@ import {
   buildSnapshotWithStarters,
   EVENING_FIXTURE,
   ON_A_PHONE,
+  PITCHER_SIDES,
+  PLAYER_DOCS,
   ROSTER_DOCS,
   SEASON_2025,
   chooseSeason,
@@ -319,17 +321,25 @@ test("a club's Roster pill slides to its hitters, starters, and bullpen, each na
     "Bullpen",
     "Injured list",
   ]);
-  const squeezed = await sheet
-    .locator("#rosterBody td.team")
-    .evaluateAll((cells) =>
-      cells.filter((cell) => cell.scrollWidth > cell.clientWidth).map((cell) => cell.textContent),
-    );
+  // Each row's button reaches over the whole row, so a name is whole when it ends before the
+  // row's first number.
+  const squeezed = await sheet.locator("#rosterBody tbody tr").evaluateAll((rows) =>
+    rows
+      .filter((row) => {
+        const name = row.querySelector(".box-pos")?.getBoundingClientRect().right ?? 0;
+        const number = row.querySelector("td.tabular")?.getBoundingClientRect().left ?? Infinity;
+        return name > number;
+      })
+      .map((row) => row.textContent),
+  );
   expect(squeezed).toEqual([]);
+  const countWideTables = () =>
+    sheet
+      .locator("#rosterBody .box-wrap")
+      .evaluateAll((wraps) => wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth).length);
+  expect(await countWideTables()).toBe(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  const overflow = await sheet
-    .locator("#rosterBody .box-wrap")
-    .evaluateAll((wraps) => wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth).length);
-  expect(overflow).toBe(0);
+  expect(await countWideTables()).toBe(0);
 });
 
 test("a reload shows the open roster as it was while the page reads it again", async ({ page }) => {
@@ -354,4 +364,76 @@ test("a past season's club says rosters show for the current season only", async
   const sheet = page.locator("#teamSheet");
   await sheet.getByRole("tab", { name: "Roster" }).click();
   await expect(sheet.locator("#rosterBody")).toHaveText("Rosters show for the current season only");
+});
+
+/**
+ * Opens a club's Roster section, with every recorded player and starter the store keeps.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} club
+ */
+async function openRoster(page, club) {
+  await openApp(page, { store: { ...ROSTER_DOCS, ...PLAYER_DOCS }, pitchers: PITCHER_SIDES });
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator(`.div-grid tr[data-team="${club}"] .team-open`).click();
+  const sheet = page.locator("#teamSheet");
+  await sheet.getByRole("tab", { name: "Roster" }).click();
+  return sheet;
+}
+
+test("a tap anywhere on a roster's row opens its player's sheet over the club's, which a back arrow returns to", async ({
+  page,
+}) => {
+  const sheet = await openRoster(page, "CLE");
+  const row = sheet.locator("#rosterBody tr").filter({ hasText: "Steven Kwan" });
+  const average = await row.locator("td.tabular").first().boundingBox();
+  if (!average) throw new Error("Kwan's row isn't shown");
+  const landsOn = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.player ?? null,
+    { x: average.x + average.width / 2, y: average.y + average.height / 2 },
+  );
+  expect(landsOn).toBe("680757");
+  await page.mouse.click(average.x + average.width / 2, average.y + average.height / 2);
+
+  const playerSheet = page.locator("#playerSheet");
+  await expect(playerSheet.locator("#playerTitle")).toHaveText("Steven Kwan");
+  await expect(playerSheet.locator("#playerPlace")).toHaveText("Los Gatos, CA");
+  await expect(playerSheet.locator(".player-rank-row")).toHaveCount(10);
+  await expect(playerSheet.locator(".player-curve svg")).toHaveCount(10);
+  const back = playerSheet.getByRole("button", { name: "Back" });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(sheet.locator("#teamTitle")).toContainText("Guardians");
+  await expect(playerSheet).toBeHidden();
+});
+
+test("a starter's sheet ranks him among the qualified starters and shows what he throws", async ({
+  page,
+}) => {
+  const sheet = await openRoster(page, "CLE");
+  await sheet.getByRole("button", { name: "Tanner Bibee" }).click();
+  const playerSheet = page.locator("#playerSheet");
+  await expect(playerSheet.locator(".player-rank-label")).toHaveText([
+    "ERA",
+    "K/9",
+    "BB/9",
+    "Velo",
+  ]);
+  await expect(playerSheet.locator(".pitch-mix")).toBeVisible();
+});
+
+test("a reload shows the open player's sheet as it was while the page reads him again", async ({
+  page,
+}) => {
+  const sheet = await openRoster(page, "CLE");
+  await sheet.getByRole("button", { name: "Steven Kwan" }).click();
+  const playerSheet = page.locator("#playerSheet");
+  await expect(playerSheet.locator(".player-curve svg")).toHaveCount(10);
+  const release = await holdRequests(page, matchPath("/store/players/"));
+
+  await page.reload();
+
+  await expect(playerSheet.locator("#playerTitle")).toHaveText("Steven Kwan");
+  await expect(playerSheet.locator(".player-curve svg")).toHaveCount(10);
+  await expect(playerSheet.locator(".placeholder")).toHaveCount(0);
+  release();
 });

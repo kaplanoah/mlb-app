@@ -5,7 +5,7 @@
 import { html } from "#shared/html.js";
 import { renderPlainClub, renderTeamDot } from "./clubs.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
-import { renderNameCell, renderStatCells, renderStatTable } from "./stat-table.js";
+import { renderPlayerCell, renderStatCells, renderStatTable } from "./stat-table.js";
 
 const SIDES = /** @type {const} */ (["away", "home"]);
 const INNINGS = 9;
@@ -45,49 +45,65 @@ const sumBatting = (batters) =>
     ]),
   );
 
-/** @param {any[]} batters */
-const renderBatting = (batters) =>
-  renderStatTable("Batters", BATTING_COLUMNS, [
-    ...batters.map(
-      (batter) =>
-        html`<tr class="${batter.isSub ? "box-sub" : ""}">
-          ${renderNameCell(batter.name, renderPosition(batter))}${renderStatCells(batter, BATTING_COLUMNS)}
-        </tr>`,
-    ),
-    html`<tr class="box-total">
-      <td class="team">Team</td>
-      ${renderStatCells(sumBatting(batters), BATTING_COLUMNS)}
-    </tr>`,
-  ]);
+/**
+ * @param {any[]} batters
+ * @param {string} club
+ */
+const renderBatting = (batters, club) =>
+  renderStatTable(
+    "Batters",
+    BATTING_COLUMNS,
+    [
+      ...batters.map(
+        (batter) =>
+          html`<tr class="${batter.isSub ? "box-sub" : ""}">
+            ${renderPlayerCell(batter, club, { note: renderPosition(batter) })}${renderStatCells(batter, BATTING_COLUMNS)}
+          </tr>`,
+      ),
+      html`<tr class="box-total">
+        <td class="team">Team</td>
+        ${renderStatCells(sumBatting(batters), BATTING_COLUMNS)}
+      </tr>`,
+    ],
+    { opensRows: true },
+  );
 
 /** @param {any} pitcher */
 const renderDecision = (pitcher) =>
   pitcher.decision ? html`<span class="box-decision">${pitcher.decision}</span>` : "";
 
-/** @param {any[]} pitchers */
-const renderPitching = (pitchers) =>
+/**
+ * @param {any[]} pitchers
+ * @param {string} club
+ */
+const renderPitching = (pitchers, club) =>
   renderStatTable(
     "Pitchers",
     PITCHING_COLUMNS,
     pitchers.map(
       (pitcher) =>
         html`<tr>
-          ${renderNameCell(pitcher.name, renderDecision(pitcher))}${renderStatCells(pitcher, PITCHING_COLUMNS)}
+          ${renderPlayerCell(pitcher, club, { note: renderDecision(pitcher) })}${renderStatCells(pitcher, PITCHING_COLUMNS)}
         </tr>`,
     ),
+    { opensRows: true },
   );
 
-/** @param {any[]} batters */
-const renderLineup = (batters) =>
+/**
+ * @param {any[]} batters
+ * @param {string} club
+ */
+const renderLineup = (batters, club) =>
   renderStatTable(
     "Batters",
     LINEUP_COLUMNS,
     batters.map(
       (batter) =>
         html`<tr>
-          ${renderNameCell(batter.name, renderPosition(batter))}${renderStatCells(batter, LINEUP_COLUMNS)}
+          ${renderPlayerCell(batter, club, { note: renderPosition(batter) })}${renderStatCells(batter, LINEUP_COLUMNS)}
         </tr>`,
     ),
+    { opensRows: true },
   );
 
 /**
@@ -151,7 +167,7 @@ const renderClubs = (game, boxScore) =>
   SIDES.map((side) =>
     renderSheetPart(
       renderPlainClub(game[side]),
-      html`${renderBatting(boxScore[side].batters)}${renderPitching(boxScore[side].pitchers)}`,
+      html`${renderBatting(boxScore[side].batters, game[side])}${renderPitching(boxScore[side].pitchers, game[side])}`,
     ),
   );
 
@@ -161,7 +177,11 @@ const renderClubs = (game, boxScore) =>
  */
 const renderLineups = (game, boxScore) =>
   SIDES.filter((side) => boxScore[side].batters.length).map((side) =>
-    renderSheetPart(renderPlainClub(game[side]), renderLineup(boxScore[side].batters), "Lineup"),
+    renderSheetPart(
+      renderPlainClub(game[side]),
+      renderLineup(boxScore[side].batters, game[side]),
+      "Lineup",
+    ),
   );
 
 /**
