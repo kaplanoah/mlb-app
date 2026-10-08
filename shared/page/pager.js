@@ -1,6 +1,6 @@
 import { html, setHtml } from "./html.js";
-import { createPillThumb } from "./pill-thumb.js";
-import { selectTab, wireTabs } from "./tabs.js";
+import { showPillName } from "./pill-thumb.js";
+import { wireTabs } from "./tabs.js";
 
 // Lists side by side under a pill, as pager.css lays them out, like the Games view's Previous,
 // Today, and Next. A tap on the pill or a swipe moves between them. An app fills the lists; the
@@ -25,6 +25,21 @@ const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)"
 const chooseScrollBehavior = () => (prefersReducedMotion() ? "instant" : "smooth");
 
 /**
+ * The list a swipe is heading for, once the lists first move after the finger lifts: the one past
+ * where it let go in the way they move, which is where they snap.
+ * @param {number} liftPosition where the lists were as the finger lifted, 0 at the first list
+ * @param {number} position where they are now
+ * @param {number} lastIndex the last list's
+ * @returns {number | null} null while they haven't moved
+ */
+export function findSwipeTarget(liftPosition, position, lastIndex) {
+  const movedBy = position - liftPosition;
+  if (Math.abs(movedBy) < 0.001) return null;
+  const target = movedBy > 0 ? Math.ceil(liftPosition) : Math.floor(liftPosition);
+  return Math.min(Math.max(target, 0), lastIndex);
+}
+
+/**
  * Builds the pill and the lists inside `root`, and wires them.
  * @param {HTMLElement} root
  * @param {PagerOptions} options
@@ -42,6 +57,10 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   // The list a tapped tab is scrolling to, which the lists settle on even when they come to rest early.
   /** @type {string | null} */
   let scrollTarget = null;
+  let isTouching = false;
+  // Where the lists were as a finger lifted, until their next move says which list they snap to.
+  /** @type {number | null} */
+  let liftPosition = null;
   let pagesWidth = 0;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let settleTimer;
@@ -83,7 +102,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   const renderPager = () =>
     html`<div id="${idPrefix}-bar" class="pager-bar">
         <div class="pager-tabs" role="tablist" aria-label="${label}">
-          <span class="pager-thumb" aria-hidden="true"></span>
           ${lists.map(renderTab)}
         </div>
       </div>
@@ -126,10 +144,12 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     }
   }
 
+  const findTabList = () => /** @type {HTMLElement} */ (root.querySelector("[role=tablist]"));
+
   /** @param {string} key */
   function markListsFor(key) {
     shownList = key;
-    selectTab(findTabs(), key);
+    showPillName(findTabList(), key);
     for (const other of keys) findPage(other).inert = other !== key;
   }
 
@@ -186,15 +206,31 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
       return;
     }
     scrollTarget = null;
-    if (key !== shownList) markShownList(key);
+    liftPosition = null;
+    if (key === shownList) return;
+    showPillName(findTabList(), key, { isHandoff: true });
+    markShownList(key);
   }
 
-  // While the lists scroll to one a tap chose, the pill's block is already sliding there.
+  // The pill holds still while a finger moves the lists, and hands off to the list they're heading
+  // for once it lifts, as a tap's does at once. Lists moved some other way, like a trackpad's,
+  // hand off as the next list comes most of the way in.
+  /** @param {HTMLElement} pages */
+  function chooseSwipeTarget(pages) {
+    const position = readSwipePosition(pages);
+    if (liftPosition === null) return Math.round(position);
+    const target = findSwipeTarget(liftPosition, position, keys.length - 1);
+    if (target !== null) liftPosition = null;
+    return target;
+  }
+
   function followSwipe() {
     const pages = findPages();
     if (!pages.clientWidth) return;
-    if (!scrollTarget) thumb.moveThumb(readSwipePosition(pages));
     if (!hasScrollend()) scheduleSettle();
+    if (scrollTarget || isTouching) return;
+    const target = chooseSwipeTarget(pages);
+    if (target !== null) showPillName(findTabList(), keys[target], { isHandoff: true });
   }
 
   /** @param {string} key */
@@ -203,9 +239,8 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
       jumpToList(key);
       return;
     }
-    selectTab(findTabs(), key);
+    showPillName(findTabList(), key, { isHandoff: true });
     scrollTarget = key;
-    thumb.moveThumb(keys.indexOf(key), { isSliding: true });
     scrollToList(key, chooseScrollBehavior());
   }
 
@@ -213,7 +248,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   function jumpToList(key) {
     scrollTarget = null;
     scrollToList(key, "instant");
-    thumb.moveThumb(keys.indexOf(key));
     markShownList(key);
   }
 
@@ -227,7 +261,6 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     if (!clientWidth) return;
     scrollTarget = null;
     scrollToList(shownList, "instant");
-    thumb.moveThumb(keys.indexOf(shownList));
   }
 
   // Lists in a hidden view have no width to scroll, so one chosen there waits for realignPages.
@@ -242,10 +275,21 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     const releaseScrollTarget = () => (scrollTarget = null);
     /** @param {WheelEvent} event */
     const releaseOnSidewaysWheel = (event) => event.deltaX && releaseScrollTarget();
+    const startTouch = () => {
+      isTouching = true;
+      liftPosition = null;
+    };
+    const endTouch = () => {
+      isTouching = false;
+      liftPosition = readSwipePosition(pages);
+    };
     pages.addEventListener("scroll", followSwipe, { passive: true });
     pages.addEventListener("scrollend", () => settleSwipe("scrollend"));
     pages.addEventListener("pointerdown", releaseScrollTarget);
     pages.addEventListener("wheel", releaseOnSidewaysWheel, { passive: true });
+    pages.addEventListener("touchstart", startTouch, { passive: true });
+    pages.addEventListener("touchend", endTouch, { passive: true });
+    pages.addEventListener("touchcancel", endTouch, { passive: true });
     // The pill's bar is as wide as the lists, and realignPages never resizes it.
     new ResizeObserver(realignPages).observe(findBar());
     // The room under the pill is measured once the pill shows. An IntersectionObserver reports
@@ -257,10 +301,8 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   root.classList.add("pager");
   setHtml(root, renderPager());
-  const thumb = createPillThumb(/** @type {HTMLElement} */ (root.querySelector("[role=tablist]")));
   wireTabs(findTabs(), showList);
   markShownList(shownList);
-  thumb.moveThumb(keys.indexOf(shownList));
   wireSwipe();
 
   return {

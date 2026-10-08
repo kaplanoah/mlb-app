@@ -11,9 +11,13 @@ import {
   readKept,
   SEASON_2025,
   buildSeasonRecord,
+  PITCHER_SIDES,
+  PLAYER_DOCS,
+  ROSTER_DOCS,
 } from "./harness.mjs";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
+import { readFilledNames } from "../../../../tests/browser/pill-names.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import {
@@ -61,6 +65,19 @@ test("the page's font comes from its own server, in every weight from one file",
   expect(fontRequests).toEqual(["/fonts/chivo-mono-latin.woff2"]);
 });
 
+test("on a day without games, the Games tab starts on Next", async ({ page }) => {
+  const { slate } = buildSeasonRecord(buildFixtureSnapshot(EVENING_FIXTURE));
+  await openApp(page, {
+    store: { "seasons/2026": { slate: { ...slate, today: { ...slate.today, games: [] } } } },
+  });
+  await page.getByRole("tab", { name: "Games" }).click();
+
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  await expect(shownGames).toHaveId("games-next");
+  await expect(shownGames.locator(".game-row").first()).toBeVisible();
+  await expect(page.locator("#games-today")).toHaveText("No games today");
+});
+
 test("the Games tab lists today's games and every game on each club's previous and next date", async ({
   page,
 }) => {
@@ -88,17 +105,6 @@ const readPagesPosition = (page) =>
     .locator("#games-pages")
     .evaluate((pages) => Math.round((pages.scrollLeft / pages.clientWidth) * 100) / 100);
 
-/** The names in the Games pill that its block sits under. */
-const readFilledNames = (page) =>
-  page.locator("#games-bar [role=tablist]").evaluate((tabList) => {
-    const thumb = /** @type {Element} */ (
-      tabList.querySelector(".pager-thumb")
-    ).getBoundingClientRect();
-    return [...tabList.querySelectorAll("[role=tab]")]
-      .filter((tab) => Math.abs(tab.getBoundingClientRect().left - thumb.left) < 1)
-      .map((tab) => tab.textContent.trim());
-  });
-
 test("on a phone, swiping the games sideways moves between the lists and fills the shown list's name", async ({
   page,
 }) => {
@@ -118,12 +124,16 @@ test("on a phone, swiping the games sideways moves between the lists and fills t
   );
   await expect(page.locator("#games-previous")).not.toHaveAttribute("inert");
   await expect(page.locator("#games-today")).toHaveAttribute("inert");
-  await expect.poll(() => readFilledNames(page)).toEqual(["Previous"]);
+  await expect
+    .poll(() => readFilledNames(page.locator("#games-bar [role=tablist]")))
+    .toEqual(["Previous"]);
 
   await page.getByRole("tab", { name: "Next" }).click();
   await expect.poll(() => readPagesPosition(page)).toBe(2);
   await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-  await expect.poll(() => readFilledNames(page)).toEqual(["Next"]);
+  await expect
+    .poll(() => readFilledNames(page.locator("#games-bar [role=tablist]")))
+    .toEqual(["Next"]);
 });
 
 test("the Games lists are as tall as the shown one when it runs past the screen", async ({
@@ -375,19 +385,7 @@ test("on a phone, tapping the Games tab while it shows today's list scrolls back
   await expectGameList(page, "Today", 1);
 });
 
-test("the Games tab keeps its list when the page comes back within the hour", async ({ page }) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await expectGameList(page, "Previous", 0);
-
-  await comeBackAfter(page, 59);
-
-  await expectGameList(page, "Previous", 0);
-});
-
-test("the Games tab goes back to today's list when the page comes back after an hour away", async ({
+test("the Games tab keeps its list when the page comes back within two minutes", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -396,12 +394,53 @@ test("the Games tab goes back to today's list when the page comes back after an 
   await page.getByRole("tab", { name: "Previous" }).click();
   await expectGameList(page, "Previous", 0);
 
-  await comeBackAfter(page, 60);
+  await comeBackAfter(page, 1);
+
+  await expectGameList(page, "Previous", 0);
+});
+
+test("the Games tab goes back to today's list when the page comes back after two minutes away", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expectGameList(page, "Previous", 0);
+
+  await comeBackAfter(page, 2);
 
   await expectGameList(page, "Today", 1);
 });
 
-test("the Games tab opens on today's list after an hour away spent on another tab", async ({
+test("the Games tab moves its lists back to today's in the first frame the page draws once it's back", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expectGameList(page, "Previous", 0);
+  await setHidden(page, true);
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.setSystemTime(now + 2 * 60 * 1000);
+
+  const positions = await page.evaluate(() => {
+    const pages = /** @type {HTMLElement} */ (document.getElementById("games-pages"));
+    const readPosition = () => Math.round(pages.scrollLeft / pages.clientWidth);
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    document.dispatchEvent(new Event("visibilitychange"));
+    const onReturn = readPosition();
+    return new Promise((resolve) =>
+      requestAnimationFrame(() => resolve({ onReturn, inFirstFrame: readPosition() })),
+    );
+  });
+
+  expect(positions).toEqual({ onReturn: 0, inFirstFrame: 1 });
+  await expectGameList(page, "Today", 1);
+});
+
+test("the Games tab opens on today's list after two minutes away spent on another tab", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -411,7 +450,7 @@ test("the Games tab opens on today's list after an hour away spent on another ta
   await expectGameList(page, "Next", 2);
   await page.getByRole("tab", { name: "Bracket" }).click();
 
-  await comeBackAfter(page, 60);
+  await comeBackAfter(page, 2);
   await page.getByRole("tab", { name: "Games" }).click();
 
   await expectGameList(page, "Today", 1);
@@ -1098,11 +1137,11 @@ test("wider than a phone, the stacked bracket starts at the Wild Card with every
 const readStackedSpaces = (page) =>
   page.evaluate(() => {
     const readBox = (element) => element.getBoundingClientRect();
-    const banner = readBox(document.getElementById("banner"));
+    const header = readBox(document.querySelector("header.top"));
     const line = readBox(document.querySelector("#bracketWrap .league-head.al"));
     const [upperCard, lowerCard] = [...document.querySelectorAll("#bracketWrap .box")].map(readBox);
     return {
-      aboveLeague: line.top - banner.bottom,
+      aboveLeague: line.top - header.bottom,
       belowLine: upperCard.top - line.bottom,
       betweenRows: lowerCard.top - upperCard.bottom - 22,
     };
@@ -1114,7 +1153,7 @@ test("on a phone too short for the bracket, its spaces are at their tightest", a
   await expect(page.locator("#bracketWrap .league-head.al")).toBeVisible();
 
   expect(await readStackedSpaces(page)).toEqual({
-    aboveLeague: 18,
+    aboveLeague: 13,
     belowLine: 5,
     betweenRows: 6,
   });
@@ -1129,7 +1168,7 @@ test("on a taller phone, every space in the bracket grows by the same factor", a
   const growth = betweenRows / 13;
   expect(growth).toBeGreaterThan(1.5);
   expect(belowLine / 11).toBeCloseTo(growth, 0);
-  expect(aboveLeague / 18).toBeCloseTo(growth, 0);
+  expect(aboveLeague / 13).toBeCloseTo(growth, 0);
 });
 
 const readCardTops = (page, round) =>
@@ -1297,63 +1336,6 @@ test("on a laptop too narrow for the whole bracket, the stacked bracket fills do
   );
 });
 
-test("on a phone, the banner's club reads as a name, without the tabs' outline and capitals", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  const club = page.locator("#banner .banner-team .club");
-  await expect(club).toBeVisible();
-
-  const look = await club.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      border: style.borderTopWidth,
-      padding: style.paddingLeft,
-      textTransform: style.textTransform,
-      color: style.color,
-      bannerColor: getComputedStyle(document.getElementById("banner")).color,
-    };
-  });
-
-  expect(look).toEqual({
-    border: "0px",
-    padding: "0px",
-    textTransform: "none",
-    color: look.bannerColor,
-    bannerColor: look.bannerColor,
-  });
-});
-
-for (const { layout, viewport } of [
-  { layout: "a phone", viewport: PHONE },
-  { layout: "a wide screen", viewport: { width: 1024, height: 800 } },
-]) {
-  test(`on ${layout}, the banner's club sits on the same baseline as its label`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(viewport);
-    await openApp(page);
-    const banner = page.locator("#banner");
-    await expect(banner.locator(".banner-team .team-name")).toBeVisible();
-
-    // A zero-height box set inline after a text has its top on the text's baseline.
-    const baselines = await banner.evaluate((element) =>
-      [".banner-label", ".team-name"].map((selector) => {
-        const text = /** @type {HTMLElement} */ (element.querySelector(selector));
-        const line = document.createElement("span");
-        const probe = document.createElement("span");
-        probe.style.cssText = "display: inline-block; width: 0; height: 0";
-        line.append(...text.childNodes, probe);
-        text.append(line);
-        return probe.getBoundingClientRect().top;
-      }),
-    );
-
-    expect(baselines[1]).toBe(baselines[0]);
-  });
-}
-
 test("renders the bracket, standings and stamp from the season's record the Worker saved", async ({
   page,
 }) => {
@@ -1361,7 +1343,6 @@ test("renders the bracket, standings and stamp from the season's record the Work
 
   const bracket = page.locator("#bracketWrap");
   for (const club of PLAYOFF_FIELD_2026) await expect(bracket).toContainText(club);
-  await expect(page.locator("#banner")).toContainText("Highest still in");
   const stampLines = page.locator("#stamp > span");
   await expect(stampLines.first()).toHaveText(/^NOW\s*Reds @ Braves 5-5 in the 5th/);
   await expect(stampLines.nth(1)).toHaveText(/^Next first pitch /);
@@ -1478,8 +1459,6 @@ test("switching to 2025 shows the finished bracket and its champion from its rec
 
   await chooseSeason(page, "2025");
 
-  await expect(page.locator("#banner")).toContainText("World Series champions");
-  await expect(page.locator("#banner")).toContainText("Dodgers");
   await expect(page.locator("#bracketWrap")).toContainText("Dodgers win the World Series");
   await expect(page.locator("#updates")).toBeHidden();
   expect(app.countSnapshotRequests()).toBe(0);
@@ -1781,7 +1760,7 @@ test("on a phone, the bracket fills the height above the tab bar and swipes side
 test("on a phone a little short of room, the bracket's spaces shrink so it fits above the round dots", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 820 });
+  await page.setViewportSize({ width: 390, height: 780 });
   await openApp(page);
   await expect(page.locator(".bracket-stage")).toBeVisible();
   await expectBracketToFillHeight(page);
@@ -1916,7 +1895,11 @@ for (const { screen, viewport } of [
     test.use({ viewport });
 
     test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
-      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+      await openApp(page, {
+        snapshots: { 2026: buildSnapshotWithStarters() },
+        store: { ...ROSTER_DOCS, ...PLAYER_DOCS },
+        pitchers: PITCHER_SIDES,
+      });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
@@ -1936,10 +1919,22 @@ for (const { screen, viewport } of [
       await expect(page.locator("table.st tbody tr").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
-      await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
+      await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
       await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
+      await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
+      await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
+      expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
+      for (const player of ["Steven Kwan", "Tanner Bibee"]) {
+        await page.locator("#rosterBody").getByRole("button", { name: player }).click();
+        await expect(page.locator("#playerBody .sheet-part").first()).toBeVisible();
+        expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listStrayPeriods(page)).toEqual([]);
+        await page.locator("#playerSheet").getByRole("button", { name: "Back" }).click();
+        await expect(page.locator("#playerSheet")).toBeHidden();
+      }
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();
       await openSettings(page);
@@ -1949,7 +1944,11 @@ for (const { screen, viewport } of [
     });
 
     test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
-      await openApp(page, { snapshots: { 2026: buildSnapshotWithStarters() } });
+      await openApp(page, {
+        snapshots: { 2026: buildSnapshotWithStarters() },
+        store: { ...ROSTER_DOCS, ...PLAYER_DOCS },
+        pitchers: PITCHER_SIDES,
+      });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
       await page.getByRole("tab", { name: "Games" }).click();
@@ -1965,9 +1964,19 @@ for (const { screen, viewport } of [
       await page.getByRole("tab", { name: "Standings" }).click();
       await expect(page.locator("table.st tbody tr").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
-      await page.locator('.div-grid tr[data-team="SEA"] .team-open').click();
+      await page.locator('.div-grid tr[data-team="CLE"] .team-open').click();
       await expect(page.locator("#teamSheet .team-stats")).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
+      await page.locator("#teamSheet").getByRole("tab", { name: "Roster" }).click();
+      await expect(page.locator("#rosterBody .box-table").first()).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
+      for (const player of ["Steven Kwan", "Tanner Bibee"]) {
+        await page.locator("#rosterBody").getByRole("button", { name: player }).click();
+        await expect(page.locator("#playerBody .sheet-part").first()).toBeVisible();
+        expect(await listTapsOffButtons(page)).toEqual([]);
+        await page.locator("#playerSheet").getByRole("button", { name: "Back" }).click();
+        await expect(page.locator("#playerSheet")).toBeHidden();
+      }
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();
       await openSettings(page);

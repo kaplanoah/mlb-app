@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { readPillNames } from "../../../../tests/browser/pill-names.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -171,16 +172,18 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
         readChannels(page, await readTokenColor(page, token)),
       ),
     );
-    const fill = await page
-      .locator("#games-bar .pager-thumb")
-      .evaluate((element) => getComputedStyle(element).backgroundColor);
-    const name = await chosen.evaluate((element) => getComputedStyle(element).color);
-    expect(await readChannels(page, fill)).toEqual(orange);
-    expect(await readChannels(page, name)).toEqual(onOrange);
-    const other = page.locator("#games-bar .pager-tabs button:not(.active)").first();
-    const otherName = await other.evaluate((element) => getComputedStyle(element).color);
-    expect(await readChannels(page, otherName)).toEqual(ink);
-    await expect(other).toHaveCSS("font-weight", "500");
+    const [previous, ...others] = await readPillNames(page.locator("#games-bar [role=tablist]"));
+    expect(previous.name).toBe("Previous");
+    expect(await readChannels(page, previous.fill)).toEqual(orange);
+    expect(await readChannels(page, previous.textColor)).toEqual(onOrange);
+    for (const other of others) {
+      expect(other.fill, other.name).toBe("rgba(0, 0, 0, 0)");
+      expect(await readChannels(page, other.textColor), other.name).toEqual(ink);
+    }
+    await expect(page.locator("#games-bar .pager-tabs button:not(.active)").first()).toHaveCSS(
+      "font-weight",
+      "500",
+    );
   });
 }
 

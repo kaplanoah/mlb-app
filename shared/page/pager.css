@@ -5,8 +5,7 @@
  * Beside chrome.css's --bg, --accent, and --accent-ink, an app's :root defines these tokens:
  *   --page-gutter          the body's side padding, which the lists reach past to the screen's edges
  *   --pager-label          the names of the lists not showing
- *   --pager-chosen-edge    the outline inside the block under the shown list's name, or transparent
- *                          for none
+ *   --pager-chosen-edge    the outline inside the shown list's name's fill, or transparent for none
  *   --held-bar-fade        how far the page's color fades out under the pill's bar while it's held
  *                          at the top, or 0px for a bar that ends sharply
  *   --held-bar-line        the line under the held bar, or transparent for none
@@ -40,31 +39,18 @@
   box-shadow: 0 1px 0 var(--held-bar-line);
 }
 /*
- * The lists' names sit in a row as plain words, over a block of the accent under the shown one.
- * pill-thumb.js sets the block's --thumb-left and --thumb-width, between two names mid-swipe, and
- * each name's --nearness, which runs from 0 to 1 as the block reaches it and turns its words the
- * color on the accent. A tap slides the block straight to its name.
+ * The lists' names sit in a row as plain words, the shown list's filled with the accent. The fill
+ * never travels between names: once the lists set off for another, which pager.js and
+ * sheet-sections.js mark with .is-handing-off, the shown name's fill fades out as the new one's
+ * fades in, both easing in and out, and the new name takes the color on the accent a beat behind
+ * its fill, as Pocket Casts' pill does. A pill shown at once, as for a sheet that's opening, jumps.
  */
 .pager-tabs {
-  position: relative;
   display: flex;
   gap: 4px;
   pointer-events: auto;
 }
-.pager-thumb {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: var(--thumb-width, 0);
-  border-radius: var(--radius-control);
-  background: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--pager-chosen-edge);
-  transform: translateX(var(--thumb-left, 0));
-  pointer-events: none;
-}
 .pager-tabs button {
-  position: relative;
   font: inherit;
   font-size: var(--size-small);
   font-weight: 500;
@@ -72,24 +58,29 @@
   letter-spacing: 0.09em;
   border: 0;
   border-radius: var(--radius-control);
-  background: none;
-  color: color-mix(in srgb, var(--accent-ink) calc(var(--nearness) * 100%), var(--pager-label));
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
+  color: var(--pager-label);
   padding: 8px 14px;
   cursor: pointer;
-  --nearness: 0;
 }
-/* Before the page's code places the block, the shown list's name is in the color on the accent. */
 .pager-tabs button[aria-selected="true"] {
-  --nearness: 1;
+  background-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--pager-chosen-edge);
+  color: var(--accent-ink);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .pager-tabs.is-sliding .pager-thumb {
+  .pager-tabs.is-handing-off button {
     transition:
-      transform 0.25s ease-out,
-      width 0.25s ease-out;
+      background-color 0.18s ease-in-out,
+      box-shadow 0.18s ease-in-out,
+      color 0.18s ease-in-out;
   }
-  .pager-tabs.is-sliding button {
-    transition: color 0.25s ease-out;
+  .pager-tabs.is-handing-off button[aria-selected="true"] {
+    transition:
+      background-color 0.18s ease-in-out,
+      box-shadow 0.18s ease-in-out,
+      color 0.2s ease-in-out 25ms;
   }
 }
 /* A swiped list slides off the screen, not off the gutter. The lists' row is as tall as the shown

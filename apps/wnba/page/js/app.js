@@ -6,7 +6,12 @@ import { setHtml } from "#shared/html.js";
 import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
-import { fillGameLists, startGamePager, startGamesOn } from "#shared/game-pager.js";
+import {
+  chooseStartList,
+  fillGameLists,
+  startGamePager,
+  startGamesOn,
+} from "#shared/game-pager.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
@@ -24,7 +29,7 @@ import { startAppearance } from "./appearance.js";
 import { placeBracket, readBracketScroll, startBracket } from "./bracket-tree.js";
 import { renderBracket } from "./bracket-view.js";
 import { refreshGameSheet, startGameSheet } from "./game-sheet.js";
-import { renderGames } from "./games-view.js";
+import { findListsWithGames, renderGames } from "./games-view.js";
 import { readNewsChoices, startNewsChoices } from "./news-choices.js";
 import { watchNews } from "./news-data.js";
 import { renderNews } from "./news-view.js";
@@ -81,7 +86,7 @@ function renderAll() {
   setHtml(findElement("bracketWrap"), renderBracket(session.season, now));
   placeBracket(keptLeft);
   const gameLists = renderGames(session.season, now);
-  fillGameLists((list) => gameLists[list]);
+  fillGameLists((list) => gameLists[list], chooseGamesStart(now));
   drawStandings(session.season);
   drawNews();
   drawUpdates();
@@ -148,8 +153,11 @@ async function listSeasonYears() {
 /** @param {string[]} years */
 const fillSeasonList = (years) => fillSeasonPicker(findSeasonPicker(), years, session.year);
 
-// A season that's over has no games today or ahead, so its Games view starts on its results.
-const startGamesForSeason = () => startGamesOn(isPastSeason() ? "previous" : "today");
+// A past season has no games today or ahead, so its Games view starts on its results.
+const chooseGamesStart = (now) =>
+  chooseStartList({ isSeasonOver: isPastSeason(), ...findListsWithGames(session.season, now) });
+
+const startGamesForSeason = () => startGamesOn(chooseGamesStart(Date.now()));
 
 /** @param {number} year */
 async function switchSeason(year) {

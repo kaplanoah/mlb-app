@@ -10,6 +10,8 @@ import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
+import { renderPlayerButton } from "./player-button.js";
+import { formatInnings } from "./stat-table.js";
 import { PENDING_TAPE_SIDE, renderTapeRow } from "#shared/tape.js";
 
 const SIDES = ["away", "home"];
@@ -42,11 +44,18 @@ function renderFirstName(side) {
   return first ? html`<span class="pitcher-first">${first}</span>` : html``;
 }
 
-// Until his numbers load, a starter has only the last name the game row shows.
+// Until his numbers load, a starter has only the last name the game row shows. A named starter's
+// name opens his sheet.
 function renderName(side) {
   const { starter, pitcher } = side;
   const last = pitcher?.lastName || starter?.name || (starter ? "Not named yet" : "Still TBD");
-  return html`<span class="pitcher-name">${renderFirstName(side)}<span class="pitcher-last">${last}</span></span>`;
+  const content = html`${renderFirstName(side)}<span class="pitcher-last">${last}</span>`;
+  if (!starter?.id || !side.club) return html`<span class="pitcher-name">${content}</span>`;
+  const name = [pitcher?.firstName, last].filter(Boolean).join(" ");
+  return renderPlayerButton({ id: starter.id, name }, side.club, {
+    content,
+    className: "pitcher-name",
+  });
 }
 
 function renderPitcherId(side) {
@@ -110,12 +119,6 @@ function renderTape(sides) {
     ${rows}
     ${notes}
   </div>`;
-}
-
-// MLB counts innings in thirds after the point: 5.2 is five and two thirds.
-function formatInnings(innings) {
-  const [whole, thirds] = String(innings).split(".");
-  return thirds && thirds !== "0" ? `${whole} ${thirds}/3` : whole;
 }
 
 const formatStartDay = (date) => formatShortDate(readCalendarDate(date));
@@ -281,5 +284,5 @@ export async function loadSide(side, game, season) {
 }
 
 /**
- * @typedef {{ date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters?: object[], today: boolean }} MatchupGame
+ * @typedef {{ id?: string, date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters?: object[], networks?: string[], today: boolean }} MatchupGame
  */

@@ -1,12 +1,13 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
 import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
 import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
-import { fillGameLists } from "#shared/game-pager.js";
+import { chooseStartList, fillGameLists } from "#shared/game-pager.js";
 import { html } from "#shared/html.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
 import { session } from "./session.js";
+import { listSlateList } from "./slate.js";
 
 const HALF_INNING_LABELS = { top: "Top", middle: "Mid", bottom: "Bot", end: "End" };
 const OUT_LIGHTS = 2;
@@ -153,14 +154,18 @@ const nameSide = (id) => (id ? nameTeam(id) : "TBD");
 /** @param {{ away?: string, home?: string }} game */
 export const nameGame = (game) => `${nameSide(game.away)} @ ${nameSide(game.home)}`;
 
-// The whole row, or an update about the game, opens the game's sheet, which carries the game as
-// the row shows it, and whether it's today's, when a club yet to name its starter shows who it
-// might be.
-export function renderGameButton(game, isToday) {
-  const label = `Game details: ${nameSide(game.away)} at ${nameSide(game.home)}, ${formatGameDay(game.date)}`;
-  const details = JSON.stringify({ ...game, today: isToday });
-  return html`<button type="button" class="game-open" aria-label="${label}" data-game="${details}"></button>`;
-}
+// A doubleheader's two games share their day and clubs, so its game number tells them apart.
+/** @param {{ date: string, away?: string, home?: string, doubleheader?: number }} game */
+export const nameGameKey = (game) =>
+  `${game.date} ${game.away ?? ""} ${game.home ?? ""} ${game.doubleheader || 1}`;
+
+/** @param {{ date: string, away?: string, home?: string }} game */
+export const describeGameLabel = (game) =>
+  `${nameSide(game.away)} at ${nameSide(game.home)}, ${formatGameDay(game.date)}`;
+
+// The whole row, or an update about the game, opens the game's sheet.
+export const renderGameButton = (game) =>
+  html`<button type="button" class="game-open" aria-label="Game details: ${describeGameLabel(game)}" data-game="${nameGameKey(game)}"></button>`;
 
 const isAwaitingStarter = (game, id, starter, isToday) =>
   isToday && game.state === "pre" && Boolean(id) && !starter;
@@ -191,7 +196,7 @@ function describeGameRow(game, series, isToday, renderClubLine) {
 function renderGame(game, series, isToday) {
   return renderGameRow({
     ...describeGameRow(game, series, isToday, renderSideClub),
-    action: renderGameButton(game, isToday),
+    action: renderGameButton(game),
   });
 }
 
@@ -230,25 +235,14 @@ function groupByDay(games, isNewestFirst) {
   }));
 }
 
-function listGames(slate, list) {
-  if (list === "previous") return slate.previous || [];
-  if (list === "next") return slate.next || [];
-  const { date, games, postponed = [] } = slate.today;
-  return [...games, ...postponed].map((game) => ({ date, ...game }));
-}
-
 function describeMissingSlate() {
   if (session.activeYear !== session.currentSeason) return "Games show for the current season only";
   return "Games appear here as soon as the page can reach MLB";
 }
 
-/** Every game the slate lists, each with its day. */
-export const listSlateGames = (slate) =>
-  ["previous", "today", "next"].flatMap((list) => listGames(slate, list));
-
 export function renderGameList(slate, list) {
   if (!slate) return html`<p class="stand-empty">${describeMissingSlate()}</p>`;
-  const games = listGames(slate, list);
+  const games = listSlateList(slate, list);
   if (!games.length) return html`<p class="stand-empty">${EMPTY_LIST_TEXT[list]}</p>`;
   const isToday = list === "today";
   return html`${groupByDay(games, list === "previous").map(
@@ -257,7 +251,14 @@ export function renderGameList(slate, list) {
   )}`;
 }
 
+/** @param {any} slate */
+const chooseGamesStart = (slate) =>
+  chooseStartList({
+    hasGamesToday: !!slate && listSlateList(slate, "today").length > 0,
+    hasGamesAhead: !!slate && listSlateList(slate, "next").length > 0,
+  });
+
 export function renderGames() {
   const slate = session.state && session.state.slate;
-  fillGameLists((list) => renderGameList(slate, list));
+  fillGameLists((list) => renderGameList(slate, list), chooseGamesStart(slate));
 }

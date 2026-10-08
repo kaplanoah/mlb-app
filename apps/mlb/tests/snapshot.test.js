@@ -8,6 +8,7 @@ const readFixture = (name) =>
   JSON.parse(readFileSync(`${import.meta.dirname}/fixtures/${name}.json`, "utf8"));
 const SEASON_2025 = readFixture("2025-final");
 const EVENING = readFixture("2026-09-24-evening");
+const BROADCASTS = readFixture("2026-10-07-broadcasts");
 const buildSnapshot = (fixture, now = Date.parse(fixture.now)) =>
   MLBSnapshot.buildSnapshot(fixture.responses, { season: fixture.season, now });
 
@@ -421,7 +422,7 @@ test("September: the standings table the page draws", () => {
   });
 });
 
-test("September: the day's games, in the shape the stamp reads", () => {
+test("September: the day's games, in the shape the stamp reads, each with MLB's id for it", () => {
   const { slate } = buildSnapshot(EVENING);
   assert.equal(slate.today.date, "2026-09-24");
   assert.equal(slate.today.games.length, 12);
@@ -429,6 +430,7 @@ test("September: the day's games, in the shape the stamp reads", () => {
   assert.deepEqual([...new Set(states)], ["final", "live", "pre"]);
   const [first] = slate.today.games;
   assert.deepEqual(first, {
+    id: "823326",
     away: "STL",
     home: "PIT",
     state: "final",
@@ -939,4 +941,74 @@ test("a division is won only once every other club in it is out of the race, wha
   assert.deepEqual([leader.id, leader.clinched], ["TB", true]);
   assert.deepEqual([wildCard.id, wildCard.clinched], ["NYY", false]);
   assert.equal(buildSnapshot(EVENING).standings.divisions["AL Central"][0].clinched, false);
+});
+
+// The fixture's regular season games had all ended, so one is put back before its first pitch.
+function reopenGame(fixture, date, homeId) {
+  const copy = JSON.parse(JSON.stringify(fixture));
+  const game = copy.responses.schedule.dates
+    .find((day) => day.date === date)
+    .games.find((each) => each.teams.home.team.id === homeId);
+  game.status = { ...game.status, abstractGameState: "Preview", codedGameState: "S" };
+  game.status.detailedState = "Scheduled";
+  return copy;
+}
+
+test("a playoff game still to come says where it's on, each channel and its streaming apart", () => {
+  const snapshot = buildSnapshot(BROADCASTS);
+  assert.deepEqual(findSlateGame(snapshot, "CLE", "CWS").networks, ["TBS", "HBO MAX", "TruTV"]);
+  assert.deepEqual(findSlateGame(snapshot, "MIL", "SD").networks, ["FS1", "FOX ONE"]);
+});
+
+test("a game that has ended says nothing of where it was on", () => {
+  const { slate } = buildSnapshot(BROADCASTS);
+  const finals = [...slate.previous, slate.lastFinal].filter((game) => game.state === "final");
+  assert.ok(finals.length);
+  assert.ok(finals.every((game) => !("networks" in game)));
+});
+
+test("a national channel comes before each club's own, the visitors' first, without sponsors", () => {
+  const dodgers = buildSnapshot(
+    reopenGame(BROADCASTS, "2026-09-24", 119),
+    Date.parse("2026-09-24T20:00:00Z"),
+  );
+  assert.deepEqual(findSlateGame(dodgers, "SD", "LAD").networks, [
+    "MLB Network",
+    "Padres.TV",
+    "SportsNet LA",
+  ]);
+  const twins = buildSnapshot(
+    reopenGame(BROADCASTS, "2026-09-25", 142),
+    Date.parse("2026-09-25T20:00:00Z"),
+  );
+  assert.deepEqual(findSlateGame(twins, "TEX", "MIN").networks, [
+    "Rangers Sports Network",
+    "CW33",
+    "Twins.TV",
+  ]);
+});
+
+test("radio and Spanish broadcasts are left out of where to watch", () => {
+  const { slate } = buildSnapshot(BROADCASTS);
+  const networks = slate.today.games.flatMap((game) => game.networks ?? []);
+  assert.ok(networks.length);
+  assert.ok(networks.every((name) => !/radio|univision|deportes|\bAM\b|\bFM\b/i.test(name)));
+});
+
+test("the schedule asks MLB where each game is on, in the same request as its games", () => {
+  const { schedule } = MLBSnapshot.listMlbRequests(2026, Date.parse(BROADCASTS.now));
+  const hydrate = new URL(schedule, MLBSnapshot.MLB_API).searchParams.get("hydrate");
+  assert.ok(hydrate.split(",").includes("broadcasts"));
+});
+
+test("a channel's app, or its owner's name for it, shows as the channel, once", () => {
+  const fixture = JSON.parse(JSON.stringify(BROADCASTS));
+  const game = fixture.responses.schedule.dates
+    .find((day) => day.date === "2026-10-07")
+    .games.find((each) => each.teams.home.team.id === 135);
+  const [first, second] = game.broadcasts.filter((broadcast) => broadcast.type === "TV");
+  first.name = "ESPN/ESPN App";
+  second.name = "Amazon Prime Video";
+  const snapshot = buildSnapshot(fixture);
+  assert.deepEqual(findSlateGame(snapshot, "MIL", "SD").networks, ["ESPN", "Prime Video"]);
 });
