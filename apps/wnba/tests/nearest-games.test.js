@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findNearestGames } from "../page/js/nearest-games.js";
+import { findTeamNearestGames } from "../page/js/nearest-games.js";
 
 /**
  * @param {string} id
@@ -29,9 +29,9 @@ const SEASON = [
 const listIds = ({ last, now, next }) => [last?.id ?? null, now?.id ?? null, next?.id ?? null];
 
 test("a team's nearest games are its latest final, the one it's playing, and its first still to come", () => {
-  assert.deepEqual(listIds(findNearestGames(SEASON, "SEA", new Set())), ["2", "4", "5"]);
-  assert.deepEqual(listIds(findNearestGames(SEASON, "PHX", new Set())), ["3", null, null]);
-  assert.deepEqual(listIds(findNearestGames(SEASON, "NYL", new Set())), [null, null, null]);
+  assert.deepEqual(listIds(findTeamNearestGames(SEASON, "SEA", new Set())), ["2", "4", "5"]);
+  assert.deepEqual(listIds(findTeamNearestGames(SEASON, "PHX", new Set())), ["3", null, null]);
+  assert.deepEqual(listIds(findTeamNearestGames(SEASON, "NYL", new Set())), [null, null, null]);
 });
 
 test("a team's next game is never one left over in a decided series, or one whose other team isn't known", () => {
@@ -41,10 +41,10 @@ test("a team's next game is never one left over in a decided series, or one whos
     makeGame("12", "pre", [null, "ATL"], "2-1"),
     makeGame("13", "pre", ["NYL", "ATL"], "2-1"),
   ];
-  assert.deepEqual(listIds(findNearestGames(playoffs, "ATL", new Set(["1-3"]))), [
+  assert.deepEqual(listIds(findTeamNearestGames(playoffs, "ATL", new Set(["1-3"]))), [
     "10",
     null,
     "13",
   ]);
-  assert.deepEqual(listIds(findNearestGames(playoffs, "ATL", new Set())), ["10", null, "11"]);
+  assert.deepEqual(listIds(findTeamNearestGames(playoffs, "ATL", new Set())), ["10", null, "11"]);
 });

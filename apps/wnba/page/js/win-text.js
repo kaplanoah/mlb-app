@@ -75,5 +75,5 @@ export function describeWin(game, games, renderTeam) {
   const result = describeResult(game, renderTeam);
   const score = html`<span class="series-score">${own}&ndash;${theirs}</span>`;
   if (own === Math.ceil(round.bestOf / 2)) return html`${result} to win the ${round.name} ${score}`;
-  return html`${result} in Game&nbsp;${game.number}&nbsp;&mdash; ${describeStanding(own, theirs)} the ${round.name} ${score}`;
+  return html`${result} in Game&nbsp;${game.number}, ${describeStanding(own, theirs)} the ${round.name} ${score}`;
 }

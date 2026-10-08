@@ -2,7 +2,7 @@ import { html } from "./html.js";
 
 /**
  * One titled part of a sheet, with an optional note across from its title.
- * @param {string} title
+ * @param {import("./html.js").Markup | string} title
  * @param {import("./html.js").Markup} body
  * @param {import("./html.js").Markup | string | false} [aside]
  */

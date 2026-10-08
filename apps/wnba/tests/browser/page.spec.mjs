@@ -9,6 +9,12 @@ import { serveReleases } from "../../../../tests/browser/serve-releases.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
+import {
+  listFillFades,
+  noteNameFades,
+  readFilledNames,
+} from "../../../../tests/browser/pill-names.mjs";
+import { drag } from "../../../../tests/browser/touch.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -690,7 +696,36 @@ test("a game that may never happen says If needed a step dimmer than a status li
   expect(color).toBe(expected);
 });
 
-test("a Games list with nothing in it starts its note where a list's first day starts", async ({
+const TODAYS_GAMES = ["1042600132", "1042600112"];
+/** @param {any} season */
+const dropTodaysGames = (season) => ({
+  ...season,
+  games: season.games.filter((/** @type {any} */ game) => !TODAYS_GAMES.includes(game.id)),
+});
+
+test("on a day without games, the Games view starts on Next, and a list someone picks stays shown", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  await expect(shownGames).toHaveId("games-today");
+
+  await app.changeSeason(dropTodaysGames);
+  await expect(shownGames).toHaveId("games-next");
+  await page.reload();
+  await expect(shownGames).toHaveId("games-next");
+
+  await page.getByRole("tab", { name: "Today" }).click();
+  await expect(shownGames).toHaveId("games-today");
+  await page.clock.runFor(60_000);
+  await expect(page.locator("#games-today .empty-note")).toHaveText("No games today");
+  await expect(shownGames).toHaveId("games-today");
+  await page.reload();
+  await expect(shownGames).toHaveId("games-today");
+});
+
+test("a Games list with nothing in it centers its note under the pill, 44px lower than a list's first day", async ({
   page,
 }) => {
   const app = await openApp(page);
@@ -705,8 +740,17 @@ test("a Games list with nothing in it starts its note where a list's first day s
     ...season,
     games: season.games.filter((game) => game.state === "final"),
   }));
-  await expect(page.locator("#games-today .empty-note")).toHaveText("No games today");
-  expect(await readGapUnderPill("#games-today .empty-note")).toBe(dayGap);
+  const note = page.locator("#games-today .empty-note");
+  await expect(note).toHaveText("No games today");
+  expect(await readGapUnderPill("#games-today .empty-note")).toBe(dayGap + 44);
+  const [textMiddle, listMiddle] = await note.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    const list = element.closest(".pager-page").getBoundingClientRect();
+    return [text.left + text.width / 2, list.left + list.width / 2];
+  });
+  expect(Math.abs(textMiddle - listMiddle)).toBeLessThanOrEqual(1);
 });
 
 test("a game's series label is on the type scale's small step, and it and If needed read lighter than Final", async ({
@@ -1827,55 +1871,40 @@ test.describe("on a phone", () => {
     }
   });
 
-  /** The left edge and width of the Games pill's block, and of each name. */
-  const readPill = (page) =>
-    page.locator("#games-bar [role=tablist]").evaluate((tabList) => {
-      const measure = (element) => {
-        const box = element.getBoundingClientRect();
-        return { left: Math.round(box.left), width: Math.round(box.width) };
-      };
-      return {
-        thumb: measure(/** @type {Element} */ (tabList.querySelector(".pager-thumb"))),
-        names: Object.fromEntries(
-          [...tabList.querySelectorAll("[role=tab]")].map((tab) => [
-            tab.textContent.trim(),
-            { ...measure(tab), fill: getComputedStyle(tab).backgroundColor },
-          ]),
-        ),
-      };
-    });
+  const readGamesPosition = (page) =>
+    page.locator("#games-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth);
 
-  test("a pill's names are plain words over one orange block, which a swipe carries between two names", async ({
-    page,
-  }) => {
-    await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    await expect.poll(async () => (await readPill(page)).thumb.left).toBeGreaterThan(0);
-    const resting = await readPill(page);
-    const { Previous: previous, Today: today } = resting.names;
-    expect(resting.thumb).toEqual({ left: today.left, width: today.width });
-    for (const name of Object.values(resting.names)) expect(name.fill).toBe("rgba(0, 0, 0, 0)");
-
-    // Snapping, or settling once the scroll ends, would carry a scroll set by hand to the nearest
-    // list, which a finger holds off.
-    await page.locator("#games-pages").evaluate((pages) => {
-      addEventListener("scrollend", (event) => event.stopImmediatePropagation(), { capture: true });
-      pages.style.scrollSnapType = "none";
-      pages.scrollTo({ left: pages.clientWidth * 0.5, behavior: "instant" });
-    });
-
-    await expect
-      .poll(async () => (await readPill(page)).thumb)
-      .toEqual({
-        left: Math.round((previous.left + today.left) / 2),
-        width: Math.round((previous.width + today.width) / 2),
+  /**
+   * Starts noting where the Games lists were each time the pill changed its chosen name.
+   * @param {import("@playwright/test").Page} page
+   * @returns {Promise<() => Promise<{ name: string, position: number }[]>>}
+   */
+  async function noteNameChoices(page) {
+    await page.evaluate(() => {
+      const choices = /** @type {object[]} */ ([]);
+      const pages = /** @type {HTMLElement} */ (document.getElementById("games-pages"));
+      new MutationObserver((records) => {
+        for (const record of records) {
+          const tab = /** @type {HTMLElement} */ (record.target);
+          if (tab.getAttribute("aria-selected") !== "true") continue;
+          choices.push({
+            name: (tab.textContent ?? "").trim(),
+            position: pages.scrollLeft / pages.clientWidth,
+          });
+        }
+      }).observe(/** @type {Node} */ (document.querySelector("#games-bar [role=tablist]")), {
+        attributes: true,
+        attributeFilter: ["aria-selected"],
+        subtree: true,
       });
-  });
+      Object.assign(window, { nameChoices: choices });
+    });
+    return () => page.evaluate(() => /** @type {any} */ (window).nameChoices);
+  }
 
-  test("a tap on a name two over slides the pill's block straight there, leaving the name between as it is", async ({
+  test("a tap on a name two over hands the pill's fill straight there, the old name's fading out as the new one's fades in, eased alike, the new name's letters a beat behind, and the name between never filling", async ({
     page,
   }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
     await openApp(page);
     await page.getByRole("tab", { name: "Games" }).click();
     await page.getByRole("tab", { name: "Previous" }).click();
@@ -1884,35 +1913,99 @@ test.describe("on a phone", () => {
       "true",
     );
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.evaluate(() => {
-      const today = /** @type {Element} */ (document.getElementById("games-tab-today"));
-      const noted = /** @type {number[]} */ ([]);
-      document
-        .getElementById("games-pages")
-        ?.addEventListener("scroll", () =>
-          noted.push(Number(getComputedStyle(today).getPropertyValue("--nearness"))),
-        );
-      document.querySelector("#games-bar .pager-thumb")?.addEventListener("transitionrun", () => {
-        /** @type {any} */ (window).thumbSlides += 1;
-      });
-      Object.assign(window, { todayNearness: noted, thumbSlides: 0 });
-    });
+    const tabList = page.locator("#games-bar [role=tablist]");
+    const readChoices = await noteNameChoices(page);
+    const readFades = await noteNameFades(tabList);
 
     await page.getByRole("tab", { name: "Next" }).click();
 
-    await expect
-      .poll(() => page.evaluate(() => /** @type {any} */ (window).thumbSlides))
-      .toBeGreaterThan(0);
-    await expect
-      .poll(() =>
-        page.locator("#games-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth),
-      )
-      .toBe(2);
-    const noted = await page.evaluate(() => /** @type {any} */ (window).todayNearness);
-    expect(noted.length).toBeGreaterThan(0);
-    expect(Math.max(...noted)).toBe(0);
-    const { thumb, names } = await readPill(page);
-    expect(thumb).toEqual({ left: names.Next.left, width: names.Next.width });
+    await expect.poll(() => readGamesPosition(page)).toBe(2);
+    const [choice, ...later] = await readChoices();
+    expect(choice).toEqual({ name: "Next", position: 0 });
+    expect(later).toEqual([]);
+    const fades = await readFades();
+    expect(listFillFades(fades)).toEqual([
+      "Next 0.18s 0s ease-in-out",
+      "Previous 0.18s 0s ease-in-out",
+    ]);
+    const fillStarts = fades
+      .filter(({ property }) => property === "background-color")
+      .map(({ at }) => at);
+    expect(Math.abs(fillStarts[0] - fillStarts[1])).toBeLessThan(5);
+    const letterFades = fades
+      .filter(({ property }) => property === "color")
+      .map(({ name, duration, delay }) => `${name} ${duration} ${delay}`)
+      .sort();
+    expect(letterFades).toEqual(["Next 0.2s 0.025s", "Previous 0.18s 0s"]);
+    expect(await readFilledNames(tabList)).toEqual(["Next"]);
+  });
+
+  test("with reduced motion, a tap moves the pill's fill at once, fading nothing", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    const tabList = page.locator("#games-bar [role=tablist]");
+    const readFades = await noteNameFades(tabList);
+
+    await page.getByRole("tab", { name: "Next" }).click();
+
+    await expect.poll(() => readGamesPosition(page)).toBe(2);
+    expect(await readFilledNames(tabList)).toEqual(["Next"]);
+    expect(await readFades()).toEqual([]);
+  });
+
+  test("a finger swiping the Games lists past halfway leaves the pill as it is while it moves them, and once it lifts, the pill hands off to the list they snap to as they set off", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await expect.poll(() => readGamesPosition(page)).toBe(1);
+    const tabList = page.locator("#games-bar [role=tablist]");
+    const readChoices = await noteNameChoices(page);
+    const readFades = await noteNameFades(tabList);
+
+    const release = await drag(page, { x: 330, y: 500 }, { x: -250 }, { durationMs: 1000 });
+    const liftPosition = await readGamesPosition(page);
+    expect(liftPosition).toBeGreaterThan(1.5);
+    expect(liftPosition).toBeLessThan(1.9);
+    expect(await readChoices()).toEqual([]);
+    expect(await readFilledNames(tabList)).toEqual(["Today"]);
+    await release();
+
+    await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
+    await expect.poll(() => readGamesPosition(page)).toBe(2);
+    const [choice, ...later] = await readChoices();
+    expect(choice.name).toBe("Next");
+    expect(choice.position).toBeGreaterThan(liftPosition);
+    expect(choice.position).toBeLessThan(1.98);
+    expect(later).toEqual([]);
+    expect(listFillFades(await readFades())).toEqual([
+      "Next 0.18s 0s ease-in-out",
+      "Today 0.18s 0s ease-in-out",
+    ]);
+  });
+
+  test("a finger swiping the Games lists short of halfway leaves the pill as it is, and once it lifts, the lists spring back with the pill never changing", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await expect.poll(() => readGamesPosition(page)).toBe(1);
+    const tabList = page.locator("#games-bar [role=tablist]");
+    const readChoices = await noteNameChoices(page);
+    const readFades = await noteNameFades(tabList);
+
+    const release = await drag(page, { x: 330, y: 500 }, { x: -120 }, { durationMs: 1000 });
+    expect(await readGamesPosition(page)).toBeGreaterThan(1.2);
+    await release();
+
+    await expect.poll(() => readGamesPosition(page)).toBe(1);
+    expect(await readChoices()).toEqual([]);
+    expect(await readFades()).toEqual([]);
+    expect(await readFilledNames(tabList)).toEqual(["Today"]);
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({

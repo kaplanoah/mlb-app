@@ -28,6 +28,20 @@ test("two names for one channel show its logo once, and a channel with no logo k
   assert.deepEqual(rest, ["ION", "WNBA League Pass"]);
 });
 
+test("each channel MLB's playoffs are on has its logo, whatever the case MLB writes it in", () => {
+  const logos = listNetworkLogos(["FOX", "FS1", "FOX ONE", "TBS", "HBO MAX", "Apple TV"]);
+  assert.deepEqual(
+    logos.map((logo) => typeof logo === "object" && logo.name),
+    ["FOX", "FS1", "FOX One", "TBS", "HBO Max", "Apple TV"],
+  );
+});
+
+test("MLB Network and SNY show their logos, SNY's with a version for a dark page", () => {
+  const [mlbNetwork, sny] = listLogos(["MLB Network", "SNY"]);
+  assert.deepEqual([mlbNetwork.file, mlbNetwork.darkFile], ["mlb-network.png", undefined]);
+  assert.deepEqual([sny.file, sny.darkFile], ["sny.png", "sny-dark.png"]);
+});
+
 test("a logo that works on one background has a version for the other", () => {
   const [nbc, espn] = listLogos(["NBC", "ESPN"]);
   assert.deepEqual([nbc.file, nbc.darkFile], ["nbc.svg", "nbc-dark.svg"]);

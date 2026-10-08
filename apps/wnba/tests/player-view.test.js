@@ -5,7 +5,6 @@ import {
   describePlayerNote,
   describePosition,
   describeRankNote,
-  drawSpread,
   renderPlayerBody,
   renderPlayerFacts,
   renderPlayerHeading,
@@ -162,15 +161,13 @@ test("her turnovers follow her defense on a line of their own, and rank from the
   assert.doesNotMatch(plain, /Turnovers/);
 });
 
-test("the turnovers curve runs from the most to the fewest, so her mark sits further right the fewer she has", () => {
-  const values = [0.5, 1.2, 2.6, 4];
-  const most = drawSpread(values, 2.6);
-  const fewest = drawSpread(values, 2.6, true);
-  assert.equal(fewest.left.toFixed(1), (100 - most.left).toFixed(1));
-  assert.equal(fewest.top.toFixed(3), most.top.toFixed(3));
-  assert.ok(drawSpread(values, 0.5, true).left > drawSpread(values, 4, true).left);
-  assert.equal(fewest.edge.split(" L").length, most.edge.split(" L").length);
-  assert.notEqual(fewest.edge, most.edge);
+test("an unranked player's turnovers show her number alone, without the note on how they rank", () => {
+  const player = createPlayer();
+  player.regularSeason.games = 9;
+  player.regularSeason.stats.push(describeStat({ key: "turnovers", value: 1, rank: null }));
+  const text = renderBody(player);
+  assert.match(text, /TO 1\.0 /);
+  assert.doesNotMatch(text, /ranked by fewest/);
 });
 
 test("her playoffs list her team's games with her points in each, DNP for one she missed, and its next game", () => {
@@ -266,15 +263,6 @@ test("while her numbers load the sheet holds their shape, and says so when they 
   assert.match(String(renderPlayerFacts(null, true)), /placeholder/);
   assert.equal(renderPlayerFacts(null, false), false);
   assert.equal(readText(describePlayerNote(SUBJECT, null)), "Liberty");
-});
-
-test("the curve spreads across from the lowest number to the highest, its peak at the top, with her mark on it", () => {
-  const { area, edge, left, top } = drawSpread([10, 10, 10, 20], 20);
-  assert.match(area, /^M0,20 L0\.0,2\.0 .* L100,20 Z$/);
-  assert.match(edge, /^M0\.0,2\.0 /);
-  assert.equal(left, 100);
-  assert.ok(top > 10 && top < 100);
-  assert.equal(drawSpread([5], 5).left, 50);
 });
 
 test("a player's name is a button that opens her sheet", () => {

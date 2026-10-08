@@ -1,0 +1,74 @@
+// The tables of players' numbers on the sheets, like a box score's batters or a roster's bullpen:
+// a column of names under a label, then a column for each number.
+
+import { html } from "#shared/html.js";
+import { renderPlayerButton } from "./player-button.js";
+
+/** @typedef {import("#shared/html.js").Markup} Markup */
+/**
+ * A column's label and the number it shows from a row, by field or as read from the row.
+ * @typedef {readonly [string, string | ((row: any) => Markup | string | number | null | undefined)]} StatColumn
+ */
+
+/**
+ * Innings as the sheets write them. MLB counts them in thirds after the point: 5.2 is five and two
+ * thirds, and 0.2 just two thirds.
+ * @param {string | number} innings
+ */
+export function formatInnings(innings) {
+  const [whole, thirds] = String(innings).split(".");
+  if (!thirds || thirds === "0") return whole;
+  return whole === "0" ? `${thirds}/3` : `${whole} ${thirds}/3`;
+}
+
+/**
+ * @param {any} row
+ * @param {StatColumn[1]} reader
+ */
+const readValue = (row, reader) => (typeof reader === "function" ? reader(row) : row[reader]);
+
+/**
+ * A row's numbers, with a dash for one it hasn't any of.
+ * @param {any} row
+ * @param {readonly StatColumn[]} columns
+ */
+export const renderStatCells = (row, columns) =>
+  columns.map(([, reader]) => html`<td class="tabular">${readValue(row, reader) ?? "-"}</td>`);
+
+/**
+ * A player's name cell, with what goes before his name, like his number, and after it, like his
+ * position. His name is the button that opens his sheet wherever the row is tapped, but for a
+ * player kept without his id, whose name shows plainly.
+ * @param {{ id?: number, name: string, number?: string }} player
+ * @param {string} club
+ * @param {{ lead?: Markup | string, note?: Markup | string }} [beside]
+ */
+export const renderPlayerCell = (player, club, { lead = "", note = "" } = {}) =>
+  player.id
+    ? html`<td class="team row-button-cell">${lead}${renderPlayerButton(/** @type {{ id: number, name: string }} */ (player), club)}${note}</td>`
+    : html`<td class="team">${lead}<span class="box-name">${player.name}</span>${note}</td>`;
+
+/**
+ * A table whose rows each open wherever they're tapped clips the button that reaches over each
+ * row to the table's sides (row-button.css).
+ * @param {string} label
+ * @param {readonly StatColumn[]} columns
+ * @param {Markup[]} rows
+ * @param {{ opensRows?: boolean }} [options]
+ */
+export const renderStatTable = (label, columns, rows, { opensRows = false } = {}) =>
+  html`<div class="box-wrap">
+    <div class="${opensRows ? "row-button-clip" : ""}">
+      <table class="st box-table">
+        <thead>
+          <tr>
+            <th class="left">${label}</th>
+            ${columns.map(([heading]) => html`<th>${heading}</th>`)}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  </div>`;

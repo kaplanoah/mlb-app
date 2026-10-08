@@ -275,15 +275,26 @@ const renderToday = (today, allGames, now) =>
  * @param {{ games?: Game[], series?: Series[] } | null} season
  * @param {number} now
  */
-export function renderGames(season, now) {
+function sortShownGames(season, now) {
   const seriesById = new Map((season?.series ?? []).map((series) => [series.id, series]));
   const allGames = season?.games ?? [];
   const shown = allGames.filter((game) => hasATeam(game) && !isCalledOff(game, seriesById));
-  if (!shown.length) {
+  return sortGamesByDay(shown, now);
+}
+
+/** Whether today's list and the Next list show any games. */
+export function findListsWithGames(season, now) {
+  const { today, ahead } = sortShownGames(season, now);
+  return { hasGamesToday: today.length > 0, hasGamesAhead: ahead.length > 0 };
+}
+
+export function renderGames(season, now) {
+  const allGames = season?.games ?? [];
+  const { today, ahead, before } = sortShownGames(season, now);
+  if (!today.length && !ahead.length && !before.length) {
     const note = renderEmptyNote("No playoff games yet");
     return { previous: note, today: note, next: note };
   }
-  const { today, ahead, before } = sortGamesByDay(shown, now);
   return {
     previous: before.length ? renderDays(before, allGames, now) : renderEmptyNote("No results yet"),
     today: renderToday(today, allGames, now),

@@ -2,6 +2,32 @@ import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../../page/js/snapshot.js";
 import PAGE_FILES from "#page-files/mlb";
 import { createAppWorker } from "../../../../shared/worker/app-worker.js";
+import { describeBoxScore } from "../../worker/src/box-score.js";
+import {
+  composePitcher,
+  describePitcher,
+  describeStarters,
+  listQualifiedRequest,
+  nameStartersKey,
+  readSpeeds,
+} from "../../worker/src/pitchers.js";
+import {
+  describeHitters,
+  describeLastGames,
+  describePlayer,
+  indexPeople,
+  listPeopleRequest,
+  nameHittersKey,
+  namePlayerKey,
+} from "../../worker/src/players.js";
+import {
+  describeRoster,
+  indexSeasonStats,
+  isOnRoster,
+  listRosterRequest,
+  listSeasonStatsRequest,
+  nameRosterKey,
+} from "../../worker/src/rosters.js";
 import { SeasonStore, forwardToStore } from "../../worker/src/store.js";
 import {
   test,
@@ -19,6 +45,96 @@ const loadFixture = (name) =>
 export const EVENING_FIXTURE = loadFixture("2026-09-24-evening");
 // The 2025 season after the World Series, when nothing was left to play.
 export const FINAL_2025_FIXTURE = loadFixture("2025-final");
+// The evening of two division series games, with where each game is on.
+export const BROADCASTS_FIXTURE = loadFixture("2026-10-07-broadcasts");
+// What the Worker answers for each of that evening's Division Series games' box scores.
+export const BOX_SCORES = Object.fromEntries(
+  Object.entries(loadFixture("2026-10-07-games").feeds).map(([id, feed]) => [
+    id,
+    describeBoxScore(id, feed),
+  ]),
+);
+
+const ROSTERS_FIXTURE = loadFixture("2026-10-08-rosters");
+// The Guardians', Yankees', and Dodgers' rosters as the store keeps them, by their documents' paths.
+export const ROSTER_DOCS = Object.fromEntries(
+  Object.entries({ CLE: 114, NYY: 147, LAD: 119 }).map(([club, mlbTeamId]) => {
+    const { season, answers } = ROSTERS_FIXTURE;
+    const roster = describeRoster({
+      club,
+      season,
+      roster: answers[listRosterRequest(mlbTeamId, season)],
+      hitting: indexSeasonStats(answers[listSeasonStatsRequest(season, "hitting")]),
+      pitching: indexSeasonStats(answers[listSeasonStatsRequest(season, "pitching")]),
+    });
+    return [nameRosterKey(club), roster];
+  }),
+);
+
+const PITCHERS_FIXTURE = loadFixture("2026-10-06-pitchers");
+const RECORDED_CLUBS = { CLE: 114, NYY: 147, LAD: 119 };
+
+/**
+ * Every player on the Guardians', Yankees', and Dodgers' rosters, the hitters MLB ranks, and the
+ * qualified starters, as the store keeps them, by their documents' paths.
+ */
+function buildPlayerDocs() {
+  const { season, answers } = ROSTERS_FIXTURE;
+  /** @param {object} [options] */
+  const index = (group, options) =>
+    indexSeasonStats(answers[listSeasonStatsRequest(season, group, options)]);
+  const numbers = {
+    hitting: index("hitting"),
+    pitching: index("pitching"),
+    postseasonHitting: index("hitting", { gameType: "P" }),
+    postseasonPitching: index("pitching", { gameType: "P" }),
+  };
+  const people = indexPeople(answers[listPeopleRequest(season)]);
+  const players = Object.entries(RECORDED_CLUBS).flatMap(([club, mlbTeamId]) =>
+    answers[listRosterRequest(mlbTeamId, season)].roster.filter(isOnRoster).map((entry) => {
+      const player = describePlayer({
+        ...numbers,
+        entry,
+        club,
+        season,
+        person: people.get(entry.person.id) ?? null,
+        lastGames: describeLastGames(ROSTERS_FIXTURE.gameLogs[entry.person.id] ?? {}),
+      });
+      return [namePlayerKey(season, entry.person.id), player];
+    }),
+  );
+  return Object.fromEntries([
+    ...players,
+    [
+      nameHittersKey(season),
+      describeHitters(answers[listSeasonStatsRequest(season, "hitting", { pool: "qualified" })]),
+    ],
+    [nameStartersKey(season), QUALIFIED_STARTERS],
+  ]);
+}
+
+const QUALIFIED_STARTERS = describeStarters(
+  PITCHERS_FIXTURE.answers[listQualifiedRequest(2026)],
+  readSpeeds(PITCHERS_FIXTURE.people[2026]),
+);
+export const PLAYER_DOCS = buildPlayerDocs();
+
+/**
+ * What the Worker answers for each recorded starter's matchup side, by id.
+ * @type {Record<number, object>}
+ */
+export const PITCHER_SIDES = Object.fromEntries(
+  PITCHERS_FIXTURE.people[2026].map((/** @type {any} */ person) => {
+    const gameLog = PITCHERS_FIXTURE.gameLogs[2026].find(
+      (/** @type {any} */ each) => each.id === person.id,
+    );
+    const pitcher = describePitcher(person, gameLog);
+    return [
+      person.id,
+      composePitcher(pitcher, QUALIFIED_STARTERS, Date.parse(PITCHERS_FIXTURE.recordedAt)),
+    ];
+  }),
+);
 
 export const buildFixtureSnapshot = (fixture) =>
   MLBSnapshot.buildSnapshot(fixture.responses, {
@@ -87,6 +203,7 @@ const isWriteRequest = (request) => request.method() !== "GET";
  * @param {Record<number, object>} [options.pitchers] what the Worker answers for each pitcher id
  * @param {Record<string, object>} [options.rotations] what the Worker answers for each club's last
  *   starters
+ * @param {Record<string, object>} [options.boxScores] what the Worker answers for each game id
  */
 export async function openApp(
   page,
@@ -98,6 +215,7 @@ export async function openApp(
     portalReadsDocuments = false,
     pitchers = {},
     rotations = {},
+    boxScores = {},
   } = {},
 ) {
   const snapshotsBySeason = {
@@ -147,6 +265,12 @@ export async function openApp(
     if (!rotation)
       return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
     return route.fulfill({ json: rotation });
+  });
+  await page.route(matchPath("/box-score"), (route) => {
+    const boxScore = boxScores[new URL(route.request().url()).searchParams.get("id") ?? ""];
+    if (!boxScore)
+      return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
+    return route.fulfill({ json: boxScore });
   });
   await page.route(matchPath("/store/"), (route) => {
     const url = new URL(route.request().url());

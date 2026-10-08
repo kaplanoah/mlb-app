@@ -43,6 +43,7 @@ const MLB_TEAM = {
   147: "NYY",
   158: "MIL",
 };
+export const listClubs = () => Object.values(MLB_TEAM);
 // Postseason placeholders have made-up ids, so this is null for them.
 export const readClubId = (mlbTeamId) => MLB_TEAM[mlbTeamId] || null;
 // The MLB id of one of the page's clubs, or null for a name that isn't one.
@@ -94,6 +95,11 @@ const GAME_FIELDS = [
   "defense",
   "offense",
   "pitcher",
+  "broadcasts",
+  "type",
+  "language",
+  "isNational",
+  "homeAway",
 ].join(",");
 const SEASON_FIELDS = ["seasons", "springStartDate", "regularSeasonEndDate"].join(",");
 const PITCHER_FIELDS = [
@@ -241,6 +247,13 @@ export const CHECKED_FIELDS = [
   "pitcher",
   // A club names its starter a day or two ahead, so a game without one is never flagged.
   "probablePitcher",
+  // A game MLB lists no channels for yet says to check back, and a broadcast that doesn't say it's
+  // on English TV is left out.
+  "broadcasts",
+  "type",
+  "language",
+  "isNational",
+  "homeAway",
 ];
 
 const readPath = (object, path) =>
@@ -380,7 +393,7 @@ export function listMlbRequests(season, now, regularSeasonEnd = null) {
     // Four days ahead reaches every club's next regular season game.
     requests.schedule =
       `/api/v1/schedule?sportId=1&startDate=${firstDay}` +
-      `&endDate=${addDays(today.date, 4)}&hydrate=linescore,gameInfo,probablePitcher` +
+      `&endDate=${addDays(today.date, 4)}&hydrate=linescore,gameInfo,probablePitcher,broadcasts` +
       `&fields=${GAME_FIELDS}`;
   }
   return requests;
@@ -493,6 +506,36 @@ function readPitcherIn(linescore, teamId) {
   return side?.pitcher?.id ?? null;
 }
 
+// A channel's name can carry its sponsor or a note on where it airs, and one shown on its
+// streaming service too names both, split by a slash.
+const SPONSOR_OR_NOTE = /,?\s+(presented by\b.*|\(.*\))$/i;
+
+// MLB names a channel's app, or a channel by its owner's name, where the line shows the channel.
+const CHANNEL_NAMES = { "ESPN App": "ESPN", "Amazon Prime Video": "Prime Video" };
+
+/** @param {{ name?: string }} broadcast */
+const listChannelNames = (broadcast) =>
+  (broadcast.name ?? "")
+    .replace(SPONSOR_OR_NOTE, "")
+    .split("/")
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => CHANNEL_NAMES[name] ?? name);
+
+const isEnglishTv = (broadcast) => broadcast.type === "TV" && broadcast.language === "en";
+
+// National channels come first, then each club's own, the visitors' before the home club's.
+const rankBroadcast = (broadcast) =>
+  broadcast.isNational ? 0 : broadcast.homeAway === "away" ? 1 : 2;
+
+/** @param {any[]} [broadcasts] */
+function listNetworks(broadcasts = []) {
+  const shown = broadcasts
+    .filter(isEnglishTv)
+    .sort((first, second) => rankBroadcast(first) - rankBroadcast(second));
+  return [...new Set(shown.flatMap(listChannelNames))];
+}
+
 function normalizeGame(game) {
   const readSide = (key) => {
     const side = (game.teams && game.teams[key]) || {};
@@ -509,6 +552,7 @@ function normalizeGame(game) {
   const state = readGameState(status);
   const league = /^(AL|NL)\b/.exec(game.seriesDescription || "");
   return {
+    id: String(game.gamePk),
     type: game.gameType,
     date: game.officialDate,
     start: game.gameDate,
@@ -525,6 +569,7 @@ function normalizeGame(game) {
     number: game.seriesGameNumber,
     league: league ? league[1] : null,
     end: state === "final" ? estimateEnd(game) : null,
+    networks: listNetworks(game.broadcasts),
   };
 }
 
@@ -581,8 +626,18 @@ function listStarters(game, pitchers) {
   return starters.some(Boolean) ? starters : null;
 }
 
+// A game that has ended, or won't be played, no longer says where it's on.
+const isWatchable = (game) =>
+  (game.state === "pre" || game.state === "live") && game.networks.length > 0;
+
 function summarizeGame(game, pitchers) {
-  const summary = { away: game.away.id, home: game.home.id, state: game.state, start: game.start };
+  const summary = {
+    id: game.id,
+    away: game.away.id,
+    home: game.home.id,
+    state: game.state,
+    start: game.start,
+  };
   if (game.tbd) summary.tbd = true;
   if (game.doubleheader) summary.doubleheader = game.doubleheader;
   if (game.type !== "R") summary.postseason = true;
@@ -594,6 +649,7 @@ function summarizeGame(game, pitchers) {
   if (game.state === "final") summary.end = game.end;
   if (game.state === "off") summary.detail = game.detail;
   if (game.delay) summary.delay = game.delay;
+  if (isWatchable(game)) summary.networks = game.networks;
   const starters = listStarters(game, pitchers);
   if (starters) summary.starters = starters;
   return summary;

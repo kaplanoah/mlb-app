@@ -76,6 +76,14 @@
   --pager-label: var(--ink-dim);
   --updates-head: var(--gold);
   --sheet-part-head: var(--gold);
+  --network-logo-height: 13px;
+  --network-gap: 16px;
+  --logos-for-light: none;
+  --logos-for-dark: inline;
+  --game-card-edge: var(--card-border);
+  --game-card-live: var(--copper-ink);
+  --game-card-won: var(--gold);
+  --game-card-team-font: inherit;
   --game-row-height: 82.5px;
   --game-side-offset: 0px;
   --game-label-offset: -21px;
@@ -193,58 +201,6 @@ header.top h1 {
 }
 .stamp-err {
   color: var(--copper-ink);
-}
-
-.banner {
-  margin-left: 10px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  position: relative;
-  padding-left: 17px;
-  font-size: var(--size-glance);
-  line-height: 1;
-  font-weight: 500;
-  color: var(--ink);
-  align-self: stretch;
-}
-.banner[hidden] {
-  display: none;
-}
-.banner::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 1px;
-  bottom: 1px;
-  border-left: 1px solid var(--card-border);
-}
-.banner > * {
-  display: flex;
-  align-items: center;
-}
-.banner .banner-label {
-  font-size: var(--size-small);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--copper-ink);
-  font-weight: 450;
-}
-/* The -0.5px keeps the 19px chip on whole pixels when centered in the 30px tab row. */
-.banner .banner-team {
-  gap: 9px;
-  position: relative;
-  top: -0.5px;
-}
-.banner .banner-team .dot {
-  position: relative;
-  top: -0.5px;
-}
-/* Centered beside the smaller capitals of the label, the club's name sits a pixel above their
-   baseline. */
-.banner .banner-team .team-name {
-  position: relative;
-  top: 1px;
 }
 
 .stand-head {
@@ -676,9 +632,6 @@ table.st .seed-cell {
   font-size: inherit;
 }
 
-nav.tabs + .updates {
-  margin-top: -12px;
-}
 .updates-list .what {
   font-weight: 350;
 }
@@ -729,10 +682,6 @@ nav.tabs + .updates {
 .team-id .rank-slot {
   margin-right: 0;
 }
-.banner-team .rank-slot {
-  margin-right: 0;
-  width: auto;
-}
 
 .rank-tag {
   display: inline-flex;
@@ -748,7 +697,6 @@ nav.tabs + .updates {
   background: transparent;
   border: 1px solid var(--copper);
   color: var(--copper);
-  /* Fixed: inheriting the banner's line-height: 1 sets the number high in the box. */
   line-height: 13px;
 }
 .rank-tag.solid {
@@ -968,9 +916,6 @@ nav.tabs + .updates {
 }
 .club > .team-name {
   align-self: baseline;
-}
-.banner-team .club {
-  gap: 10px;
 }
 .matchup-row .team-name,
 table.st td.team .team-name {
@@ -1388,6 +1333,241 @@ body.kbd .rank-item .grip:focus {
   height: 15px;
   color: var(--accent);
 }
+/* The Game section's box score: a lineup, the runs by inning, and each club's batters and pitchers. */
+.sheet-part-head h3 .club {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.box-wrap {
+  overflow-x: auto;
+  margin-inline: -10px;
+}
+.box-wrap + .box-wrap {
+  margin-top: 10px;
+}
+/* The standings' fixed columns on a wide screen would squeeze a box score's names. */
+table.st.box-table,
+table.st.line-score {
+  table-layout: auto;
+}
+.box-pos,
+.box-decision {
+  margin-left: 8px;
+  font-size: var(--size-small);
+  color: var(--ink-dim);
+}
+.box-decision {
+  color: var(--gold);
+}
+table.st tr.box-sub td.team {
+  padding-left: 22px;
+}
+table.st tr.box-total td {
+  color: var(--ink-dim);
+}
+table.st.line-score th.mid,
+table.st.line-score td.mid {
+  min-width: 18px;
+  padding-left: 0;
+}
+table.st.line-score .total {
+  padding-left: 10px;
+  color: var(--ink);
+  font-weight: 550;
+}
+table.st.line-score td.team .club {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* A club's Roster section: its hitters, starters, and bullpen, then its injured list. */
+.roster-body {
+  padding-top: 8px;
+}
+.roster-number {
+  display: inline-block;
+  min-width: 2ch;
+  margin-right: 8px;
+  text-align: right;
+  color: var(--ink-dim);
+}
+.injured-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-glance);
+}
+.injured-list li {
+  display: flex;
+  align-items: baseline;
+}
+.injured-status {
+  margin-left: auto;
+  color: var(--copper-ink);
+}
+/* A player's name in a roster, which opens his sheet. The button only clears the browser's own
+   look, so the name keeps the type of the row it sits in. */
+.player-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+body.kbd .player-open:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .player-open:hover {
+    color: var(--ink-hover);
+  }
+}
+
+/* A player's sheet: his facts in a row in the sheet's top, short labels over values, then his
+   totals in an outlined box over each ranked number, its curve, and its rank. */
+.player-facts-slot {
+  margin-top: 12px;
+}
+.player-facts {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+.player-fact {
+  display: grid;
+  gap: 1px;
+  padding-inline: 10px;
+  text-align: center;
+}
+.player-fact dt {
+  font-size: var(--size-small);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.player-fact dd {
+  margin: 0;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  color: var(--ink);
+}
+.player-body {
+  padding-top: 8px;
+}
+.season-line {
+  margin: 0;
+  font-size: var(--size-glance);
+  color: var(--ink-mid);
+}
+.totals {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 8px;
+  padding: 12px 0;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-chip);
+}
+.total {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+.total b {
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+.player-ranks {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  row-gap: 15px;
+}
+.player-rank-row {
+  display: contents;
+}
+.player-rank-label {
+  padding-right: 15px;
+  font-size: var(--size-small);
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.player-rank-value {
+  padding-right: 23px;
+  font-size: var(--size-read);
+  font-weight: 500;
+  text-align: right;
+}
+.player-curve {
+  position: relative;
+  height: 18px;
+}
+.player-curve svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.player-curve-area {
+  fill: color-mix(in srgb, var(--ink-dim) 16%, transparent);
+}
+.player-curve-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink-dim) 55%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.player-curve i {
+  position: absolute;
+  bottom: 0;
+  width: 1.5px;
+  margin-left: -0.75px;
+  background: var(--accent);
+}
+.player-curve b {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.player-rank {
+  padding-left: 18px;
+  font-size: var(--size-glance);
+  text-align: right;
+  white-space: nowrap;
+  color: var(--ink-dim);
+}
+.player-rank-place {
+  font-weight: 500;
+  color: var(--ink);
+}
+.player-rank-notes {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+  margin-top: 5px;
+}
+.player-rank-note {
+  margin: 0;
+  font-size: var(--size-glance);
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--ink-dim);
+}
 .matchup-body {
   display: grid;
   gap: 22px;
@@ -1725,26 +1905,9 @@ body.kbd .rank-item .grip:focus {
   .tree-scroll.stacked {
     padding-bottom: 0;
   }
+  /* The tab bar floats over the page, so the nav has nothing in the flow and steps aside. */
   nav.tabs {
-    margin-bottom: 18px;
-  }
-  /* Without the banner the nav has nothing in the flow, so it steps aside. */
-  nav.tabs:has(> .banner[hidden]) {
     display: contents;
-  }
-  nav.tabs:has(> .banner[hidden]) + .updates {
-    margin-top: 0;
-  }
-
-  .banner {
-    margin-left: 0;
-    margin-right: 0;
-    top: 0;
-    flex-basis: 100%;
-    padding-left: 0;
-  }
-  .banner::before {
-    display: none;
   }
 }
 
@@ -1798,15 +1961,6 @@ body.kbd .rank-item .grip:focus {
   font-size: 1.05rem;
   font-weight: 550;
 }
-.team-detail {
-  font-weight: 400;
-}
-.team-detail b {
-  font-weight: 550;
-}
-.team-detail > .team-label {
-  margin-right: 12px;
-}
 .team-titles {
   margin: 0;
   font-size: var(--size-glance);
@@ -1815,14 +1969,17 @@ body.kbd .rank-item .grip:focus {
 .team-titles b {
   font-weight: 550;
 }
-.team-next {
-  color: var(--ink-mid);
+/* The cards of the club's nearest games sit under the sheet's top and reach nearer its sides than
+   its text, so three fit on a small phone. */
+.team-sheet-body > .game-cards {
+  margin: 8px -13.5px 0;
 }
-.team-next.live {
-  color: var(--copper-ink);
+.game-card-opponent .dot {
+  width: 9.5px;
+  height: 9.5px;
 }
-.team-next.delayed {
-  color: var(--gold);
+.game-card-score {
+  font-weight: 550;
 }
 .team-series {
   display: grid;

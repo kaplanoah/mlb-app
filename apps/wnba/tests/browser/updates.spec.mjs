@@ -32,6 +32,19 @@ export const RELEASE_NOTES = [{ at: "2026-09-30T20:55:00Z", text: html\`Tap a ga
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test("a release note's lines sit 1.3 apart", async ({ page }) => {
+    await serveReleaseNote(page);
+    await openApp(page, { isShowingUpdates: true });
+    await expect(page.locator("#updates .updates-notes .what")).toHaveCSS("line-height", "20.8px");
+  });
+
+  test("a final's team names are set in Barlow Condensed at medium", async ({ page }) => {
+    await openApp(page, { isShowingUpdates: true });
+    const team = page.locator("#updates .updates-list .what b").first();
+    await expect(team).toHaveCSS("font-family", /^"Barlow Condensed"/);
+    await expect(team).toHaveCSS("font-weight", "500");
+  });
+
   test("the Updates box opens on the latest day's playoff finals, newest first, until it's dismissed, and then lists only what's new", async ({
     page,
   }) => {
@@ -41,7 +54,7 @@ test.describe("on a phone", () => {
     await expect(updates.locator(".updates-count")).toHaveText("2 updates since yesterday");
     await expect(updates.locator(".what")).toHaveText([
       "Liberty beat the Lynx 87-71 to win the First Round 2\u20130",
-      "Fever beat the Aces 99-89 in Game\u00a02\u00a0\u2014 tie the First Round 1\u20131",
+      "Fever beat the Aces 99-89 in Game\u00a02, tie the First Round 1\u20131",
     ]);
 
     await page.getByRole("button", { name: "Dismiss updates" }).click();
