@@ -8,8 +8,8 @@ import { createPager } from "./pager.js";
 import { watchTimeAway } from "./resume.js";
 
 // The Games view's Previous, Today, and Next lists, which keep the list someone was on until
-// they've been away an hour, and then go back to the one the view starts from: today's, or, for a
-// season that's over, its results.
+// they've been away two minutes, and then go back to the one the view starts from: today's, or,
+// for a season that's over, its results.
 
 /** @typedef {import("./html.js").Markup} Markup */
 /** @typedef {import("./last-game-list.js").GameList} GameList */
