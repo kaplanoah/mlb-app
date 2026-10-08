@@ -36,6 +36,8 @@
  *   --network-gap            the room between two channels
  *   --logos-for-light        inline when a logo with a version for each background shows its
  *   --logos-for-dark         version for a light (or dark) one, and none when it doesn't
+ *   --network-name-offset    how far a channel without a logo sits below the logos' middle, set
+ *                            by eye for the app's font
  */
 
 /* The dialog only frames its sheets. */
@@ -347,4 +349,7 @@
 }
 .network-logo.for-dark {
   display: var(--logos-for-dark);
+}
+.network-name {
+  translate: 0 var(--network-name-offset);
 }

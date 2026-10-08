@@ -192,6 +192,7 @@
   --game-status-offset: 32px;
   --network-logo-height: 13px;
   --network-gap: 16px;
+  --network-name-offset: -0.5px;
   --logos-for-light: inline;
   --logos-for-dark: none;
   color-scheme: light;
