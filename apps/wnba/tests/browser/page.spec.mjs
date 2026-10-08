@@ -1876,13 +1876,15 @@ test.describe("on a phone", () => {
     );
     await page.emulateMedia({ reducedMotion: "no-preference" });
     const tabList = page.locator("#games-bar [role=tablist]");
+    const readChoices = await noteNameChoices(page);
     const readFades = await noteNameFades(tabList);
 
     await page.getByRole("tab", { name: "Next" }).click();
 
-    await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-    expect(await readGamesPosition(page)).toBeLessThan(1);
     await expect.poll(() => readGamesPosition(page)).toBe(2);
+    const [choice, ...later] = await readChoices();
+    expect(choice).toEqual({ name: "Next", position: 0 });
+    expect(later).toEqual([]);
     const fades = await readFades();
     expect(listFillFades(fades)).toEqual([
       "Next 0.18s 0s ease-in-out",

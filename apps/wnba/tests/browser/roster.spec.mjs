@@ -467,21 +467,20 @@ test.describe("in full motion", () => {
     const release = await drag(page, { x: 330, y: 400 }, { x: -250 }, { durationMs: 1000 });
     expect(await readFilledNames(page.locator("#teamSheet [role=tablist]"))).toEqual(["Team"]);
     expect(await page.evaluate(() => /** @type {any} */ (window).sheetChanges)).toEqual([]);
-    const rosterLeftAtHandoff = page.evaluate(
-      () =>
-        new Promise((resolve) => {
-          const roster = /** @type {HTMLElement} */ (document.getElementById("rosterSection"));
-          const tab = /** @type {HTMLElement} */ (
-            document.querySelector('#teamSheet [role=tab][data-tab="roster"]')
-          );
-          new MutationObserver(() => {
-            if (tab.getAttribute("aria-selected") === "true")
-              resolve(roster.getBoundingClientRect().x);
-          }).observe(tab, { attributes: true, attributeFilter: ["aria-selected"] });
-        }),
-    );
+    await page.evaluate(() => {
+      const roster = /** @type {HTMLElement} */ (document.getElementById("rosterSection"));
+      const tab = /** @type {HTMLElement} */ (
+        document.querySelector('#teamSheet [role=tab][data-tab="roster"]')
+      );
+      new MutationObserver(() => {
+        if (tab.getAttribute("aria-selected") === "true")
+          Object.assign(window, { rosterLeftAtHandoff: roster.getBoundingClientRect().x });
+      }).observe(tab, { attributes: true, attributeFilter: ["aria-selected"] });
+    });
     await release();
-    expect(await rosterLeftAtHandoff).toBeGreaterThan(30);
+    await expect
+      .poll(() => page.evaluate(() => /** @type {any} */ (window).rosterLeftAtHandoff))
+      .toBeGreaterThan(30);
     await expectShown(page.locator("#rosterSection"));
     const lefts = await readLefts();
 
