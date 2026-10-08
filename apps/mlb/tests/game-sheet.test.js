@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renderBoxScore } from "../page/js/box-score-view.js";
 import { isEarlierBoxScore, renderGameBody } from "../page/js/game-sheet.js";
-import { listSides } from "../page/js/matchup.js";
+import { listSides, renderMatchupBody } from "../page/js/matchup.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeBoxScore } from "../worker/src/box-score.js";
 import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
@@ -113,7 +113,7 @@ test("each club's batters, with their team's totals, come before its pitchers, w
   assert.deepEqual(pitchers.map((row) => row[0]).slice(1), ["Yamamoto W", "Scott", "Díaz S"]);
   assert.match(
     markup,
-    /<tr class="box-sub">\s*<td class="team"><span class="box-name">Muncy<\/span>/,
+    /<tr class="box-sub">\s*<td class="team row-button-cell"><button type="button" class="player-open box-name" data-player="\d+" data-player-club="LAD" data-player-name="Muncy" data-player-number="">Muncy<\/button>/,
   );
 });
 
@@ -157,4 +157,38 @@ test("a box score from before the one shown is passed over, and one from after i
   assert.equal(isEarlierBoxScore(later, live), false);
   assert.equal(isEarlierBoxScore(live, live), false);
   assert.equal(isEarlierBoxScore(live, null), false);
+});
+
+test("each batter's and pitcher's name in a box score, and each batter's in a lineup, opens his sheet with his club", () => {
+  const final = String(renderBoxScore({ away: "LAD", home: "ATL" }, describeGame("849819")));
+  assert.match(final, /data-player="605141" data-player-club="LAD" data-player-name="Betts"/);
+  const pitcher = describeGame("849819").home.pitchers[0];
+  assert.match(
+    final,
+    new RegExp(`data-player="${pitcher.id}" data-player-club="ATL" data-player-name="Sale"`),
+  );
+  const lineup = String(renderBoxScore({ away: "TB", home: "NYY" }, describeGame("849838")));
+  assert.match(lineup, /data-player="650490" data-player-club="TB" data-player-name="Díaz, Y"/);
+});
+
+test("a box score kept without its players' ids names them plainly", () => {
+  const boxScore = describeGame("849819");
+  for (const side of ["away", "home"])
+    for (const player of [...boxScore[side].batters, ...boxScore[side].pitchers]) delete player.id;
+  const markup = String(renderBoxScore({ away: "LAD", home: "ATL" }, boxScore));
+  assert.doesNotMatch(markup, /player-open/);
+  assert.match(markup, /<span class="box-name">Betts<\/span>/);
+});
+
+test("each named starter's name in the matchup opens his sheet with his club", () => {
+  const game = { ...slate.today.games.find((each) => each.starters?.[0]?.id), today: true };
+  const sides = listSides(game);
+  const markup = String(renderMatchupBody(game, sides));
+  for (const side of sides.filter((each) => each.starter?.id))
+    assert.match(
+      markup,
+      new RegExp(
+        `class="player-open pitcher-name" data-player="${side.starter.id}" data-player-club="${side.club}"`,
+      ),
+    );
 });

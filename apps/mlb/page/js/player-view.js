@@ -20,8 +20,9 @@ import { formatInnings } from "./stat-table.js";
  */
 /**
  * What the sheet shows of him, and what it ranks him among: the hitters MLB ranks, and for a
- * starter, the qualified starters and his side of a pitching matchup.
- * @typedef {{ player: Player | null, hitters: any, starters: any, side: any, isLoading: boolean }} ShownPlayer
+ * starter, the qualified starters and his side of a pitching matchup. `isUnkept` says the store
+ * keeps no sheet for him, as for a player on no club's roster.
+ * @typedef {{ player: Player | null, hitters: any, starters: any, side: any, isUnkept: boolean, isLoading: boolean }} ShownPlayer
  */
 
 /**
@@ -357,6 +358,8 @@ const renderPending = () =>
 export function renderPlayerBody(shown) {
   const { player, isLoading } = shown;
   if (!player && isLoading) return renderPending();
+  if (!player && shown.isUnkept)
+    return html`<p class="sheet-message">His numbers show while he's on a club's roster</p>`;
   if (!player)
     return html`<p class="sheet-message">Couldn't load his numbers. Close and try again in a minute.</p>`;
   const isTwoWay = Boolean(player.hitting && player.pitching && player.position !== "P");

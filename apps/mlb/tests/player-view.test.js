@@ -83,7 +83,16 @@ function describeRostered(mlbTeamId, club, name) {
  * @param {{ starters?: any, side?: any }} [ranked]
  */
 const renderText = (player, { starters = null, side = null } = {}) =>
-  readText(renderPlayerBody({ player, hitters: HITTERS, starters, side, isLoading: false }));
+  readText(
+    renderPlayerBody({
+      player,
+      hitters: HITTERS,
+      starters,
+      side,
+      isUnkept: false,
+      isLoading: false,
+    }),
+  );
 
 test("a hitter's sheet notes his club and number, and lists his facts in a row", () => {
   const kwan = describeRostered(114, "CLE", "Steven Kwan");
@@ -152,7 +161,14 @@ test("a two-way player's sheet shows his hitting season, then his pitching under
 
 test("a sheet still loading holds its shape, and one that didn't load says so", () => {
   const loading = String(
-    renderPlayerBody({ player: null, hitters: null, starters: null, side: null, isLoading: true }),
+    renderPlayerBody({
+      player: null,
+      hitters: null,
+      starters: null,
+      side: null,
+      isUnkept: false,
+      isLoading: true,
+    }),
   );
   assert.match(loading, /placeholder/);
   const failed = renderPlayerBody({
@@ -160,6 +176,7 @@ test("a sheet still loading holds its shape, and one that didn't load says so", 
     hitters: null,
     starters: null,
     side: null,
+    isUnkept: false,
     isLoading: false,
   });
   assert.match(readText(failed), /Couldn't load his numbers/);
@@ -181,4 +198,18 @@ test("a starter's last starts follow what he throws, and a reliever's last games
     smith,
     /BB 23 Last games Oct 7 @ White Sox 2 IP, 0 R, 5 K .* Sep 26 @ Royals 2\/3 IP, 0 R, 0 K /,
   );
+});
+
+test("a player the store keeps no sheet for says his numbers show while he's on a roster", () => {
+  const text = readText(
+    renderPlayerBody({
+      player: null,
+      hitters: null,
+      starters: null,
+      side: null,
+      isUnkept: true,
+      isLoading: false,
+    }),
+  );
+  assert.equal(text, "His numbers show while he's on a club's roster");
 });
