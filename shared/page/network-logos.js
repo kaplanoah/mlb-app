@@ -54,7 +54,7 @@ const CHANNELS = [
     scale: 0.72,
     nudge: -0.06,
   },
-  { name: "MLB Network", file: "mlb-network.png", names: [], scale: 1.3 },
+  { name: "MLB Network", file: "mlb-network.png", names: [], scale: 1.3, nudge: -0.04 },
   { name: "NBC", file: "nbc.svg", names: [], hasDarkVersion: true, scale: 0.94, nudge: 0.08 },
   { name: "NBCSN", file: "nbcsn.png", names: [], hasDarkVersion: true, scale: 1.06, nudge: -0.04 },
   { name: "Netflix", file: "netflix.svg", names: [], scale: 0.92, nudge: -0.06 },
@@ -67,7 +67,7 @@ const CHANNELS = [
     nudge: -0.02,
   },
   { name: "Prime Video", file: "prime-video.png", names: [], scale: 1.14, nudge: -0.06 },
-  { name: "SNY", file: "sny.png", names: [], hasDarkVersion: true },
+  { name: "SNY", file: "sny.png", names: [], hasDarkVersion: true, scale: 0.98, nudge: 0.08 },
   { name: "TBS", file: "tbs.svg", names: [], hasDarkVersion: true, scale: 1.06 },
   { name: "USA Network", file: "usa.png", names: ["USA Net"], scale: 0.94 },
 ];
