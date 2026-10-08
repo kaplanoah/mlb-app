@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../../page/js/snapshot.js";
 import PAGE_FILES from "#page-files/mlb";
 import { createAppWorker } from "../../../../shared/worker/app-worker.js";
+import { describeBoxScore } from "../../worker/src/box-score.js";
 import { SeasonStore, forwardToStore } from "../../worker/src/store.js";
 import {
   test,
@@ -21,6 +22,13 @@ export const EVENING_FIXTURE = loadFixture("2026-09-24-evening");
 export const FINAL_2025_FIXTURE = loadFixture("2025-final");
 // The evening of two division series games, with where each game is on.
 export const BROADCASTS_FIXTURE = loadFixture("2026-10-07-broadcasts");
+// What the Worker answers for each of that evening's Division Series games' box scores.
+export const BOX_SCORES = Object.fromEntries(
+  Object.entries(loadFixture("2026-10-07-games").feeds).map(([id, feed]) => [
+    id,
+    describeBoxScore(id, feed),
+  ]),
+);
 
 export const buildFixtureSnapshot = (fixture) =>
   MLBSnapshot.buildSnapshot(fixture.responses, {
@@ -89,6 +97,7 @@ const isWriteRequest = (request) => request.method() !== "GET";
  * @param {Record<number, object>} [options.pitchers] what the Worker answers for each pitcher id
  * @param {Record<string, object>} [options.rotations] what the Worker answers for each club's last
  *   starters
+ * @param {Record<string, object>} [options.boxScores] what the Worker answers for each game id
  */
 export async function openApp(
   page,
@@ -100,6 +109,7 @@ export async function openApp(
     portalReadsDocuments = false,
     pitchers = {},
     rotations = {},
+    boxScores = {},
   } = {},
 ) {
   const snapshotsBySeason = {
@@ -149,6 +159,12 @@ export async function openApp(
     if (!rotation)
       return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
     return route.fulfill({ json: rotation });
+  });
+  await page.route(matchPath("/box-score"), (route) => {
+    const boxScore = boxScores[new URL(route.request().url()).searchParams.get("id") ?? ""];
+    if (!boxScore)
+      return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
+    return route.fulfill({ json: boxScore });
   });
   await page.route(matchPath("/store/"), (route) => {
     const url = new URL(route.request().url());

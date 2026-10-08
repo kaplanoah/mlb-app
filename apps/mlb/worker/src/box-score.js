@@ -49,7 +49,6 @@ const FEED_FIELDS = [
   "homeRuns",
 ].join(",");
 const STATES = { Preview: "pre", Live: "live", Final: "final" };
-const SIDES = ["away", "home"];
 // A pitcher's note reads like "(W, 4-2)" or "(S, 3)"; the sheet shows only the decision.
 const DECISIONS = new Set(["W", "L", "S"]);
 
@@ -69,26 +68,38 @@ function readDecision(note) {
 }
 
 /**
+ * A batter's line in the game.
  * @param {any} player
  * @param {string} name
  */
 function describeBatter(player, name) {
-  const order = Number(player.battingOrder);
   const game = player.stats?.batting ?? {};
-  const season = player.seasonStats?.batting ?? {};
   return {
     name,
     position: player.position?.abbreviation ?? "",
-    isSub: order % 100 !== 0,
+    isSub: Number(player.battingOrder) % 100 !== 0,
     atBats: game.atBats ?? 0,
     runs: game.runs ?? 0,
     hits: game.hits ?? 0,
     rbi: game.rbi ?? 0,
     walks: game.baseOnBalls ?? 0,
     strikeOuts: game.strikeOuts ?? 0,
+  };
+}
+
+/**
+ * A batter in a lineup posted before first pitch, with his season so far.
+ * @param {any} player
+ * @param {string} name
+ */
+function describeLineupBatter(player, name) {
+  const season = player.seasonStats?.batting ?? {};
+  return {
+    name,
+    position: player.position?.abbreviation ?? "",
     average: season.avg ?? null,
     homeRuns: season.homeRuns ?? null,
-    seasonRbi: season.rbi ?? null,
+    rbi: season.rbi ?? null,
   };
 }
 
@@ -119,13 +130,14 @@ function describePitcher(player, name) {
  */
 function describeClub(team, nameOf, hasStarted) {
   const playerOf = (/** @type {number} */ id) => team.players?.[`ID${id}`] ?? {};
+  const describe = hasStarted ? describeBatter : describeLineupBatter;
   const batters = (team.batters ?? [])
     .filter((/** @type {number} */ id) => playerOf(id).battingOrder)
     .sort(
       (/** @type {number} */ first, /** @type {number} */ second) =>
         Number(playerOf(first).battingOrder) - Number(playerOf(second).battingOrder),
     )
-    .map((/** @type {number} */ id) => describeBatter(playerOf(id), nameOf(id)));
+    .map((/** @type {number} */ id) => describe(playerOf(id), nameOf(id)));
   const pitchers = hasStarted
     ? (team.pitchers ?? []).map((/** @type {number} */ id) =>
         describePitcher(playerOf(id), nameOf(id)),
@@ -155,7 +167,7 @@ export function describeBoxScore(id, feed) {
   return {
     id,
     state,
-    innings: (linescore.innings ?? []).map((/** @type {any} */ inning) => ({
+    innings: (hasStarted ? (linescore.innings ?? []) : []).map((/** @type {any} */ inning) => ({
       away: inning.away?.runs ?? null,
       home: inning.home?.runs ?? null,
     })),
@@ -163,9 +175,8 @@ export function describeBoxScore(id, feed) {
       away: describeTotals(linescore.teams?.away),
       home: describeTotals(linescore.teams?.home),
     },
-    ...Object.fromEntries(
-      SIDES.map((side) => [side, describeClub(teams[side] ?? {}, nameOf, hasStarted)]),
-    ),
+    away: describeClub(teams.away ?? {}, nameOf, hasStarted),
+    home: describeClub(teams.home ?? {}, nameOf, hasStarted),
   };
 }
 

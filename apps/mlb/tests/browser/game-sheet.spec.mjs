@@ -2,6 +2,7 @@ import {
   test,
   expect,
   openApp,
+  BOX_SCORES,
   BROADCASTS_FIXTURE,
   buildFixtureSnapshot,
   buildSnapshotWithStarters,
@@ -711,3 +712,144 @@ for (const { screen, viewport, smallest } of [
     });
   });
 }
+
+/**
+ * Opens the evening of Oct 7 at one of its games, from the Games view's list it's on.
+ * @param {import("@playwright/test").Page} page
+ * @param {"Previous" | "Today"} list
+ * @param {string} game the start of its button's name
+ * @param {{ boxScores?: Record<string, object> }} [options]
+ */
+async function openOctoberGame(page, list, game, { boxScores = BOX_SCORES } = {}) {
+  const app = await openApp(page, {
+    now: BROADCASTS_FIXTURE.now,
+    snapshots: { 2026: buildFixtureSnapshot(BROADCASTS_FIXTURE) },
+    boxScores,
+  });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: list }).click();
+  await page
+    .getByRole("tabpanel", { name: list })
+    .getByRole("button", { name: new RegExp(`^Game details: ${game}`) })
+    .click();
+  return { app, sheet: page.locator("#gameSheet") };
+}
+
+test("a final's Game section shows its innings, then each club's batters and pitchers, below its row", async ({
+  page,
+}) => {
+  const { sheet } = await openOctoberGame(page, "Previous", "Brewers at Padres");
+  const parts = sheet.locator("#gameBody .sheet-part-head h3");
+  await expect(parts).toHaveText(["Innings", "Brewers", "Padres"]);
+  const innings = sheet.locator(".line-score tbody tr");
+  await expect(innings.nth(1).locator("td")).toHaveText([
+    "SD",
+    "0",
+    "0",
+    "2",
+    "0",
+    "1",
+    "1",
+    "0",
+    "0",
+    "x",
+    "4",
+    "6",
+    "0",
+  ]);
+  await expect(sheet.locator(".box-table").first().locator("tbody tr").first()).toContainText(
+    "Chourio",
+  );
+  const [row, firstPart] = await Promise.all(
+    [sheet.locator("#gameBody .game-row"), sheet.locator("#gameBody .sheet-part").first()].map(
+      (part) => part.boundingBox(),
+    ),
+  );
+  expect(firstPart.y).toBeGreaterThanOrEqual(row.y + row.height);
+  const squeezed = await sheet
+    .locator(".box-table td.team, .line-score td.team")
+    .evaluateAll((cells) =>
+      cells.filter((cell) => cell.scrollWidth > cell.clientWidth).map((cell) => cell.textContent),
+    );
+  expect(squeezed).toEqual([]);
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+});
+
+test("today's game still to start shows each club's lineup once it's posted, and a later day's shows none", async ({
+  page,
+}) => {
+  const { sheet } = await openOctoberGame(page, "Today", "Rays at Yankees");
+  await expect(sheet.locator("#gameBody .sheet-part-head h3")).toHaveText(["Rays", "Yankees"]);
+  await expect(sheet.locator("#gameBody .sheet-part-head > span")).toHaveText(["Lineup", "Lineup"]);
+  await expect(sheet.locator(".box-table").first().locator("thead th")).toHaveText([
+    "Batters",
+    "AVG",
+    "HR",
+    "RBI",
+  ]);
+  await expect(sheet.locator(".box-table").first().locator("tbody tr")).toHaveCount(9);
+
+  await page.keyboard.press("Escape");
+  /** @type {string[]} */
+  const reads = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/box-score")) reads.push(request.url());
+  });
+  await page.getByRole("tab", { name: "Next" }).click();
+  await page
+    .getByRole("tabpanel", { name: "Next" })
+    .getByRole("button", { name: /^Game details: Guardians at White Sox/ })
+    .click();
+  await expect(sheet.getByRole("button", { name: /^Pitching matchup/ })).toBeVisible();
+  await expect(sheet.locator("#gameBody .sheet-part")).toHaveCount(0);
+  expect(reads).toEqual([]);
+});
+
+test("a live game's box score follows each one the store pushes, and passes over one from before it", async ({
+  page,
+}) => {
+  const { app, sheet } = await openOctoberGame(page, "Today", "Guardians at White Sox");
+  const lastInning = sheet.locator(".line-score tbody tr").nth(1).locator("td").nth(8);
+  await expect(lastInning).toHaveText("");
+  const live = BOX_SCORES["849833"];
+
+  const later = structuredClone(live);
+  later.innings[7].home = 2;
+  later.totals.home.runs = 5;
+  later.home.batters[0].atBats += 1;
+  await app.writeFromWorker("games/849833", later);
+  await expect(lastInning).toHaveText("2");
+
+  const earlier = structuredClone(live);
+  earlier.innings[7].home = 0;
+  await app.writeFromWorker("games/849833", earlier);
+  await expect(sheet.locator(".line-score .total").nth(2)).toHaveText("5");
+  await expect(lastInning).toHaveText("2");
+});
+
+test("a reload shows the open box score before the page's code arrives, and the code reads it again", async ({
+  page,
+}) => {
+  const { sheet } = await openOctoberGame(page, "Previous", "Brewers at Padres");
+  await expect(sheet.locator(".line-score")).toBeVisible();
+  const release = await holdRequests(page, matchPath("/js/app.js"));
+  const heldBoxScore = await holdRequests(page, matchPath("/box-score"));
+
+  await page.reload({ waitUntil: "commit" });
+
+  await expect(sheet.locator("#gameBody .sheet-part-head h3")).toHaveText([
+    "Innings",
+    "Brewers",
+    "Padres",
+  ]);
+  release();
+  await expect(sheet.getByRole("tab", { name: "Game" })).toHaveAttribute("aria-selected", "true");
+  await expect(sheet.locator("#gameBody .sheet-part-head h3")).toHaveText([
+    "Innings",
+    "Brewers",
+    "Padres",
+  ]);
+  heldBoxScore();
+  await expect(sheet.locator(".line-score")).toBeVisible();
+});

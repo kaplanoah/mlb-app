@@ -3,12 +3,15 @@ import { choosePollDelay } from "../../page/js/snapshot.js";
 import PAGE_FILES from "#page-files/mlb";
 import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
+import { GAME_DETAILS_COLLECTION } from "./box-score.js";
+import { createGameDetailsJob } from "./game-details-updater.js";
 import { findNotableUpdates, listNotifications } from "./notifications.js";
 import { createOldRecordsJob } from "./old-records.js";
 import { createPastSeasonsJob } from "./past-seasons.js";
 import { createPitcherJob } from "./pitcher-updater.js";
 import * as SeasonUpdater from "./season-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
+import { createWatchedGameLoader } from "./watched-games.js";
 
 export { forwardToStore, readStoreDoc } from "../../../../shared/worker/season-store.js";
 
@@ -25,7 +28,10 @@ export const SeasonStore = createSeasonStore({
     const context = { teams: snapshot.teams, standings: snapshot.standings };
     return updates.length ? listNotifications(updates, context) : [];
   },
+  detailsCollection: GAME_DETAILS_COLLECTION,
+  createLoadDetails: () => createWatchedGameLoader(),
   backgroundJobs: {
+    games: createGameDetailsJob(),
     pastSeasons: createPastSeasonsJob(),
     oldRecords: createOldRecordsJob(),
     pitchers: createPitcherJob(),
