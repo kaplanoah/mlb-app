@@ -5,6 +5,7 @@
 import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
+import { renderPlayerButton } from "./player-button.js";
 import { formatInnings, renderNameCell, renderStatCells, renderStatTable } from "./stat-table.js";
 
 /** @typedef {import("./stat-table.js").StatColumn} StatColumn */
@@ -73,15 +74,17 @@ const countOuts = (innings) => {
 };
 
 /**
+ * A player's row, which opens his sheet wherever it's tapped.
  * @param {RosterPlayer} player
+ * @param {string} club
  * @param {string} tag what the row says beside his name
  * @param {readonly StatColumn[]} columns
  */
-const renderPlayerRow = (player, tag, columns) =>
+const renderPlayerRow = (player, club, tag, columns) =>
   html`<tr>
-    <td class="team">
+    <td class="team row-button-cell">
       <span class="roster-number tabular">${player.number}</span
-      ><span class="box-name">${player.name}</span><span class="box-pos">${tag}</span>
+      >${renderPlayerButton(player, club)}<span class="box-pos">${tag}</span>
     </td>
     ${renderStatCells(player, columns)}
   </tr>`;
@@ -89,24 +92,28 @@ const renderPlayerRow = (player, tag, columns) =>
 /**
  * A titled table of players, or nothing when there are none.
  * @param {string} title
- * @param {RosterPlayer[]} players
+ * @param {{ club: string, players: RosterPlayer[] }} group
  * @param {readonly StatColumn[]} columns
  * @param {(player: RosterPlayer) => string} tag
  */
-const renderGroup = (title, players, columns, tag) =>
+const renderGroup = (title, { club, players }, columns, tag) =>
   players.length
     ? renderSheetPart(
         title,
         renderStatTable(
           "Name",
           columns,
-          players.map((player) => renderPlayerRow(player, tag(player), columns)),
+          players.map((player) => renderPlayerRow(player, club, tag(player), columns)),
+          { opensRows: true },
         ),
       )
     : html``;
 
-/** @param {RosterPlayer[]} injured */
-const renderInjuredList = (injured) =>
+/**
+ * @param {string} club
+ * @param {RosterPlayer[]} injured
+ */
+const renderInjuredList = (club, injured) =>
   injured.length
     ? renderSheetPart(
         "Injured list",
@@ -114,8 +121,7 @@ const renderInjuredList = (injured) =>
           ${injured.map(
             (player) =>
               html`<li>
-                <span class="box-name">${player.name}</span
-                ><span class="box-pos">${player.position}</span
+                ${renderPlayerButton(player, club)}<span class="box-pos">${player.position}</span
                 ><span class="injured-status">${player.injury}</span>
               </li>`,
           )}
@@ -163,8 +169,12 @@ export function renderRoster(roster, { isLoading }) {
     pitchers.filter((player) => !isStarter(player)),
     (player) => countOuts(player.pitching?.inningsPitched),
   );
-  return html`${renderGroup("Hitters", hitters, HITTER_COLUMNS, (player) => player.position)}
-    ${renderGroup("Starters", starters, STARTER_COLUMNS, () => "SP")}
-    ${renderGroup("Bullpen", bullpen, BULLPEN_COLUMNS, () => "RP")}
-    ${renderInjuredList(roster.players.filter((player) => player.injury))}`;
+  const { club } = roster;
+  return html`${renderGroup("Hitters", { club, players: hitters }, HITTER_COLUMNS, (player) => player.position)}
+    ${renderGroup("Starters", { club, players: starters }, STARTER_COLUMNS, () => "SP")}
+    ${renderGroup("Bullpen", { club, players: bullpen }, BULLPEN_COLUMNS, () => "RP")}
+    ${renderInjuredList(
+      club,
+      roster.players.filter((player) => player.injury),
+    )}`;
 }
