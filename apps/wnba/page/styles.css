@@ -342,9 +342,10 @@ header.top h1 {
   color: var(--ink-dim);
   font-size: var(--size-read);
 }
-/* Centered under its pill, its capitals level with the date's number beside a list's first game. */
+/* Centered under its pill, its capitals a touch above the middle of the date's number beside a
+   list's first game, where it looks level to the eye. */
 .pager-page .empty-note {
-  margin-top: 35px;
+  margin-top: 33px;
   text-align: center;
 }
 

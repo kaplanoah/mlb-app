@@ -725,7 +725,7 @@ test("on a day without games, the Games view starts on Next, and a list someone 
   await expect(shownGames).toHaveId("games-today");
 });
 
-test("a Games list with nothing in it centers its note under the pill, level with the date's number beside a list's first game", async ({
+test("a Games list with nothing in it centers its note under the pill, a touch above the middle of the date's number beside a list's first game", async ({
   page,
 }) => {
   const app = await openApp(page);
@@ -735,7 +735,7 @@ test("a Games list with nothing in it centers its note under the pill, level wit
   await expect(note).toHaveText("No games today");
   // A zero-height box set inline after a text has its top on the text's baseline, and the
   // capitals' middle sits half a capital above it. Chromium's builds set a baseline a fraction of a
-  // pixel apart, so the two match to within one.
+  // pixel apart, so the note's lead over the number is checked to within a pixel.
   const readCapitalsMiddle = (selector) =>
     page.evaluate((target) => {
       const text = /** @type {HTMLElement} */ (document.querySelector(target));
@@ -753,7 +753,8 @@ test("a Games list with nothing in it centers its note under the pill, level wit
 
   const noteMiddle = await readCapitalsMiddle("#games-today .empty-note");
   const numberMiddle = await readCapitalsMiddle("#games-next .day-number");
-  expect(Math.abs(noteMiddle - numberMiddle)).toBeLessThanOrEqual(1);
+  expect(numberMiddle - noteMiddle).toBeGreaterThan(1);
+  expect(numberMiddle - noteMiddle).toBeLessThan(3);
   const [textMiddle, listMiddle] = await note.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
