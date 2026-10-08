@@ -696,6 +696,35 @@ test("a game that may never happen says If needed a step dimmer than a status li
   expect(color).toBe(expected);
 });
 
+const TODAYS_GAMES = ["1042600132", "1042600112"];
+/** @param {any} season */
+const dropTodaysGames = (season) => ({
+  ...season,
+  games: season.games.filter((/** @type {any} */ game) => !TODAYS_GAMES.includes(game.id)),
+});
+
+test("on a day without games, the Games view starts on Next, and a list someone picks stays shown", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  await expect(shownGames).toHaveId("games-today");
+
+  await app.changeSeason(dropTodaysGames);
+  await expect(shownGames).toHaveId("games-next");
+  await page.reload();
+  await expect(shownGames).toHaveId("games-next");
+
+  await page.getByRole("tab", { name: "Today" }).click();
+  await expect(shownGames).toHaveId("games-today");
+  await page.clock.runFor(60_000);
+  await expect(page.locator("#games-today .empty-note")).toHaveText("No games today");
+  await expect(shownGames).toHaveId("games-today");
+  await page.reload();
+  await expect(shownGames).toHaveId("games-today");
+});
+
 test("a Games list with nothing in it centers its note under the pill, 44px lower than a list's first day", async ({
   page,
 }) => {

@@ -1,7 +1,7 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
 import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
 import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
-import { fillGameLists } from "#shared/game-pager.js";
+import { chooseStartList, fillGameLists } from "#shared/game-pager.js";
 import { html } from "#shared/html.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
@@ -251,7 +251,14 @@ export function renderGameList(slate, list) {
   )}`;
 }
 
+/** @param {any} slate */
+const chooseGamesStart = (slate) =>
+  chooseStartList({
+    hasGamesToday: !!slate && listSlateList(slate, "today").length > 0,
+    hasGamesAhead: !!slate && listSlateList(slate, "next").length > 0,
+  });
+
 export function renderGames() {
   const slate = session.state && session.state.slate;
-  fillGameLists((list) => renderGameList(slate, list));
+  fillGameLists((list) => renderGameList(slate, list), chooseGamesStart(slate));
 }
