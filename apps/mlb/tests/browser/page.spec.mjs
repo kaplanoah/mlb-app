@@ -400,7 +400,7 @@ test("the Games tab goes back to today's list when the page comes back after two
   await expectGameList(page, "Today", 1);
 });
 
-test("the Games tab moves its lists back to today's only once the page has drawn since coming back", async ({
+test("the Games tab moves its lists back to today's in the first frame the page draws once it's back", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -412,14 +412,18 @@ test("the Games tab moves its lists back to today's only once the page has drawn
   const now = await page.evaluate(() => Date.now());
   await page.clock.setSystemTime(now + 2 * 60 * 1000);
 
-  const positionOnReturn = await page.evaluate(() => {
+  const positions = await page.evaluate(() => {
+    const pages = /** @type {HTMLElement} */ (document.getElementById("games-pages"));
+    const readPosition = () => Math.round(pages.scrollLeft / pages.clientWidth);
     Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
     document.dispatchEvent(new Event("visibilitychange"));
-    const pages = /** @type {HTMLElement} */ (document.getElementById("games-pages"));
-    return Math.round(pages.scrollLeft / pages.clientWidth);
+    const onReturn = readPosition();
+    return new Promise((resolve) =>
+      requestAnimationFrame(() => resolve({ onReturn, inFirstFrame: readPosition() })),
+    );
   });
 
-  expect(positionOnReturn).toBe(0);
+  expect(positions).toEqual({ onReturn: 0, inFirstFrame: 1 });
   await expectGameList(page, "Today", 1);
 });
 

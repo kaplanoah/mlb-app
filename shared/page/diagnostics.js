@@ -540,7 +540,8 @@ function renderRecords() {
   const records = listRecords();
   const viewportLines = readViewportLines().toReversed();
   const sheetLines = readSheetLines().toReversed();
-  return html`<div class="diagnostics-head">
+  return html`<p class="diagnostics-release">${describeRelease(readPageFacts())}</p>
+    <div class="diagnostics-head">
       <h3>Recent opens</h3>
       <div class="diagnostics-actions">${renderRecordButton()}</div>
     </div>
