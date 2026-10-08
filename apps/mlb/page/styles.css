@@ -697,7 +697,7 @@ table.st .seed-cell {
   flex: none;
   background: transparent;
   border: 1px solid var(--copper);
-  color: var(--copper);
+  color: var(--copper-ink);
   line-height: 13px;
 }
 .rank-tag.solid {
@@ -816,7 +816,7 @@ table.st .seed-cell {
   font-style: italic;
   text-align: left;
   letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--ink-dim) 72%, transparent);
+  color: var(--ink-dim);
 }
 .card-note.live {
   color: var(--copper-ink);
@@ -924,7 +924,7 @@ table.st td.team .team-name {
   font-weight: 400;
 }
 .tbd {
-  color: color-mix(in srgb, var(--ink-dim) 55%, var(--card));
+  color: var(--ink-dim);
   font-style: italic;
   font-size: 0.88rem;
 }

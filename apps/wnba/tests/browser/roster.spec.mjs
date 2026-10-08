@@ -6,6 +6,7 @@ import {
   readFilledNames,
 } from "../../../../tests/browser/pill-names.mjs";
 import { expectShown, readLeft } from "../../../../tests/browser/sheet-row.mjs";
+import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -98,11 +99,35 @@ test("a team's Roster pill shows its roster beside its stats: each player by las
   const astier = await findRows(section, "Astier");
   await expect(astier.facts.locator(".roster-country")).toHaveText("France");
   expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
 
   await page.getByRole("tab", { name: "Team" }).click();
   await expectShown(page.locator("#teamSection"));
   await expect(section).toHaveAttribute("inert");
+});
+
+test("a roster's player numbers sit a half step over the facts beside them, in dim ink", async ({
+  page,
+}) => {
+  await openApp(page);
+  const section = await openLibertyRoster(page);
+  const readStyle = (/** @type {import("@playwright/test").Locator} */ cell) =>
+    cell.evaluate((element) => {
+      const probe = element.appendChild(document.createElement("span"));
+      probe.style.color = "var(--ink-dim)";
+      const { fontSize, color } = getComputedStyle(element);
+      const dimInk = getComputedStyle(probe).color;
+      probe.remove();
+      return { fontSize, isDimInk: color === dimInk };
+    });
+
+  expect(await readStyle(section.locator("tbody td.roster-number").first())).toEqual({
+    fontSize: "14.5px",
+    isDimInk: true,
+  });
+  const fact = section.locator("table.roster:not(.roster-pinned) tbody td").first();
+  expect((await readStyle(fact)).fontSize).toBe("14px");
 });
 
 test("a team's still top keeps its band's line as it is while a section scrolls under it", async ({
