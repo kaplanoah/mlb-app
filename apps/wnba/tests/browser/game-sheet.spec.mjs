@@ -135,12 +135,14 @@ test("tapping a final opens its sheet with the score, the box score, and the top
   await expect(sheet).toBeHidden();
 });
 
-test("a game's series and day under its title are a short fact, at the glance size", async ({
+test("a game's title is 16.5px and semibold, over its series and day at the glance size", async ({
   page,
 }) => {
   await openApp(page);
   const sheet = await openGameSheet(page, ACES_AT_FEVER);
 
+  await expect(sheet.locator("#gameTitle")).toHaveCSS("font-size", "16.5px");
+  await expect(sheet.locator("#gameTitle")).toHaveCSS("font-weight", "600");
   await expect(sheet.locator("#gameWhen")).toHaveCSS("font-size", "14px");
 });
 

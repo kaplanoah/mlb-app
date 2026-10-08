@@ -690,7 +690,7 @@ test("a game that may never happen says If needed a step dimmer than a status li
   expect(color).toBe(expected);
 });
 
-test("a Games list with nothing in it starts its note where a list's first day starts", async ({
+test("a Games list with nothing in it centers its note under the pill, 44px lower than a list's first day", async ({
   page,
 }) => {
   const app = await openApp(page);
@@ -705,8 +705,17 @@ test("a Games list with nothing in it starts its note where a list's first day s
     ...season,
     games: season.games.filter((game) => game.state === "final"),
   }));
-  await expect(page.locator("#games-today .empty-note")).toHaveText("No games today");
-  expect(await readGapUnderPill("#games-today .empty-note")).toBe(dayGap);
+  const note = page.locator("#games-today .empty-note");
+  await expect(note).toHaveText("No games today");
+  expect(await readGapUnderPill("#games-today .empty-note")).toBe(dayGap + 44);
+  const [textMiddle, listMiddle] = await note.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    const list = element.closest(".pager-page").getBoundingClientRect();
+    return [text.left + text.width / 2, list.left + list.width / 2];
+  });
+  expect(Math.abs(textMiddle - listMiddle)).toBeLessThanOrEqual(1);
 });
 
 test("a game's series label is on the type scale's small step, and it and If needed read lighter than Final", async ({

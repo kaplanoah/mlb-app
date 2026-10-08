@@ -341,9 +341,10 @@ header.top h1 {
   color: var(--ink-dim);
   font-size: var(--size-read);
 }
-/* Level with where a list's first day starts under its pill. */
+/* Centered under its pill, a step lower than a list's first day, so it doesn't crowd the pill. */
 .pager-page .empty-note {
-  margin-top: 0;
+  margin-top: 44px;
+  text-align: center;
 }
 
 .dot {
@@ -826,6 +827,10 @@ header.top h1 {
 .faceoff-record {
   font-size: var(--size-glance);
   color: var(--ink-dim);
+}
+.game-sheet .sheet-head h2 {
+  font-size: 1.03125rem;
+  font-weight: 600;
 }
 .sheet-note {
   font-size: var(--size-glance);
