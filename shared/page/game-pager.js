@@ -30,14 +30,11 @@ function keepShownList() {
   addEventListener("pagehide", saveShownList);
 }
 
-// Safari loses a scroll made as the page comes back, before it has drawn again, and goes on
-// drawing the list the page left, so the lists move only once Safari has drawn a frame.
-/** @param {() => void} step */
-const deferPastNextDraw = (step) => requestAnimationFrame(() => requestAnimationFrame(step));
-
+// Safari loses a scroll made as the page comes back, before it draws again, and goes on drawing
+// the list the page left, so the lists move in the first frame it draws, before it shows any.
 /** @param {number} awayMs */
 function showStartListAfterLongAway(awayMs) {
-  if (isAwayLong(awayMs)) deferPastNextDraw(() => gamePager.switchToList(startList));
+  if (isAwayLong(awayMs)) requestAnimationFrame(() => gamePager.switchToList(startList));
 }
 
 // The start list counts while a tapped pill is still sliding to it, and not while it slides away.
