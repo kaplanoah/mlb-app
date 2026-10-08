@@ -203,58 +203,6 @@ header.top h1 {
   color: var(--copper-ink);
 }
 
-.banner {
-  margin-left: 10px;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  position: relative;
-  padding-left: 17px;
-  font-size: var(--size-glance);
-  line-height: 1;
-  font-weight: 500;
-  color: var(--ink);
-  align-self: stretch;
-}
-.banner[hidden] {
-  display: none;
-}
-.banner::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 1px;
-  bottom: 1px;
-  border-left: 1px solid var(--card-border);
-}
-.banner > * {
-  display: flex;
-  align-items: center;
-}
-.banner .banner-label {
-  font-size: var(--size-small);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--copper-ink);
-  font-weight: 450;
-}
-/* The -0.5px keeps the 19px chip on whole pixels when centered in the 30px tab row. */
-.banner .banner-team {
-  gap: 9px;
-  position: relative;
-  top: -0.5px;
-}
-.banner .banner-team .dot {
-  position: relative;
-  top: -0.5px;
-}
-/* Centered beside the smaller capitals of the label, the club's name sits a pixel above their
-   baseline. */
-.banner .banner-team .team-name {
-  position: relative;
-  top: 1px;
-}
-
 .stand-head {
   font-weight: 450;
   font-size: var(--size-small);
@@ -684,9 +632,6 @@ table.st .seed-cell {
   font-size: inherit;
 }
 
-nav.tabs + .updates {
-  margin-top: -12px;
-}
 .updates-list .what {
   font-weight: 350;
 }
@@ -737,10 +682,6 @@ nav.tabs + .updates {
 .team-id .rank-slot {
   margin-right: 0;
 }
-.banner-team .rank-slot {
-  margin-right: 0;
-  width: auto;
-}
 
 .rank-tag {
   display: inline-flex;
@@ -756,7 +697,6 @@ nav.tabs + .updates {
   background: transparent;
   border: 1px solid var(--copper);
   color: var(--copper);
-  /* Fixed: inheriting the banner's line-height: 1 sets the number high in the box. */
   line-height: 13px;
 }
 .rank-tag.solid {
@@ -976,9 +916,6 @@ nav.tabs + .updates {
 }
 .club > .team-name {
   align-self: baseline;
-}
-.banner-team .club {
-  gap: 10px;
 }
 .matchup-row .team-name,
 table.st td.team .team-name {
@@ -1968,26 +1905,9 @@ body.kbd .player-open:focus {
   .tree-scroll.stacked {
     padding-bottom: 0;
   }
+  /* The tab bar floats over the page, so the nav has nothing in the flow and steps aside. */
   nav.tabs {
-    margin-bottom: 18px;
-  }
-  /* Without the banner the nav has nothing in the flow, so it steps aside. */
-  nav.tabs:has(> .banner[hidden]) {
     display: contents;
-  }
-  nav.tabs:has(> .banner[hidden]) + .updates {
-    margin-top: 0;
-  }
-
-  .banner {
-    margin-left: 0;
-    margin-right: 0;
-    top: 0;
-    flex-basis: 100%;
-    padding-left: 0;
-  }
-  .banner::before {
-    display: none;
   }
 }
 

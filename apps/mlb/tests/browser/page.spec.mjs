@@ -1124,11 +1124,11 @@ test("wider than a phone, the stacked bracket starts at the Wild Card with every
 const readStackedSpaces = (page) =>
   page.evaluate(() => {
     const readBox = (element) => element.getBoundingClientRect();
-    const banner = readBox(document.getElementById("banner"));
+    const header = readBox(document.querySelector("header.top"));
     const line = readBox(document.querySelector("#bracketWrap .league-head.al"));
     const [upperCard, lowerCard] = [...document.querySelectorAll("#bracketWrap .box")].map(readBox);
     return {
-      aboveLeague: line.top - banner.bottom,
+      aboveLeague: line.top - header.bottom,
       belowLine: upperCard.top - line.bottom,
       betweenRows: lowerCard.top - upperCard.bottom - 22,
     };
@@ -1140,7 +1140,7 @@ test("on a phone too short for the bracket, its spaces are at their tightest", a
   await expect(page.locator("#bracketWrap .league-head.al")).toBeVisible();
 
   expect(await readStackedSpaces(page)).toEqual({
-    aboveLeague: 18,
+    aboveLeague: 13,
     belowLine: 5,
     betweenRows: 6,
   });
@@ -1155,7 +1155,7 @@ test("on a taller phone, every space in the bracket grows by the same factor", a
   const growth = betweenRows / 13;
   expect(growth).toBeGreaterThan(1.5);
   expect(belowLine / 11).toBeCloseTo(growth, 0);
-  expect(aboveLeague / 18).toBeCloseTo(growth, 0);
+  expect(aboveLeague / 13).toBeCloseTo(growth, 0);
 });
 
 const readCardTops = (page, round) =>
@@ -1323,63 +1323,6 @@ test("on a laptop too narrow for the whole bracket, the stacked bracket fills do
   );
 });
 
-test("on a phone, the banner's club reads as a name, without the tabs' outline and capitals", async ({
-  page,
-}) => {
-  await page.setViewportSize(PHONE);
-  await openApp(page);
-  const club = page.locator("#banner .banner-team .club");
-  await expect(club).toBeVisible();
-
-  const look = await club.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      border: style.borderTopWidth,
-      padding: style.paddingLeft,
-      textTransform: style.textTransform,
-      color: style.color,
-      bannerColor: getComputedStyle(document.getElementById("banner")).color,
-    };
-  });
-
-  expect(look).toEqual({
-    border: "0px",
-    padding: "0px",
-    textTransform: "none",
-    color: look.bannerColor,
-    bannerColor: look.bannerColor,
-  });
-});
-
-for (const { layout, viewport } of [
-  { layout: "a phone", viewport: PHONE },
-  { layout: "a wide screen", viewport: { width: 1024, height: 800 } },
-]) {
-  test(`on ${layout}, the banner's club sits on the same baseline as its label`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(viewport);
-    await openApp(page);
-    const banner = page.locator("#banner");
-    await expect(banner.locator(".banner-team .team-name")).toBeVisible();
-
-    // A zero-height box set inline after a text has its top on the text's baseline.
-    const baselines = await banner.evaluate((element) =>
-      [".banner-label", ".team-name"].map((selector) => {
-        const text = /** @type {HTMLElement} */ (element.querySelector(selector));
-        const line = document.createElement("span");
-        const probe = document.createElement("span");
-        probe.style.cssText = "display: inline-block; width: 0; height: 0";
-        line.append(...text.childNodes, probe);
-        text.append(line);
-        return probe.getBoundingClientRect().top;
-      }),
-    );
-
-    expect(baselines[1]).toBe(baselines[0]);
-  });
-}
-
 test("renders the bracket, standings and stamp from the season's record the Worker saved", async ({
   page,
 }) => {
@@ -1387,7 +1330,6 @@ test("renders the bracket, standings and stamp from the season's record the Work
 
   const bracket = page.locator("#bracketWrap");
   for (const club of PLAYOFF_FIELD_2026) await expect(bracket).toContainText(club);
-  await expect(page.locator("#banner")).toContainText("Highest still in");
   const stampLines = page.locator("#stamp > span");
   await expect(stampLines.first()).toHaveText(/^NOW\s*Reds @ Braves 5-5 in the 5th/);
   await expect(stampLines.nth(1)).toHaveText(/^Next first pitch /);
@@ -1504,8 +1446,6 @@ test("switching to 2025 shows the finished bracket and its champion from its rec
 
   await chooseSeason(page, "2025");
 
-  await expect(page.locator("#banner")).toContainText("World Series champions");
-  await expect(page.locator("#banner")).toContainText("Dodgers");
   await expect(page.locator("#bracketWrap")).toContainText("Dodgers win the World Series");
   await expect(page.locator("#updates")).toBeHidden();
   expect(app.countSnapshotRequests()).toBe(0);
@@ -1807,7 +1747,7 @@ test("on a phone, the bracket fills the height above the tab bar and swipes side
 test("on a phone a little short of room, the bracket's spaces shrink so it fits above the round dots", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 820 });
+  await page.setViewportSize({ width: 390, height: 780 });
   await openApp(page);
   await expect(page.locator(".bracket-stage")).toBeVisible();
   await expectBracketToFillHeight(page);
