@@ -1,7 +1,9 @@
-// Says whether a pull request is a red change: one that touches the shared code that moves,
-// layers, and draws the page, or adds a line that makes the browser draw a part on a layer of
-// its own. No browser CI runs draws as an iPhone does, so a red change merges only once the owner
-// has used it on the beta app and labeled it phone-ok. Anyone who can label a pull request could
+// Says whether a pull request is a red change: one whose bugs no CI browser would show, since none
+// touches, scrolls, layers, and draws as an iPhone does, or that touches what iOS has drawn wrong
+// before. That's any change to the shared JavaScript that moves and draws the page, a change to
+// its shared stylesheets in what decides how parts layer, stack, scroll, and show, and an added
+// line anywhere in a page that makes the browser draw a part on a layer of its own. A red change
+// merges only once the owner has used it on the beta app and labeled it phone-ok. Anyone who can label a pull request could
 // add the label, so the gate reads who last added it and lets the change through only from the
 // repository's owner.
 // Usage: git diff --no-renames <base> <head> | node worker/red-change.mjs '<labels as JSON>'
@@ -84,48 +86,125 @@ const LAYER_SETTINGS = [
   },
 ];
 
+// Beside the layers, what in the shared stylesheets decides how iOS stacks, scrolls, and shows
+// the page's parts: where a part sits over others, what scrolls and takes a touch, and whether a
+// part draws at all. Their fonts, colors, spacing, and sizes CI checks as an iPhone shows them.
+const STACK_PROPERTIES = [
+  ...LAYER_PROPERTIES,
+  "position",
+  "overflow",
+  "overscroll-behavior",
+  "-webkit-overflow-scrolling",
+  "scroll-snap-type",
+  "scroll-snap-align",
+  "scroll-snap-stop",
+  "touch-action",
+  "z-index",
+  "opacity",
+  "visibility",
+  "display",
+  "isolation",
+  "mix-blend-mode",
+];
+const STACK_DECLARATION = new RegExp(
+  `(?:^|[\\s{;])(?:-webkit-)?(${STACK_PROPERTIES.join("|")})(?:-[a-z]+)*\\s*:(?!:)`,
+);
+// A selector or an at-rule says which parts a stylesheet's rules reach, so it can carry a layer
+// to a part that had none.
+const SELECTOR_OR_AT_RULE = /\{|,\s*$|^\s*@/;
+
 // Tests live outside every page's folder, so they're never red.
 const isPageCode = (path) => /^(?:shared\/page|apps\/[^/]+\/page)\/.+\.(?:css|js)$/.test(path);
 const isComment = (text) => /^\s*(?:\/\/|\/\*|\*)/.test(text);
 
 /** @typedef {{ number: number, text: string }} AddedLine */
-/** @typedef {{ path: string, addedLines: AddedLine[] }} ChangedFile */
+/** @typedef {{ kind: "kept" | "added" | "removed", text: string }} HunkLine */
+/** @typedef {{ path: string, addedLines: AddedLine[], hunks: HunkLine[][] }} ChangedFile */
 
 /**
  * The files a unified diff changes, each with the lines it adds, numbered as the new file has
- * them. A file moved or deleted is listed under each path it had.
+ * them, and each of its hunks. A file moved or deleted is listed under each path it had.
  * @param {string} diff
  * @returns {ChangedFile[]}
  */
 export function readDiff(diff) {
   /** @type {ChangedFile[]} */
   const files = [];
+  /** @type {ChangedFile | null} */
   let current = null;
+  /** @type {HunkLine[] | null} */
+  let hunk = null;
   let lineNumber = 0;
   for (const line of diff.split("\n")) {
     const header = line.match(/^diff --git a\/(.+) b\/(.+)$/);
     if (header) {
       const [, oldPath, newPath] = header;
-      current = { path: newPath, addedLines: [] };
+      current = { path: newPath, addedLines: [], hunks: [] };
+      hunk = null;
       files.push(current);
-      if (oldPath !== newPath) files.push({ path: oldPath, addedLines: [] });
+      if (oldPath !== newPath) files.push({ path: oldPath, addedLines: [], hunks: [] });
       continue;
     }
-    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-    if (hunk) {
-      lineNumber = Number(hunk[1]);
+    const hunkHeader = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunkHeader && current) {
+      lineNumber = Number(hunkHeader[1]);
+      hunk = [];
+      current.hunks.push(hunk);
       continue;
     }
-    if (!current || line.startsWith("+++") || line.startsWith("---")) continue;
+    if (!current || !hunk || line.startsWith("\\")) continue;
     if (line.startsWith("+")) {
       current.addedLines.push({ number: lineNumber, text: line.slice(1) });
+      hunk.push({ kind: "added", text: line.slice(1) });
       lineNumber += 1;
-    } else if (!line.startsWith("-") && !line.startsWith("\\")) {
+    } else if (line.startsWith("-")) {
+      hunk.push({ kind: "removed", text: line.slice(1) });
+    } else if (line.startsWith(" ")) {
+      hunk.push({ kind: "kept", text: line.slice(1) });
       lineNumber += 1;
     }
   }
   return files;
 }
+
+/**
+ * Each line with its comments blanked out. The lines may start inside a comment, as a hunk can,
+ * which shows as a comment's close before any open.
+ * @param {string[]} texts
+ */
+function removeComments(texts) {
+  const joined = texts.join("\n");
+  const firstOpen = joined.indexOf("/*");
+  const firstClose = joined.indexOf("*/");
+  const startsInComment = firstClose !== -1 && (firstOpen === -1 || firstClose < firstOpen);
+  const code = `${startsInComment ? "/*" : ""}${joined}`.replace(
+    /\/\*[\s\S]*?(?:\*\/|$)/g,
+    (comment) => comment.replace(/[^\n]/g, ""),
+  );
+  return code.split("\n");
+}
+
+/**
+ * The code each side of a hunk changes, with its comments taken out: what the old file had that
+ * the new one doesn't, and what the new one adds.
+ * @param {HunkLine[]} hunk
+ */
+function listChangedCode(hunk) {
+  return ["removed", "added"].flatMap((changed) => {
+    const side = hunk.filter(({ kind }) => kind === "kept" || kind === changed);
+    const code = removeComments(side.map(({ text }) => text));
+    return side.flatMap(({ kind }, index) => (kind === changed ? [code[index]] : []));
+  });
+}
+
+/**
+ * Each changed line of a shared stylesheet that decides how parts layer, stack, scroll, or show.
+ * @param {ChangedFile} file
+ */
+const findStackLines = ({ hunks }) =>
+  hunks
+    .flatMap(listChangedCode)
+    .filter((code) => STACK_DECLARATION.test(code) || SELECTOR_OR_AT_RULE.test(code));
 
 /**
  * What a line sets that makes a layer, or null when it sets nothing that does.
@@ -141,11 +220,27 @@ function findLayerSetting(text) {
 }
 
 /**
+ * Why a change to the shared code that moves and draws the page is red: any change to its
+ * JavaScript, and a change to its stylesheets in what decides how parts layer, stack, scroll, or
+ * show. A file moved or deleted is red whatever it held.
  * @param {ChangedFile} file
  * @returns {string[]}
  */
-function findFileReasons({ path, addedLines }) {
-  if (RED_FILES.has(path)) return [`${path} is shared code that moves, layers, or draws the page`];
+function findSharedReasons(file) {
+  if (!file.path.endsWith(".css") || !file.hunks.length)
+    return [`${file.path} is shared code that moves, layers, or draws the page`];
+  return findStackLines(file).map(
+    (code) => `${file.path} changes how parts layer, stack, scroll, or show: ${code.trim()}`,
+  );
+}
+
+/**
+ * @param {ChangedFile} file
+ * @returns {string[]}
+ */
+function findFileReasons(file) {
+  const { path, addedLines } = file;
+  if (RED_FILES.has(path)) return findSharedReasons(file);
   if (!isPageCode(path)) return [];
   return addedLines.flatMap(({ number, text }) => {
     const setting = findLayerSetting(text);

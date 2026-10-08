@@ -10,30 +10,35 @@ import {
 } from "../worker/red-change.mjs";
 
 /**
- * A diff that adds `added` to `path` at line 10, after a line it keeps.
+ * A diff that adds `added` to `path` at line 10, after the lines it keeps, and takes out
+ * `removed`.
  * @param {string} path
  * @param {string[]} added
+ * @param {{ kept?: string[], removed?: string[] }} [lines]
  */
-const createDiff = (path, added) =>
+const createDiff = (path, added, { kept = ["kept"], removed = ["removed"] } = {}) =>
   [
     `diff --git a/${path} b/${path}`,
     "index 1111111..2222222 100644",
     `--- a/${path}`,
     `+++ b/${path}`,
-    `@@ -9,2 +9,${added.length + 1} @@`,
-    " kept",
+    `@@ -${10 - kept.length},${kept.length + removed.length} +${10 - kept.length},${kept.length + added.length} @@`,
+    ...kept.map((line) => ` ${line}`),
     ...added.map((line) => `+${line}`),
-    "-removed",
+    ...removed.map((line) => `-${line}`),
     "",
   ].join("\n");
 
 /** @param {string} path @param {string[]} [addedLines] */
 const findReasons = (path, addedLines = []) =>
   findRedReasons([
-    { path, addedLines: addedLines.map((text, index) => ({ number: index + 1, text })) },
+    { path, addedLines: addedLines.map((text, index) => ({ number: index + 1, text })), hunks: [] },
   ]);
 
-test("a diff lists each file with its added lines, numbered as the new file has them", () => {
+/** @param {string} diff */
+const findDiffReasons = (diff) => findRedReasons(readDiff(diff));
+
+test("a diff lists each file with its added lines, numbered as the new file has them, and its hunks", () => {
   const diff = createDiff("apps/wnba/page/styles.css", [".a {", "  color: red;"]);
   assert.deepEqual(readDiff(diff), [
     {
@@ -41,6 +46,14 @@ test("a diff lists each file with its added lines, numbered as the new file has 
       addedLines: [
         { number: 10, text: ".a {" },
         { number: 11, text: "  color: red;" },
+      ],
+      hunks: [
+        [
+          { kind: "kept", text: "kept" },
+          { kind: "added", text: ".a {" },
+          { kind: "added", text: "  color: red;" },
+          { kind: "removed", text: "removed" },
+        ],
       ],
     },
   ]);
@@ -54,7 +67,7 @@ test("a moved file is listed under both its paths", () => {
   );
 });
 
-test("any change to the shared code that moves, layers, or draws the page is red", () => {
+test("any change to the shared code that moves, layers, or draws the page is red, and so is moving or deleting one of its stylesheets", () => {
   for (const file of [
     "sheet.js",
     "sheet-reopen.js",
@@ -76,6 +89,109 @@ test("any change to the shared code that moves, layers, or draws the page is red
     assert.equal(findReasons(`shared/page/${file}`).length, 1, file);
   assert.deepEqual(findReasons("shared/page/stamp.js", ["export const x = 1;"]), []);
   assert.deepEqual(findReasons("apps/mlb/page/js/sheet.js", ["export const x = 1;"]), []);
+});
+
+const SHARED_STYLESHEETS = [
+  "sheet.css",
+  "pager.css",
+  "chrome.css",
+  "team-sheet.css",
+  "game-cards.css",
+].map((file) => `shared/page/${file}`);
+
+test("a shared stylesheet's change to how text looks, or to its spacing, sizes, and colors, isn't red", () => {
+  const quietLines = [
+    "  font-size: var(--size-glance);",
+    "  font-weight: 600;",
+    "  font-family: var(--heading);",
+    "  letter-spacing: 0.02em;",
+    "  line-height: 1.3;",
+    "  text-transform: uppercase;",
+    "  color: var(--ink-dim);",
+    "  margin-top: 14px;",
+    "  padding: 10px 22px;",
+    "  width: calc(100% - 24px);",
+    "  border-radius: var(--radius-sheet);",
+    "  background: var(--card);",
+    "  --head-height: 64px;",
+    "}",
+    "",
+  ];
+  for (const path of SHARED_STYLESHEETS)
+    for (const line of quietLines) {
+      assert.deepEqual(findDiffReasons(createDiff(path, [line])), [], `${path} adds ${line}`);
+      assert.deepEqual(
+        findDiffReasons(createDiff(path, [], { removed: [line] })),
+        [],
+        `${path} removes ${line}`,
+      );
+    }
+});
+
+test("a shared stylesheet's comments aren't red, even a hunk that starts inside one", () => {
+  const path = "shared/page/sheet.css";
+  const comment = [
+    "/* A sheet's title is centered, clear of the close button, so a transform: there,",
+    "   or a position: fixed, would move it {",
+    "   with the rest. */",
+  ];
+  assert.deepEqual(findDiffReasons(createDiff(path, comment)), []);
+  assert.deepEqual(findDiffReasons(createDiff(path, [], { removed: comment })), []);
+  assert.deepEqual(
+    findDiffReasons(
+      createDiff(path, ["   its parts, like a game's teams,", "   and its score. */"], {
+        kept: ["   a line that a comment opened above the hunk,"],
+        removed: [],
+      }),
+    ),
+    [],
+  );
+});
+
+test("a shared stylesheet's change to how parts layer, stack, scroll, or show is red, added or removed", () => {
+  const stackLines = [
+    "  transform: translateX(var(--thumb-left, 0));",
+    "  will-change: transform;",
+    "  transition: opacity 0.2s;",
+    "  -webkit-backdrop-filter: blur(8px);",
+    "  position: relative;",
+    "  position: absolute;",
+    "  overflow: hidden;",
+    "  overflow-x: auto;",
+    "  overscroll-behavior: none;",
+    "  -webkit-overflow-scrolling: touch;",
+    "  scroll-snap-type: x mandatory;",
+    "  touch-action: pan-y;",
+    "  z-index: 20;",
+    "  opacity: 0;",
+    "  visibility: hidden;",
+    "  display: none;",
+    "  isolation: isolate;",
+    "  mix-blend-mode: multiply;",
+  ];
+  for (const path of SHARED_STYLESHEETS)
+    for (const line of stackLines) {
+      assert.equal(findDiffReasons(createDiff(path, [line])).length, 1, `${path} adds ${line}`);
+      assert.equal(
+        findDiffReasons(createDiff(path, [], { removed: [line] })).length,
+        1,
+        `${path} removes ${line}`,
+      );
+    }
+});
+
+test("a shared stylesheet's selectors and at-rules are red, since they say which parts its rules reach", () => {
+  for (const line of [
+    ".sheet-page .sheet-top {",
+    ".pager-thumb,",
+    "@media (min-width: 780px) {",
+    "@property --cover-end {",
+  ])
+    assert.match(
+      findDiffReasons(createDiff("shared/page/pager.css", [line])).join(),
+      /shared\/page\/pager\.css changes how parts layer, stack, scroll, or show/,
+      line,
+    );
 });
 
 test("an added line that makes a layer is red in any page's CSS or JavaScript", () => {
