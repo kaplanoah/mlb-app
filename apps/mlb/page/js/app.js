@@ -28,7 +28,7 @@ import {
 import { composeState, session, readSeasonYear } from "./session.js";
 import { startSettings } from "./settings.js";
 import { startPlayerSheet } from "./player-sheet.js";
-import { fillRoster, readShownRoster, reopenRoster } from "./roster-section.js";
+import { fillRoster, readShownRoster, reopenRoster, startRosterSection } from "./roster-section.js";
 import { renderTeamSheet } from "./team-view.js";
 import { TEAMS } from "./teams.js";
 import { renderStamp } from "./stamp-view.js";
@@ -89,6 +89,7 @@ function wireControls() {
     fillSections: fillRoster,
     sectionsKeeper: { read: readShownRoster, reopen: reopenRoster },
   });
+  startRosterSection();
   startPlayerSheet();
   startSettings();
   startHomeScreen();

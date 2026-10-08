@@ -16,7 +16,7 @@ import { html, setHtml } from "./html.js";
 
 const CLOSED_KEY = "homeScreenBarClosed";
 const TITLE = "Use this site like an app";
-const BENEFIT = "It opens full screen, without the browser's bars.";
+const BENEFIT = "It opens full screen, without the browser's bars";
 
 const SHARE_ICON = html`<svg
   viewBox="0 0 24 24"
@@ -87,7 +87,7 @@ function renderBar() {
 }
 
 function renderTip() {
-  const steps = installPrompt ? BENEFIT : html`${renderSteps()}. ${BENEFIT}`;
+  const steps = installPrompt ? BENEFIT : html`${renderSteps()}. ${BENEFIT}.`;
   return html`${ICON}
     <span class="home-screen-copy">
       <span class="home-screen-title">${TITLE}</span>

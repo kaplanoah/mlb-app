@@ -163,14 +163,13 @@ test("the sorted column says which way it sorts", () => {
   assert.doesNotMatch(markup, /class="roster-player" aria-sort/);
 });
 
-test("while the roster loads, stand-ins hold its shape, and a roster that didn't load says to try again", () => {
+test("while the roster loads, stand-ins hold its shape, and a roster that didn't load says so over Try again", () => {
   const loading = renderText({ roster: null, isLoading: true });
   assert.match(loading, /class="placeholder"/);
   assert.doesNotMatch(loading, /<dt>Head coach/);
-  assert.match(
-    renderText({ roster: null, isLoading: false }),
-    /Couldn&#39;t load the roster\. Close and try again in a minute\./,
-  );
+  const failed = renderText({ roster: null, isLoading: false });
+  assert.match(failed, /<p class="retry-title">Couldn&#39;t load the roster<\/p>/);
+  assert.match(failed, /class="retry-button filled" data-retry/);
 });
 
 test("the pinned table of numbers and names holds the same players in the same order as the table of facts beside it, whatever the sort", () => {

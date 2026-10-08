@@ -1472,8 +1472,9 @@ test("warns under the title when MLB stops sending a field", async ({ page }) =>
   await app.updateFromWorker();
 
   await expect(page.locator("#stamp")).toContainText(
-    "MLB stopped sending wildCardRank, so some details may be blank.",
+    "MLB stopped sending wildCardRank, so some details may be blank",
   );
+  expect(await listStrayPeriods(page)).toEqual([]);
   await expect(page.locator("#bracketWrap")).toContainText("Dodgers");
 });
 
@@ -1497,6 +1498,7 @@ test("with no field yet, the bracket says it fills in once MLB projects one", as
   await openApp(page, { liveAvailable: false });
 
   await expect(page.getByRole("heading", { name: "No playoff field yet" })).toBeVisible();
+  expect(await listStrayPeriods(page)).toEqual([]);
   await expect(page.getByRole("button", { name: "Set the field" })).toHaveCount(0);
   await openSettings(page);
   await expect(page.locator("#rankList")).toHaveText(

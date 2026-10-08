@@ -1,5 +1,6 @@
 import { test, expect, openApp, matchPath } from "./harness.mjs";
 import { SNAPSHOT_VERSION } from "../../page/js/snapshot.js";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -118,7 +119,8 @@ test("a past season's header names its last game, and leaves out the current sea
   const app = await openApp(page, ONE_PAST_SEASON);
   await app.writeDocument("live/status", { error: "upstream_error" });
   const stamp = page.locator("#stamp");
-  await expect(stamp).toContainText("The WNBA isn't answering right now.");
+  await expect(stamp).toContainText("The WNBA isn't answering right now");
+  expect(await listStrayPeriods(page)).toEqual([]);
 
   await chooseSeason(page, 2025);
 

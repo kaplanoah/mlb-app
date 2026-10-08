@@ -2,10 +2,12 @@
 // shown, which the store keeps, beside every player's averages that season, which the store also
 // keeps, read together as the team's sheet shows a season and again once they're old, sorted by
 // the column the viewer picked until the sheet shows another team. Who is out shows only while the
-// team still plays. The team's sheet keeps what the section shows, so a reload draws it again
-// while it reads again.
+// team still plays. A roster that didn't load reads again on a tap on Try again, as the phone comes
+// back online or the page comes back, or a minute later. The team's sheet keeps what the section
+// shows, so a reload draws it again while it reads again.
 
 import { setHtml } from "#shared/html.js";
+import { watchRetries } from "#shared/retry.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import { chooseSort, DEFAULT_SORT, describeRosterNote, renderRoster } from "./roster-view.js";
 import { isStillPlaying } from "./series.js";
@@ -20,7 +22,7 @@ import { isPastSeason, session } from "./session.js";
 const FETCH_TIMEOUT_MS = 15 * 1000;
 // A roster changes with a signing or an injury, and the averages after each game.
 const READ_AGAIN_MS = 10 * 60 * 1000;
-// A roster that didn't load says to try again in a minute.
+// A roster that didn't load is read again a minute later.
 const RETRY_MS = 60 * 1000;
 
 // Each read is kept by its team and season, as NYL:2026.
@@ -109,6 +111,16 @@ function renderSection() {
   setHtml(findElement("rosterBody"), renderRoster({ roster, averages, sort, isLoading, showsOut }));
 }
 
+// A read that failed is dropped, so the section shows its placeholders while it reads again.
+function retryRoster() {
+  if (!shownTeam) return;
+  const key = `${shownTeam}:${session.year}`;
+  const read = reads.get(key);
+  if (!read || read.roster || read.isLoading) return;
+  reads.delete(key);
+  renderSection();
+}
+
 /**
  * Fills the section in with a team's roster, keeping its sort while it's the same team.
  * @param {string} team
@@ -181,5 +193,6 @@ const markScrolledAcross = (section) =>
 export function startRosterSection() {
   const section = findElement("rosterSection");
   findElement("rosterBody").addEventListener("click", sortOnTap);
+  watchRetries(findElement("rosterBody"), retryRoster);
   section.addEventListener("scroll", () => markScrolledAcross(section), { passive: true });
 }

@@ -74,7 +74,7 @@ function describeStatusProblem() {
   const { status } = session;
   if (session.activeYear !== session.currentSeason) return "";
   if (status?.error === "mlb_fields_missing")
-    return `MLB stopped sending ${status.detail}, so some details may be blank.`;
+    return `MLB stopped sending ${status.detail}, so some details may be blank`;
   if (status?.error === "upstream_error")
     return "Couldn't reach live scores. Trying again shortly.";
   return "";

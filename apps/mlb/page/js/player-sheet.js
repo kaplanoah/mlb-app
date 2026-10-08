@@ -1,10 +1,12 @@
 // The sheet a tap on a player's name opens, beside the sheet it was in: his facts and numbers for
 // the current season, which the store keeps, read the first time the sheet shows him and again
 // once they're old, beside the hitters MLB ranks and, for a starter, the qualified starters and his
-// matchup side, which his numbers are ranked among. The sheet keeps what it read with him, so a
-// reload draws it again while it reads again.
+// matchup side, which his numbers are ranked among. A sheet that didn't load reads again on a tap
+// on Try again, as the phone comes back online or the page comes back, or a minute later. The
+// sheet keeps what it read with him, so a reload draws it again while it reads again.
 
 import { setHtml } from "#shared/html.js";
+import { watchRetries } from "#shared/retry.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import { TEAMS } from "./teams.js";
@@ -137,6 +139,16 @@ function renderSheet() {
   setHtml(findElement("playerBody"), renderPlayerBody(shown));
 }
 
+// A read that failed is dropped, so the sheet shows its placeholders while it reads again.
+function retryPlayer() {
+  if (!shownPlayer) return;
+  const key = nameRead(shownPlayer.id, session.currentSeason);
+  const read = reads.get(key);
+  if (!read || read.player || read.isLoading || read.isUnkept) return;
+  reads.delete(key);
+  renderSheet();
+}
+
 /** @param {PlayerSubject} subject */
 function showPlayer(subject) {
   shownPlayer = subject;
@@ -186,6 +198,7 @@ function openOnTap(event) {
 }
 
 export function startPlayerSheet() {
+  watchRetries(findSheet(), retryPlayer);
   wireSheet(findSheet(), {
     closeButton: findElement("playerCloseBtn"),
     backButton: findElement("playerBackBtn"),

@@ -7,6 +7,7 @@ import {
   openSettings,
   readKept,
 } from "./harness.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 const listShownRanking = (page) =>
   page
@@ -38,7 +39,8 @@ test("a store answer the page can't read says the page's server can't be reached
   page,
 }) => {
   await openApp(page, { portalReadsDocuments: true });
-  await expect(page.locator("#stamp")).toContainText("Can't reach the page's server right now.");
+  await expect(page.locator("#stamp")).toContainText("Can't reach the page's server right now");
+  expect(await listStrayPeriods(page)).toEqual([]);
 });
 
 test.describe("on a phone", () => {

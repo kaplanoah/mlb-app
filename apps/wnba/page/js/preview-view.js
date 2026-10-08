@@ -1,6 +1,7 @@
 import { formatShortDate } from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
+import { renderRetryNote } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderTapeRow } from "#shared/tape.js";
 import { renderClub, renderTeamName } from "./clubs.js";
@@ -15,7 +16,8 @@ import { findTeamLeaders, renderLeaderTable } from "./team-view.js";
 
 // The game sheet's preview for a game that hasn't started: the two teams' meetings this regular
 // season, from the Worker, then their seasons side by side and each team's leading scorers, from
-// the season the page already has. Until the meetings load, they hold their shape with placeholders.
+// the season the page already has. Until the meetings load, they hold their shape with placeholders,
+// and meetings that didn't load say so over a Try again button.
 
 /** @typedef {{ team: string, score: number }} MeetingSide */
 /** @typedef {{ id: string, start: string, away: MeetingSide, home: MeetingSide }} Meeting */
@@ -72,7 +74,10 @@ function describeSeasonSeries(meetings, teams) {
  */
 function renderMeetings(meetings, teams) {
   if (!meetings)
-    return renderSheetPart("Meetings", renderSheetMessage("Couldn't load this season's meetings."));
+    return renderSheetPart(
+      "Meetings",
+      renderRetryNote("Couldn't load this season's meetings", "sheet-message"),
+    );
   if (!meetings.length)
     return renderSheetPart("Meetings", renderSheetMessage("They haven't met this season"));
   return renderSheetPart(
@@ -144,7 +149,7 @@ function findTeamSeason(season, team) {
 function renderSeasons(teams, season) {
   const [away, home] = SIDES.map((place) => findTeamSeason(season, teams[place]));
   if (!away || !home)
-    return renderSheetPart("Season stats", renderSheetMessage("Couldn't load the standings."));
+    return renderSheetPart("Season stats", renderSheetMessage("Couldn't load the standings"));
   return renderSheetPart(
     "Season stats",
     html`${renderTapeTeams(teams.away, teams.home)}
@@ -161,7 +166,7 @@ function renderLeadingScorers(teams, season) {
   if (!away.length || !home.length)
     return renderSheetPart(
       "Leading scorers",
-      renderSheetMessage("Couldn't load the players' averages."),
+      renderSheetMessage("Couldn't load the players' averages"),
     );
   return renderSheetPart(
     "Leading scorers",

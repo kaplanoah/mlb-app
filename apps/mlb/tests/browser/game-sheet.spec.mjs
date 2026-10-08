@@ -430,12 +430,80 @@ test("on a phone, the matchup rises only when the viewer allows motion", async (
   await expect(dialog).toHaveCSS("animation-name", "sheet-rise");
 });
 
-test("a starter the Worker can't describe says so, and the other still shows", async ({ page }) => {
-  const sheet = await openMatchup(page, { 1: PITCHERS[1] });
+/**
+ * Where a finger on the middle of `target` lands.
+ * @param {import("@playwright/test").Locator} target
+ */
+const isTapOnTarget = (target) =>
+  target.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const landed = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return element.contains(landed);
+  });
+
+test("a starter the Worker can't describe says so under his club, beside the other's numbers, and Try again shows his placeholders as it reads him again", async ({
+  page,
+}) => {
+  /** @type {Record<number, object>} */
+  const pitchers = { 1: PITCHERS[1] };
+  const sheet = await openMatchup(page, pitchers);
   await expect(sheet.locator(".pitch-mix")).toHaveCount(1);
-  await expect(sheet.locator(".scout-note")).toHaveText(
-    "Couldn't load his numbers. Close and try again in a minute.",
-  );
+  const retry = sheet.locator(".pitcher-id.home .retry-side");
+  await expect(retry.locator(".retry-message")).toHaveText("Couldn't load");
+  await expect(sheet.locator(".scout")).toHaveCount(1);
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  pitchers[2] = PITCHERS[2];
+  const release = await holdPitchers(page);
+  const button = retry.getByRole("button", { name: "Try again" });
+  expect(await isTapOnTarget(button)).toBe(true);
+  await button.click();
+  await expect(
+    sheet.locator("#matchupBody .scout").nth(1).locator(".placeholder").first(),
+  ).toBeVisible();
+  await expect(retry).toHaveCount(0);
+  release();
+  await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
+});
+
+test("a starter's Couldn't load sits 11px under his club and a pixel right of the button's center, 3.5px over it, and the button 14px over the stats", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page, { 1: PITCHERS[1] });
+  const gaps = await sheet.locator("#matchupBody").evaluate((body) => {
+    const box = (selector) =>
+      /** @type {Element} */ (body.querySelector(selector)).getBoundingClientRect();
+    const club = box(".pitcher-id.home .club");
+    const message = box(".retry-side .retry-message");
+    const button = box(".retry-side .retry-button");
+    const stats = box(".tape");
+    return {
+      above: message.top - club.bottom,
+      between: button.top - message.bottom,
+      below: stats.top - button.bottom,
+      right: Math.round(message.left + message.width / 2 - (button.left + button.width / 2)),
+    };
+  });
+  expect(gaps).toEqual({ above: 11, between: 3.5, below: 14, right: 1 });
+});
+
+test("with neither starter's numbers loaded, the Matchup says so once, and reads them again as the phone comes back online", async ({
+  page,
+}) => {
+  /** @type {Record<number, object>} */
+  const pitchers = {};
+  const sheet = await openMatchup(page, pitchers);
+  const block = sheet.locator("#matchupBody .retry-block");
+  await expect(block.locator(".retry-title")).toHaveText("Couldn't load the starters' numbers");
+  await expect(sheet.locator(".retry-side")).toHaveCount(0);
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  Object.assign(pitchers, PITCHERS);
+  await page.evaluate(() => dispatchEvent(new Event("online")));
+  await expect(sheet.locator(".pitch-mix")).toHaveCount(2);
+  await expect(block).toHaveCount(0);
 });
 
 test("a game on a later day without its starters says to check back for them, under its clubs", async ({
@@ -534,9 +602,28 @@ test("a game later today without a starter says Still TBD, and opens to who star
     return below.top - above.bottom;
   });
   expect(Math.round(rotationGap)).toBe(5);
-  await expect(sheet.locator(".scout").nth(1).locator(".scout-note")).toHaveText(
-    "Couldn't load who started lately. Close and try again in a minute.",
+  await expect(sheet.locator(".scout").nth(1).locator(".retry-message")).toHaveText(
+    "Couldn't load who started lately",
   );
+});
+
+test("a club whose last starters didn't load reads them again on a tap on Try again", async ({
+  page,
+}) => {
+  /** @type {Record<string, object>} */
+  const rotations = { LAA: ANGELS_ROTATION };
+  const sheet = await openStillTbd(page, rotations);
+  const mariners = sheet.locator(".scout").nth(1);
+  await expect(mariners.locator(".retry-message")).toHaveText("Couldn't load who started lately");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  rotations.SEA = { ...ANGELS_ROTATION, club: "SEA" };
+  const release = await holdRequests(page, matchPath("/rotation"));
+  await mariners.getByRole("button", { name: "Try again" }).click();
+  await expect(mariners.locator(".placeholder").first()).toBeVisible();
+  release();
+  await expect(mariners.locator(".rotation li")).toHaveCount(2);
 });
 
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({

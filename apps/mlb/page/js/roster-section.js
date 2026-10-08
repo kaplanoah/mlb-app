@@ -1,8 +1,11 @@
 // The Roster section of a club's sheet, beside its Team section: the club's roster, which the store
-// keeps for the current season, read as the sheet shows the club and again once it's old. The
-// club's sheet keeps what the section shows, so a reload draws it again while it reads again.
+// keeps for the current season, read as the sheet shows the club and again once it's old. A roster
+// that didn't load reads again on a tap on Try again, as the phone comes back online or the page
+// comes back, or a minute later. The club's sheet keeps what the section shows, so a reload draws
+// it again while it reads again.
 
 import { html, setHtml } from "#shared/html.js";
+import { watchRetries } from "#shared/retry.js";
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 import { renderRoster } from "./roster-view.js";
 import { session } from "./session.js";
@@ -75,6 +78,20 @@ function renderSection() {
   }
   const { roster, isLoading } = readRoster(shownClub);
   setHtml(body, renderRoster(roster, { isLoading }));
+}
+
+// A read that failed is dropped, so the section shows its placeholders while it reads again.
+function retryRoster() {
+  if (!shownClub) return;
+  const read = reads.get(shownClub);
+  if (!read || read.roster || read.isLoading) return;
+  reads.delete(shownClub);
+  renderSection();
+}
+
+/** Has a tap on Try again, the phone coming back online, or the page coming back read again. */
+export function startRosterSection() {
+  watchRetries(findElement("rosterBody"), retryRoster);
 }
 
 /**

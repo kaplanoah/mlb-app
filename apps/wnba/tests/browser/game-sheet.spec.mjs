@@ -681,16 +681,42 @@ test("a game the league has no box score for says so, and a preview whose meetin
   await openApp(page, { league: { isScheduleRefused: true } });
   const sheet = await openGameSheet(page, "Game details: Fever at Aces, First Round Game 1");
   await expect(sheet.locator(".sheet-message")).toHaveText(
-    "The league hasn't posted a box score for this game yet.",
+    "The league hasn't posted a box score for this game yet",
   );
+  await expect(sheet.locator("[data-retry]")).toHaveCount(0);
+  expect(await listStrayPeriods(page)).toEqual([]);
   await sheet.getByRole("button", { name: "Close" }).click();
 
   const preview = await openGameSheet(page, FEVER_AT_ACES);
-  await expect(preview.locator(".sheet-message")).toHaveText(
-    "Couldn't load this season's meetings.",
+  await expect(preview.locator(".retry-message")).toHaveText(
+    "Couldn't load this season's meetings",
   );
   await expect(preview.locator(".tape-label")).toHaveCount(6);
   await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(10);
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+});
+
+test("a preview's meetings that didn't load read again on a tap on Try again, holding their shape meanwhile", async ({
+  page,
+}) => {
+  await openApp(page);
+  /** @param {import("@playwright/test").Route} route */
+  const refuse = (route) => route.fulfill({ status: 502, json: { error: "test" } });
+  await page.route(matchPath("/preview"), refuse);
+  const preview = await openGameSheet(page, FEVER_AT_ACES);
+  const meetings = preview.locator(".sheet-part").first();
+  await expect(meetings.locator(".retry-message")).toHaveText(
+    "Couldn't load this season's meetings",
+  );
+
+  await page.unroute(matchPath("/preview"), refuse);
+  const release = await holdRequests(page, matchPath("/preview"));
+  await meetings.getByRole("button", { name: "Try again" }).click();
+  await expect(meetings.locator(".placeholder").first()).toBeVisible();
+  await expect(preview.locator(".players tbody tr:not(.players-head)")).toHaveCount(10);
+  release();
+  await expect(preview.locator(".meetings li")).toHaveCount(3);
 });
 
 test("a final's box score and a preview's meetings open from what the store keeps, with the league down", async ({
@@ -720,19 +746,55 @@ test("a preview takes the season stats and leading scorers from the store as it 
 
   await app.changeSeason((season) => ({ ...season, leaders: [] }));
 
-  await expect(sheet.locator(".sheet-message")).toHaveText("Couldn't load the players' averages.");
+  await expect(sheet.locator(".sheet-message")).toHaveText("Couldn't load the players' averages");
   await expect(sheet.locator(".tape-label")).toHaveCount(6);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  await app.changeSeason((season) => ({ ...season, standings: [] }));
+
+  await expect(sheet.locator(".sheet-message")).toHaveText([
+    "Couldn't load the standings",
+    "Couldn't load the players' averages",
+  ]);
+  expect(await listStrayPeriods(page)).toEqual([]);
 });
 
-test("a sheet the Worker can't load says to try again", async ({ page }) => {
+test("a box score the Worker can't load says so over Try again, which holds the box score's shape as it reads it again", async ({
+  page,
+}) => {
   await openApp(page);
-  await page.route(matchPath("/box-score"), (route) =>
-    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } }),
-  );
+  /** @param {import("@playwright/test").Route} route */
+  const refuse = (route) =>
+    route.fulfill({ status: 502, json: { error: "Couldn't read the WNBA: test" } });
+  await page.route(matchPath("/box-score"), refuse);
   const sheet = await openGameSheet(page, ACES_AT_FEVER);
-  await expect(sheet.locator(".sheet-message")).toHaveText(
-    "Couldn't load the box score. Close and try again in a minute.",
-  );
+  const block = sheet.locator("#gameBody .retry-block");
+  await expect(block.locator(".retry-title")).toHaveText("Couldn't load the box score");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  await page.unroute(matchPath("/box-score"), refuse);
+  const release = await holdBoxScores(page);
+  await block.getByRole("button", { name: "Try again" }).click();
+  await expect(sheet.locator("#gameBody .placeholder").first()).toBeVisible();
+  release();
+  await expect(sheet.locator(".line-score")).toBeVisible();
+  await expect(block).toHaveCount(0);
+});
+
+test("a box score that didn't load reads again as the phone comes back online", async ({
+  page,
+}) => {
+  await openApp(page);
+  /** @param {import("@playwright/test").Route} route */
+  const refuse = (route) => route.fulfill({ status: 502, json: { error: "test" } });
+  await page.route(matchPath("/box-score"), refuse);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
+  await expect(sheet.locator("#gameBody .retry-block")).toBeVisible();
+
+  await page.unroute(matchPath("/box-score"), refuse);
+  await page.evaluate(() => dispatchEvent(new Event("online")));
+  await expect(sheet.locator(".line-score")).toBeVisible();
 });
 
 test("while its box score loads, the sheet holds the box score's shape, then fills it in", async ({

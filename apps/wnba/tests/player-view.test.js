@@ -259,7 +259,17 @@ test("while her numbers load the sheet holds their shape, and says so when they 
     ),
     /placeholder/,
   );
-  assert.equal(renderBody(null), "Couldn't load her numbers. Close and try again in a minute.");
+  assert.equal(renderBody(null), "Couldn't load her numbers Try again");
+  assert.match(
+    renderPlayerBody({
+      player: null,
+      isLoading: false,
+      season: SEASON,
+      isPastSeason: false,
+      now: NOW,
+    }).text,
+    /class="retry-block"[\s\S]*class="retry-button filled" data-retry/,
+  );
   assert.match(String(renderPlayerFacts(null, true)), /placeholder/);
   assert.equal(renderPlayerFacts(null, false), false);
   assert.equal(readText(describePlayerNote(SUBJECT, null)), "Liberty");

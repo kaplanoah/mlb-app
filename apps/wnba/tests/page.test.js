@@ -1071,14 +1071,14 @@ test("a game whose time isn't set tips off on its day, and one its series no lon
 
 test("the header names a problem with the page's server or the league's feeds", () => {
   assert.equal(
-    describeStampProblem({ status: null, problem: "Can't reach the page's server right now." }),
-    "Can't reach the page's server right now.",
+    describeStampProblem({ status: null, problem: "Can't reach the page's server right now" }),
+    "Can't reach the page's server right now",
   );
   assert.equal(describeStampProblem({ status: null, problem: "" }), "");
   const status = { error: "wnba_feeds_missing", detail: "bracket, standings" };
   assert.equal(
     describeStampProblem({ status, problem: "" }),
-    "The WNBA stopped sending the bracket and the standings.",
+    "The WNBA stopped sending the bracket and the standings",
   );
   const standingIn = { error: "wnba_feeds_missing", detail: "scoreboard", standIn: "espn" };
   assert.equal(

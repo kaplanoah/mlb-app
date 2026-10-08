@@ -1,4 +1,5 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { holdRequests } from "../../../../tests/browser/hold-requests.mjs";
 import { drag } from "../../../../tests/browser/touch.mjs";
 import {
   listFillFades,
@@ -522,4 +523,28 @@ test.describe("in full motion", () => {
     await expectShown(section);
     await expect(page.locator("#teamSheet .sheet-sections")).not.toHaveClass(/is-swiped/);
   });
+});
+
+test("a roster that didn't load says so over Try again, which holds its shape as it reads it again", async ({
+  page,
+}) => {
+  await openApp(page);
+  /** @param {import("@playwright/test").Route} route */
+  const refuse = (route) => route.fulfill({ status: 502, json: { error: "test" } });
+  await page.route(matchPath("/roster"), refuse);
+  const teamSheet = await openLibertySheet(page);
+  await teamSheet.getByRole("tab", { name: "Roster" }).click();
+  const section = page.locator("#rosterSection");
+  const block = section.locator(".retry-block");
+  await expect(block.locator(".retry-title")).toHaveText("Couldn't load the roster");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+
+  await page.unroute(matchPath("/roster"), refuse);
+  const release = await holdRequests(page, matchPath("/roster"));
+  await block.getByRole("button", { name: "Try again" }).click();
+  await expect(section.locator(".placeholder").first()).toBeVisible();
+  release();
+  await expect(section.locator(".roster-coach")).toBeVisible();
+  await expect(block).toHaveCount(0);
 });

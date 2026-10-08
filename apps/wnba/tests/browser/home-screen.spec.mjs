@@ -1,4 +1,5 @@
 import { test, expect, openApp } from "./harness.mjs";
+import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 const IPHONE_AGENT =
@@ -115,8 +116,9 @@ test.describe("on an Android phone, in the browser", () => {
     await openSettings(page);
     const tip = page.locator("#homeScreenTip");
     await expect(tip).toHaveText(
-      "Use this site like an app It opens full screen, without the browser's bars. Install",
+      "Use this site like an app It opens full screen, without the browser's bars Install",
     );
+    expect(await listStrayPeriods(page)).toEqual([]);
   });
 
   test("installing from the bar opens Chrome's dialog, and then the page asks no more", async ({

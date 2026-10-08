@@ -91,14 +91,28 @@ test("no games or standings yet is fine; no dates or records at all is not", () 
   );
 });
 
-test("a starter MLB describes without his name or arm is flagged, and an ERA only once none has one", () => {
+test("a starter MLB describes without his name or arm is flagged, and a first name or an ERA only once none has one", () => {
   const withLine = (era) => ({ stats: [{ splits: [{ stat: { era } }] }] });
   const describe = (people) =>
     MLBSnapshot.findMissingFields({ ...EVENING.responses, pitchers: { people } });
-  const complete = { id: 1, useLastName: "King", pitchHand: { code: "R" }, ...withLine("3.21") };
-  const rookie = { id: 2, useLastName: "Tolle", pitchHand: { code: "L" } };
+  const complete = {
+    id: 1,
+    useName: "Michael",
+    useLastName: "King",
+    pitchHand: { code: "R" },
+    ...withLine("3.21"),
+  };
+  const rookie = { id: 2, useName: "Payton", useLastName: "Tolle", pitchHand: { code: "L" } };
   assert.deepEqual(describe([complete, rookie]), []);
   assert.deepEqual(describe([{ ...complete, useLastName: undefined }]), ["useLastName"]);
+  assert.deepEqual(describe([{ ...complete, useName: undefined }, rookie]), []);
+  assert.deepEqual(
+    describe([
+      { ...complete, useName: undefined },
+      { ...rookie, useName: undefined },
+    ]),
+    ["useName"],
+  );
   assert.deepEqual(describe([{ ...complete, pitchHand: {} }]), ["pitchHand.code"]);
   assert.deepEqual(describe([{ ...complete, ...withLine(undefined) }, rookie]), ["era"]);
 });
