@@ -59,3 +59,46 @@ test("on a wide screen, Diagnostics sit under the settings and ranking, a scroll
 
   await expect(findSwitch(page)).toBeInViewport();
 });
+
+/** @param {import("@playwright/test").Page} page */
+const findRecordButton = (page) => page.locator("#diagnosticsRecord");
+
+/** @param {import("@playwright/test").Page} page */
+const stubShare = (page) =>
+  page.addInitScript(() => {
+    /** @type {ShareData[]} */
+    const shares = [];
+    Object.defineProperty(window, "diagnosticsShares", { value: shares });
+    navigator.share = async (data) => {
+      shares.push(data ?? {});
+    };
+  });
+
+/** @param {import("@playwright/test").Page} page */
+const readShares = (page) =>
+  page.evaluate(() => /** @type {ShareData[]} */ (Reflect.get(window, "diagnosticsShares")));
+
+test.describe("on a phone", () => {
+  test.use({ viewport: PHONE, hasTouch: true, isMobile: true });
+
+  test("a report names how the store's pitchers job last ran", async ({ page }) => {
+    await stubShare(page);
+    await openApp(page);
+    await openSettings(page);
+    await findSwitch(page).click();
+    await expect(findSwitch(page)).toHaveAttribute("aria-checked", "true");
+
+    const button = findRecordButton(page);
+    await button.click();
+    for (const secondsLeft of [5, 4, 3, 2, 1]) {
+      await expect(button).toHaveText(`Recording ${secondsLeft}`);
+      await page.clock.runFor(1000);
+    }
+    await expect(button).toHaveText("Share report");
+    await button.click();
+
+    await expect(button).toHaveText("Shared");
+    const [{ text: copied }] = await readShares(page);
+    expect(copied).toMatch(/^Pitchers job(: no run saved| last ran .*, \d+ requests?)/m);
+  });
+});

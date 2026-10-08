@@ -28,6 +28,7 @@ const QUALIFIED_IDS = listQualifiedIds(FIXTURE.answers[listQualifiedRequest(2026
 const RECORDED_IDS = FIXTURE.people[2026].map((/** @type {any} */ person) => person.id);
 const OTHER_STARTERS = RECORDED_IDS.filter((id) => !QUALIFIED_IDS.includes(id));
 const PAST_QUALIFIED_IDS = listQualifiedIds(FIXTURE.answers[listQualifiedRequest(2025)]);
+const STATUS_KEY = "pitchers/status";
 
 /** MLB's answers, by request, each a copy a test can change. */
 const listAnswers = () => structuredClone(FIXTURE.answers);
@@ -100,13 +101,25 @@ function createDocs(initial) {
   };
 }
 
-/** @param {number} finals */
-const describeSeason = (finals) => ({
+/**
+ * @param {number} finals
+ * @param {any[]} [games] the slate's games still to come today
+ */
+const describeSeason = (finals, games = []) => ({
   year: 2026,
   slate: {
-    today: { date: TODAY, games: Array.from({ length: finals }, () => ({ state: "final" })) },
+    today: {
+      date: TODAY,
+      games: [...Array.from({ length: finals }, () => ({ state: "final" })), ...games],
+    },
   },
 });
+
+/**
+ * The documents a run wrote, but for its status, which it writes each run.
+ * @param {{ writes: string[] }} docs
+ */
+const listDataWrites = ({ writes }) => writes.filter((key) => key !== STATUS_KEY);
 
 /**
  * A store whose current season is 2026, with 2025 kept from before, and the job that keeps its
@@ -149,38 +162,64 @@ function createRun({ answers = listAnswers(), job = createPitcherJob() } = {}) {
     finals += 1;
     docs.stored.set("seasons/2026", describeSeason(finals));
   };
-  return { docs, mlb, unanswered, runJob, wait, endGame };
+  return { docs, storage, mlb, unanswered, runJob, wait, endGame };
 }
 
 /** @param {any} docs */
 const readFromStore = (docs) => (/** @type {string} */ key) => docs.read(key);
 
+function createLeagueReadCounter() {
+  const counter = {
+    count: 0,
+    countLeagueRead: async () => {
+      counter.count += 1;
+    },
+  };
+  return counter;
+}
+
 /**
- * A pitcher's side as the Worker answers it, from the store when `docs` is given, or from MLB.
+ * A pitcher's side as the Worker answers it, from the store when `docs` is given, or from MLB,
+ * and how many times it counted a read of MLB the store should have spared.
  * @param {string} query
  * @param {{ docs?: any, answers?: Record<string, any> }} [options]
  */
 async function askForPitcher(query, { docs, answers = listAnswers() } = {}) {
   const { requests, fetchImpl } = createMlbFetch(answers);
+  const counter = createLeagueReadCounter();
   const response = await createPitcherServer({ fetchImpl, now: () => NOW }).servePitcher(
     new URL(`https://mlb-app.example/k3y/pitcher?${query}`),
     docs ? readFromStore(docs) : undefined,
+    counter.countLeagueRead,
   );
-  return { status: response.status, body: await response.json(), requests };
+  return {
+    status: response.status,
+    body: await response.json(),
+    requests,
+    leagueReads: counter.count,
+  };
 }
 
 /**
- * A club's starters as the Worker answers them, from the store when `docs` is given, or from MLB.
+ * A club's starters as the Worker answers them, from the store when `docs` is given, or from MLB,
+ * and how many times it counted a read of MLB the store should have spared.
  * @param {string} query
  * @param {{ docs?: any }} [options]
  */
 async function askForRotation(query, { docs } = {}) {
   const { requests, fetchImpl } = createMlbFetch(listAnswers());
+  const counter = createLeagueReadCounter();
   const response = await createRotationServer({ fetchImpl }).serveRotation(
     new URL(`https://mlb-app.example/k3y/rotation?${query}`),
     docs ? readFromStore(docs) : undefined,
+    counter.countLeagueRead,
   );
-  return { status: response.status, body: await response.json(), requests };
+  return {
+    status: response.status,
+    body: await response.json(),
+    requests,
+    leagueReads: counter.count,
+  };
 }
 
 const isLeagueFeed = (/** @type {string} */ path) =>
@@ -197,6 +236,7 @@ test("a pitcher's side from the store is the one MLB's feeds make, and reads not
     assert.equal(fromStore.status, 200);
     assert.deepEqual(fromStore.body, fromMlb.body);
     assert.deepEqual(fromStore.requests, []);
+    assert.equal(fromStore.leagueReads, 0);
   }
   const ranked = await askForPitcher(`id=${QUALIFIED_IDS[0]}&season=2026`, { docs });
   assert.equal(ranked.body.starters.count, QUALIFIED_IDS.length);
@@ -218,23 +258,30 @@ test("a club's starters from the store are the ones MLB's feeds make, and read n
       assert.ok(fromStore.body.starters.length > 0);
       assert.deepEqual(fromStore.body, fromMlb.body);
       assert.deepEqual(fromStore.requests, []);
+      assert.equal(fromStore.leagueReads, 0);
     }
 });
 
-test("a club whose starters the store doesn't keep, or a day its starts don't reach back to, has the sheet read MLB", async () => {
+test("a club whose starters the store doesn't keep, or a day its starts don't reach back to, has the sheet read MLB, counted", async () => {
   const { docs, runJob } = createRun();
   await runJob();
 
   assert.equal(docs.stored.get(nameRotationKey(2026, "NYY")), undefined);
+  const unkept = await askForRotation(`club=NYY&date=${TODAY}`, { docs });
+  assert.ok(unkept.requests.length > 0);
+  assert.equal(unkept.leagueReads, 1);
   const earlier = await askForRotation("club=CLE&date=2026-10-01", { docs });
   assert.ok(earlier.requests.length > 0);
+  assert.equal(earlier.leagueReads, 1);
+  const pastSeason = await askForRotation("club=CLE&date=2025-09-28", { docs });
+  assert.equal(pastSeason.leagueReads, 0);
 });
 
 test("a run that finds nothing new reads nothing from MLB and saves nothing", async () => {
   const { docs, mlb, runJob, wait } = createRun();
   await runJob();
   const firstRequests = mlb.requests.length;
-  const firstWrites = docs.writes.length;
+  const firstWrites = listDataWrites(docs).length;
 
   wait(5);
   await runJob();
@@ -242,7 +289,7 @@ test("a run that finds nothing new reads nothing from MLB and saves nothing", as
   await runJob();
 
   assert.equal(mlb.requests.length, firstRequests);
-  assert.equal(docs.writes.length, firstWrites);
+  assert.equal(listDataWrites(docs).length, firstWrites);
 });
 
 test("a game's end has the next run read the league's feeds and the pitchers who pitched in it, and once more as their numbers settle", async () => {
@@ -273,13 +320,13 @@ test("a game's end has the next run read the league's feeds and the pitchers who
 test("a final MLB answers the same for saves no document", async () => {
   const { docs, runJob, wait, endGame } = createRun();
   await runJob();
-  const writes = docs.writes.length;
+  const writes = listDataWrites(docs).length;
 
   endGame(QUALIFIED_IDS[0]);
   wait(5);
   await runJob();
 
-  assert.equal(docs.writes.length, writes);
+  assert.equal(listDataWrites(docs).length, writes);
 });
 
 test("a past season's qualified starters are filled once, after the current season, and never read again", async () => {
@@ -302,6 +349,7 @@ test("a past season's qualified starters are filled once, after the current seas
   assert.ok(
     fromStore.requests.every((path) => path.includes(`personIds=${PAST_QUALIFIED_IDS[0]}&`)),
   );
+  assert.equal(fromStore.leagueReads, 0);
 });
 
 test("a pitcher the store doesn't keep has the sheet read MLB for him alone", async () => {
@@ -313,7 +361,26 @@ test("a pitcher the store doesn't keep has the sheet read MLB for him alone", as
   const unkept = await askForPitcher(`id=${id}&season=2026`, { docs });
   assert.equal(unkept.status, 200);
   assert.equal(unkept.requests.length, 2);
+  assert.equal(unkept.leagueReads, 1);
   assert.deepEqual(unkept.body, (await askForPitcher(`id=${id}&season=2026`)).body);
+});
+
+test("a pitcher named to start a game the page lists is kept before his first start, so his sheet reads nothing from MLB", async () => {
+  const answers = listAnswers();
+  const id = OTHER_STARTERS[0];
+  for (const gameType of /** @type {const} */ (["R", "P"])) {
+    const table = answers[listAppearancesRequest(2026, gameType)].stats[0];
+    table.splits = table.splits.filter((/** @type {any} */ row) => row.player.id !== id);
+  }
+  const { docs, runJob } = createRun({ answers });
+  const game = { state: "scheduled", starters: [{ id, name: "Named" }, null] };
+  docs.stored.set("seasons/2026", describeSeason(0, [game]));
+  await runJob();
+
+  const named = await askForPitcher(`id=${id}&season=2026`, { docs, answers });
+  assert.equal(named.status, 200);
+  assert.deepEqual(named.requests, []);
+  assert.equal(named.leagueReads, 0);
 });
 
 test("a store that can't be read has the sheet read MLB", async () => {
@@ -332,23 +399,26 @@ test("a feed that stops answering leaves what the store saved from it", async ()
   const { docs, runJob, wait, endGame } = createRun({ answers });
   await runJob();
   const starters = docs.stored.get(nameStartersKey(2026));
-  const writes = docs.writes.length;
+  const writes = listDataWrites(docs).length;
 
   delete answers[listQualifiedRequest(2026)];
   endGame(QUALIFIED_IDS[0]);
   wait(5);
   await runJob();
 
-  assert.equal(docs.writes.length, writes);
+  assert.equal(listDataWrites(docs).length, writes);
   assert.deepEqual(docs.stored.get(nameStartersKey(2026)), starters);
 });
 
-test("the qualified starters are saved only once each of them is, and a batch MLB doesn't answer is read on a later run", async () => {
+test("the qualified starters are saved at once, each one's speed as his side is, and a batch MLB doesn't answer is read on a later run", async () => {
   const { docs, unanswered, runJob, wait } = createRun();
   unanswered.add("/api/v1/people?");
   await runJob();
-  assert.equal(docs.stored.get(nameStartersKey(2026)), undefined);
+  const unread = docs.stored.get(nameStartersKey(2026)).starters;
+  assert.equal(unread.length, QUALIFIED_IDS.length);
+  assert.ok(unread.every((/** @type {any} */ starter) => starter.speed === null));
   assert.equal(docs.stored.get(namePitcherKey(2026, QUALIFIED_IDS[0])), undefined);
+  assert.match(docs.stored.get(STATUS_KEY).lastFailure.message, /Reading 2026's pitchers failed/);
 
   unanswered.clear();
   wait(5);
@@ -356,6 +426,23 @@ test("the qualified starters are saved only once each of them is, and a batch ML
   const { starters } = docs.stored.get(nameStartersKey(2026));
   assert.equal(starters.length, QUALIFIED_IDS.length);
   assert.ok(starters.every((/** @type {any} */ starter) => starter.speed > 80));
+});
+
+test("each run saves its status, with its requests and how often a sheet still read MLB", async () => {
+  const { docs, storage, mlb, runJob, wait } = createRun();
+  await runJob();
+  const first = docs.stored.get(STATUS_KEY);
+  assert.equal(first.ranAt, new Date(NOW).toISOString());
+  assert.equal(first.requests, mlb.requests.length);
+  assert.equal(first.lastFailure, null);
+  assert.equal(first.leagueReads, 0);
+
+  await storage.put("count:leagueReads", 3);
+  wait(5);
+  await runJob();
+  const second = docs.stored.get(STATUS_KEY);
+  assert.equal(second.requests, 0);
+  assert.equal(second.leagueReads, 3);
 });
 
 test("every starter's first read spreads over runs, the qualified starters first", async () => {

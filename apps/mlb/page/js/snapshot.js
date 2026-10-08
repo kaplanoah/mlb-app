@@ -405,7 +405,7 @@ export const listPitcherRequest = (season, ids) =>
   `&hydrate=stats(group=[pitching],type=[season],season=${season})&fields=${PITCHER_FIELDS}`;
 
 // Only the starters of the games the page lists are looked up, and those come from the slate.
-function listStarterIds(slate) {
+export function listStarterIds(slate) {
   if (!slate) return [];
   const days = [slate.today, slate.nextDay, slate.lastNight].filter(Boolean);
   const games = [...days.flatMap((day) => day.games), slate.lastFinal, slate.previous, slate.next]

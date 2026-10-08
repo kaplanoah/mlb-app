@@ -8,13 +8,17 @@ import { createGameDetailsJob } from "./game-details-updater.js";
 import { findNotableUpdates, listNotifications } from "./notifications.js";
 import { createOldRecordsJob } from "./old-records.js";
 import { createPastSeasonsJob } from "./past-seasons.js";
-import { createPitcherJob } from "./pitcher-updater.js";
+import { PITCHER_JOB, createPitcherJob } from "./pitcher-updater.js";
 import { createRosterJob } from "./roster-updater.js";
 import * as SeasonUpdater from "./season-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
 import { createWatchedGameLoader } from "./watched-games.js";
 
-export { forwardToStore, readStoreDoc } from "../../../../shared/worker/season-store.js";
+export {
+  addToJobCount,
+  forwardToStore,
+  readStoreDoc,
+} from "../../../../shared/worker/season-store.js";
 
 export const SeasonStore = createSeasonStore({
   release: readReleaseCommit(PAGE_FILES),
@@ -35,7 +39,7 @@ export const SeasonStore = createSeasonStore({
     games: createGameDetailsJob(),
     pastSeasons: createPastSeasonsJob(),
     oldRecords: createOldRecordsJob(),
-    pitchers: createPitcherJob(),
+    [PITCHER_JOB]: createPitcherJob(),
     rosters: createRosterJob(),
   },
 });

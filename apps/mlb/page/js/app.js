@@ -4,7 +4,7 @@ import { startCatchUpNote } from "#shared/catch-up-note.js";
 import { startCaughtUpSweep } from "#shared/caught-up-sweep.js";
 import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
-import { startDiagnostics } from "#shared/diagnostics.js";
+import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
 import { startGamePager } from "#shared/game-pager.js";
@@ -167,6 +167,7 @@ async function boot() {
   trackKeyboardFocus();
   wireControls();
   session.db = createWorkerStore();
+  showJobStatuses(session.db, ["pitchers"]);
   drawLastSeen();
   reopenLastSheets();
   startCatchUpNote(session.db, renderStamp);

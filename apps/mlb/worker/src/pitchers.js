@@ -8,7 +8,8 @@ import { createReusedLoader } from "../../../../shared/worker/upstream.js";
 // and where he ranks among the season's qualified starters, MLB's pitchers with an inning for each
 // of their team's games. The store keeps every starter's side for the current season, and the
 // qualified starters of each season it keeps (pitcher-updater.js), so a sheet reads MLB itself only
-// for what the store doesn't keep.
+// for what the store doesn't keep, and the store counts each time it does for the current season,
+// which shows whether the store keeps all it should.
 
 // A pitcher's numbers change at most once a game, and the league's once a day of games.
 const PITCHER_CACHE_SECONDS = 10 * 60;
@@ -340,7 +341,20 @@ function readPersonId(searchParams) {
  * @typedef {(key: string) => Promise<any>} ReadDoc
  */
 
-const NOTHING_SAVED = { pitcher: null, qualified: null };
+const NOTHING_SAVED = { pitcher: null, qualified: null, current: null };
+
+/**
+ * Counts a read of MLB the store should have spared, which never holds up the sheet.
+ * @param {string} what what was read, as an error names it
+ * @param {() => Promise<void>} countLeagueRead
+ */
+export async function noteLeagueRead(what, countLeagueRead) {
+  try {
+    await countLeagueRead();
+  } catch (error) {
+    console.error(`Counting ${what} read from MLB failed: ${describeError(error)}`);
+  }
+}
 
 /**
  * @param {object} [options]
@@ -388,11 +402,12 @@ export function createPitcherServer({
    */
   async function readSaved(id, season, readDoc) {
     try {
-      const [pitcher, qualified] = await Promise.all([
+      const [pitcher, qualified, current] = await Promise.all([
         readDoc(namePitcherKey(season, id)),
         readDoc(nameStartersKey(season)),
+        readDoc("live/current"),
       ]);
-      return { pitcher, qualified };
+      return { pitcher, qualified, current: current?.season ?? null };
     } catch (error) {
       console.error(`Reading pitcher ${id} from the store failed: ${describeError(error)}`);
       return NOTHING_SAVED;
@@ -402,17 +417,21 @@ export function createPitcherServer({
   /**
    * @param {URL} url
    * @param {ReadDoc} [readDoc] the store's documents, when the Worker has a store
+   * @param {() => Promise<void>} [countLeagueRead] adds one to the store's count of sheets read
+   *   from MLB
    */
-  async function servePitcher(url, readDoc) {
+  async function servePitcher(url, readDoc, countLeagueRead) {
     const id = readPersonId(url.searchParams);
     if (id == null) return respondJson({ error: "id must be an MLB person id" }, 400);
     const season = SEASON_PARAM.readSeason(url.searchParams, now());
     if (season == null) return respondJson({ error: SEASON_PARAM.rule }, 400);
     try {
       const saved = readDoc ? await readSaved(id, season, readDoc) : NOTHING_SAVED;
+      const hasStoreGap = season === saved.current && (!saved.pitcher || !saved.qualified);
       const [pitcher, qualified] = await Promise.all([
         saved.pitcher ?? fetchPitcher(id, season),
         saved.qualified ?? loadQualified(season),
+        hasStoreGap && countLeagueRead && noteLeagueRead("a pitcher", countLeagueRead),
       ]);
       if (!pitcher) return respondJson({ error: "MLB has no pitcher with that id" }, 404);
       return respondJson(composePitcher(pitcher, qualified, now()));
