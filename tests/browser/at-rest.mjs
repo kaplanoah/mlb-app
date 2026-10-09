@@ -144,7 +144,13 @@ export async function waitForLoadToSettle(page) {
  * @param {import("@playwright/test").Page} page
  */
 export async function expectAtRest(page) {
-  await expect.poll(() => listAnimations(page)).toEqual([]);
+  /** @type {string[]} */
+  let lastAnimations = [];
+  try {
+    await expect.poll(async () => (lastAnimations = await listAnimations(page))).toEqual([]);
+  } catch (error) {
+    throw new Error(`The page kept animating: ${lastAnimations.join("; ")}`, { cause: error });
+  }
   expect(await listFrameRequestsAcross(page, 1000)).toEqual([]);
   expect(await listAnimations(page)).toEqual([]);
 }
