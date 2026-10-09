@@ -1707,6 +1707,9 @@ body.kbd .player-open:focus {
 .tape-number.better .tape-rank {
   font-weight: 400;
 }
+.matchup-body .tape .tape-label {
+  font-size: 0.84375rem;
+}
 .matchup-body .tape .player-curve {
   height: 24px;
 }
