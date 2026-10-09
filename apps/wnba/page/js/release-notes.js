@@ -6,6 +6,10 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
+    at: "2026-10-09T12:19:00Z",
+    text: "The Games tab now shows the whole season, from opening night to the Finals",
+  },
+  {
     at: "2026-10-07T22:35:00Z",
     text: html`Player pages now include turnover stats. From a team page, tap <b>Roster</b> and then a player's name.`,
   },
