@@ -760,6 +760,38 @@ test("the Games lists go back to the one shown after a move no one made, after a
   await expect(pages).toHaveAttribute("data-put-back-from", "today");
 });
 
+test("a key pressed in the Games lists, or a sideways wheel at their end, leaves the next move no one made going back", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  const pages = page.locator("#games-pages");
+  /** @param {number} widths */
+  const moveListsTo = (widths) =>
+    pages.evaluate(
+      (element, to) => element.scrollTo({ left: element.clientWidth * to, behavior: "instant" }),
+      widths,
+    );
+  const readPosition = () => pages.evaluate((element) => element.scrollLeft / element.clientWidth);
+  await expect(shownGames).toHaveId("games-today");
+
+  await page.locator("#games-today .game-open").first().focus();
+  await page.keyboard.press("Shift");
+  await moveListsTo(0);
+  await expect.poll(readPosition).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expect.poll(readPosition).toBe(0);
+  const box = await pages.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + 40);
+  await page.mouse.wheel(-200, 0);
+  await moveListsTo(1);
+  await expect.poll(readPosition).toBe(0);
+  await expect(shownGames).toHaveId("games-previous");
+});
+
 test("a Games list with nothing in it centers its note under the pill, a touch above the middle of the date's number beside a list's first game", async ({
   page,
 }) => {

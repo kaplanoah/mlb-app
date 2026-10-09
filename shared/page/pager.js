@@ -297,14 +297,21 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
       scrollTarget = null;
       isMovedByPerson = true;
     };
+    // A wheel at the lists' end in its direction moves nothing, so it starts no move.
     /** @param {WheelEvent} event */
-    const startSidewaysWheel = (event) => event.deltaX && startPersonMove();
+    const canWheelMove = ({ deltaX }) =>
+      deltaX < 0
+        ? pages.scrollLeft >= 1
+        : pages.scrollLeft <= pages.scrollWidth - pages.clientWidth - 1;
+    /** @param {WheelEvent} event */
+    const startSidewaysWheel = (event) => event.deltaX && canWheelMove(event) && startPersonMove();
     const startTouch = () => {
       isTouching = true;
       isMovedByPerson = true;
       liftPosition = null;
     };
-    // A tap, or a finger that scrolls the page up or down, leaves the lists where they were.
+    // A tap, a key that doesn't scroll sideways, or a finger that scrolls the page up or down,
+    // leaves the lists where they were.
     const endPersonMove = () => {
       if (isAtList(pages, shownList)) isMovedByPerson = false;
     };
@@ -318,6 +325,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     pages.addEventListener("pointerdown", startPersonMove);
     pages.addEventListener("pointerup", endPersonMove);
     pages.addEventListener("keydown", startPersonMove);
+    pages.addEventListener("keyup", endPersonMove);
     pages.addEventListener("wheel", startSidewaysWheel, { passive: true });
     pages.addEventListener("touchstart", startTouch, { passive: true });
     pages.addEventListener("touchend", endTouch, { passive: true });
