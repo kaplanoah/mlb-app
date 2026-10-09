@@ -686,6 +686,35 @@ test("beside a starter who isn't ranked, both numbers are white, and only the un
   expect(era.home).toEqual({ color: era.ink, weight: "400", isDotDimmed: true });
 });
 
+/** @param {import("@playwright/test").Locator} sheet */
+const readNumberLineMiddles = (sheet) =>
+  sheet.locator(".tape-measure").evaluateAll((measures) =>
+    measures.map((measure) => {
+      /** @param {string} selector */
+      const readMiddle = (selector) => {
+        const box = /** @type {HTMLElement} */ (
+          measure.querySelector(selector)
+        ).getBoundingClientRect();
+        return Math.round(box.top + box.height / 2);
+      };
+      return {
+        away: readMiddle(".tape-number.away .tape-number-line"),
+        label: readMiddle(".tape-label"),
+        home: readMiddle(".tape-number.home .tape-number-line"),
+      };
+    }),
+  );
+
+test("an unranked starter's numbers sit level with the label and the ranked starter's", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
+  for (const middles of await readNumberLineMiddles(sheet)) {
+    expect(middles.home).toBe(middles.away);
+    expect(Math.abs(middles.label - middles.away)).toBeLessThanOrEqual(1);
+  }
+});
+
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({
   page,
 }) => {
