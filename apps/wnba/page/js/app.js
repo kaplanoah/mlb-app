@@ -3,6 +3,12 @@ import { startCaughtUpSweep } from "#shared/caught-up-sweep.js";
 import { startPullToRefresh } from "#shared/pull-to-refresh.js";
 import { startHomeScreen } from "#shared/home-screen.js";
 import { setHtml } from "#shared/html.js";
+import {
+  drawNews as drawNewsList,
+  readLastSeenNews,
+  startNewsRedraws,
+  watchNews,
+} from "#shared/news.js";
 import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { fillDayStrip, showStartDay, startDayStrip, startOverDayStrip } from "#shared/day-strip.js";
@@ -25,10 +31,7 @@ import { placeBracket, readBracketScroll, startBracket } from "./bracket-tree.js
 import { renderBracket } from "./bracket-view.js";
 import { refreshGameSheet, startGameSheet } from "./game-sheet.js";
 import { listSeasonDays } from "./games-view.js";
-import { readNewsChoices, startNewsChoices } from "./news-choices.js";
-import { watchNews } from "./news-data.js";
-import { renderNews } from "./news-view.js";
-import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
+import { NEWS_LEAGUE } from "./news-league.js";
 import { refreshPlayerSheet, startPlayerSheet } from "./player-sheet.js";
 import { fillRoster, readShownRoster, reopenRoster, startRosterSection } from "./roster-section.js";
 import { loadSeason, loadSeasonYears, showYear, startSeasonData } from "./season-data.js";
@@ -42,8 +45,6 @@ import { TEAMS } from "./teams.js";
 import { drawUpdates, watchDismissals } from "./updates.js";
 
 const CLOCK_REFRESH_MS = 60 * 1000;
-// A wide screen shows the news in two columns.
-const wideScreen = matchMedia("(min-width: 900px)");
 
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -59,14 +60,7 @@ function renderStamp() {
 
 // Until the store or the page's last showing says what the news is, the view keeps what it was.
 function drawNews() {
-  if (session.news === undefined) return;
-  const cards = session.news?.cards ?? [];
-  const columnCount = wideScreen.matches ? 2 : 1;
-  const opened = readOpenedStories();
-  setHtml(
-    findElement("newsList"),
-    renderNews(cards, readNewsChoices(), Date.now(), { columnCount, opened }),
-  );
+  if (session.news !== undefined) drawNewsList(findElement("newsList"), session.news, NEWS_LEAGUE);
 }
 
 function renderTitleYear() {
@@ -104,9 +98,6 @@ function drawLoadedSeason() {
 function refreshClockEveryMinute() {
   setInterval(renderAll, CLOCK_REFRESH_MS);
 }
-
-// News the page can't read from its last showing leaves the view as it was until the store answers.
-const readLastSeenNews = (news) => (news === null || Array.isArray(news?.cards) ? news : undefined);
 
 // The season's games from the page's last showing count only in the version the page reads.
 const readLastSeenSchedule = (schedule) =>
@@ -208,9 +199,7 @@ async function boot() {
   startRosterSection();
   startPlayerSheet();
   startSettingsSheet();
-  startNewsChoices(drawNews);
-  startOpenedStories(findElement("newsList"), drawNews);
-  wideScreen.addEventListener("change", drawNews);
+  startNewsRedraws(findElement("newsList"), drawNews);
   startHomeScreen();
   findSeasonPicker().addEventListener("change", () =>
     switchSeason(Number(findSeasonPicker().value)),
@@ -234,7 +223,10 @@ async function boot() {
   const [years] = await Promise.all([listSeasonYears(), loadSeason()]);
   fillSeasonList(years);
   redrawEased(drawLoadedSeason);
-  watchNews(() => redrawEased(drawNews));
+  watchNews(session.db, (news) => {
+    session.news = news;
+    redrawEased(drawNews);
+  });
   watchDismissals(() => redrawEased(drawUpdates));
   refreshClockEveryMinute();
   startServiceWorker();

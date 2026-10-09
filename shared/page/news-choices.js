@@ -1,7 +1,7 @@
-// The settings panel's News switches: the Liberty's own beat writers, and The Athletic, whose
+// The settings panel's News switches: the league's own team's beat writers, and the outlets whose
 // stories mostly need a subscription. Both are on until switched off.
 
-import { createViewerChoice } from "#shared/device-storage.js";
+import { createViewerChoice } from "./device-storage.js";
 
 const SWITCH_IDS = { teamOutlets: "teamOutletsSwitch", paywalled: "paywalledSwitch" };
 

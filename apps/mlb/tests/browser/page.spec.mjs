@@ -1952,6 +1952,32 @@ async function showGameSections(page) {
   ];
 }
 
+/** @param {Record<string, any>} fields */
+const createNewsStory = (fields) => ({
+  url: `https://example.com/${fields.id}`,
+  title: `A story about the ${fields.id}`,
+  summary: "What happened, in a sentence.",
+  author: "A Writer",
+  outlet: "ESPN",
+  source: "espn",
+  publishedAt: "2026-09-24T14:00:00.000Z",
+  photo: null,
+  teams: ["NYM"],
+  ...fields,
+});
+
+// A card with a story under its lead, which the News view shows.
+const NEWS_DOCS = {
+  "news/cards": {
+    cards: [
+      {
+        lead: createNewsStory({ id: "mets", teamFeed: "NYM" }),
+        more: [createNewsStory({ id: "league", outlet: "The Athletic", source: "athletic" })],
+      },
+    ],
+  },
+};
+
 for (const { screen, viewport } of [
   { screen: "a wide screen", viewport: { width: 1280, height: 900 } },
   { screen: "a phone", viewport: { width: 390, height: 844 } },
@@ -1962,7 +1988,7 @@ for (const { screen, viewport } of [
     test("every piece of text keeps to the type scale, in every view", async ({ page }) => {
       await openApp(page, {
         snapshots: { 2026: buildSnapshotWithStarters() },
-        store: { ...ROSTER_DOCS, ...PLAYER_DOCS },
+        store: { ...ROSTER_DOCS, ...PLAYER_DOCS, ...NEWS_DOCS },
         pitchers: PITCHER_SIDES,
       });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
@@ -2009,6 +2035,11 @@ for (const { screen, viewport } of [
       }
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();
+      await page.getByRole("tab", { name: "News" }).click();
+      await expect(page.locator(".news-more-title")).toBeVisible();
+      expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
       await openSettings(page);
       await expect(page.locator("#settingsDialog")).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
@@ -2019,7 +2050,7 @@ for (const { screen, viewport } of [
     test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
       await openApp(page, {
         snapshots: { 2026: buildSnapshotWithStarters() },
-        store: { ...ROSTER_DOCS, ...PLAYER_DOCS },
+        store: { ...ROSTER_DOCS, ...PLAYER_DOCS, ...NEWS_DOCS },
         pitchers: PITCHER_SIDES,
       });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
@@ -2052,6 +2083,9 @@ for (const { screen, viewport } of [
       }
       await page.keyboard.press("Escape");
       await expect(page.locator("#teamSheet")).toBeHidden();
+      await page.getByRole("tab", { name: "News" }).click();
+      await expect(page.locator(".news-more-title")).toBeVisible();
+      expect(await listTapsOffButtons(page)).toEqual([]);
       await openSettings(page);
       await expect(page.locator("#settingsDialog")).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
@@ -2069,6 +2103,8 @@ test("every font the page's views draw with is preloaded", async ({ page }) => {
   }
   await page.getByRole("tab", { name: "Standings" }).click();
   await expect(page.locator("table.st tbody tr").first()).toBeVisible();
+  await page.getByRole("tab", { name: "News" }).click();
+  await expect(page.locator("#newsList")).toHaveText("No news yet");
 
   expect(await listFontsNotPreloaded(page)).toEqual([]);
 });

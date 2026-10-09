@@ -1,4 +1,4 @@
-// Turning each outlet's feed into stories: RSS, Atom, and ESPN's own JSON. A Worker has no XML
+// Turning each outlet's feed into stories: RSS, Atom, a Google News sitemap, and ESPN's own JSON. A Worker has no XML
 // parser, and these feeds are simple and regular, so each field is read by its tag.
 
 const SUMMARY_LIMIT = 170;
@@ -187,4 +187,23 @@ export function parseEspnNews(json) {
       espnType: article.type ?? "",
     };
   });
+}
+
+/**
+ * A Google News sitemap, which says only each story's link, title, time, and photo.
+ * @param {string} xml
+ * @returns {FeedEntry[]}
+ */
+export function parseNewsSitemap(xml) {
+  return [...xml.matchAll(/<url[\s>][\s\S]*?<\/url>/g)].map(([entry]) => ({
+    url: readPlainText(readTagContent(entry, "loc")),
+    title: readPlainText(readTagContent(entry, "news:title")),
+    summary: "",
+    author: "",
+    publishedAt: readIsoTime(readPlainText(readTagContent(entry, "news:publication_date"))),
+    photo: describePhoto(
+      readPlainText(readTagContent(readTagContent(entry, "image:image"), "image:loc")),
+      "",
+    ),
+  }));
 }

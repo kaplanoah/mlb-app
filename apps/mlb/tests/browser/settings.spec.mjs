@@ -205,8 +205,8 @@ test("on a wide screen, settings end at the bottom left, level with the ranking'
   const footer = page.locator("#settingsDialog .settings-footer");
   await expect(footer).toHaveCSS("text-align", "left");
   const [box, controls, ranking] = await Promise.all(
-    [footer, page.locator(".settings-controls"), page.locator(".rank-frame")].map((each) =>
-      each.boundingBox(),
+    [footer, page.locator(".settings-main > .settings-controls"), page.locator(".rank-frame")].map(
+      (each) => each.boundingBox(),
     ),
   );
   expect(Math.abs(box.x - controls.x)).toBeLessThan(1);
@@ -432,7 +432,7 @@ const readCenters = (locator) =>
 test("the ranking has no tab of its own; settings hold it, numbered 1 to 12", async ({ page }) => {
   await openApp(page);
   const tabs = page.getByRole("tablist", { name: "Views" }).getByRole("tab");
-  await expect(tabs).toHaveText(["Bracket", "Games", "Standings"]);
+  await expect(tabs).toHaveText(["Bracket", "Games", "Standings", "News"]);
 
   await openSettings(page);
   const settings = page.getByRole("dialog", { name: "Settings" });
@@ -524,7 +524,7 @@ test("on a wide screen, the settings and the whole ranking show side by side wit
     ),
   ).toBe(true);
   await expectWholeRankingInView(page);
-  const controls = await page.locator(".settings-controls").boundingBox();
+  const controls = await page.locator(".settings-main > .settings-controls").boundingBox();
   const list = await page.locator("#rankList").boundingBox();
   expect(controls.x + controls.width).toBeLessThan(list.x);
 });
@@ -549,7 +549,7 @@ test("on a wide screen, the settings start right under the header, level with th
   await openSettings(page);
 
   const header = await page.locator("#settingsDialog .sheet-top").boundingBox();
-  const controls = await page.locator(".settings-controls").boundingBox();
+  const controls = await page.locator(".settings-main > .settings-controls").boundingBox();
   const [season] = await readCenters(page.locator(".control-row > span").first());
   const [ranking] = await readCenters(page.locator("#rankingTitle"));
   expect(Math.abs(controls.y - (header.y + header.height))).toBeLessThan(1);

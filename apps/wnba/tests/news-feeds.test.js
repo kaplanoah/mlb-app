@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readNewsFeeds } from "../worker/src/news-feeds.js";
-import { parseAtom, parseEspnNews, parseRss, shortenSummary } from "../worker/src/news-parse.js";
-import { readRuleDrop } from "../worker/src/news-rules.js";
+import {
+  parseAtom,
+  parseEspnNews,
+  parseRss,
+  shortenSummary,
+} from "../../../shared/worker/news-parse.js";
+import { createRuleDrop } from "../../../shared/worker/news-rules.js";
+import { readWnbaNews } from "../worker/src/news-feeds.js";
 import { createFeedFetch, readFixture } from "./news-fixtures.js";
 
 test("an RSS story reads its title, a short summary without the outlet's sign-off, its writer, and its photo", () => {
@@ -66,7 +71,7 @@ test("a summary keeps whole sentences, and doesn't end at an initial or an abbre
 });
 
 test("reading the feeds keeps only the Liberty's stories from NetsDaily, and says which feeds didn't answer", async () => {
-  const { entries, missing } = await readNewsFeeds(createFeedFetch(["winsidr"]));
+  const { entries, missing } = await readWnbaNews(createFeedFetch(["winsidr"]));
   assert.deepEqual(missing, ["winsidr"]);
   const netsDaily = entries.filter((entry) => entry.source === "netsdaily");
   assert.equal(netsDaily.length, 3);
@@ -76,7 +81,7 @@ test("reading the feeds keeps only the Liberty's stories from NetsDaily, and say
 });
 
 test("a story the league's feed carries too isn't marked as the team's own", async () => {
-  const { entries } = await readNewsFeeds(createFeedFetch());
+  const { entries } = await readWnbaNews(createFeedFetch());
   const film = entries.filter((entry) => entry.title.startsWith("Film review: How the Dream"));
   assert.equal(film.length, 1);
   assert.equal(film[0].teamFeed, undefined);
@@ -84,8 +89,10 @@ test("a story the league's feed carries too isn't marked as the team's own", asy
   assert.equal(gameTwo.teamFeed, "NYL");
 });
 
+const readRuleDrop = createRuleDrop();
+
 test("the rules drop video, schedules, betting, newsletters, roundups, and ESPN's recaps and previews", async () => {
-  const { entries } = await readNewsFeeds(createFeedFetch());
+  const { entries } = await readWnbaNews(createFeedFetch());
   const dropped = entries
     .map((entry) => [readRuleDrop(entry), entry.title])
     .filter(([why]) => why)

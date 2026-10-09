@@ -1,0 +1,59 @@
+import { setHtml } from "./html.js";
+import { readNewsChoices, startNewsChoices } from "./news-choices.js";
+import { renderNews } from "./news-view.js";
+import { readOpenedStories, startOpenedStories } from "./opened-stories.js";
+
+// The News tab: the cards the Worker keeps in the store, which it pushes to the page on every
+// change, drawn with the outlets this device reads, in two columns on a wide screen.
+
+const NEWS_PATH = "news/cards";
+const WIDE_SCREEN = "(min-width: 900px)";
+
+/**
+ * @param {HTMLElement} list
+ * @param {{ cards?: import("./news-picks.js").NewsCard[] } | null} news
+ * @param {import("./news-view.js").NewsLeague} league
+ */
+export function drawNews(list, news, league) {
+  const columnCount = matchMedia(WIDE_SCREEN).matches ? 2 : 1;
+  const opened = readOpenedStories();
+  setHtml(
+    list,
+    renderNews(news?.cards ?? [], readNewsChoices(), Date.now(), {
+      ...league,
+      columnCount,
+      opened,
+    }),
+  );
+}
+
+/**
+ * Calls `redraw` after a News switch changes, a story is opened, or the screen widens or narrows.
+ * @param {HTMLElement} list
+ * @param {() => void} redraw
+ */
+export function startNewsRedraws(list, redraw) {
+  startNewsChoices(redraw);
+  startOpenedStories(list, redraw);
+  matchMedia(WIDE_SCREEN).addEventListener("change", redraw);
+}
+
+/**
+ * Calls `onChange` with the news each time the store has new cards, or null when it has none.
+ * @param {{ doc: (path: string) => any }} db
+ * @param {(news: { cards: import("./news-picks.js").NewsCard[] } | null) => void} onChange
+ */
+export function watchNews(db, onChange) {
+  db.doc(NEWS_PATH).onSnapshot(
+    (snapshot) => onChange(snapshot.exists ? snapshot.data() : null),
+    () => {},
+  );
+}
+
+/**
+ * The news from the page's last showing, or undefined when it can't be read, which leaves the view
+ * as it was until the store answers.
+ * @param {any} news
+ */
+export const readLastSeenNews = (news) =>
+  news === null || Array.isArray(news?.cards) ? news : undefined;

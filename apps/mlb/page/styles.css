@@ -2018,6 +2018,100 @@ body.kbd .player-open:focus {
   }
 }
 
+/* The News view, as shared/news.css lays it out, in the page's cards and Chivo Mono's lighter
+   weights, its Read button outlined in capitals like Try again, its arrow in gold. */
+.news-card {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+}
+.news-photo {
+  background: var(--divider);
+}
+.news-body {
+  gap: 7px;
+  padding: 14px 13px 13px 14px;
+}
+.news-photo-credit {
+  margin: -9px -4px 0 0;
+}
+.news-teams .club {
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--size-small);
+  font-weight: 450;
+  letter-spacing: 0.06em;
+}
+.news-title {
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.38;
+  letter-spacing: 0;
+}
+.news-meta {
+  line-height: 1.4;
+}
+.news-more {
+  gap: 9px;
+}
+.news-more-label {
+  font-weight: 450;
+  letter-spacing: 0.06em;
+}
+.news-more-list {
+  gap: 11px;
+}
+.news-more-title {
+  margin: 0 0 3px;
+  font-weight: 450;
+  line-height: 1.4;
+}
+.news-summary {
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--ink-dim) 45%, var(--ink));
+}
+.news-foot {
+  margin-top: 4px;
+}
+.read-button {
+  gap: 7px;
+  height: 28px;
+  padding: 0 10px 0 12px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-border);
+  font-size: var(--size-small);
+  font-weight: 450;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.read-button.opened {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--divider);
+  color: var(--ink-dim);
+}
+.read-arrow {
+  width: 14px;
+  height: 14px;
+  color: var(--gold);
+}
+.read-check {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-dim);
+}
+/* The News switches sit in a group under their own label, apart from the settings above them. */
+.settings-news {
+  display: grid;
+  gap: 6px;
+}
+.settings-news .settings-group-label {
+  font-weight: 450;
+  letter-spacing: 0.06em;
+}
+
 /* Try again, outlined in capitals like Diagnostics' buttons, and filled gold where it stands alone
    in place of what didn't load. */
 .retry-button {

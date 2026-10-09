@@ -1,13 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickReadCards } from "../page/js/news-picks.js";
-import { renderNews } from "../page/js/news-view.js";
+import { pickReadCards } from "../../../shared/page/news-picks.js";
+import { renderNews as renderLeagueNews } from "../../../shared/page/news-view.js";
+import { NEWS_LEAGUE } from "../page/js/news-league.js";
 import { checkInTimeZone, EASTERN } from "../../../tests/time-zone.js";
 
 const NOW = Date.parse("2026-10-05T16:00:00Z");
+
+/** The News view with the WNBA's teams and paid outlet. */
+const renderNews = (cards, choices, now, options = {}) =>
+  renderLeagueNews(cards, choices, now, { ...NEWS_LEAGUE, ...options });
 const ALL_ON = { teamOutlets: true, paywalled: true };
 
-/** @param {Partial<import("../page/js/news-picks.js").NewsStory>} fields */
+/** @param {Partial<import("../../../shared/page/news-picks.js").NewsStory>} fields */
 const createStory = (fields) => ({
   id: "story",
   url: `https://example.com/${fields.id ?? "story"}`,
@@ -33,11 +38,11 @@ const readText = (markup) =>
 
 /**
  * A card for each story, with nothing under its lead.
- * @param {import("../page/js/news-picks.js").NewsStory[]} stories
+ * @param {import("../../../shared/page/news-picks.js").NewsStory[]} stories
  */
 const createCards = (stories) => stories.map((lead) => ({ lead, more: [] }));
 
-/** @param {import("../page/js/news-picks.js").NewsCard[]} cards */
+/** @param {import("../../../shared/page/news-picks.js").NewsCard[]} cards */
 const listShown = (cards) =>
   cards.map(({ lead, more }) => [lead.id, ...more.map((story) => story.id)]);
 
@@ -50,7 +55,10 @@ test("the cards read newest lead first, each with its lead and up to three stori
     { lead: createStory({ id: "newer", publishedAt: "2026-10-05T12:00:00.000Z" }), more: [] },
   ];
 
-  assert.deepEqual(listShown(pickReadCards(cards, ALL_ON)), [["newer"], ["older", "a", "b", "c"]]);
+  assert.deepEqual(listShown(pickReadCards(cards, ALL_ON, NEWS_LEAGUE.paywalledSources)), [
+    ["newer"],
+    ["older", "a", "b", "c"],
+  ]);
 });
 
 test("without The Athletic or the team's own outlets, their stories are left out, the first story under a left-out lead leads, and a card with none left goes", () => {
@@ -62,13 +70,18 @@ test("without The Athletic or the team's own outlets, their stories are left out
     { lead: createStory({ id: "athletic-only", source: "athletic" }), more: [] },
   ];
 
-  assert.deepEqual(listShown(pickReadCards(cards, { teamOutlets: true, paywalled: false })), [
-    ["espn", "post"],
-  ]);
-  assert.deepEqual(listShown(pickReadCards(cards, { teamOutlets: false, paywalled: true })), [
-    ["athletic", "espn"],
-    ["athletic-only"],
-  ]);
+  assert.deepEqual(
+    listShown(
+      pickReadCards(cards, { teamOutlets: true, paywalled: false }, NEWS_LEAGUE.paywalledSources),
+    ),
+    [["espn", "post"]],
+  );
+  assert.deepEqual(
+    listShown(
+      pickReadCards(cards, { teamOutlets: false, paywalled: true }, NEWS_LEAGUE.paywalledSources),
+    ),
+    [["athletic", "espn"], ["athletic-only"]],
+  );
 });
 
 test("a story whose link isn't a web address is never shown, nor a photo whose address isn't", () => {

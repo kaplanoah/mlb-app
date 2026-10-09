@@ -10,6 +10,7 @@ const BUDGETS = {
   Bracket: 21,
   Games: 11,
   Standings: 24,
+  News: 8,
   "Game sheet": 14,
   "Club's sheet over a game's": 14,
 };
@@ -32,7 +33,10 @@ test("each view, a game's sheet, and a club's sheet over it keep within their la
   await expectWithinBudgets(
     page,
     [
-      ...["Bracket", "Standings", "Games"].map((name) => ({ view: name, show: showTab(name) })),
+      ...["Bracket", "Standings", "News", "Games"].map((name) => ({
+        view: name,
+        show: showTab(name),
+      })),
       {
         view: "Game sheet",
         show: async () => {
