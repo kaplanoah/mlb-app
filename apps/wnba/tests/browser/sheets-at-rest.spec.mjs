@@ -22,24 +22,28 @@ test.afterEach(async () => {
   expect(await readResizeLoops()).toEqual([]);
 });
 
-// A tab or pill tap has motion and resizing of its own, which the tab bar's at-rest spec counts,
-// so the sheets' motion and ResizeObserver loops are counted from the Previous games at rest.
+// A tab tap has motion and resizing of its own, which the tab bar's at-rest spec counts, so the
+// sheets' motion and ResizeObserver loops are counted from the games at rest, with the game's
+// row in view.
 /** @param {import("@playwright/test").Page} page */
 async function showPreviousGames(page) {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await expect(page.locator("#games-previous")).not.toHaveAttribute("inert");
+  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+  await findAcesAtFever(page).scrollIntoViewIfNeeded();
   await page.clock.runFor(1000);
   await forgetResizeLoops(page);
 }
 
 /** @param {import("@playwright/test").Page} page */
+const findAcesAtFever = (page) =>
+  page
+    .locator("#seasonGames")
+    .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" });
+
+/** @param {import("@playwright/test").Page} page */
 async function openGame(page) {
-  await page
-    .locator("#games-previous")
-    .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
-    .click();
+  await findAcesAtFever(page).click();
   const gameSheet = page.locator("#gameSheet");
   await expect(gameSheet.locator(".line-score")).toBeVisible();
   await expectShown(gameSheet);

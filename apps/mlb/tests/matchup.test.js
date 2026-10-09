@@ -1,6 +1,6 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { listSides, renderMatchupBody } from "../page/js/matchup.js";
+import { listSides, renderMatchupBody, updateSides } from "../page/js/matchup.js";
 import { Markup, convertToText } from "../../../shared/page/html.js";
 import { normalizeSpaces } from "../../../tests/text.js";
 import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
@@ -34,7 +34,7 @@ const describePitcher = (id, [firstName, lastName], line, ranks, pitches) => ({
 const BLUBAUGH = describePitcher(
   1,
   ["AJ", "Blubaugh"],
-  { starts: 28, era: "3.66", k9: 9.1, bb9: 3.4, speed: 95.4 },
+  { starts: 28, ip: "165.1", era: "3.66", k9: 9.1, bb9: 3.4, speed: 95.4 },
   {
     era: { rank: 17, of: 46 },
     k9: { rank: 3, of: 46 },
@@ -50,7 +50,7 @@ const BLUBAUGH = describePitcher(
 const SPRINGS = describePitcher(
   2,
   ["Jeffrey", "Springs"],
-  { starts: 24, era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
+  { starts: 24, ip: "128.2", era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
   {
     era: { rank: 29, of: 46 },
     k9: { rank: 26, of: 46 },
@@ -64,6 +64,8 @@ const SPRINGS = describePitcher(
 );
 
 const TONIGHT = "2026-09-24";
+// Each club's games so far, which a starter needs as many innings as to qualify.
+const CLUB_GAMES = { HOU: 157, ATH: 158 };
 const AT_ATHLETICS = {
   date: TONIGHT,
   start: "2026-09-25T01:40:00Z",
@@ -79,16 +81,23 @@ const AT_ATHLETICS = {
 
 /**
  * The sheet's markup once each side has loaded what the Worker answers for it.
- * @param {object} game
+ * @param {any} game
  * @param {object[]} loaded what each side, away then home, loads
+ * @param {Record<string, number>} [clubGames] each club's games so far
  */
-function renderLoaded(game, loaded) {
+function renderLoaded(game, loaded, clubGames = CLUB_GAMES) {
   const sides = listSides(game).map((side, index) => ({ ...side, ...loaded[index] }));
-  return normalizeSpaces(String(renderMatchupBody(game, sides)));
+  const countClubGames = (/** @type {string} */ club) => clubGames[club] ?? null;
+  return normalizeSpaces(String(renderMatchupBody(game, sides, countClubGames)));
 }
 
-const renderStarters = (away = BLUBAUGH, home = SPRINGS) =>
-  renderLoaded(AT_ATHLETICS, [{ pitcher: away }, { pitcher: home }]);
+/**
+ * @param {any} [away]
+ * @param {any} [home]
+ * @param {Record<string, number>} [clubGames]
+ */
+const renderStarters = (away = BLUBAUGH, home = SPRINGS, clubGames = CLUB_GAMES) =>
+  renderLoaded(AT_ATHLETICS, [{ pitcher: away }, { pitcher: home }], clubGames);
 
 const readText = (markup) => convertToText(new Markup(markup)).replace(/\s+/g, " ").trim();
 
@@ -177,9 +186,7 @@ test("each measure shows each starter's number and rank under his side, the high
       ],
     ],
   );
-  assert.deepEqual(readClass(markup, "tape-note"), [
-    "Each curve is this season's 46 qualified starters, better to the right",
-  ]);
+  assert.deepEqual(readClass(markup, "tape-note"), ["Rank among qualified starters"]);
 });
 
 test("both starters are marked on one curve of every qualified starter's number, the better one always further right", () => {
@@ -247,22 +254,37 @@ test("a starter outside the qualified starters has his numbers marked unranked, 
   assert.deepEqual(tape[0].away, { value: "3.66", rank: "17th", standing: null });
   assert.ok(tape.every(({ marks }) => marks.away !== undefined && marks.home === undefined));
   assert.deepEqual(readClass(markup, "tape-note"), [
-    "Each curve is this season's 46 qualified starters, better to the right",
-    "Springs hasn't pitched enough innings to rank among this season's qualified starters",
+    "Rank among qualified starters",
+    "Springs has pitched 128 2/3 of the 158 innings needed to qualify",
   ]);
 });
 
 test("with neither starter ranked, the sheet says why and drops the note about the curves", () => {
-  const markup = renderStarters({ ...BLUBAUGH, ranks: null }, { ...SPRINGS, ranks: null });
+  const markup = renderStarters(
+    { ...BLUBAUGH, ranks: null, line: { ...BLUBAUGH.line, ip: "88.0" } },
+    { ...SPRINGS, ranks: null },
+  );
   assert.ok(
     readTape(markup).every(
       ({ away, home }) => away.standing === "unranked" && home.standing === "unranked",
     ),
   );
   assert.deepEqual(readClass(markup, "tape-note"), [
-    "Blubaugh hasn't pitched enough innings to rank among this season's qualified starters",
-    "Springs hasn't pitched enough innings to rank among this season's qualified starters",
+    "Blubaugh has pitched 88 of the 157 innings needed to qualify",
+    "Springs has pitched 128 2/3 of the 158 innings needed to qualify",
   ]);
+});
+
+test("an unranked starter whose innings or club's games aren't known yet still says he needs more to qualify", () => {
+  const withoutInnings = { ...SPRINGS, ranks: null, line: { ...SPRINGS.line, ip: undefined } };
+  for (const markup of [
+    renderStarters(BLUBAUGH, withoutInnings),
+    renderStarters(BLUBAUGH, { ...SPRINGS, ranks: null }, {}),
+  ])
+    assert.deepEqual(readClass(markup, "tape-note"), [
+      "Rank among qualified starters",
+      "Springs hasn't pitched the innings needed to qualify",
+    ]);
 });
 
 /** @param {{ isStillPitching: boolean }} options */
@@ -381,4 +403,31 @@ test("a lone named starter whose numbers didn't load leaves the section saying s
   };
   const markup = renderLoaded(oneNamed, [{ failed: true }, {}]);
   assert.deepEqual(readClass(markup, "retry-title scout-note"), ["Couldn't load his numbers"]);
+});
+
+test("a starter named after the sheet read its sides takes his side's place, and the other side stays as it loaded", () => {
+  const unnamed = { ...AT_ATHLETICS, starters: [AT_ATHLETICS.starters[0], { id: 2 }] };
+  const sides = listSides(unnamed).map((side) => ({ ...side, pitcher: BLUBAUGH }));
+  const [away, home] = updateSides(sides, AT_ATHLETICS);
+  assert.equal(away, sides[0]);
+  assert.deepEqual(home.starter, { id: 2, name: "Springs" });
+  assert.equal(home.pitcher, null);
+});
+
+test("a club's starter changed after the sheet read its sides takes his side's place", () => {
+  const sides = listSides(AT_ATHLETICS);
+  const changed = {
+    ...AT_ATHLETICS,
+    starters: [{ id: 3, name: "Brown" }, AT_ATHLETICS.starters[1]],
+  };
+  const [away, home] = updateSides(sides, changed);
+  assert.deepEqual(away.starter, { id: 3, name: "Brown" });
+  assert.equal(home, sides[1]);
+});
+
+test("a starter the store has only by his id keeps the side that names him", () => {
+  const sides = listSides(AT_ATHLETICS);
+  const unnamed = { ...AT_ATHLETICS, starters: [{ id: 1 }, { id: 2 }] };
+  assert.deepEqual(updateSides(sides, unnamed), sides);
+  assert.equal(updateSides(sides, unnamed)[0], sides[0]);
 });

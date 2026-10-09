@@ -20,6 +20,7 @@ import {
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
 import { renderPlayerButton } from "./player-button.js";
+import { describeInningsToQualify } from "./qualifying.js";
 import { formatInnings } from "./stat-table.js";
 import { TEAMS } from "./teams.js";
 import { formatOrdinal } from "#shared/ordinal.js";
@@ -186,25 +187,33 @@ function renderMeasure(sides, measure) {
 
 const isUnranked = (side) => Boolean(side.pitcher?.line && !side.pitcher.ranks);
 
-const describeUnranked = ({ pitcher }) =>
-  `${pitcher.lastName} hasn't pitched enough innings to rank among this season's qualified starters`;
-
-function renderTapeNotes(sides, counted) {
-  const curvesNote =
+/**
+ * @param {any[]} sides
+ * @param {(club: string) => number | null} countClubGames
+ */
+function renderTapeNotes(sides, countClubGames) {
+  const rankNote =
     sides.some((side) => side.pitcher?.ranks) &&
-    html`<p class="tape-note">Each curve is this season's ${counted.count} qualified starters, better to the right</p>`;
+    html`<p class="tape-note">Rank among qualified starters</p>`;
   const unrankedNotes = sides
     .filter(isUnranked)
-    .map((side) => html`<p class="tape-note">${describeUnranked(side)}</p>`);
-  return html`${curvesNote}${unrankedNotes}`;
+    .map(
+      ({ pitcher, club }) =>
+        html`<p class="tape-note">${describeInningsToQualify(pitcher.lastName, pitcher.line.ip, countClubGames(club))}</p>`,
+    );
+  return html`${rankNote}${unrankedNotes}`;
 }
 
-function renderTape(sides) {
-  const counted = sides.find((side) => side.pitcher?.line)?.pitcher.starters;
-  if (!counted && !sides.some(isLoadingPitcher)) return html``;
-  const notes = counted
-    ? renderTapeNotes(sides, counted)
-    : html`<p class="tape-note">${renderPlaceholder("Each curve is this season's qualified starters, better to the right")}</p>`;
+/**
+ * @param {any[]} sides
+ * @param {(club: string) => number | null} countClubGames
+ */
+function renderTape(sides, countClubGames) {
+  const isLoaded = sides.some((side) => side.pitcher?.line);
+  if (!isLoaded && !sides.some(isLoadingPitcher)) return html``;
+  const notes = isLoaded
+    ? renderTapeNotes(sides, countClubGames)
+    : html`<p class="tape-note">${renderPlaceholder("Rank among qualified starters")}</p>`;
   return html`<div class="tape" style="${formatSideColors(sides)}">
     ${TAPE.map((measure) => renderMeasure(sides, measure))}
     ${notes}
@@ -365,7 +374,12 @@ function describeSectionFailure(failed) {
   return "Couldn't load the matchup";
 }
 
-export function renderMatchupBody(game, sides) {
+/**
+ * @param {MatchupGame} game
+ * @param {any[]} sides
+ * @param {(club: string) => number | null} countClubGames each club's games so far
+ */
+export function renderMatchupBody(game, sides, countClubGames) {
   const speedRange = measureSidesSpeedRange(sides);
   const isFailed = isSectionFailed(sides, game);
   const scouting = isFailed
@@ -373,7 +387,7 @@ export function renderMatchupBody(game, sides) {
     : sides.map((side) => renderScouting(side, game, speedRange));
   return html`<div class="faceoff">${sides.map((side) => renderPitcherId(side, isFailed))}</div>
     ${renderCheckBack(sides, game)}
-    ${renderTape(sides)}
+    ${renderTape(sides, countClubGames)}
     ${scouting}`;
 }
 
@@ -390,6 +404,20 @@ export const listSides = (game) =>
     rotation: null,
     failed: false,
   }));
+
+// A starter the store has only by his id, when MLB couldn't describe him, keeps the name shown.
+const isNewStarter = (shown, current) =>
+  current?.id !== shown?.id || (!!current?.name && !shown?.name);
+
+/**
+ * The sides, with a fresh one wherever the game now has another starter, or names one it couldn't.
+ * @param {any[]} sides
+ * @param {MatchupGame} game
+ */
+export const updateSides = (sides, game) =>
+  listSides(game).map((current, index) =>
+    isNewStarter(sides[index].starter, current.starter) ? current : sides[index],
+  );
 
 /**
  * @param {any} side

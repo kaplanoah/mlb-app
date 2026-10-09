@@ -5,6 +5,7 @@ import {
   readLeftStartList,
   saveLastGameList,
 } from "./last-game-list.js";
+import { setTabStart } from "./page-tabs.js";
 import { createPager } from "./pager.js";
 import { watchTimeAway } from "./resume.js";
 
@@ -39,21 +40,14 @@ function showStartListAfterLongAway(awayMs) {
 }
 
 // The start list counts while a tapped pill is still sliding to it, and not while it slides away.
-export const isStartListChosen = () => gamePager.readChosenList() === startList;
+const isStartListChosen = () => gamePager.readChosenList() === startList;
 
-/** Slides the shown Games view over to its start list, as a tap on its name in the pill does. */
-export function showStartList() {
+// Choosing the Games tab while it shows slides the view over to its start list, as a tap on its
+// name in the pill does, or, once it's there, leaves the tab to go to its top.
+function returnToStartList() {
+  if (isStartListChosen()) return false;
   gamePager.showList(startList);
-}
-
-/**
- * Makes `list` the one the Games view starts from, and moves the view to it when that changes.
- * @param {GameList} list
- */
-export function startGamesOn(list) {
-  if (list === startList) return;
-  startList = list;
-  gamePager.switchToList(list);
+  return true;
 }
 
 /** Builds the pill and the three lists inside the page's #gamePager, and wires them. */
@@ -72,6 +66,7 @@ export function startGamePager() {
   });
   keepShownList();
   watchTimeAway(showStartListAfterLongAway);
+  setTabStart("games", returnToStartList);
 }
 
 /**

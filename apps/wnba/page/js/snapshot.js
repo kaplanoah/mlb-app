@@ -14,6 +14,11 @@ import { findTeamNearestGames } from "./nearest-games.js";
 // knows it.
 export const SNAPSHOT_VERSION = 1;
 
+// Every game of a season keeps a document of its own, which only the Games view reads, so the
+// season's record that pages watch through every live game doesn't carry it.
+/** @param {number} year */
+export const nameScheduleKey = (year) => `schedules/${year}`;
+
 const WNBA_CDN = "https://cdn.wnba.com";
 const WNBA_STATS = "https://stats.wnba.com";
 const ESPN_CORE = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba";
@@ -109,10 +114,23 @@ export function readPlayoffGameId(id) {
   };
 }
 
-// The games of a season that count: its regular season's, the Commissioner's Cup final, which has
-// a number of its own, and its playoffs'. The ID's 102, 105, or 104 comes before the season's last
-// two digits.
-const SEASON_GAME_ID = /^10[245](\d{2})\d{5}$/;
+// The games of a season the Games view lists: its regular season's, the Commissioner's Cup final,
+// which has a number of its own, the All-Star Game, and its playoffs'. The ID's 102, 105, 103, or
+// 104 comes before the season's last two digits.
+const SEASON_GAME_ID = /^10[2-5](\d{2})\d{5}$/;
+
+const ALL_STAR_GAME_ID = /^103/;
+
+// The All-Star Game's teams aren't the league's, so the game carries their names: a captain's name
+// or a conference, without the feeds' "Team" before it, as every team shows its name without its
+// city.
+/** @param {any} game */
+function readAllStarTeams(game) {
+  if (!ALL_STAR_GAME_ID.test(String(game.gameId))) return {};
+  /** @param {any} team */
+  const nameTeam = (team) => team?.teamName || "TBD";
+  return { allStar: { away: nameTeam(game.awayTeam), home: nameTeam(game.homeTeam) } };
+}
 
 /** @param {string} id */
 function readGameSeason(id) {
@@ -166,6 +184,7 @@ function normalizeGame(game) {
     isIfNeeded: !!game.ifNecessary,
     away: readSide(game.awayTeam ?? {}),
     home: readSide(game.homeTeam ?? {}),
+    ...readAllStarTeams(game),
   };
 }
 
@@ -288,6 +307,42 @@ const listSeasonGames = (games, season) =>
   games.filter((game) => readGameSeason(game.gameId) === season);
 
 const isPlayoffGame = (game) => game.round !== null;
+
+// The Games view lists every game of the season, which the store saves on its own, again only as a
+// game ends or the schedule changes. A game under way is listed as it was before it started, since
+// the season's record carries it while it's played, as each team's game now, and only a final
+// keeps its score and status, since a row shows a game's start until then.
+/**
+ * @param {{ team: string | null, seed: number | null, score: number | null }} side
+ * @param {boolean} isFinal
+ */
+const readScheduledSide = ({ team, seed, score }, isFinal) => ({
+  team,
+  seed,
+  score: isFinal ? score : null,
+  isInBonus: false,
+});
+
+/** @param {any} game */
+function readScheduledGame(game) {
+  const isFinal = game.state === "final";
+  return {
+    id: game.id,
+    round: game.round,
+    series: game.series,
+    number: game.number,
+    start: game.start,
+    state: isFinal ? "final" : "pre",
+    status: isFinal ? game.status : "",
+    isTimeSet: game.isTimeSet,
+    period: null,
+    clock: null,
+    isIfNeeded: game.isIfNeeded,
+    away: readScheduledSide(game.away, isFinal),
+    home: readScheduledSide(game.home, isFinal),
+    ...(game.allStar && { allStar: game.allStar }),
+  };
+}
 
 const sortByStart = (games) =>
   games.sort((first, second) => Date.parse(first.start) - Date.parse(second.start));
@@ -551,6 +606,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     asOf: new Date(now).toISOString(),
     games,
     nearestGames: listNearestGames(seasonGames, series),
+    schedule: seasonGames.map(readScheduledGame),
     series,
     standings: readStandingsRows(responses.standings),
     leaders: listLeaders(responses.players),

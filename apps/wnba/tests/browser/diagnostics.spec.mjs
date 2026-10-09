@@ -1,4 +1,4 @@
-import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { test, expect, findGameButton, openApp, matchPath } from "./harness.mjs";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -98,12 +98,34 @@ test("a reload's first reading is what the page put back from its last showing, 
   await openSettings(page);
 
   const record = findRecords(page).locator(".diagnostics-record").first();
-  await expect(record).toContainText(/Shows .*gamePager \d+\/\d+px/);
-  await expect(record).not.toContainText("gamePager: text");
+  await expect(record).toContainText(/Shows .*seasonGames \d+\/\d+px/);
+  await expect(record).not.toContainText("seasonGames: text");
   await expect(record).not.toContainText("standingsPager: text");
 });
 
 test("a record ends with where the shown pager's lists are and what a tap on each one's first item lands on", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await turnOnDiagnostics(page);
+
+  await reloadAndRecord(page);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(/standings-pages scrolled \d+ of \d+, 390 wide, /);
+  await expect(record).toContainText(
+    /standings-league at -?\d+,\d+ \d+x\d+, opacity 1, visible, transform none, first item at .*, opacity 1, a tap there lands on /,
+  );
+  await expect(record).toContainText(
+    /standings-east at .*, inert, first item at .*, off the screen/,
+  );
+  await expect(record).toContainText(/Animations: /);
+  await expect(record).not.toContainText("seasonGames scrolled");
+});
+
+test("a record ends with where the season's list of days is, the day at its top, and what a tap on it lands on", async ({
   page,
 }) => {
   await openApp(page);
@@ -115,15 +137,8 @@ test("a record ends with where the shown pager's lists are and what a tap on eac
 
   const record = findRecords(page).locator(".diagnostics-record").first();
   await expect(record).toContainText(
-    /games-pages scrolled \d+ of \d+, 390 wide, last settled by scrollend/,
+    /seasonGames scrolled \d+ of \d+, \d+ tall; strip on 2026-09-30; 2026-09-30 at the top, first item at .*, opacity 1, a tap there lands on /,
   );
-  await expect(record).toContainText(
-    /games-today at -?\d+,\d+ \d+x\d+, opacity 1, visible, transform none, first item at .*, opacity 1, a tap there lands on /,
-  );
-  await expect(record).toContainText(
-    /games-previous at .*, inert, first item at .*, off the screen/,
-  );
-  await expect(record).toContainText(/Animations: /);
   await expect(record).not.toContainText("standings-pages");
 });
 
@@ -233,11 +248,7 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
 }) => {
   await openApp(page);
   await turnOnDiagnostics(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await page
-    .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
-    .click();
+  await (await findGameButton(page, "Game details: Aces at Fever, First Round Game 2")).click();
   const teamButton = page
     .locator("#gameSheet .faceoff")
     .getByRole("button", { name: "Team details: Indiana Fever" });
@@ -390,18 +401,20 @@ test("a record names the list the pager's lists went back from after a move no o
   page,
 }) => {
   await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("tab", { name: "Standings" }).click();
   await turnOnDiagnostics(page);
-  const pages = page.locator("#games-pages");
-  await pages.evaluate((element) => element.scrollTo({ left: 0, behavior: "instant" }));
-  await expect(pages).toHaveAttribute("data-put-back-from", "previous");
+  const pages = page.locator("#standings-pages");
+  await pages.evaluate((element) =>
+    element.scrollTo({ left: element.clientWidth, behavior: "instant" }),
+  );
+  await expect(pages).toHaveAttribute("data-put-back-from", "east");
 
   await openSettings(page);
   await recordOnRequest(page);
 
   const record = findRecords(page).locator(".diagnostics-record").first();
   await expect(record).toContainText(
-    /games-pages scrolled \d+ of \d+, \d+ wide, last settled by scrollend, last put back from previous, a move no one made;/,
+    /standings-pages scrolled 0 of \d+, \d+ wide, last settled by scrollend, last put back from east, a move no one made;/,
   );
 });
 

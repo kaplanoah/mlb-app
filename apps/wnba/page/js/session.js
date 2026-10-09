@@ -8,6 +8,9 @@ export const session = {
   currentYear: null,
   /** @type {any} */
   season: null,
+  // Every game of the season shown, which the Games view lists, null when the store has none.
+  /** @type {{ games: any[] } | null} */
+  schedule: null,
   // The news cards, null when the store has none, and undefined until the store or the page's
   // last showing says.
   /** @type {{ cards: import("./news-picks.js").NewsCard[] } | null | undefined} */

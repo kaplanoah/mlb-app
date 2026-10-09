@@ -9,6 +9,7 @@ const readFixture = (name) =>
 const SEASON_2025 = readFixture("2025-final");
 const EVENING = readFixture("2026-09-24-evening");
 const BROADCASTS = readFixture("2026-10-07-broadcasts");
+const DIVISION_SERIES = readFixture("2026-10-07-evening");
 const buildSnapshot = (fixture, now = Date.parse(fixture.now)) =>
   MLBSnapshot.buildSnapshot(fixture.responses, { season: fixture.season, now });
 
@@ -799,6 +800,28 @@ test("fetchSnapshot looks up the listed games' starters in one sorted request", 
   assert.deepEqual(snapshot, buildSnapshot(fixture));
 });
 
+test("fetchSnapshot looks up the starters of every game the slate lists, the postseason's too", async () => {
+  const fixture = DIVISION_SERIES;
+  const now = Date.parse(fixture.now);
+  const regularSeasonEnd = fixture.responses.season.seasons[0].regularSeasonEndDate;
+  const requests = MLBSnapshot.listMlbRequests(2026, now, regularSeasonEnd);
+  const byPath = Object.fromEntries(
+    Object.entries(requests).map(([key, path]) => [path, fixture.responses[key]]),
+  );
+  let pitcherRequest = "";
+  await MLBSnapshot.fetchSnapshot(
+    async (path, name) => {
+      if (name !== "pitchers") return byPath[path];
+      pitcherRequest = path;
+      return fixture.responses.pitchers;
+    },
+    2026,
+    now,
+  );
+  const listed = MLBSnapshot.listStarterIds(buildSnapshot(fixture).slate);
+  assert.equal(pitcherRequest, MLBSnapshot.listPitcherRequest(2026, listed));
+});
+
 test("fetchSnapshot still builds the games when MLB can't name their starters", async () => {
   const fixture = addStarters(EVENING, EVENING_STARTERS, EVENING_PEOPLE);
   const regularSeasonEnd = fixture.responses.season.seasons[0].regularSeasonEndDate;
@@ -1012,4 +1035,73 @@ test("a channel's app, or its owner's name for it, shows as the channel, once", 
   second.name = "Amazon Prime Video";
   const snapshot = buildSnapshot(fixture);
   assert.deepEqual(findSlateGame(snapshot, "MIL", "SD").networks, ["ESPN", "Prime Video"]);
+});
+
+/**
+ * The evening's schedule with the All-Star Game on its night, under way.
+ * @param {any} fixture
+ */
+function addAllStarGame(fixture) {
+  const copy = structuredClone(fixture);
+  const day = copy.responses.schedule.dates.find((each) => each.date === "2026-09-24");
+  const [template] = day.games;
+  day.games.push({
+    ...template,
+    gamePk: 823443,
+    gameType: "A",
+    gameDate: "2026-09-25T00:00:00Z",
+    status: { abstractGameState: "Live", codedGameState: "I", detailedState: "In Progress" },
+    teams: {
+      away: { team: { id: 159, name: "American League All-Stars" }, score: 2 },
+      home: { team: { id: 160, name: "National League All-Stars" }, score: 1 },
+    },
+    linescore: { currentInning: 5, inningState: "Top", outs: 1, teams: { home: {}, away: {} } },
+    seriesDescription: "MLB All-Star Game",
+  });
+  return copy;
+}
+
+test("the All-Star Game sits beside the slate's lists, its leagues for its clubs, without starters", () => {
+  const { slate } = buildSnapshot(addAllStarGame(EVENING));
+  assert.deepEqual(
+    {
+      id: slate.allStar.id,
+      date: slate.allStar.date,
+      clubs: [slate.allStar.away, slate.allStar.home],
+      state: slate.allStar.state,
+      score: slate.allStar.score,
+      allStar: slate.allStar.allStar,
+    },
+    {
+      id: "823443",
+      date: "2026-09-24",
+      clubs: ["AL", "NL"],
+      state: "live",
+      score: [2, 1],
+      allStar: true,
+    },
+  );
+  assert.equal(slate.allStar.starters, undefined);
+  const listed = [slate.today, slate.nextDay, slate.lastNight]
+    .filter(Boolean)
+    .flatMap((day) => day.games)
+    .concat(slate.previous, slate.next, slate.lastFinal ?? []);
+  assert.ok(!listed.some((game) => game.id === "823443"));
+});
+
+test("a live All-Star Game is followed as closely as any live game", () => {
+  const slate = { today: { date: "2026-07-14", games: [] }, nextDay: null };
+  const now = Date.parse("2026-07-15T01:00:00Z");
+  const allStar = {
+    id: "823443",
+    away: "AL",
+    home: "NL",
+    state: "live",
+    start: "2026-07-15T00:00:00Z",
+  };
+  assert.equal(
+    MLBSnapshot.choosePollDelay({ slate: { ...slate, allStar } }, now),
+    MLBSnapshot.POLL_LIVE_MS,
+  );
+  assert.notEqual(MLBSnapshot.choosePollDelay({ slate }, now), MLBSnapshot.POLL_LIVE_MS);
 });

@@ -260,6 +260,65 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
   await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
 });
 
+// Safari moves the lists itself at times, as a page loads after a deploy, with no finger on them.
+test("the Games lists go back to the one shown after a move no one made, after a reload too", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  const pages = page.locator("#games-pages");
+  const moveListsToPrevious = () =>
+    pages.evaluate((element) => element.scrollTo({ left: 0, behavior: "instant" }));
+  await expect(shownGames).toHaveId("games-today");
+
+  await moveListsToPrevious();
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+  await expect(pages).toHaveAttribute("data-put-back-from", "previous");
+  await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
+
+  await page.reload();
+  await expect(page.locator("#games-today .game-row").first()).toBeVisible();
+  await moveListsToPrevious();
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+  await expect(pages).toHaveAttribute("data-put-back-from", "previous");
+});
+
+test("a key pressed in the Games lists, or a sideways wheel at their end, leaves the next move no one made going back", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  const pages = page.locator("#games-pages");
+  /** @param {number} widths */
+  const moveListsTo = (widths) =>
+    pages.evaluate(
+      (element, to) => element.scrollTo({ left: element.clientWidth * to, behavior: "instant" }),
+      widths,
+    );
+  await expect(shownGames).toHaveId("games-today");
+
+  await page.locator("#games-today .game-open").first().focus();
+  await page.keyboard.press("Shift");
+  await moveListsTo(0);
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expect.poll(() => readPagesPosition(page)).toBe(0);
+  const box = await pages.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + 40);
+  await page.mouse.wheel(-200, 0);
+  await moveListsTo(1);
+  await expect.poll(() => readPagesPosition(page)).toBe(0);
+  await expect(shownGames).toHaveId("games-previous");
+});
+
 test("on a phone, where the browser fires no scrollend, the lists settle once they stop scrolling", async ({
   page,
 }) => {

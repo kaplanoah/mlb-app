@@ -17,9 +17,10 @@ import {
 } from "./games-view.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
-import { isLoadingSide, listSides, loadSide, renderMatchupBody } from "./matchup.js";
+import { isLoadingSide, listSides, loadSide, renderMatchupBody, updateSides } from "./matchup.js";
 import { renderNetworks } from "#shared/network-logos.js";
 import { watchRetries } from "#shared/retry.js";
+import { countClubGames } from "./qualifying.js";
 import { session } from "./session.js";
 import { listSlateGames } from "./slate.js";
 import { wireSheetSections } from "#shared/sheet-sections.js";
@@ -38,8 +39,6 @@ const STARTERS_CARET = html`<svg class="starters-caret" viewBox="0 0 256 256" fi
   />
 </svg>`;
 
-// Each opening counts, so a sheet reopened on another game ignores the first one's answers.
-let opening = 0;
 /** @type {ShownGame | null} */
 let shown = null;
 /** @type {(() => void) | null} */
@@ -144,7 +143,8 @@ function renderSheet() {
   setHtml(findElement("gameWhen"), renderWhen(game));
   setHtml(findElement("gameBody"), renderGameBody(game, shown.sides, shown.boxScore));
   const matchup = findElement("matchupBody");
-  setHtml(matchup, renderMatchupBody(game, shown.sides));
+  const countGames = (/** @type {string} */ club) => countClubGames(club, session.activeYear);
+  setHtml(matchup, renderMatchupBody(game, shown.sides, countGames));
   matchup.setAttribute("aria-busy", String(shown.sides.some((side) => isLoadingSide(side, game))));
 }
 
@@ -190,26 +190,34 @@ async function loadBoxScore(opened) {
 }
 
 /**
+ * Loads each of the sides, drawing the sheet again as each arrives, unless it has moved on to
+ * another game.
+ * @param {ShownGame} opened
+ * @param {any[]} sides
+ * @param {MatchupGame} game
+ */
+const loadSides = (opened, sides, game) =>
+  Promise.all(
+    sides.map((side) =>
+      loadSide(side, game, session.activeYear).then(() => {
+        if (shown === opened) renderSheet();
+      }),
+    ),
+  );
+
+/**
  * Draws the game, then each side of its matchup and its box score again as they load.
  * @param {MatchupGame} game
  * @param {any[]} sides
  * @param {any} [boxScore] what the sheet showed before a reload
  */
 async function showGame(game, sides, boxScore = null) {
-  const sequence = ++opening;
   const opened = { game, sides, boxScore };
   shown = opened;
   stopWatchingBoxScore();
   renderSheet();
   loadBoxScore(opened);
-  const season = session.activeYear;
-  await Promise.all(
-    sides.map((side) =>
-      loadSide(side, game, season).then(() => {
-        if (sequence === opening) renderSheet();
-      }),
-    ),
-  );
+  await loadSides(opened, sides, game);
 }
 
 // Each side that didn't load shows its placeholders again while it reads again.
@@ -219,14 +227,18 @@ async function retryFailedSides() {
   if (!opened || failed.length === 0) return;
   for (const side of failed) side.failed = false;
   renderSheet();
+  await loadSides(opened, failed, readCurrentGame(opened.game));
+}
+
+// A starter the store names after the sheet opened, or names again, takes his side's place.
+/** @param {ShownGame} opened */
+function updateStarters(opened) {
   const game = readCurrentGame(opened.game);
-  await Promise.all(
-    failed.map((side) =>
-      loadSide(side, game, session.activeYear).then(() => {
-        if (shown === opened) renderSheet();
-      }),
-    ),
-  );
+  const sides = updateSides(opened.sides, game);
+  const named = sides.filter((side, index) => side !== opened.sides[index]);
+  if (named.length === 0) return;
+  opened.sides = sides;
+  loadSides(opened, named, game);
 }
 
 /** @param {MatchupGame} game */
@@ -252,11 +264,13 @@ function reopenGameSheet(saved) {
 }
 
 /**
- * Redraws the open sheet from the season as the store has it now. A game that started since the
- * sheet read its box score, or whose day came, reads it again.
+ * Redraws the open sheet from the season as the store has it now. A starter named since the sheet
+ * read its sides reads his, and a game that started since the sheet read its box score, or whose
+ * day came, reads it again.
  */
 export function refreshGameSheet() {
   if (!shown) return;
+  updateStarters(shown);
   renderSheet();
   const game = readCurrentGame(shown.game);
   const isOutOfStep = !shown.boxScore || shown.boxScore.state !== game.state;

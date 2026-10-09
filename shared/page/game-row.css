@@ -12,6 +12,12 @@
  *   --game-status-offset     the status under the time or score
  * Without a label, the time or score and its status center as a pair, as far apart as under one.
  * Its lines and the hover on a row that opens take chrome.css's --divider and --ink.
+ *
+ * An All-Star team's star (all-star.js) takes these, each a color but the last:
+ *   --all-star-shadow        its shadow inside
+ *   --all-star-light         its light outside
+ *   --all-star-hairline      the faint line around it, where the app draws one
+ *   --all-star-shift         how far below the team's name's middle it sits, a length
  */
 
 .game-list {
@@ -128,4 +134,24 @@
 }
 .game-side.away .team-open {
   align-self: flex-start;
+}
+
+.all-star-mark {
+  flex: none;
+  position: relative;
+  top: var(--all-star-shift);
+  overflow: visible;
+}
+.all-star-fill {
+  fill: var(--all-star-color);
+}
+.all-star-shadow {
+  fill: var(--all-star-shadow);
+}
+.all-star-light {
+  fill: var(--all-star-light);
+}
+.all-star-hairline {
+  fill: none;
+  stroke: var(--all-star-hairline);
 }

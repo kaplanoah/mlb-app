@@ -431,10 +431,11 @@ async function fetchPitchers(getJson, season, ids) {
 const readUnlessFailed = (promise) => promise.catch(() => null);
 
 // The season's dates come first because they decide how far back the schedule reaches, and the
-// games come before the standings and their starters, since a game that just ended is what makes
-// those worth reading again. `getJson` is handed each request's name as well as its path. The
-// bracket and the games can't do without the postseason and the schedule, but they can without
-// the season's dates or the standings, which the snapshot then lists as missing.
+// games come before the standings, since a game that just ended is what makes them worth reading
+// again. The starters come last, since which games the slate lists depends on the standings,
+// which set the postseason's field. `getJson` is handed each request's name as well as its path.
+// The bracket and the games can't do without the postseason and the schedule, but they can
+// without the season's dates or the standings, which the snapshot then lists as missing.
 export async function fetchResponses(getJson, season, now = Date.now()) {
   const seasonDates = await readUnlessFailed(
     getJson(listMlbRequests(season, now).season, "season"),
@@ -444,13 +445,11 @@ export async function fetchResponses(getJson, season, now = Date.now()) {
     getJson(requests.postseason, "postseason"),
     requests.schedule ? getJson(requests.schedule, "schedule") : null,
   ]);
-  const responses = { season: seasonDates, standings: null, postseason, schedule };
+  const standings = await readUnlessFailed(getJson(requests.standings, "standings"));
+  const responses = { season: seasonDates, standings, postseason, schedule };
   const { slate } = buildSnapshot(responses, { season, now });
-  const [standings, pitchers] = await Promise.all([
-    readUnlessFailed(getJson(requests.standings, "standings")),
-    fetchPitchers(getJson, season, listStarterIds(slate)),
-  ]);
-  return { ...responses, standings, pitchers };
+  const pitchers = await fetchPitchers(getJson, season, listStarterIds(slate));
+  return { ...responses, pitchers };
 }
 
 /**
@@ -573,6 +572,36 @@ function normalizeGame(game) {
     end: state === "final" ? estimateEnd(game) : null,
     networks: listNetworks(game.broadcasts),
   };
+}
+
+// The All-Star Game's teams are its leagues'.
+const ALL_STAR_LEAGUES = { 159: "AL", 160: "NL" };
+
+/**
+ * The All-Star Game, when the schedule's days hold it, with its leagues for its clubs.
+ * @param {any} schedule
+ */
+function findAllStarGame(schedule) {
+  const game = ((schedule && schedule.dates) || [])
+    .flatMap((day) => day.games || [])
+    .find((each) => each.gameType === "A");
+  if (!game) return null;
+  const normalized = normalizeGame(game);
+  /** @param {"away" | "home"} key */
+  const readLeague = (key) => ALL_STAR_LEAGUES[game.teams?.[key]?.team?.id] ?? null;
+  return {
+    ...normalized,
+    away: { ...normalized.away, id: readLeague("away") },
+    home: { ...normalized.home, id: readLeague("home") },
+  };
+}
+
+// It sits beside the slate's lists rather than in them, since the header, the Updates box, and the
+// store's box scores and pitchers follow the clubs' games, and only the Games view lists it.
+function summarizeAllStarGame(game) {
+  if (!game || game.state === "off") return null;
+  const { starters, postseason, networks, ...summary } = summarizeGame(game, new Map());
+  return { date: game.date, ...summary, allStar: true };
 }
 
 // A suspended game is listed again on the day it resumes; the later listing counts.
@@ -1077,6 +1106,13 @@ function readRecords(standings) {
 const listPitchers = (responses) =>
   new Map((responses.pitchers?.people || []).map((person) => [person.id, person]));
 
+/** @returns {ReturnType<typeof buildSlate> & { allStar?: any }} */
+function buildSlateWithAllStar(responses, games, clubGames, now) {
+  const slate = buildSlate(games, clubGames, now, listPitchers(responses));
+  const allStar = summarizeAllStarGame(findAllStarGame(responses.schedule));
+  return allStar ? { ...slate, allStar } : slate;
+}
+
 export function buildSnapshot(responses, { season, now = Date.now() }) {
   const games = responses.schedule ? listScheduledGames(responses.schedule) : [];
   const postseasonGames = listPostseasonGames(responses);
@@ -1101,7 +1137,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     series,
     log,
     standings: hasStandings ? buildStandings(responses.standings, clubGames) : null,
-    slate: responses.schedule ? buildSlate(games, clubGames, now, listPitchers(responses)) : null,
+    slate: responses.schedule ? buildSlateWithAllStar(responses, games, clubGames, now) : null,
     missing: findMissingFields(responses),
   };
 }
@@ -1110,7 +1146,10 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
 export function choosePollDelay(snapshot, now = Date.now()) {
   const slate = snapshot && snapshot.slate;
   if (!slate) return null;
-  const games = [slate.today, slate.nextDay].filter(Boolean).flatMap((day) => day.games);
+  const games = [
+    ...[slate.today, slate.nextDay].filter(Boolean).flatMap((day) => day.games),
+    slate.allStar,
+  ].filter(Boolean);
   return PollSchedule.choosePollDelay({
     isLive: games.some((game) => game.state === "live"),
     starts: games

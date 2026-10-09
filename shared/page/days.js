@@ -56,6 +56,25 @@ export function readCalendarDate(date) {
 }
 
 /**
+ * The "YYYY-MM-DD" date of a moment on the viewer's calendar.
+ * @param {Date} moment
+ */
+export const formatCalendarDate = (moment) =>
+  [
+    moment.getFullYear(),
+    String(moment.getMonth() + 1).padStart(2, "0"),
+    String(moment.getDate()).padStart(2, "0"),
+  ].join("-");
+
+/**
+ * The day of a list of days, in order, that's `wanted`, or the nearest after it, or the last.
+ * @param {{ day: string }[]} days "YYYY-MM-DD" days, in order
+ * @param {string} wanted a "YYYY-MM-DD" day
+ */
+export const chooseListedDay = (days, wanted) =>
+  (days.find(({ day }) => day >= wanted) ?? days[days.length - 1])?.day ?? wanted;
+
+/**
  * Whole days from one date's calendar day to another's, negative when the second comes first.
  * Rounding absorbs the hour a daylight saving change adds or takes away.
  * @param {Date} earlier
@@ -103,6 +122,13 @@ export const formatShortDate = (date) =>
 
 /** @param {Date} date */
 export const formatShortMonth = (date) => date.toLocaleDateString([], { month: "short" });
+
+/** @param {Date} date */
+export const formatMonth = (date) => date.toLocaleDateString([], { month: "long" });
+
+/** @param {Date} date */
+export const formatLongDate = (date) =>
+  date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 
 /** @param {Date} date */
 export const formatWeekday = (date) => date.toLocaleDateString([], { weekday: "long" });
