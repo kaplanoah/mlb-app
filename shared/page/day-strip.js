@@ -170,13 +170,17 @@ function listDaysAround(days, center) {
   return new Set(around.map(({ day }) => day));
 }
 
+/** @param {ListedDay[]} days */
+const hasStandIns = (days) => days.some(({ farMarkup }) => farMarkup);
+
 /**
  * The days drawn whole: those within a few screens of what the list shows and of the day a tap or
- * Today sends it to.
+ * Today sends it to. A league without stand-ins draws every day whole, so the list isn't measured.
  * @param {DayStripFill} fill
  * @param {ListedDay[]} days
  */
 function listNearDays(fill, days) {
+  if (!hasStandIns(days)) return new Set();
   const list = findList();
   const target = held?.day ?? chosenDay ?? fill.startDay;
   const targetDay = findListedDay(target);
@@ -515,7 +519,7 @@ function redrawChangedDays(days) {
 // As the list moves, only the days that came near what it shows, or left, are drawn again. A
 // stand-in is as tall as the games it stands for, so drawing a day whole or not moves nothing.
 function drawNearDays() {
-  if (!shown) return;
+  if (!shown || !hasStandIns(shown.days)) return;
   const days = listShownDays(shown);
   if (!hasSameDays(days)) return;
   const before = nearDays;
