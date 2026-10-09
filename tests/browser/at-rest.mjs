@@ -144,14 +144,42 @@ export async function waitForLoadToSettle(page) {
  * @param {import("@playwright/test").Page} page
  */
 export async function expectAtRest(page) {
-  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  /** @type {string[]} */
+  let lastAnimations = [];
+  try {
+    await expect.poll(async () => (lastAnimations = await listAnimations(page))).toEqual([]);
+  } catch (error) {
+    throw new Error(`The page kept animating: ${lastAnimations.join("; ")}`, { cause: error });
+  }
   expect(await listFrameRequestsAcross(page, 1000)).toEqual([]);
-  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  expect(await listAnimations(page)).toEqual([]);
 }
 
 /**
+ * Each animation on the page, by what it animates and the element it moves, so a page that
+ * never comes to rest names what kept moving.
+ * @param {import("@playwright/test").Page} page
+ */
+const listAnimations = (page) =>
+  page.evaluate(() =>
+    document.getAnimations().map((animation) => {
+      const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
+      const target = effect?.target;
+      const element = target ? [target.localName, ...target.classList].join(".") : "nothing";
+      const name =
+        Reflect.get(animation, "animationName") ||
+        Reflect.get(animation, "transitionProperty") ||
+        [...new Set(effect?.getKeyframes().flatMap((frame) => Object.keys(frame)))]
+          .filter((key) => !["offset", "easing", "composite", "computedOffset"].includes(key))
+          .join(" ");
+      return `${name} on ${element}${target?.id ? `#${target.id}` : ""}`;
+    }),
+  );
+
+/**
  * Swipes the lists under `from` on to the next one: with a finger in Chromium, and in WebKit,
- * which Playwright gives no touches or wheel to move on a phone, as a smooth scroll of the lists.
+ * which Playwright gives no touches or wheel to move on a phone, as a smooth scroll of the lists
+ * between a touch's start and its end once they move, as a finger's flick.
  * @param {import("@playwright/test").Page} page
  * @param {string} browserName
  * @param {{ x: number, y: number }} from
@@ -164,6 +192,10 @@ export async function swipeToNextList(page, browserName, from) {
   }
   await page.evaluate(({ x, y }) => {
     const pages = document.elementFromPoint(x, y)?.closest(".pager-pages");
-    pages?.scrollBy({ left: pages.clientWidth, behavior: "smooth" });
+    if (!pages) return;
+    pages.dispatchEvent(new Event("touchstart"));
+    const lift = () => pages.dispatchEvent(new Event("touchend"));
+    pages.addEventListener("scroll", lift, { once: true });
+    pages.scrollBy({ left: pages.clientWidth, behavior: "smooth" });
   }, from);
 }

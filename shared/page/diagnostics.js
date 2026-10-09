@@ -3,9 +3,10 @@
 // each part it draws whole (each `data-last-drawn` element) shows, frame by frame. The last few
 // records stay on this device. Once a record on request ends, its button shares them as a report
 // on a phone or tablet, or copies it on a computer, after a header that names the release, the
-// device, the page's state, and how each of the store's background jobs last ran, and before the logs of the viewport's changes (viewport-log.js)
-// and of what each dialog's row of sheets does (sheet-log.js). It records nothing while it's off,
-// which it starts as.
+// device, the page's state, and how each of the store's background jobs last ran, and before the
+// logs of the viewport's changes (viewport-log.js), of what each dialog's row of sheets does
+// (sheet-log.js), and of what a season's list of days does (day-strip-log.js). It records nothing
+// while it's off, which it starts as.
 
 import {
   formatClockTime,
@@ -19,12 +20,8 @@ import { describeAnimations, describeShownDayLists, describeShownPagers } from "
 import { loadRelease } from "./release.js";
 import { watchTimeAway } from "./resume.js";
 import { listSheetsInOpenDialogs } from "./sheet-reopen.js";
-import {
-  forgetSheetLines,
-  readSheetLines,
-  watchSheets,
-  writeSheetLinesAsText,
-} from "./sheet-log.js";
+import { dayStripLog } from "./day-strip-log.js";
+import { sheetLog } from "./sheet-log.js";
 import {
   forgetViewportLines,
   readViewportLines,
@@ -43,6 +40,7 @@ const MINUTE_MS = 60 * 1000;
 // The report button says it copied or shared the report for this long, then offers to record again.
 const SENT_MS = 2000;
 const ON_REQUEST = "On request";
+const STEP_LOGS = [sheetLog, dayStripLog];
 
 /** @typedef {{ ms: number, text: string, isDip?: boolean }} RecordLine */
 /** @typedef {"ready" | "copied" | "shared"} ReportStep */
@@ -137,7 +135,7 @@ function saveSwitch(isOn) {
       localStorage.removeItem(SWITCH_KEY);
       localStorage.removeItem(RECORDS_KEY);
       forgetViewportLines();
-      forgetSheetLines();
+      for (const log of STEP_LOGS) log.forgetLines();
     }
   } catch {
     /* the switch stays as it was */
@@ -553,21 +551,26 @@ const renderViewportLine = (line) =>
     ><span>${line.text}</span>
   </li>`;
 
-/** @param {import("./sheet-log.js").SheetLine} line */
-const renderSheetLine = (line) =>
+/** @param {import("./step-log.js").StepLine} line */
+const renderStepLine = (line) =>
   html`<li>
     <span class="diagnostics-ms">${formatClockTimeWithSeconds(new Date(line.at))}</span
     ><span>${line.text}</span>
   </li>`;
 
-/** @param {import("./sheet-log.js").SheetLine[]} lines newest first */
-const renderSheets = (lines) =>
-  html`<details class="diagnostics-record">
-    <summary><span class="diagnostics-when">Sheets</span></summary>
-    <ol class="diagnostics-lines diagnostics-viewport">
-      ${lines.map(renderSheetLine)}
-    </ol>
-  </details>`;
+/** @param {import("./step-log.js").StepLog} log */
+function renderStepLog(log) {
+  const lines = log.readLines().toReversed();
+  return (
+    lines.length > 0 &&
+    html`<details class="diagnostics-record">
+      <summary><span class="diagnostics-when">${log.title}</span></summary>
+      <ol class="diagnostics-lines diagnostics-viewport">
+        ${lines.map(renderStepLine)}
+      </ol>
+    </details>`
+  );
+}
 
 /** @param {import("./viewport-log.js").ViewportLine[]} lines newest first */
 const renderViewport = (lines) => {
@@ -613,7 +616,6 @@ function renderRecordButton() {
 function renderRecords() {
   const records = listRecords();
   const viewportLines = readViewportLines().toReversed();
-  const sheetLines = readSheetLines().toReversed();
   return html`<p class="diagnostics-release">${describeRelease(readPageFacts())}</p>
     <div class="diagnostics-head">
       <h3>Recent opens</h3>
@@ -625,7 +627,7 @@ function renderRecords() {
         : html`<p class="diagnostics-empty">Nothing yet. Each open from now on shows here.</p>`
     }
     ${viewportLines.length > 0 && renderViewport(viewportLines)}
-    ${sheetLines.length > 0 && renderSheets(sheetLines)}`;
+    ${STEP_LOGS.map(renderStepLog)}`;
 }
 
 function drawRecords() {
@@ -649,8 +651,8 @@ function writeReport() {
   const header = writeHeader(readPageFacts());
   const records = writeRecordsAsText(listRecords(), new Date());
   const viewport = writeViewportAsText(readViewportLines().toReversed());
-  const sheets = writeSheetLinesAsText(readSheetLines().toReversed());
-  return [header, records, viewport, sheets].filter(Boolean).join("\n\n");
+  const steps = STEP_LOGS.map((log) => log.writeLinesAsText(log.readLines().toReversed()));
+  return [header, records, viewport, ...steps].filter(Boolean).join("\n\n");
 }
 
 /** @param {ReportStep | null} step */
@@ -751,5 +753,5 @@ export function startDiagnostics() {
   });
   addEventListener("pagehide", finishRecord);
   watchViewport(isRecording, drawRecords);
-  watchSheets(isRecording, drawRecords);
+  for (const log of STEP_LOGS) log.watchSteps(isRecording, drawRecords);
 }

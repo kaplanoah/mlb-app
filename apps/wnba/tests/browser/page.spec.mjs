@@ -15,7 +15,7 @@ import {
   noteNameFades,
   readFilledNames,
 } from "../../../../tests/browser/pill-names.mjs";
-import { drag } from "../../../../tests/browser/touch.mjs";
+import { drag, swipeScrollerTo } from "../../../../tests/browser/touch.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -162,9 +162,7 @@ test.describe("on a phone, the standings", () => {
     const pages = page.locator("#standings-pages");
     await expect(page.locator("#standings-league")).toContainText("Lynx");
 
-    await pages.evaluate((element) =>
-      element.scrollTo({ left: element.clientWidth, behavior: "instant" }),
-    );
+    await swipeScrollerTo(pages, 1);
 
     await expect(page.getByRole("tab", { name: "East" })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#standings-east")).toBeInViewport();
