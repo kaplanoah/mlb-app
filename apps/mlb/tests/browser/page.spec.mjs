@@ -265,6 +265,7 @@ test("the Games lists go back to the one shown after a move no one made, after a
   page,
 }) => {
   await page.setViewportSize(PHONE);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const shownGames = page.locator("#gamePager .pager-page:not([inert])");
@@ -291,6 +292,7 @@ test("a key pressed in the Games lists, or a sideways wheel at their end, leaves
   page,
 }) => {
   await page.setViewportSize(PHONE);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const shownGames = page.locator("#gamePager .pager-page:not([inert])");
@@ -310,7 +312,8 @@ test("a key pressed in the Games lists, or a sideways wheel at their end, leaves
   await expect(shownGames).toHaveId("games-today");
 
   await page.getByRole("tab", { name: "Previous" }).click();
-  await expect.poll(() => readPagesPosition(page)).toBe(0);
+  await expect(shownGames).toHaveId("games-previous");
+  await expect.poll(() => pages.evaluate((element) => element.scrollLeft)).toBe(0);
   const box = await pages.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + 40);
   await page.mouse.wheel(-200, 0);
