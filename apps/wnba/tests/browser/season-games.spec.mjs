@@ -419,9 +419,11 @@ test("scrolling the games slides the dates behind the chosen day's box, which ho
     requestAnimationFrame(note);
     Object.assign(window, { stripFrames: frames });
   });
+  // A wheel's turn that moves nothing puts the list in hand, as a finger does.
   /** @param {string} day */
   const bringToTop = (day) =>
     findList(page).evaluate((list, shown) => {
+      list.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
       const listed = /** @type {HTMLElement} */ (list.querySelector(`[data-day="${shown}"]`));
       list.scrollTop = listed.offsetTop - Number.parseFloat(getComputedStyle(list).paddingTop);
     }, day);
@@ -452,6 +454,28 @@ test("scrolling the games slides the dates behind the chosen day's box, which ho
     return left + width / 2 - (box.left + box.width / 2);
   });
   expect(Math.abs(offCenter)).toBeLessThan(1);
+});
+
+test("a scroll the page makes itself, without a finger or wheel on the list, swaps the strip's chosen day at once, without sliding its dates", async ({
+  page,
+}) => {
+  await openSeasonGames(page);
+  await page.clock.runFor(1000);
+  await expectDayAtTop(page, "2026-09-30");
+  const dayBefore = await findDay(page, "2026-09-30").evaluate(
+    (today) => /** @type {HTMLElement} */ (today.previousElementSibling).dataset.day,
+  );
+
+  // Each frame comes only as the test moves the clock, so a slide would still be under way.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+  await findDay(page, dayBefore).evaluate((listed) => listed.scrollIntoView());
+  await page.clock.runFor(100);
+
+  const strip = await page.evaluate(() => ({
+    chosen: document.querySelector("#seasonGames .day-cell.is-chosen")?.getAttribute("data-day"),
+    isSliding: !!document.querySelector("#seasonGames .day-strip.is-sliding, .strip-lens"),
+  }));
+  expect(strip).toEqual({ chosen: dayBefore, isSliding: false });
 });
 
 test("a tap on Today where the list already is pulses today's date, 4% bigger and back over 290ms", async ({
