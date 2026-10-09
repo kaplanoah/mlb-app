@@ -131,7 +131,7 @@ test("a record ends with where the shown pager's lists are and what a tap on eac
   await expect(record).not.toContainText("seasonGames scrolled");
 });
 
-test("a record ends with where the season's list of days is, the day at its top, and what a tap on it lands on", async ({
+test("a record ends with where the season's list of days is, where its strip's box sits, the day at its top, and what a tap on it lands on", async ({
   page,
 }) => {
   await openApp(page);
@@ -143,7 +143,7 @@ test("a record ends with where the season's list of days is, the day at its top,
 
   const record = findRecords(page).locator(".diagnostics-record").first();
   await expect(record).toContainText(
-    /seasonGames scrolled \d+ of \d+, \d+ tall; strip on 2026-09-30; 2026-09-30 at the top, first item at .*, opacity 1, a tap there lands on /,
+    /seasonGames scrolled \d+ of \d+, \d+ tall; strip on 2026-09-30, strip scrolled \d+ of \d+, its box on the strip; 2026-09-30 at the top, first item at .*, opacity 1, a tap there lands on /,
   );
   await expect(record).not.toContainText("standings-pages");
 });
@@ -288,7 +288,7 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
   );
 });
 
-test("with Diagnostics on, each tap on the Games list's strip and Today is logged, with where it takes the list", async ({
+test("with Diagnostics on, each tap on the Games list's strip and Today is logged, with where it takes the list and when it arrives", async ({
   page,
 }) => {
   await openApp(page, { isWholeSeason: true });
@@ -310,18 +310,53 @@ test("with Diagnostics on, each tap on the Games list's strip and Today is logge
   const steps = lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""));
   expect(steps).toEqual([
     expect.stringMatching(/^jump to 2026-09-30, list 0 to \d+$/),
+    "arrived at 2026-09-30",
     expect.stringMatching(/^touchstart at \d+,\d+ on Tuesday, September 29$/),
     expect.stringMatching(/^touchend at \d+,\d+ on Tuesday, September 29$/),
     expect.stringMatching(/^click at \d+,\d+ on Tuesday, September 29$/),
     expect.stringMatching(/^jump to 2026-09-29, list \d+ to \d+$/),
+    "arrived at 2026-09-29",
     expect.stringMatching(/^touchstart at \d+,\d+ on Today$/),
     expect.stringMatching(/^touchend at \d+,\d+ on Today$/),
     expect.stringMatching(/^click at \d+,\d+ on Today$/),
     expect.stringMatching(/^jump to 2026-09-30, list \d+ to \d+$/),
+    "arrived at 2026-09-30",
     expect.stringMatching(/^touchstart at \d+,\d+ on Today$/),
     expect.stringMatching(/^touchend at \d+,\d+ on Today$/),
     expect.stringMatching(/^click at \d+,\d+ on Today$/),
     "already on 2026-09-30, less motion, no pulse",
+  ]);
+});
+
+test("with Diagnostics on, each error the page doesn't catch is logged with where it came from, and each promise it lets fail", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await page.evaluate(() => {
+    dispatchEvent(
+      new ErrorEvent("error", {
+        message: "TypeError: list is null",
+        filename: `${location.origin}/key/js/games-view.js`,
+        lineno: 12,
+        colno: 7,
+      }),
+    );
+    dispatchEvent(
+      new PromiseRejectionEvent("unhandledrejection", {
+        promise: Promise.resolve(),
+        reason: new RangeError("too far"),
+      }),
+    );
+  });
+  await openSettings(page);
+
+  const log = findRecords(page).locator(".diagnostics-record", { hasText: "Errors" });
+  await log.locator("summary").click();
+  const lines = await log.locator("li").allInnerTexts();
+  expect(lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""))).toEqual([
+    "TypeError: list is null at games-view.js:12:7",
+    "a promise failed: RangeError: too far",
   ]);
 });
 
@@ -330,8 +365,11 @@ test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await turnOnDiagnostics(page);
   await reloadAndRecord(page);
   await openSettings(page);
-  await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(2);
+  await expect(findRecords(page).locator(".diagnostics-record")).toHaveCount(3);
   await expect(findViewportLog(page)).toHaveCount(1);
+  await expect(
+    findRecords(page).locator(".diagnostics-record", { hasText: "Games list" }),
+  ).toHaveCount(1);
 
   await findSwitch(page).click();
   await expect(findRecords(page)).toBeHidden();

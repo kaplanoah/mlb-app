@@ -4,7 +4,7 @@
 // styled, and its first item's opacity and what a tap on it would land on, and with every
 // animation on the page that hasn't finished. A list the phone laid out but didn't draw still
 // names its item. A season's list of days (day-strip.js) says the same of the day at its top, and
-// which day its strip has chosen.
+// which day its strip has chosen, where that date sits, and the day a tap or Today sent it to.
 
 /** @param {DOMRect} rect */
 const describeRect = ({ left, top, width, height }) =>
@@ -96,16 +96,38 @@ function findDayAtTop(list) {
   return days.find((day) => day.getBoundingClientRect().bottom > top) ?? null;
 }
 
+/**
+ * Where the strip's chosen date sits: on the strip, or off its side, and whether its dates are
+ * sliding behind the box.
+ * @param {HTMLElement | null} strip
+ * @param {HTMLElement | null} chosen
+ */
+function describeStrip(strip, chosen) {
+  if (!strip) return "no strip";
+  const scrolled = `strip scrolled ${Math.round(strip.scrollLeft)} of ${strip.scrollWidth}`;
+  if (strip.classList.contains("is-sliding")) return `${scrolled}, its dates sliding`;
+  if (!chosen) return scrolled;
+  const box = chosen.getBoundingClientRect();
+  const bounds = strip.getBoundingClientRect();
+  const isOnStrip = box.left >= bounds.left - 1 && box.right <= bounds.right + 1;
+  return `${scrolled}, its box ${isOnStrip ? "on the strip" : `off the strip at ${Math.round(box.left)}`}`;
+}
+
 /** @param {HTMLElement} list */
 function describeDayList(list) {
-  const view = list.closest(".day-view");
+  const view = /** @type {HTMLElement | null} */ (list.closest(".day-view"));
+  const strip = /** @type {HTMLElement | null} */ (view?.querySelector(".day-strip") ?? null);
   const chosen = /** @type {HTMLElement | null} */ (view?.querySelector(".day-cell.is-chosen"));
   const day = findDayAtTop(list);
+  const { heldDay, heldArrived } = view?.dataset ?? {};
   return [
     `${view?.id ?? "day list"} scrolled ${Math.round(list.scrollTop)} of ${list.scrollHeight}, ${list.clientHeight} tall`,
-    `strip on ${chosen?.dataset.day ?? "no day"}`,
+    `strip on ${chosen?.dataset.day ?? "no day"}, ${describeStrip(strip, chosen)}`,
+    heldDay && (heldArrived ? `held on ${heldDay}` : `on its way to ${heldDay}`),
     `${day?.dataset.day ?? "no day"} at the top, ${describeFirstItem(day)}`,
-  ].join("; ");
+  ]
+    .filter(Boolean)
+    .join("; ");
 }
 
 /**

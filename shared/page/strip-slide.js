@@ -5,6 +5,8 @@
 // goes to the day. Once the dates settle, the box is the chosen day's own again, so nothing is left
 // moving or on a layer of its own.
 
+import { dayStripLog } from "./day-strip-log.js";
+
 const SETTLE_MS = 360;
 // A critically damped spring settles to within 1% of its distance in about 4.6 over its frequency.
 const SPRING_FREQUENCY = 4.6 / (SETTLE_MS / 1000);
@@ -132,12 +134,28 @@ export function slideStripTo(strip, from, to) {
   slide.target = findMiddle(to);
 }
 
+/**
+ * Logs a strip told to scroll somewhere it could reach that stayed elsewhere, as a phone's strip
+ * does while it takes no scroll from the page's code.
+ * @param {HTMLElement} strip
+ * @param {number} wanted
+ */
+export function noteStripMissed(strip, wanted) {
+  if (!dayStripLog.isLogging()) return;
+  const reachable = Math.max(0, Math.min(wanted, strip.scrollWidth - strip.clientWidth));
+  if (Math.abs(strip.scrollLeft - reachable) > 1)
+    dayStripLog.noteStep(
+      `the strip was told to scroll to ${Math.round(reachable)} but is at ${Math.round(strip.scrollLeft)}`,
+    );
+}
+
 /** Puts the chosen day under the box at once, and gives the box back to the day. */
 export function endStripSlide() {
   if (!slide) return;
   cancelAnimationFrame(slide.frame);
   slide.middle = slide.target;
   placeLens(slide);
+  noteStripMissed(slide.strip, slide.target - slide.strip.clientWidth / 2);
   slide.lens.remove();
   slide.strip.classList.remove("is-sliding");
   slide = null;

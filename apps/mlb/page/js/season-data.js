@@ -41,7 +41,6 @@ function readSchedule(docs) {
 function followSchedule(year, showChange) {
   if (year === scheduleYear) return;
   scheduleYear = year;
-  session.schedule = null;
   unwatchSchedule();
   unwatchSchedule = session.db
     .collection(nameScheduleCollection(year))
@@ -119,7 +118,10 @@ export function startSeasonData({ showChange, showStamp, showCurrentYear, showUn
     version: SNAPSHOT_VERSION,
     guessYear: guessSeasonYear,
     showUnreadable,
+    // The games the page last showed stay until the store answers with the same season's, so the
+    // list doesn't drop to the slate's few days in between.
     keepSeason: (year, record) => {
+      if (year !== session.season?.year) session.schedule = null;
       keepSeason(year, record);
       followSchedule(year, showChange);
     },

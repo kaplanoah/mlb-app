@@ -110,3 +110,28 @@ test("copied lines follow the log's title, each with its time", () =>
       "Games list\n12:05:09 PM pulse 2026-10-06",
     ),
   ));
+
+test("a log says whether it's logging, so its part measures the page only while it is", () => {
+  const log = createLog();
+  let isOn = false;
+  log.watchSteps(
+    () => isOn,
+    () => {},
+  );
+  assert.equal(log.isLogging(), false);
+  isOn = true;
+  assert.equal(log.isLogging(), true);
+});
+
+test("a log keeps its last 200 lines, enough for a fling through a few weeks of days", () => {
+  const log = createLog();
+  log.watchSteps(
+    () => true,
+    () => {},
+  );
+  for (let line = 1; line <= 250; line += 1) log.noteStep(`top day ${line}`);
+  const lines = log.readLines().map((line) => line.text);
+  assert.equal(lines.length, 200);
+  assert.equal(lines[0], "top day 51");
+  assert.equal(lines.at(-1), "top day 250");
+});

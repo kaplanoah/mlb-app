@@ -123,6 +123,27 @@ test("the Games tab lists the whole season under a strip of its days, opening on
   ).toHaveText("Sat, Sep 26");
 });
 
+test("a reload keeps the whole season in the Games list while the store catches up, never dropping to the slate's few days", async ({
+  page,
+}) => {
+  await openSeasonGames(page);
+  await page.addInitScript(() => {
+    const counts = /** @type {number[]} */ ([]);
+    Object.assign(window, { listedDayCounts: counts });
+    new MutationObserver(() => {
+      const count = document.querySelectorAll("#seasonGames .listed-day").length;
+      if (count && count !== counts.at(-1)) counts.push(count);
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await page.reload();
+  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+  await page.clock.runFor(2000);
+
+  const counts = await page.evaluate(() => Reflect.get(window, "listedDayCounts"));
+  expect(counts).toEqual([counts[0]]);
+  expect(counts[0]).toBeGreaterThan(200);
+});
+
 test("a day's heading holds under the strip while its games pass, until the next day's pushes it out", async ({
   page,
 }) => {
