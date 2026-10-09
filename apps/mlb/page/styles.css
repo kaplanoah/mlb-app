@@ -89,6 +89,13 @@
   --game-card-won: var(--gold);
   --game-card-team-font: inherit;
   --game-row-height: 82.5px;
+  --strip-month: var(--gold);
+  --strip-today: var(--gold);
+  --strip-chosen: var(--gold);
+  --strip-chosen-ink: var(--gold-ink);
+  --strip-chosen-edge: transparent;
+  --strip-action: var(--gold);
+  --day-gap: 18px;
   --game-side-offset: 0px;
   --game-label-offset: -21px;
   --game-headline-offset: -1px;
@@ -467,16 +474,44 @@ table.st .seed-cell {
   max-width: 60ch;
 }
 
-.game-day {
+/* Games: the season's days under a strip of them, each day's games under a heading that holds
+   under the strip while they pass, as a list's section headers do on iPhone, until the next day's
+   takes its place. Today's heading is gold, as today is in the strip. */
+/* Chivo Mono reads heavier, so the strip's month and dates sit a weight under the shared 600. */
+.strip-month,
+.cell-number {
+  font-weight: 550;
+}
+/* The list keeps a day's gap above its first day, so a held heading reaches up over it to the
+   strip's line, leaving no gap for the games passing under it to show through. */
+.day-heading {
+  position: sticky;
+  top: calc(-1 * var(--day-gap));
+  z-index: 2;
+  margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
+  padding: 10px var(--reach-right) 8px var(--reach-left);
+  background: var(--bg);
+  box-shadow: 0 1px 0 var(--divider);
   font-size: var(--size-small);
   font-weight: 450;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--ink-dim);
-  margin: 30px 0 8px;
 }
-.game-day:first-child {
-  margin-top: 0;
+.game-day.is-today .day-heading {
+  color: var(--gold);
+}
+.empty-note {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--size-glance);
+}
+.no-games .empty-note {
+  padding-block: 16px;
+}
+.day-view > .empty-note {
+  margin-top: 32px;
+  text-align: center;
 }
 .game-side {
   gap: 5.5px;

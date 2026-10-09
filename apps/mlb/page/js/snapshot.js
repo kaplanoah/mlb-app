@@ -80,6 +80,9 @@ const GAME_FIELDS = [
   "id",
   "name",
   "score",
+  "leagueRecord",
+  "wins",
+  "losses",
   "seriesGameNumber",
   "seriesDescription",
   "linescore",
@@ -100,6 +103,37 @@ const GAME_FIELDS = [
   "language",
   "isNational",
   "homeAway",
+].join(",");
+// The season's whole schedule, which only the Games view lists, needs only who plays when, each
+// club's record and starter with the game, and how it ended.
+const SEASON_GAME_FIELDS = [
+  "dates",
+  "date",
+  "games",
+  "gamePk",
+  "gameType",
+  "gameDate",
+  "officialDate",
+  "status",
+  "abstractGameState",
+  "detailedState",
+  "codedGameState",
+  "startTimeTBD",
+  "teams",
+  "away",
+  "home",
+  "team",
+  "id",
+  "score",
+  "doubleHeader",
+  "gameNumber",
+  "leagueRecord",
+  "wins",
+  "losses",
+  "probablePitcher",
+  "useLastName",
+  "pitchHand",
+  "code",
 ].join(",");
 const SEASON_FIELDS = ["seasons", "springStartDate", "regularSeasonEndDate"].join(",");
 const PITCHER_FIELDS = [
@@ -207,6 +241,23 @@ const FIELD_RULES = {
     requireField("gameInfo.firstPitch", isTime, isFinal, true),
     requireField("gameInfo.gameDurationMinutes", isNumber, isFinal, true),
   ],
+  // The season's whole schedule leaves out each club's name and how long each game took.
+  seasonGame: [
+    requireField("gamePk", isNumber),
+    requireField("gameType", isText),
+    requireField("gameDate", isTime),
+    requireField("officialDate", isDay),
+    requireField("status.abstractGameState", isText),
+    requireField("status.detailedState", isText),
+    requireField("status.codedGameState", isText),
+    requireField("status.startTimeTBD", isBoolean),
+    requireField("teams.away.team.id", isNumber),
+    requireField("teams.home.team.id", isNumber),
+    requireField("doubleHeader", isText),
+    requireField("gameNumber", isNumber),
+    requireField("teams.away.score", isNumber, isFinal),
+    requireField("teams.home.score", isNumber, isFinal),
+  ],
   scheduleGame: [
     requireField("linescore.currentInning", isNumber, hasStarted, true),
     requireField("linescore.inningState", isHalfInning, isLive, true),
@@ -249,6 +300,8 @@ export const CHECKED_FIELDS = [
   "pitcher",
   // A club names its starter a day or two ahead, so a game without one is never flagged.
   "probablePitcher",
+  // A row without each club's record with the game still shows the game.
+  "leagueRecord",
   // A game MLB lists no channels for yet says to check back, and a broadcast that doesn't say it's
   // on English TV is left out.
   "broadcasts",
@@ -282,12 +335,12 @@ function findMissingStandingsFields(standings) {
   ];
 }
 
-function findMissingGameFields(schedule, extraRules) {
+function findMissingGameFields(schedule, rules) {
   if (!Array.isArray(schedule?.dates)) return ["dates"];
   const games = schedule.dates.flatMap((date) => date.games || []);
   return [
     ...findInvalidFields(schedule.dates, FIELD_RULES.date),
-    ...findInvalidFields(games, [...FIELD_RULES.game, ...extraRules]),
+    ...findInvalidFields(games, rules),
   ];
 }
 
@@ -311,9 +364,18 @@ export function findMissingFields(responses) {
   const missing = [
     ...findMissingSeasonFields(responses.season),
     ...findMissingStandingsFields(responses.standings),
-    ...findMissingGameFields(responses.postseason, FIELD_RULES.postseasonGame),
+    ...findMissingGameFields(responses.postseason, [
+      ...FIELD_RULES.game,
+      ...FIELD_RULES.postseasonGame,
+    ]),
     ...(responses.schedule
-      ? findMissingGameFields(responses.schedule, FIELD_RULES.scheduleGame)
+      ? findMissingGameFields(responses.schedule, [
+          ...FIELD_RULES.game,
+          ...FIELD_RULES.scheduleGame,
+        ])
+      : []),
+    ...(responses.seasonGames
+      ? findMissingGameFields(responses.seasonGames, FIELD_RULES.seasonGame)
       : []),
     ...(responses.pitchers ? findMissingPitcherFields(responses.pitchers) : []),
   ];
@@ -370,6 +432,8 @@ export function findFeederSeries(seriesId, side) {
 }
 
 const GAME_TYPES = new Set(["R", "F", "D", "L", "W"]);
+// The Games view lists the All-Star Game among the clubs' games.
+const LISTED_GAME_TYPES = new Set([...GAME_TYPES, "A"]);
 
 // MLB caches its responses for 20 seconds, so polling faster only refetches the same answer.
 export const POLL_LIVE_MS = 30 * 1000;
@@ -390,6 +454,10 @@ export function listMlbRequests(season, now, regularSeasonEnd = null) {
       `/api/v1/schedule/postseason?season=${season}` +
       `&hydrate=gameInfo,probablePitcher&fields=${GAME_FIELDS}`,
     schedule: null,
+    seasonGames:
+      `/api/v1/schedule?sportId=1&season=${season}` +
+      `&gameType=${[...LISTED_GAME_TYPES].join(",")}&hydrate=probablePitcher,person` +
+      `&fields=${SEASON_GAME_FIELDS}`,
   };
   if (season === today.year) {
     // Four days ahead reaches every club's next regular season game.
@@ -435,7 +503,8 @@ const readUnlessFailed = (promise) => promise.catch(() => null);
 // again. The starters come last, since which games the slate lists depends on the standings,
 // which set the postseason's field. `getJson` is handed each request's name as well as its path.
 // The bracket and the games can't do without the postseason and the schedule, but they can
-// without the season's dates or the standings, which the snapshot then lists as missing.
+// without the season's dates, the standings, or the season's whole schedule, which the snapshot
+// then lists as missing.
 export async function fetchResponses(getJson, season, now = Date.now()) {
   const seasonDates = await readUnlessFailed(
     getJson(listMlbRequests(season, now).season, "season"),
@@ -445,8 +514,11 @@ export async function fetchResponses(getJson, season, now = Date.now()) {
     getJson(requests.postseason, "postseason"),
     requests.schedule ? getJson(requests.schedule, "schedule") : null,
   ]);
-  const standings = await readUnlessFailed(getJson(requests.standings, "standings"));
-  const responses = { season: seasonDates, standings, postseason, schedule };
+  const [standings, seasonGames] = await Promise.all([
+    readUnlessFailed(getJson(requests.standings, "standings")),
+    readUnlessFailed(getJson(requests.seasonGames, "seasonGames")),
+  ]);
+  const responses = { season: seasonDates, standings, postseason, schedule, seasonGames };
   const { slate } = buildSnapshot(responses, { season, now });
   const pitchers = await fetchPitchers(getJson, season, listStarterIds(slate));
   return { ...responses, pitchers };
@@ -547,6 +619,7 @@ function normalizeGame(game) {
       score: side.score,
       starter: side.probablePitcher?.id ?? null,
       pitcherIn: readPitcherIn(game.linescore, team.id),
+      record: side.leagueRecord,
     };
   };
   const status = game.status || {};
@@ -585,7 +658,11 @@ function findAllStarGame(schedule) {
   const game = ((schedule && schedule.dates) || [])
     .flatMap((day) => day.games || [])
     .find((each) => each.gameType === "A");
-  if (!game) return null;
+  return game ? normalizeAllStarGame(game) : null;
+}
+
+/** @param {any} game MLB's listing of the All-Star Game */
+function normalizeAllStarGame(game) {
   const normalized = normalizeGame(game);
   /** @param {"away" | "home"} key */
   const readLeague = (key) => ALL_STAR_LEAGUES[game.teams?.[key]?.team?.id] ?? null;
@@ -615,6 +692,122 @@ function listScheduledGames(...responses) {
     }
   }
   return [...gamesByPk.values()];
+}
+
+// The Games view lists every game of the season, which the store keeps a month to a document, apart
+// from the season's record that pages follow through every live game, and saves again only as a
+// game ends or the schedule changes.
+/** @param {number} year */
+export const nameScheduleCollection = (year) => `schedules-${year}`;
+
+/**
+ * @param {number} year
+ * @param {string} month "YYYY-MM"
+ */
+export const nameScheduleKey = (year, month) => `${nameScheduleCollection(year)}/${month}`;
+
+// A postponed or suspended game is listed on the day it was to be played and again on the day it's
+// played, and the later of two listings of the same day counts. MLB gives both listings the day
+// it's played as their official date, so each takes the day it's listed on.
+function listSeasonListings(...responses) {
+  const listings = new Map();
+  for (const day of responses.flatMap((response) => response?.dates ?? [])) {
+    for (const game of day.games ?? []) {
+      if (LISTED_GAME_TYPES.has(game.gameType))
+        listings.set(`${game.gamePk} ${day.date}`, { ...game, officialDate: day.date });
+    }
+  }
+  return [...listings.values()];
+}
+
+/** @param {{ wins?: number, losses?: number } | undefined} record */
+const formatRecord = (record) =>
+  isNumber(record?.wins) && isNumber(record?.losses) ? `${record.wins}-${record.losses}` : null;
+
+// A regular season game shows each club's record as it stood with the game, which MLB gives
+// after a final and before a game still to play. A postseason game's record is its series',
+// which the page doesn't show, and a game called off gives the record of the day it's made up.
+function listRecords(game) {
+  if (game.type !== "R" || game.state === "off") return null;
+  const records = [formatRecord(game.away.record), formatRecord(game.home.record)];
+  return records.some(Boolean) ? records : null;
+}
+
+// Only what the row shows of each starter: his name and his arm.
+function listListedStarters(game, people) {
+  const starters = listStarters(game, people)?.map((starter) =>
+    starter?.name ? { id: starter.id, name: starter.name, hand: starter.hand } : null,
+  );
+  return starters?.some(Boolean) ? starters : null;
+}
+
+// A game under way is listed as it was before it started, since the slate carries it while it's
+// played, and only a final keeps its score.
+/**
+ * @param {any} listing MLB's listing of a game
+ * @param {Map<number, any>} people each starter MLB describes, by id
+ */
+function describeListedGame(listing, people) {
+  const isAllStar = listing.gameType === "A";
+  const game = isAllStar ? normalizeAllStarGame(listing) : normalizeGame(listing);
+  const { starters, networks, inning, half, outs, end, delay, postseason, score, ...summary } =
+    summarizeGame(game, new Map());
+  const records = listRecords(game);
+  const listedStarters = isAllStar ? null : listListedStarters(game, people);
+  return {
+    date: game.date,
+    ...summary,
+    state: game.state === "live" ? "pre" : game.state,
+    ...(game.state === "final" && { score }),
+    ...(postseason && !isAllStar && { postseason }),
+    ...(isAllStar && { allStar: true }),
+    ...(records && { records }),
+    ...(listedStarters && { starters: listedStarters }),
+  };
+}
+
+// The season's schedule names each starter it lists, and the starters' own read, the slate's.
+function listScheduledPeople(responses, listings) {
+  const people = new Map();
+  for (const listing of listings) {
+    for (const side of ["away", "home"]) {
+      const person = listing.teams?.[side]?.probablePitcher;
+      if (person?.useLastName) people.set(person.id, person);
+    }
+  }
+  for (const [id, person] of listPitchers(responses)) people.set(id, person);
+  return people;
+}
+
+// Once a series is decided, the games it no longer needs never happen.
+function listCalledOffGameIds(gamesBySeries, log) {
+  const decided = log.filter((entry) => entry.kind === "clinch").map((entry) => entry.series);
+  return new Set(
+    decided
+      .flatMap((seriesId) => gamesBySeries[seriesId] ?? [])
+      .filter((game) => game.state !== "final")
+      .map((game) => game.id),
+  );
+}
+
+/** @param {{ date: string }[]} games in schedule order */
+function groupByMonth(games) {
+  /** @type {Record<string, any[]>} */
+  const months = {};
+  for (const game of games) (months[game.date.slice(0, 7)] ??= []).push(game);
+  return months;
+}
+
+// The season's whole schedule is read once a day, so the days around today, read with each update,
+// and the postseason count over it.
+function buildSchedule(responses, calledOff) {
+  if (!responses.seasonGames) return null;
+  const people = listScheduledPeople(responses, listSeasonListings(responses.seasonGames));
+  const games = listSeasonListings(responses.seasonGames, responses.postseason, responses.schedule)
+    .map((listing) => describeListedGame(listing, people))
+    .filter((game) => !calledOff.has(game.id))
+    .sort(compareScheduleOrder);
+  return groupByMonth(games);
 }
 
 // The Worker reads the postseason feed again only now and then, so a game's listing in the
@@ -1138,6 +1331,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     log,
     standings: hasStandings ? buildStandings(responses.standings, clubGames) : null,
     slate: responses.schedule ? buildSlateWithAllStar(responses, games, clubGames, now) : null,
+    schedule: buildSchedule(responses, listCalledOffGameIds(gamesBySeries, log)),
     missing: findMissingFields(responses),
   };
 }

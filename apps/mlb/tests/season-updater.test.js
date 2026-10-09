@@ -252,3 +252,63 @@ test("before April, the new season is followed once spring training has started"
   assert.equal(after.season, 2027);
   assert.deepEqual(requested, [2027]);
 });
+
+const SEASON_GAMES = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-09-season.json`, "utf8"),
+);
+const SEASON_NOW = Date.parse(SEASON_GAMES.now);
+const WHOLE_SEASON = MLBSnapshot.buildSnapshot(SEASON_GAMES.responses, {
+  season: 2026,
+  now: SEASON_NOW,
+});
+
+// On an off day the store's own jobs come due before its next update.
+async function updateSeasonAgain(store, context, clock) {
+  clock.now = context.stored.get("poll:schedule").dueAt;
+  await store.alarm();
+}
+
+test("each month of the season's games is saved apart from its record, and only a month whose games changed is saved again", async () => {
+  const { store, harness, sent, read, context, clock } = createUpdatingStore({
+    snapshot: WHOLE_SEASON,
+    now: SEASON_NOW,
+  });
+  await store.alarm();
+  assert.deepEqual(read("schedules-2026/2026-07"), {
+    version: WHOLE_SEASON.version,
+    year: 2026,
+    month: "2026-07",
+    games: WHOLE_SEASON.schedule["2026-07"],
+    updatedAt: WHOLE_SEASON.asOf,
+  });
+  assert.equal(read("seasons/2026").schedule, undefined);
+
+  sent.length = 0;
+  const october = WHOLE_SEASON.schedule["2026-10"].map((game) =>
+    game.id === "849831" ? { ...game, state: "final", score: [2, 5] } : game,
+  );
+  harness.snapshot = {
+    ...WHOLE_SEASON,
+    asOf: "2026-10-10T23:40:00.000Z",
+    schedule: { ...WHOLE_SEASON.schedule, "2026-10": october },
+  };
+  await updateSeasonAgain(store, context, clock);
+  assert.deepEqual(
+    sent.map((message) => message.path),
+    ["schedules-2026/2026-10"],
+  );
+  assert.deepEqual(read("schedules-2026/2026-10").games, october);
+});
+
+test("a read without the season's whole schedule leaves its months as they were", async () => {
+  const { store, harness, read, context, clock } = createUpdatingStore({
+    snapshot: WHOLE_SEASON,
+    now: SEASON_NOW,
+  });
+  await store.alarm();
+  const saved = read("schedules-2026/2026-10");
+
+  harness.snapshot = { ...WHOLE_SEASON, asOf: "2026-10-10T23:40:00.000Z", schedule: null };
+  await updateSeasonAgain(store, context, clock);
+  assert.deepEqual(read("schedules-2026/2026-10"), saved);
+});

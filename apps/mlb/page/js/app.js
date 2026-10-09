@@ -7,7 +7,7 @@ import { startHomeScreen } from "#shared/home-screen.js";
 import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
-import { startGamePager } from "#shared/game-pager.js";
+import { showStartDay, startDayStrip, startOverDayStrip } from "#shared/day-strip.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
@@ -17,7 +17,7 @@ import {
   startNewsRedraws,
   watchNews,
 } from "#shared/news.js";
-import { startPageTabs } from "#shared/page-tabs.js";
+import { setTabStart, startPageTabs } from "#shared/page-tabs.js";
 import { startGameSheet } from "./game-sheet.js";
 import { REORDER_EVENT } from "./ranking.js";
 import { renderAll } from "./render.js";
@@ -56,9 +56,11 @@ function drawNews() {
 
 const findYearPicker = () => /** @type {HTMLSelectElement} */ (document.getElementById("yearSel"));
 
+// Another season's Games view opens on its start day: today, or a season over's last day.
 async function switchYear(year) {
   await showYear(year);
   if (session.activeYear !== year) return;
+  startOverDayStrip();
   renderAll();
 }
 
@@ -76,7 +78,8 @@ const fillYearPicker = (years) => fillSeasonPicker(findYearPicker(), years, sess
 
 // A new current season changes what the stamp says, and the picker lists it.
 async function showNewCurrentYear() {
-  renderStamp();
+  startOverDayStrip();
+  renderAll();
   fillYearPicker(await listYears());
 }
 
@@ -93,9 +96,16 @@ function showChoicesFromOtherTabs() {
   if (!session.isReordering) redrawEased(renderAll);
 }
 
+// As on iPhone, choosing the Games tab while it shows goes back to where it starts: today.
+function returnGamesToToday() {
+  showStartDay();
+  return true;
+}
+
 function wireControls() {
   startPageTabs();
-  startGamePager();
+  setTabStart("games", returnGamesToToday);
+  startDayStrip(/** @type {HTMLElement} */ (document.getElementById("seasonGames")));
   startGameSheet();
   startTeamSheet({
     isTeam: (id) => id in TEAMS,
@@ -133,7 +143,7 @@ function refreshClockEveryMinute() {
 }
 
 /** @param {any} shown */
-const pickShown = ({ season, trackedTitles }) => ({ season, trackedTitles });
+const pickShown = ({ season, schedule, trackedTitles }) => ({ season, schedule, trackedTitles });
 
 const readShown = () =>
   session.season && { year: session.activeYear, ...pickShown(session), news: session.news };
@@ -156,7 +166,8 @@ function drawLastSeen() {
   if (!isShowable) return;
   const before = pickShown(session);
   try {
-    Object.assign(session, pickShown(lastSeen));
+    const schedule = Array.isArray(lastSeen.schedule) ? lastSeen.schedule : null;
+    Object.assign(session, { ...pickShown(lastSeen), schedule });
     composeState();
     renderAll();
     endLoadNote();

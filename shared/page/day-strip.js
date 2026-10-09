@@ -8,10 +8,10 @@ import {
 } from "./days.js";
 import { dayStripLog } from "./day-strip-log.js";
 import { html, setHtml } from "./html.js";
-import { isAwayLong } from "./last-game-list.js";
+import { isAwayLong } from "./long-away.js";
 import { watchTimeAway } from "./resume.js";
 import { scrollWithSpring } from "./spring-scroll.js";
-import { endStripSlide, slideStripTo } from "./strip-slide.js";
+import { endStripSlide, noteStripMissed, slideStripTo } from "./strip-slide.js";
 
 // A season's games as one list of its game days, from its first to its last, under a bar holding
 // a strip of every day between them. The strip's chosen day is the one at the top of the list, and
@@ -21,10 +21,16 @@ import { endStripSlide, slideStripTo } from "./strip-slide.js";
 // there pulses the date. While a finger moves the strip, the month names the day in its middle.
 // The list opens on its start day, today or the day the app names, and goes back there once
 // someone has been away two minutes. A league hands it each game day's markup, as it draws a day
-// elsewhere, and a date without games' markup.
+// elsewhere, and a date without games' markup. A league with many games a day can also hand over
+// a stand-in for each day, as tall as its games, which the list draws in place of a day far from
+// its top, so it holds only the games near the screen.
 
 /** @typedef {import("./html.js").Markup} Markup */
-/** @typedef {{ day: string, markup: Markup }} ListedDay a "YYYY-MM-DD" day and its games */
+/**
+ * A "YYYY-MM-DD" day and its games, and the stand-in for them while the day is far from the list's
+ * top, when the league has one.
+ * @typedef {{ day: string, markup: Markup, farMarkup?: Markup }} ListedDay
+ */
 /**
  * @typedef {object} DayStripFill
  * @property {ListedDay[]} days each game day, in order
@@ -39,6 +45,12 @@ const CALENDAR_DOT = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
 
 // Farther than this many screens, a jump is made at once rather than flown.
 const FLOWN_SCREENS = 3;
+// Days within this many screens of what the list shows, and of a day a tap or Today sends it to,
+// are drawn whole, which is more than a fling reaches before the list's next frame draws its own.
+// Before the list is laid out, as on another tab, the days this many either side of the day it
+// opens on are.
+const NEAR_SCREENS = 3;
+const NEAR_DAY_COUNT = 4;
 // A tap on Today while the list is already there grows the date this much and back, this fast.
 const PULSE_SCALE = 1.04;
 const PULSE_MS = 290;
@@ -51,7 +63,8 @@ let shown = null;
 let chosenDay = null;
 // A day a tap or Today sent the list to stays chosen while the list travels there, and until it
 // moves away again, since the season's last days can't all reach the top.
-/** @type {{ day: string, hasArrived: boolean } | null} */
+// Where its top was last seen, for Diagnostics to say when it moves while the list travels.
+/** @type {{ day: string, hasArrived: boolean, top: number | null } | null} */
 let held = null;
 let isPlaced = false;
 // The day at the top of the list and how far its top sits from the list's, kept while the list
@@ -68,11 +81,24 @@ let isStripSwiped = false;
 let isListInHand = false;
 /** @type {Map<string, string>} */
 const drawnDays = new Map();
+// The days drawn whole, rather than as a stand-in.
+/** @type {Set<string>} */
+let nearDays = new Set();
 
 const findBar = () => /** @type {HTMLElement | null} */ (view?.querySelector(".day-bar") ?? null);
 const findStrip = () =>
   /** @type {HTMLElement | null} */ (view?.querySelector(".day-strip") ?? null);
 const findList = () => /** @type {HTMLElement | null} */ (view?.querySelector(".day-list") ?? null);
+
+// The view names the day the list is held on, and whether it has arrived, for Diagnostics to say.
+/** @param {typeof held} next */
+function setHeld(next) {
+  held = next;
+  if (!view) return;
+  if (next) view.dataset.heldDay = next.day;
+  else delete view.dataset.heldDay;
+  delete view.dataset.heldArrived;
+}
 
 /**
  * Every day from the first game day to the last.
@@ -143,10 +169,62 @@ function listShownDays(fill) {
   return [...fill.days, quiet].sort((first, second) => (first.day < second.day ? -1 : 1));
 }
 
+/**
+ * The days either side of `center` in the list, before it's laid out.
+ * @param {ListedDay[]} days
+ * @param {string} center
+ */
+function listDaysAround(days, center) {
+  const index = days.findIndex(({ day }) => day === center);
+  const around =
+    index < 0 ? [] : days.slice(Math.max(0, index - NEAR_DAY_COUNT), index + NEAR_DAY_COUNT + 1);
+  return new Set(around.map(({ day }) => day));
+}
+
+/** @param {ListedDay[]} days */
+const hasStandIns = (days) => days.some(({ farMarkup }) => farMarkup);
+
+/**
+ * The days drawn whole: those within a few screens of what the list shows and of the day a tap or
+ * Today sends it to. A league without stand-ins draws every day whole, so the list isn't measured.
+ * @param {DayStripFill} fill
+ * @param {ListedDay[]} days
+ */
+function listNearDays(fill, days) {
+  if (!hasStandIns(days)) return new Set();
+  const list = findList();
+  const target = held?.day ?? chosenDay ?? fill.startDay;
+  const targetDay = findListedDay(target);
+  if (!list || !targetDay || !isListShown()) return listDaysAround(days, target);
+  const reach = NEAR_SCREENS * list.clientHeight;
+  const spans = [list.scrollTop, targetDay.offsetTop].map((top) => [
+    top - reach,
+    top + list.clientHeight + reach,
+  ]);
+  /** @param {string} day */
+  const isNear = (day) => {
+    const listed = findListedDay(day);
+    if (!listed) return false;
+    const bottom = listed.offsetTop + listed.offsetHeight;
+    return spans.some(([from, to]) => bottom > from && listed.offsetTop < to);
+  };
+  return new Set(days.filter(({ day }) => isNear(day)).map(({ day }) => day));
+}
+
+/**
+ * What the list draws for a day: its games, or its stand-in while it's far from what shows.
+ * @param {ListedDay} listed
+ */
+const chooseDrawnMarkup = ({ day, markup, farMarkup }) =>
+  farMarkup && !nearDays.has(day) ? farMarkup : markup;
+
 // Keyed by its date, a day keeps its own node as days come and go around it, rather than being
 // rewritten with its neighbor's games.
-/** @param {ListedDay} listed */
-const renderListedDay = ({ day, markup }) =>
+/**
+ * @param {string} day
+ * @param {Markup} markup
+ */
+const renderListedDay = (day, markup) =>
   html`<div class="listed-day" data-day="${day}" data-key="${day}">${markup}</div>`;
 
 /**
@@ -155,7 +233,7 @@ const renderListedDay = ({ day, markup }) =>
  */
 const renderView = (fill, days) =>
   html`<div class="day-bar">${renderBar(fill)}</div>
-    <div class="day-list">${days.map(renderListedDay)}</div>`;
+    <div class="day-list">${days.map((listed) => renderListedDay(listed.day, chooseDrawnMarkup(listed)))}</div>`;
 
 /** @param {string} day */
 const findListedDay = (day) =>
@@ -172,6 +250,7 @@ function centerChosenCell(behavior) {
   if (!strip || !cell) return;
   const left = cell.offsetLeft - (strip.clientWidth - cell.offsetWidth) / 2;
   strip.scrollTo({ left, behavior });
+  if (behavior === "instant") noteStripMissed(strip, left);
 }
 
 /** @param {string} day */
@@ -198,6 +277,7 @@ function markChosen(day) {
   chosenDay = day;
   findCell(day)?.classList.add("is-chosen");
   showMonth(day);
+  drawNearDays();
 }
 
 /**
@@ -209,12 +289,27 @@ function followTopDay(day) {
   const strip = findStrip();
   const from = chosenDay && findCell(chosenDay);
   const to = findCell(day);
-  if (!strip || !from || !to || !isListInHand || isReducedMotion()) {
+  const cannotSlide = describeWhyNoSlide({ strip, from, to });
+  dayStripLog.noteStep(
+    `top day ${day}, ${cannotSlide ? `chosen at once: ${cannotSlide}` : "slide"}`,
+  );
+  if (!strip || !from || !to || cannotSlide) {
     chooseDay(day, "instant");
     return;
   }
   slideStripTo(strip, from, to);
   markChosen(day);
+}
+
+/**
+ * Why the strip's dates can't slide to the list's new top day, or null when they can.
+ * @param {{ strip: HTMLElement | null, from: HTMLElement | null, to: HTMLElement | null }} cells
+ */
+function describeWhyNoSlide({ strip, from, to }) {
+  if (!strip || !from || !to) return "a date isn't in the strip";
+  if (!isListInHand) return "no finger or wheel moved the list";
+  if (isReducedMotion()) return "less motion";
+  return null;
 }
 
 /** The strip's day under the middle of its width. */
@@ -321,7 +416,7 @@ function showDay(day, motion) {
     dayStripLog.noteStep(`${day} isn't in the list`);
     return;
   }
-  held = { day, hasArrived: false };
+  setHeld({ day, hasArrived: false, top });
   isListInHand = false;
   const isFar = Math.abs(top - list.scrollTop) > FLOWN_SCREENS * list.clientHeight;
   const isJump = motion === "instant" || isFar || isReducedMotion();
@@ -338,10 +433,30 @@ function isStillHeld() {
   const list = findList();
   const top = held && findDayTop(held.day);
   if (!held || !list || top === null) return false;
+  noteHeldPlace(held, top);
   const isAtTarget = Math.abs(list.scrollTop - top) < 2;
-  if (isAtTarget) held.hasArrived = true;
-  else if (held.hasArrived) held = null;
+  if (isAtTarget && !held.hasArrived) {
+    dayStripLog.noteStep(`arrived at ${held.day}`);
+    held.hasArrived = true;
+    if (view) view.dataset.heldArrived = "true";
+  } else if (!isAtTarget && held.hasArrived) {
+    dayStripLog.noteStep(`left ${held.day}, list at ${Math.round(list.scrollTop)}`);
+    setHeld(null);
+  }
   return !!held;
+}
+
+/**
+ * Logs a held day's place moving while the list travels to it or rests there.
+ * @param {NonNullable<typeof held>} holding
+ * @param {number} top
+ */
+function noteHeldPlace(holding, top) {
+  if (holding.top !== null && Math.abs(top - holding.top) >= 1)
+    dayStripLog.noteStep(
+      `${holding.day}'s place moved from ${Math.round(holding.top)} to ${Math.round(top)}`,
+    );
+  holding.top = top;
 }
 
 // A list that changes height, as when the header above it does, keeps the day a tap or Today sent
@@ -364,6 +479,7 @@ function followList() {
   requestAnimationFrame(() => {
     isFramePending = false;
     markStuck();
+    drawNearDays();
     const top = findTopDay();
     if (top && !isStillHeld()) followTopDay(top);
     if (isStripSwiped && chosenDay) showMonth(chosenDay);
@@ -409,7 +525,8 @@ export function startOverDayStrip() {
   endStripSlide();
   isPlaced = false;
   chosenDay = null;
-  held = null;
+  nearDays = new Set();
+  setHeld(null);
   anchor = null;
   quietDay = null;
   isStripSwiped = false;
@@ -429,33 +546,109 @@ function hasSameDays(days) {
   );
 }
 
-// Only the days whose games changed are drawn again, so a live game's update doesn't redraw the
-// season.
-/** @param {ListedDay[]} days */
-function redrawChangedDays(days) {
-  for (const listed of days) {
-    const markup = String(listed.markup);
-    if (drawnDays.get(listed.day) === markup) continue;
-    const element = findListedDay(listed.day);
-    if (element) setHtml(element, listed.markup);
-    drawnDays.set(listed.day, markup);
-  }
+/**
+ * @param {ListedDay} listed
+ * @returns {boolean} whether the day was drawn again
+ */
+function drawListedDay(listed) {
+  const drawn = chooseDrawnMarkup(listed);
+  const markup = String(drawn);
+  if (drawnDays.get(listed.day) === markup) return false;
+  const element = findListedDay(listed.day);
+  if (element) setHtml(element, drawn);
+  drawnDays.set(listed.day, markup);
+  return true;
 }
 
-/** @param {DayStripFill} fill */
+/**
+ * How far a day's top sits under the list's, or null while the list isn't showing.
+ * @param {string} day
+ */
+function measureDayOffset(day) {
+  const list = findList();
+  const listed = findListedDay(day);
+  return list && listed && isListShown() ? listed.offsetTop - list.scrollTop : null;
+}
+
+/** The day at the top of the list and how far its top sits under the list's, for Diagnostics. */
+function measureTopDay() {
+  const day = isListShown() ? findTopDay() : null;
+  const offset = day === null ? null : measureDayOffset(day);
+  return day === null || offset === null ? null : { day, offset };
+}
+
+/** @param {{ day: string, offset: number } | null} top */
+const describeTopDay = (top) =>
+  top ? `${top.day} at the top, ${Math.round(top.offset)}px down` : "the list isn't showing";
+
+// Only the days whose games changed are drawn again, so a live game's update doesn't redraw the
+// season.
+/**
+ * @param {ListedDay[]} days
+ * @returns {number} how many days were drawn again
+ */
+function redrawChangedDays(days) {
+  return days.filter((listed) => drawListedDay(listed)).length;
+}
+
+// As the list moves, only the days that came near what it shows, or left, are drawn again. A
+// stand-in is as tall as the games it stands for, so drawing a day whole or not moves nothing.
+function drawNearDays() {
+  if (!shown || !hasStandIns(shown.days)) return;
+  const days = listShownDays(shown);
+  if (!hasSameDays(days)) return;
+  const before = nearDays;
+  nearDays = listNearDays(shown, days);
+  const changed = days.filter((listed) => before.has(listed.day) !== nearDays.has(listed.day));
+  if (dayStripLog.isLogging()) drawDaysNoting(changed);
+  else for (const listed of changed) drawListedDay(listed);
+}
+
+/**
+ * Draws each day, logging any whose height changed as it was drawn whole or as a stand-in, and how
+ * far that moved the day at the top.
+ * @param {ListedDay[]} days
+ */
+function drawDaysNoting(days) {
+  const top = measureTopDay();
+  const resized = [];
+  for (const listed of days) {
+    const element = findListedDay(listed.day);
+    const height = element?.getBoundingClientRect().height;
+    drawListedDay(listed);
+    const drawnHeight = element?.getBoundingClientRect().height;
+    if (height !== drawnHeight)
+      resized.push(`${listed.day} ${nameDrawing(listed)} ${height}px to ${drawnHeight}px`);
+  }
+  if (!resized.length) return;
+  const offset = top && measureDayOffset(top.day);
+  const moved = top && offset !== null ? `, which moved ${top.day} ${offset - top.offset}px` : "";
+  dayStripLog.noteStep(`a day changed height as it was drawn: ${resized.join("; ")}${moved}`);
+}
+
+/** @param {ListedDay} listed */
+const nameDrawing = (listed) =>
+  chooseDrawnMarkup(listed) === listed.markup ? "whole" : "as a stand-in";
+
+/**
+ * @param {DayStripFill} fill
+ * @returns {string} what it drew, for Diagnostics, or an empty string when nothing changed
+ */
 function drawFill(fill) {
   endStripSlide();
   const bar = findBar();
   const days = listShownDays(fill);
+  nearDays = listNearDays(fill, days);
   if (hasSameDays(days) && bar) {
     setHtml(bar, renderBar(fill));
-    redrawChangedDays(days);
-    return;
+    const changed = redrawChangedDays(days);
+    return changed ? `redraw ${changed} of ${days.length} days` : "";
   }
   setHtml(/** @type {HTMLElement} */ (view), renderView(fill, days));
   drawnDays.clear();
-  for (const listed of days) drawnDays.set(listed.day, String(listed.markup));
+  for (const listed of days) drawnDays.set(listed.day, String(chooseDrawnMarkup(listed)));
   fitEndRoom();
+  return `draw ${days.length} days, from ${days[0].day} to ${days.at(-1)?.day}, starting on ${fill.startDay}`;
 }
 
 // Room after the last day lets it reach the top as every other day does, so scrolling the list
@@ -529,10 +722,26 @@ export function fillDayStrip(fill) {
   const putBack = !shown && isListShown() ? findList() : null;
   const putBackTop = putBack ? Number(putBack.dataset.putBackTop ?? putBack.scrollTop) : null;
   if (isListShown()) noteAnchor();
-  drawFill(fill);
+  const before = dayStripLog.isLogging() ? measureTopDay() : null;
+  const drawing = drawFill(fill);
   shown = fill;
   fitEndRoom();
   placeList(putBackTop);
+  if (dayStripLog.isLogging()) noteFill(drawing, before, measureTopDay());
+}
+
+/**
+ * Logs what a fill drew and where it left the list, when it drew anything or moved the list.
+ * @param {string} drawing
+ * @param {{ day: string, offset: number } | null} before
+ * @param {{ day: string, offset: number } | null} after
+ */
+function noteFill(drawing, before, after) {
+  const isSame =
+    before?.day === after?.day && Math.abs((before?.offset ?? 0) - (after?.offset ?? 0)) < 1;
+  if (!drawing && isSame) return;
+  const was = isSame || !before ? "" : `, was ${describeTopDay(before)}`;
+  dayStripLog.noteStep(`${drawing || "redraw nothing"}; ${describeTopDay(after)}${was}`);
 }
 
 // A finger or wheel on the list takes it over, even on its way to a day, and one on the strip has
@@ -543,7 +752,7 @@ function noteTouch(event) {
   if (findList()?.contains(target)) isListInHand = true;
   if (held && findList()?.contains(target)) {
     dayStripLog.noteStep(`the list's touch takes it over on its way to ${held.day}`);
-    held = null;
+    setHeld(null);
   }
   if (findStrip()?.contains(target)) {
     endStripSlide();

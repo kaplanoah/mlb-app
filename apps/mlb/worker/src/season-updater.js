@@ -85,20 +85,46 @@ async function removeExpiredReadings(docs, year, snapshot, parts) {
   for (const part of expired) await docs.remove(`${collection}/${part.id}`);
 }
 
+// Each month of the season's games keeps a document of its own, saved only when its games change,
+// so a game's end sends open pages only its month.
+async function saveSchedule(docs, snapshot) {
+  if (!snapshot.schedule) return;
+  const year = snapshot.season;
+  const collection = MLBSnapshot.nameScheduleCollection(year);
+  const saved = new Map((await docs.list(collection)).map((doc) => [doc.month, doc]));
+  for (const [month, games] of Object.entries(snapshot.schedule)) {
+    const doc = saved.get(month);
+    if (doc?.version === snapshot.version && isSameJson(doc.games, games)) continue;
+    await docs.write(MLBSnapshot.nameScheduleKey(year, month), {
+      version: snapshot.version,
+      year,
+      month,
+      games,
+      updatedAt: snapshot.asOf,
+    });
+  }
+}
+
 export async function saveSnapshot(docs, snapshot) {
   const year = snapshot.season;
   const parts = await saveReading(docs, year, snapshot);
   await saveSeason(docs, year, snapshot, parts);
+  await saveSchedule(docs, snapshot);
   await removeExpiredReadings(docs, year, snapshot, parts);
 }
 
 // A season before the current one, read whole, is saved in its record as the current one is, with
-// the updates its readings still rebuild.
+// the updates its readings still rebuild, and its games.
 export async function savePastSeason(docs, snapshot) {
   const year = snapshot.season;
   const parts = Readings.sortParts(await docs.list(Readings.nameReadingsCollection(year)));
   await saveSeason(docs, year, snapshot, parts);
+  await saveSchedule(docs, snapshot);
 }
+
+// Whether the store keeps a season's games, which a season saved before it kept them lacks.
+export const hasSchedule = async (docs, year) =>
+  (await docs.list(MLBSnapshot.nameScheduleCollection(year))).length > 0;
 
 // The updates the page lists, which the season's record keeps rebuilt from the readings.
 export async function readUpdates(docs, year) {

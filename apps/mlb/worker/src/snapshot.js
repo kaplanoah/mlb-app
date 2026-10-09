@@ -10,9 +10,12 @@ const SNAPSHOT_REUSE_MS = 10000;
 const HOUR_MS = 60 * 60 * 1000;
 // The schedule's games are read every time. The rest change as games end, when they're read
 // again, and otherwise hardly at all: the season's dates a few times a year, the standings and
-// the starters' numbers with each game, and the postseason as its games are set.
+// the starters' numbers with each game, and the postseason as its games are set. The season's
+// whole schedule changes only as games are moved, since the days around today, read every time,
+// bring each game's end.
 const SLOW_FEEDS = {
   season: { maxAgeMs: 24 * HOUR_MS, changesWithGames: false },
+  seasonGames: { maxAgeMs: 24 * HOUR_MS, changesWithGames: false },
   standings: { maxAgeMs: 24 * HOUR_MS, changesWithGames: true },
   pitchers: { maxAgeMs: 24 * HOUR_MS, changesWithGames: true },
   postseason: { maxAgeMs: HOUR_MS, changesWithGames: true },

@@ -1,15 +1,9 @@
-import {
-  chooseListedDay,
-  countDaysBetween,
-  formatCalendarDate,
-  formatClockTime,
-  formatShortMonth,
-  readCalendarDate,
-} from "#shared/days.js";
+import { formatCalendarDate, formatClockTime } from "#shared/days.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { html } from "#shared/html.js";
+import { listSeasonDays as listDayStripDays } from "#shared/season-days.js";
 import { renderAllStarClub, renderClub, renderPlainClub } from "./clubs.js";
-import { abbreviateDay, nameListDay, readGameDay } from "./days.js";
+import { readGameDay } from "./days.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { describeSeriesAfterWin, nameTeam } from "./series.js";
 import { countWinsNeeded, ROUNDS } from "./snapshot.js";
@@ -216,54 +210,6 @@ const renderGameList = (games, allGames) =>
   </ul>`;
 
 /**
- * A day's date as a wall calendar shows it, beside its games.
- * @param {Date} day
- * @param {number} now
- */
-const renderDayLabel = (day, now) =>
-  html`<h3 class="day-label" aria-label="${nameListDay(day, now)}, ${formatShortMonth(day)} ${day.getDate()}">
-    <span class="day-month">${formatShortMonth(day)}</span
-    ><span class="day-number tabular">${day.getDate()}</span
-    ><span class="day-name">${abbreviateDay(day, now)}</span>
-  </h3>`;
-
-/**
- * A day's games in a box of their own, beside its date, with how many it holds, so the box takes
- * its height before it's drawn.
- * @param {{ day: Date, games: Game[] }} gameDay
- * @param {Game[]} allGames
- * @param {number} now
- */
-const renderDay = ({ day, games }, allGames, now) =>
-  html`<section class="game-day${isToday(day, now) ? " is-today" : ""}" style="--games: ${games.length}">
-    ${renderDayLabel(day, now)} ${renderGameList(games, allGames)}
-  </section>`;
-
-/** @param {number} now */
-const renderNoGamesToday = (now) =>
-  html`<section class="game-day no-games is-today">
-    ${renderDayLabel(new Date(now), now)}
-    <p class="empty-note">No games today</p>
-  </section>`;
-
-/**
- * A date without games, which a tap on it in the strip brings into the list.
- * @param {string} day "YYYY-MM-DD"
- * @param {number} now
- */
-const renderQuietDay = (day, now) =>
-  html`<section class="game-day no-games quiet-day">
-    ${renderDayLabel(readCalendarDate(day), now)}
-    <p class="empty-note">No games</p>
-  </section>`;
-
-/**
- * @param {Date} day
- * @param {number} now
- */
-const isToday = (day, now) => countDaysBetween(new Date(now), day) === 0;
-
-/**
  * Games grouped by day, in the order given.
  * @param {Game[]} games
  * @returns {{ day: Date, games: Game[] }[]}
@@ -297,16 +243,14 @@ export function listSeasonGames(season, schedule) {
 }
 
 /**
- * The day a game still under way began, when it began before today, as one does past midnight, so
- * the list opens on it.
+ * The day a game still under way began, which the list opens on when it began before today, as
+ * one does past midnight.
  * @param {Game[]} games
- * @param {string} today
  */
-function findLiveDayBefore(games, today) {
+function findLiveDay(games) {
   const live = games.find((game) => game.state === "live");
   const day = live && readGameDay(live);
-  const date = day && formatCalendarDate(day);
-  return date && date < today ? date : null;
+  return day ? formatCalendarDate(day) : null;
 }
 
 /**
@@ -319,22 +263,15 @@ function findLiveDayBefore(games, today) {
 export function listSeasonDays(season, schedule, now) {
   const seriesById = new Map((season?.series ?? []).map((series) => [series.id, series]));
   const games = listSeasonGames(season, schedule).filter((game) => !isCalledOff(game, seriesById));
-  const days = groupByDay(games).map((gameDay) => ({
-    day: formatCalendarDate(gameDay.day),
-    markup: renderDay(gameDay, games, now),
-  }));
   const today = formatCalendarDate(new Date(now));
-  const isTodayInSeason = !!days.length && days[0].day < today && today < days.at(-1).day;
-  if (isTodayInSeason && !days.some(({ day }) => day === today)) {
-    const after = days.findIndex(({ day }) => day > today);
-    days.splice(after, 0, { day: today, markup: renderNoGamesToday(now) });
-  }
-  const startDay = chooseListedDay(days, findLiveDayBefore(games, today) ?? today);
-  return {
-    days,
+  return listDayStripDays({
+    gameDays: groupByDay(games).map((gameDay) => ({
+      day: formatCalendarDate(gameDay.day),
+      count: gameDay.games.length,
+      games: renderGameList(gameDay.games, games),
+    })),
     today,
-    startDay,
+    openDay: findLiveDay(games),
     emptyNote: "No games scheduled yet",
-    renderQuietDay: (/** @type {string} */ day) => renderQuietDay(day, now),
-  };
+  });
 }

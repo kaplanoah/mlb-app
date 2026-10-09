@@ -17,9 +17,9 @@ them.
 A private web page that follows the MLB season, from spring training through the
 World Series. It shows the standings, the postseason bracket (projected from the
 standings until the field is set), your ranking of who you want to win the World
-Series, each team's
-previous, current and next game with its starting pitchers, the All-Star Game, and scores
-that update automatically. Tap a team's name for its sheet: its place in each race, its next game, how far
+Series, every game of the season, the All-Star Game too, from Opening Day to the World Series,
+under a strip of its days, each with its starting pitchers and, away from today, each team's
+record as of the game, and scores that update automatically. Tap a team's name for its sheet: its place in each race, its next game, how far
 it's gone in the postseason, and every World Series it has won. Tap the rest of a game to
 compare its starters: how they rank among the season's qualified starters,
 what they throw, and how their last starts went. A game later today whose club hasn't named

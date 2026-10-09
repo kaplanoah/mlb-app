@@ -17,7 +17,9 @@ test("pulling the page down on the Home Screen reads what it missed, without rel
   await openFromHomeScreen(page);
   const app = await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const final = page.locator("#games-today .game-row").filter({ hasText: "Cardinals" });
+  const final = page
+    .locator("#seasonGames .game-day.is-today .game-row")
+    .filter({ hasText: "Cardinals" });
   await expect(final).toContainText("1-2Final");
   await expect.poll(() => app.countOpenSockets()).toBeGreaterThan(0);
   await rescoreFinalWhileAway(app);

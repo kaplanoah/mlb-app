@@ -213,3 +213,9 @@
 .listed-day + .listed-day {
   margin-top: var(--day-gap);
 }
+/* A day far from the list's top stands in for its games, as tall as they are once drawn: as many
+   rows as its --games, under the list's own top edge. */
+.game-list.is-stand-in {
+  box-sizing: content-box;
+  height: calc(var(--games) * var(--game-row-height));
+}

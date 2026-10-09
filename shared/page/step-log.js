@@ -3,7 +3,8 @@
 
 import { formatClockTimeWithSeconds } from "./days.js";
 
-const KEPT_LINES = 60;
+// Enough for a fling through a few weeks of a season's list, each day it passes a line.
+const KEPT_LINES = 200;
 
 /** @typedef {{ at: number, text: string }} StepLine */
 
@@ -116,7 +117,15 @@ export function createStepLog({ key, title, isWatched }) {
       document.addEventListener(type, noteTouchOrClick, { capture: true, passive: true });
   }
 
-  return { title, noteStep, readLines, forgetLines, writeLinesAsText, watchSteps };
+  return {
+    title,
+    noteStep,
+    isLogging: () => isOn(),
+    readLines,
+    forgetLines,
+    writeLinesAsText,
+    watchSteps,
+  };
 }
 
 /** @typedef {ReturnType<typeof createStepLog>} StepLog */
