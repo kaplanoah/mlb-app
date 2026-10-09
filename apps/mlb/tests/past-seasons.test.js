@@ -63,14 +63,15 @@ function createDocs(stored) {
 
 /**
  * @param {Record<string, any>} stored
- * @param {any} [snapshot] what MLB answers for 2025
+ * @param {any} [snapshot] what MLB answers for 2025, or for each season
  */
 async function runJob(stored, snapshot = SNAPSHOT_2025) {
   const docs = createDocs(stored);
   const loads = [];
+  const answer = typeof snapshot === "function" ? snapshot : () => snapshot;
   const loadSnapshot = async (season) => {
     loads.push(season);
-    return structuredClone(snapshot);
+    return structuredClone(answer(season));
   };
   await createPastSeasonsJob().run({
     docs,
@@ -145,4 +146,20 @@ test("past seasons are filled one a run, newest first", async () => {
   });
 
   assert.deepEqual(loads, [2025]);
+});
+
+test("a past season MLB answers only in part, or without its games, leaves the run to go on to the next", async () => {
+  const docs = {
+    "live/current": { season: 2026 },
+    "seasons/2024": { ...FOLLOWED_2025, year: 2024 },
+    "seasons/2025": FOLLOWED_2025,
+  };
+  for (const answer of [{ missing: ["standings"] }, { schedule: null }]) {
+    const { documents, loads } = await runJob(docs, (season) =>
+      season === 2025 ? { ...SNAPSHOT_2025, ...answer } : { ...SNAPSHOT_2025, season: 2024 },
+    );
+    assert.deepEqual(loads, [2025, 2024]);
+    assert.equal(documents.get("seasons/2025"), FOLLOWED_2025);
+    assert.ok(documents.get("seasons/2024").standings);
+  }
 });
