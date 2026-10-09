@@ -115,7 +115,16 @@ test("a starter ranks among the season's qualified starters, ties sharing a rank
     speed: { rank: 2, of: 3 },
   });
   assert.deepEqual(pitcher.line, { starts: 26, era: "3.03", k9: 10.4, bb9: 2.4, speed: 96.1 });
-  assert.deepEqual(pitcher.starters, { count: 4 });
+  assert.equal(pitcher.starters.count, 4);
+});
+
+test("a starter's side brings every qualified starter's number in each measure, from the lowest, for the sheet's curves", () => {
+  assert.deepEqual(composeSide(describePerson(5)).starters.values, {
+    era: [1.95, 3.03, 3.03, 4.5],
+    k9: [6.8, 8, 10.4, 11.1],
+    bb9: [2.3, 2.4, 2.8, 3.5],
+    speed: [93.2, 96.1, 98],
+  });
 });
 
 test("a pitcher's speed is his most-thrown fastball, a four-seamer or a sinker, to the tenth", () => {

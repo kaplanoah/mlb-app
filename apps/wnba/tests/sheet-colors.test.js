@@ -1,13 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import {
-  formatMarkColors,
-  formatSheetColors,
-  measureColorDistance,
-  pickSheetColors,
-  readOklab,
-} from "../page/js/sheet-colors.js";
+import { formatMarkColors, formatSheetColors, pickSheetColors } from "../page/js/sheet-colors.js";
+import { measureColorDistance, readOklab } from "../../../shared/page/team-colors.js";
 import { TEAMS } from "../page/js/teams.js";
 
 const STYLES = readFileSync(`${import.meta.dirname}/../page/styles.css`, "utf8");

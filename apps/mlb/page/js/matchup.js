@@ -1,9 +1,10 @@
 // The Matchup section of a game's sheet: the two starters face to face, where each ranks among the
-// season's qualified starters, what each throws, and their last starts. A club yet to name today's starter
-// shows who started its last games instead, and how rested each would be, and any other starter
-// still to be named is one to check back for. Until each side loads, placeholders hold its shape.
-// A side that didn't load says so with a Try again button: under the starter's club when the other
-// side did load, or once for the whole section when nothing did.
+// season's qualified starters, both marked in their clubs' colors on a curve of every qualified
+// starter's number in each measure, what each throws, and their last starts. A club yet to name
+// today's starter shows who started its last games instead, and how rested each would be, and any
+// other starter still to be named is one to check back for. Until each side loads, placeholders
+// hold its shape. A side that didn't load says so with a Try again button: under the starter's club
+// when the other side did load, or once for the whole section when nothing did.
 
 import { nameTeam, renderClub, renderClubName } from "./clubs.js";
 import { renderArm } from "./games-view.js";
@@ -20,17 +21,21 @@ import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitc
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
 import { renderPlayerButton } from "./player-button.js";
 import { formatInnings } from "./stat-table.js";
-import { PENDING_TAPE_SIDE, renderTapeRow } from "#shared/tape.js";
+import { TEAMS } from "./teams.js";
+import { formatOrdinal } from "#shared/ordinal.js";
+import { renderSpreadCurve } from "#shared/rank-curve.js";
+import { pickSideColors } from "#shared/team-colors.js";
 
 const SIDES = ["away", "home"];
 const USUAL_REST_DAYS = 4;
 // The Worker sends a starter's last three starts, and a club's last five starters.
 const PENDING_STARTS = 3;
 const PENDING_ROTATION = 5;
+// A lower ERA and fewer walks rank first.
 const TAPE = [
-  { key: "era", label: "ERA", format: (line) => line.era },
+  { key: "era", label: "ERA", format: (line) => line.era, isFewestFirst: true },
   { key: "k9", label: "K/9", format: (line) => line.k9.toFixed(1) },
-  { key: "bb9", label: "BB/9", format: (line) => line.bb9.toFixed(1) },
+  { key: "bb9", label: "BB/9", format: (line) => line.bb9.toFixed(1), isFewestFirst: true },
   { key: "speed", label: "Fastball mph", format: (line) => line.speed.toFixed(1) },
 ];
 
@@ -87,23 +92,89 @@ function renderPitcherId(side, isSectionFailed) {
   </div>`;
 }
 
-// A bar's length is the share of the other starters he beats: full for the best, empty for the worst.
-function measureBeaten(rank) {
-  if (!rank || rank.of < 2) return null;
-  return Math.round(((rank.of - rank.rank) / (rank.of - 1)) * 100);
-}
-
-function findLeader(sides, key) {
-  const [away, home] = sides.map((side) => side.pitcher?.ranks?.[key]?.rank);
+/**
+ * The starter whose number in a measure ranks higher, or null when either is unranked or the two
+ * read the same, since numbers are rounded to be shown and marking either as ahead would look
+ * wrong.
+ * @param {any[]} sides
+ * @param {(typeof TAPE)[number]} measure
+ */
+function findLeader(sides, measure) {
+  const [away, home] = sides.map((side) => side.pitcher?.ranks?.[measure.key]?.rank);
   if (!away || !home || away === home) return null;
+  const [awayShown, homeShown] = sides.map((side) => measure.format(side.pitcher.line));
+  if (awayShown === homeShown) return null;
   return away < home ? "away" : "home";
 }
 
-function describeTapeSide(side, measure) {
-  if (isLoadingPitcher(side)) return PENDING_TAPE_SIDE;
+/**
+ * Each starter's marks and dots take his club's color, the two picked to read apart.
+ * @param {any[]} sides
+ */
+function formatSideColors(sides) {
+  const [away, home] = sides.map((side) => TEAMS[side.club]?.chartColors);
+  if (!away || !home) return "";
+  const colors = pickSideColors(away, home);
+  return `--away: ${colors.away}; --home: ${colors.home}`;
+}
+
+const renderPendingNumber = (side) =>
+  html`<span class="tape-number ${side.key}">
+    <span class="tape-number-line">${renderPlaceholder("0.00")}</span>
+    <span class="tape-rank">${renderPlaceholder("00th")}</span>
+  </span>`;
+
+/**
+ * A starter's number in a measure under his side of the face-off, over his rank, bolder when it
+ * ranks higher than the other starter's.
+ * @param {any} side
+ * @param {(typeof TAPE)[number]} measure
+ * @param {"away" | "home" | null} leader
+ */
+function renderNumber(side, measure, leader) {
+  if (isLoadingPitcher(side)) return renderPendingNumber(side);
   const line = side.pitcher?.line;
-  if (line?.[measure.key] == null) return null;
-  return { value: measure.format(line), bar: measureBeaten(side.pitcher.ranks?.[measure.key]) };
+  if (line?.[measure.key] == null) return html`<span class="tape-number ${side.key}"></span>`;
+  const rank = side.pitcher.ranks?.[measure.key];
+  const standing = leader && (leader === side.key ? "better" : "worse");
+  const classes = ["tape-number", side.key, standing].filter(Boolean).join(" ");
+  return html`<span class="${classes}">
+    <span class="tape-number-line"><span class="tape-dot"></span><span class="tabular">${measure.format(line)}</span></span>
+    ${rank && html`<span class="tape-rank">${formatOrdinal(rank.rank)}</span>`}
+  </span>`;
+}
+
+/**
+ * Every qualified starter's number in a measure, smoothed into a curve, with a mark for each
+ * ranked starter.
+ * @param {any[]} sides
+ * @param {(typeof TAPE)[number]} measure
+ */
+function renderCurve(sides, measure) {
+  const values = sides.find((side) => side.pitcher?.starters?.values)?.pitcher.starters.values[
+    measure.key
+  ];
+  if (!values?.length) return html`<span class="player-curve"></span>`;
+  const marks = sides
+    .filter((side) => side.pitcher?.ranks?.[measure.key] && side.pitcher.line[measure.key] != null)
+    .map((side) => ({ value: Number(side.pitcher.line[measure.key]), className: side.key }));
+  return renderSpreadCurve(values, marks, measure.isFewestFirst);
+}
+
+/**
+ * @param {any[]} sides
+ * @param {(typeof TAPE)[number]} measure
+ */
+function renderMeasure(sides, measure) {
+  const leader = findLeader(sides, measure);
+  return html`<div class="tape-measure">
+    <div class="tape-numbers">
+      ${renderNumber(sides[0], measure, leader)}
+      <span class="tape-label">${measure.label}</span>
+      ${renderNumber(sides[1], measure, leader)}
+    </div>
+    ${renderCurve(sides, measure)}
+  </div>`;
 }
 
 const isUnranked = (side) => Boolean(side.pitcher?.line && !side.pitcher.ranks);
@@ -112,31 +183,23 @@ const describeUnranked = ({ pitcher }) =>
   `${pitcher.lastName} hasn't pitched enough innings to rank among this season's qualified starters`;
 
 function renderTapeNotes(sides, counted) {
-  const barsNote =
+  const curvesNote =
     sides.some((side) => side.pitcher?.ranks) &&
-    html`<p class="tape-note">Bars are the share of this season's ${counted.count} qualified starters he beats</p>`;
+    html`<p class="tape-note">Each curve is this season's ${counted.count} qualified starters, better to the right</p>`;
   const unrankedNotes = sides
     .filter(isUnranked)
     .map((side) => html`<p class="tape-note">${describeUnranked(side)}</p>`);
-  return html`${barsNote}${unrankedNotes}`;
+  return html`${curvesNote}${unrankedNotes}`;
 }
 
 function renderTape(sides) {
   const counted = sides.find((side) => side.pitcher?.line)?.pitcher.starters;
   if (!counted && !sides.some(isLoadingPitcher)) return html``;
-  const rows = TAPE.map((measure) =>
-    renderTapeRow({
-      label: measure.label,
-      away: describeTapeSide(sides[0], measure),
-      home: describeTapeSide(sides[1], measure),
-      leader: findLeader(sides, measure.key),
-    }),
-  );
   const notes = counted
     ? renderTapeNotes(sides, counted)
-    : html`<p class="tape-note">${renderPlaceholder("Bars are the share of this season's qualified starters he beats")}</p>`;
-  return html`<div class="tape">
-    ${rows}
+    : html`<p class="tape-note">${renderPlaceholder("Each curve is this season's qualified starters, better to the right")}</p>`;
+  return html`<div class="tape" style="${formatSideColors(sides)}">
+    ${TAPE.map((measure) => renderMeasure(sides, measure))}
     ${notes}
   </div>`;
 }
