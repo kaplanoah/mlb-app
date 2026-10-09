@@ -9,6 +9,7 @@ const readFixture = (name) =>
 const SEASON_2025 = readFixture("2025-final");
 const EVENING = readFixture("2026-09-24-evening");
 const BROADCASTS = readFixture("2026-10-07-broadcasts");
+const DIVISION_SERIES = readFixture("2026-10-07-evening");
 const buildSnapshot = (fixture, now = Date.parse(fixture.now)) =>
   MLBSnapshot.buildSnapshot(fixture.responses, { season: fixture.season, now });
 
@@ -797,6 +798,28 @@ test("fetchSnapshot looks up the listed games' starters in one sorted request", 
   assert.equal(asked.at(-1), pitcherRequest);
   assert.match(pitcherRequest, /personIds=1,2,3,4,5,6,7&/);
   assert.deepEqual(snapshot, buildSnapshot(fixture));
+});
+
+test("fetchSnapshot looks up the starters of every game the slate lists, the postseason's too", async () => {
+  const fixture = DIVISION_SERIES;
+  const now = Date.parse(fixture.now);
+  const regularSeasonEnd = fixture.responses.season.seasons[0].regularSeasonEndDate;
+  const requests = MLBSnapshot.listMlbRequests(2026, now, regularSeasonEnd);
+  const byPath = Object.fromEntries(
+    Object.entries(requests).map(([key, path]) => [path, fixture.responses[key]]),
+  );
+  let pitcherRequest = "";
+  await MLBSnapshot.fetchSnapshot(
+    async (path, name) => {
+      if (name !== "pitchers") return byPath[path];
+      pitcherRequest = path;
+      return fixture.responses.pitchers;
+    },
+    2026,
+    now,
+  );
+  const listed = MLBSnapshot.listStarterIds(buildSnapshot(fixture).slate);
+  assert.equal(pitcherRequest, MLBSnapshot.listPitcherRequest(2026, listed));
 });
 
 test("fetchSnapshot still builds the games when MLB can't name their starters", async () => {

@@ -20,6 +20,7 @@ import {
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
 import { renderPlayerButton } from "./player-button.js";
+import { describeInningsToQualify } from "./qualifying.js";
 import { formatInnings } from "./stat-table.js";
 import { TEAMS } from "./teams.js";
 import { formatOrdinal } from "#shared/ordinal.js";
@@ -93,18 +94,26 @@ function renderPitcherId(side, isSectionFailed) {
 }
 
 /**
- * The starter whose number in a measure ranks higher, or null when either is unranked or the two
- * read the same, since numbers are rounded to be shown and marking either as ahead would look
- * wrong.
+ * How each starter's number in a measure stands against the other's: better or worse when both
+ * are ranked and one ranks higher, unranked when his isn't ranked, and level otherwise. Two ranked
+ * numbers that read the same stand level, since numbers are rounded to be shown and marking either
+ * as ahead would look wrong.
  * @param {any[]} sides
  * @param {(typeof TAPE)[number]} measure
+ * @returns {("better" | "worse" | "unranked" | null)[]}
  */
-function findLeader(sides, measure) {
-  const [away, home] = sides.map((side) => side.pitcher?.ranks?.[measure.key]?.rank);
-  if (!away || !home || away === home) return null;
-  const [awayShown, homeShown] = sides.map((side) => measure.format(side.pitcher.line));
-  if (awayShown === homeShown) return null;
-  return away < home ? "away" : "home";
+function findStandings(sides, measure) {
+  const shown = sides.map((side) =>
+    side.pitcher?.line?.[measure.key] == null ? null : measure.format(side.pitcher.line),
+  );
+  const ranks = sides.map((side) => side.pitcher?.ranks?.[measure.key]?.rank ?? null);
+  const isCompared = ranks.every(Boolean) && shown[0] !== shown[1];
+  return sides.map((_, index) => {
+    if (shown[index] == null) return null;
+    if (!ranks[index]) return "unranked";
+    if (!isCompared) return null;
+    return ranks[index] < ranks[1 - index] ? "better" : "worse";
+  });
 }
 
 /**
@@ -126,17 +135,16 @@ const renderPendingNumber = (side) =>
 
 /**
  * A starter's number in a measure under his side of the face-off, over his rank, bolder when it
- * ranks higher than the other starter's.
+ * ranks higher than the other starter's and dimmed when it ranks lower.
  * @param {any} side
  * @param {(typeof TAPE)[number]} measure
- * @param {"away" | "home" | null} leader
+ * @param {"better" | "worse" | "unranked" | null} standing
  */
-function renderNumber(side, measure, leader) {
+function renderNumber(side, measure, standing) {
   if (isLoadingPitcher(side)) return renderPendingNumber(side);
   const line = side.pitcher?.line;
   if (line?.[measure.key] == null) return html`<span class="tape-number ${side.key}"></span>`;
   const rank = side.pitcher.ranks?.[measure.key];
-  const standing = leader && (leader === side.key ? "better" : "worse");
   const classes = ["tape-number", side.key, standing].filter(Boolean).join(" ");
   return html`<span class="${classes}">
     <span class="tape-number-line"><span class="tape-dot"></span><span class="tabular">${measure.format(line)}</span></span>
@@ -166,12 +174,12 @@ function renderCurve(sides, measure) {
  * @param {(typeof TAPE)[number]} measure
  */
 function renderMeasure(sides, measure) {
-  const leader = findLeader(sides, measure);
+  const [away, home] = findStandings(sides, measure);
   return html`<div class="tape-measure">
     <div class="tape-numbers">
-      ${renderNumber(sides[0], measure, leader)}
+      ${renderNumber(sides[0], measure, away)}
       <span class="tape-label">${measure.label}</span>
-      ${renderNumber(sides[1], measure, leader)}
+      ${renderNumber(sides[1], measure, home)}
     </div>
     ${renderCurve(sides, measure)}
   </div>`;
@@ -179,25 +187,33 @@ function renderMeasure(sides, measure) {
 
 const isUnranked = (side) => Boolean(side.pitcher?.line && !side.pitcher.ranks);
 
-const describeUnranked = ({ pitcher }) =>
-  `${pitcher.lastName} hasn't pitched enough innings to rank among this season's qualified starters`;
-
-function renderTapeNotes(sides, counted) {
-  const curvesNote =
+/**
+ * @param {any[]} sides
+ * @param {(club: string) => number | null} countClubGames
+ */
+function renderTapeNotes(sides, countClubGames) {
+  const rankNote =
     sides.some((side) => side.pitcher?.ranks) &&
-    html`<p class="tape-note">Each curve is this season's ${counted.count} qualified starters, better to the right</p>`;
+    html`<p class="tape-note">Rank among qualified starters</p>`;
   const unrankedNotes = sides
     .filter(isUnranked)
-    .map((side) => html`<p class="tape-note">${describeUnranked(side)}</p>`);
-  return html`${curvesNote}${unrankedNotes}`;
+    .map(
+      ({ pitcher, club }) =>
+        html`<p class="tape-note">${describeInningsToQualify(pitcher.lastName, pitcher.line.ip, countClubGames(club))}</p>`,
+    );
+  return html`${rankNote}${unrankedNotes}`;
 }
 
-function renderTape(sides) {
-  const counted = sides.find((side) => side.pitcher?.line)?.pitcher.starters;
-  if (!counted && !sides.some(isLoadingPitcher)) return html``;
-  const notes = counted
-    ? renderTapeNotes(sides, counted)
-    : html`<p class="tape-note">${renderPlaceholder("Each curve is this season's qualified starters, better to the right")}</p>`;
+/**
+ * @param {any[]} sides
+ * @param {(club: string) => number | null} countClubGames
+ */
+function renderTape(sides, countClubGames) {
+  const isLoaded = sides.some((side) => side.pitcher?.line);
+  if (!isLoaded && !sides.some(isLoadingPitcher)) return html``;
+  const notes = isLoaded
+    ? renderTapeNotes(sides, countClubGames)
+    : html`<p class="tape-note">${renderPlaceholder("Rank among qualified starters")}</p>`;
   return html`<div class="tape" style="${formatSideColors(sides)}">
     ${TAPE.map((measure) => renderMeasure(sides, measure))}
     ${notes}
@@ -358,7 +374,12 @@ function describeSectionFailure(failed) {
   return "Couldn't load the matchup";
 }
 
-export function renderMatchupBody(game, sides) {
+/**
+ * @param {MatchupGame} game
+ * @param {any[]} sides
+ * @param {(club: string) => number | null} countClubGames each club's games so far
+ */
+export function renderMatchupBody(game, sides, countClubGames) {
   const speedRange = measureSidesSpeedRange(sides);
   const isFailed = isSectionFailed(sides, game);
   const scouting = isFailed
@@ -366,7 +387,7 @@ export function renderMatchupBody(game, sides) {
     : sides.map((side) => renderScouting(side, game, speedRange));
   return html`<div class="faceoff">${sides.map((side) => renderPitcherId(side, isFailed))}</div>
     ${renderCheckBack(sides, game)}
-    ${renderTape(sides)}
+    ${renderTape(sides, countClubGames)}
     ${scouting}`;
 }
 
@@ -383,6 +404,20 @@ export const listSides = (game) =>
     rotation: null,
     failed: false,
   }));
+
+// A starter the store has only by his id, when MLB couldn't describe him, keeps the name shown.
+const isNewStarter = (shown, current) =>
+  current?.id !== shown?.id || (!!current?.name && !shown?.name);
+
+/**
+ * The sides, with a fresh one wherever the game now has another starter, or names one it couldn't.
+ * @param {any[]} sides
+ * @param {MatchupGame} game
+ */
+export const updateSides = (sides, game) =>
+  listSides(game).map((current, index) =>
+    isNewStarter(sides[index].starter, current.starter) ? current : sides[index],
+  );
 
 /**
  * @param {any} side

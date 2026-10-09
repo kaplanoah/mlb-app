@@ -36,6 +36,7 @@ const PERSON_FIELDS = [
   "splits",
   "stat",
   "gamesStarted",
+  "inningsPitched",
   "era",
   "strikeoutsPer9Inn",
   "walksPer9Inn",
@@ -251,6 +252,7 @@ function describeLine(line, arsenal) {
   if (!line) return null;
   return {
     starts: line.gamesStarted ?? 0,
+    ip: line.inningsPitched ?? null,
     era: line.era,
     k9: roundTo(Number(line.strikeoutsPer9Inn), 1),
     bb9: roundTo(Number(line.walksPer9Inn), 1),

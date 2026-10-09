@@ -64,7 +64,7 @@ const PITCHERS = {
     2,
     ["Jeffrey", "Springs"],
     "L",
-    { starts: 24, era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
+    { starts: 24, ip: "128.2", era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
     {
       era: { rank: 29, of: 46 },
       k9: { rank: 26, of: 46 },
@@ -266,6 +266,44 @@ test("the game's row follows the score as the store updates it", async ({ page }
 
   await expect(row.locator(".game-headline")).toHaveText("4-2");
   await expect(row.locator(".game-status")).toHaveText("Final");
+});
+
+test("a starter named after the sheet opened shows on its starters line and in its matchup", async ({
+  page,
+}) => {
+  const named = buildSnapshotWithStarters();
+  const isAstrosGame = (game) => game.away === "HOU" && game.home === "ATH";
+  const [blubaugh, springs] = named.slate.today.games.find(isAstrosGame).starters;
+  /** @param {any} season @param {object[]} starters */
+  const setStarters = (season, starters) => ({
+    ...season,
+    slate: {
+      ...season.slate,
+      today: {
+        ...season.slate.today,
+        games: season.slate.today.games.map((game) =>
+          isAstrosGame(game) ? { ...game, starters } : game,
+        ),
+      },
+    },
+  });
+  const app = await openApp(page, {
+    snapshots: { 2026: setStarters(named, [blubaugh, { id: springs.id }]) },
+    pitchers: PITCHERS,
+  });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
+  const sheet = page.locator("#gameSheet");
+  await expect(
+    sheet.getByRole("button", { name: "Pitching matchup: Blubaugh vs TBD" }),
+  ).toBeVisible();
+
+  const season = await app.readDocument("seasons/2026");
+  await app.writeFromWorker("seasons/2026", setStarters(season, [blubaugh, springs]));
+
+  await expect(sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS })).toBeVisible();
+  await showSection(sheet, "Matchup");
+  await expect(sheet.locator(".pitcher-last")).toHaveText(["Blubaugh", "Springs"]);
 });
 
 test("a reload shows the open matchup before the page's code arrives, and the code reads its starters again", async ({
@@ -632,6 +670,121 @@ test("a club whose last starters didn't load reads them again on a tap on Try ag
   await expect(mariners.locator(".placeholder").first()).toBeVisible();
   release();
   await expect(mariners.locator(".rotation li")).toHaveCount(2);
+});
+
+/**
+ * The ERA row's numbers, as the sheet colors them: each one's text color and weight, whether its
+ * dot is dimmed from its club's color, and the ink a number is in unless it ranks lower.
+ * @param {import("@playwright/test").Locator} sheet
+ */
+const readEraColors = (sheet) =>
+  sheet
+    .locator(".tape-measure")
+    .first()
+    .evaluate((measure) => {
+      /** @param {string} color */
+      const paint = (color) => {
+        const probe = document.createElement("span");
+        probe.style.color = color;
+        measure.append(probe);
+        const painted = getComputedStyle(probe).color;
+        probe.remove();
+        return painted;
+      };
+      /** @param {"away" | "home"} side */
+      const readSide = (side) => {
+        const number = /** @type {HTMLElement} */ (measure.querySelector(`.tape-number.${side}`));
+        const dot = /** @type {HTMLElement} */ (number.querySelector(".tape-dot"));
+        const club = paint(getComputedStyle(number).getPropertyValue("--side"));
+        return {
+          color: getComputedStyle(number).color,
+          weight: getComputedStyle(number).fontWeight,
+          isDotDimmed: paint(getComputedStyle(dot).backgroundColor) !== club,
+        };
+      };
+      return { away: readSide("away"), home: readSide("home"), ink: paint("var(--ink)") };
+    });
+
+test("a starter's number is white and bolder when it ranks above the other's, and dim, with its dot, when it ranks below", async ({
+  page,
+}) => {
+  const era = await readEraColors(await openMatchup(page));
+  expect(era.away).toEqual({ color: era.ink, weight: "550", isDotDimmed: false });
+  expect(era.home.color).not.toBe(era.ink);
+  expect(era.home.isDotDimmed).toBe(true);
+});
+
+test("beside a starter who isn't ranked, both numbers are white, and only the unranked starter's dot dims", async ({
+  page,
+}) => {
+  const era = await readEraColors(
+    await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } }),
+  );
+  expect(era.away).toEqual({ color: era.ink, weight: "400", isDotDimmed: false });
+  expect(era.home).toEqual({ color: era.ink, weight: "400", isDotDimmed: true });
+});
+
+/** @param {import("@playwright/test").Locator} sheet */
+const readNumberLineMiddles = (sheet) =>
+  sheet.locator(".tape-measure").evaluateAll((measures) =>
+    measures.map((measure) => {
+      /** @param {string} selector */
+      const readMiddle = (selector) => {
+        const box = /** @type {HTMLElement} */ (
+          measure.querySelector(selector)
+        ).getBoundingClientRect();
+        return Math.round(box.top + box.height / 2);
+      };
+      return {
+        away: readMiddle(".tape-number.away .tape-number-line"),
+        label: readMiddle(".tape-label"),
+        home: readMiddle(".tape-number.home .tape-number-line"),
+      };
+    }),
+  );
+
+test("an unranked starter's numbers sit level with the label and the ranked starter's", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
+  for (const middles of await readNumberLineMiddles(sheet)) {
+    expect(middles.home).toBe(middles.away);
+    expect(Math.abs(middles.label - middles.away)).toBeLessThanOrEqual(1);
+  }
+});
+
+test("an unranked starter's note sets his innings against his club's games, a step apart from the curves", async ({
+  page,
+}) => {
+  const athletics = Object.values(buildSnapshotWithStarters().standings.divisions)
+    .flat()
+    .find((/** @type {any} */ row) => row.id === "ATH");
+  const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
+  const notes = sheet.locator(".tape-note");
+
+  await expect(notes).toHaveText([
+    "Rank among qualified starters",
+    `Springs has pitched 128 2/3 of the ${athletics.w + athletics.l} innings needed to qualify`,
+  ]);
+  const space = await sheet.locator(".tape").evaluate((tape) => {
+    const curves = tape.querySelectorAll(".player-curve");
+    const lastCurve = curves[curves.length - 1].getBoundingClientRect();
+    const firstNote = /** @type {Element} */ (
+      tape.querySelector(".tape-note")
+    ).getBoundingClientRect();
+    return firstNote.top - lastCurve.bottom;
+  });
+  expect(space).toBeCloseTo(19.5, 1);
+});
+
+test("the Matchup's stat names are a half step over the sheet's capital labels, at 13.5px", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page);
+  const sizes = await sheet
+    .locator(".tape-label")
+    .evaluateAll((labels) => labels.map((label) => getComputedStyle(label).fontSize));
+  expect(sizes).toEqual(["13.5px", "13.5px", "13.5px", "13.5px"]);
 });
 
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({

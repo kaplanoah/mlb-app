@@ -9,7 +9,7 @@ import {
   namePitcherKey,
   nameStartersKey,
 } from "../worker/src/pitchers.js";
-import { createPitcherJob } from "../worker/src/pitcher-updater.js";
+import { SIDE_VERSION, createPitcherJob, nameReadsKey } from "../worker/src/pitcher-updater.js";
 import { createRotationServer, nameRotationKey } from "../worker/src/rotations.js";
 
 // MLB's tables, the last two weeks of games, and the pitchers the matchup sheet reads, as MLB
@@ -315,6 +315,30 @@ test("a game's end has the next run read the league's feeds and the pitchers who
     assert.ok(pitcherReads.every((path) => path.includes(`personIds=${pitcher}&`)));
   }
   assert.equal(mlb.requests.length, beforeFinal + afterFinal.length + settled.length);
+});
+
+test("sides saved before they gained a field are each read once more, and then not again", async () => {
+  const { storage, mlb, runJob, wait } = createRun();
+  await runJob();
+  wait(5);
+  await runJob();
+  const reads = await storage.get(nameReadsKey(2026));
+  await storage.delete(nameReadsKey(2026));
+  await storage.put(nameReadsKey(2026, SIDE_VERSION - 1), reads);
+  const listPitcherReads = (/** @type {string[]} */ requests) =>
+    requests.filter((path) => path.startsWith("/api/v1/people?") && /season=2026/.test(path));
+  const before = mlb.requests.length;
+
+  wait(5);
+  await runJob();
+  const reread = listPitcherReads(mlb.requests.slice(before));
+  wait(5);
+  await runJob();
+  wait(5);
+  await runJob();
+
+  assert.equal(reread.length, 2 * Math.ceil(RECORDED_IDS.length / 30));
+  assert.deepEqual(listPitcherReads(mlb.requests.slice(before)), reread);
 });
 
 test("a final MLB answers the same for saves no document", async () => {
