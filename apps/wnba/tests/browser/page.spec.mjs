@@ -172,6 +172,26 @@ test.describe("on a phone, the standings", () => {
     expect(box.x).toBe(0);
     expect(box.width).toBe(390);
   });
+
+  test("come back from another tab held for where the page is now, not where it was when they left", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await expect(page.locator("#standings-league")).toContainText("Lynx");
+    await page.evaluate(() => scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
+    const bar = page.locator("#standings-bar");
+    await expect(bar).toHaveClass(/stuck/);
+    await expect(page.locator("#standings-east")).not.toHaveCSS("transform", "none");
+
+    await page.getByRole("tab", { name: "Bracket" }).click();
+    await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
+    await page.getByRole("tab", { name: "Standings" }).click();
+
+    await expect(bar).not.toHaveClass(/stuck/);
+    await expect(bar).toHaveCSS("background-image", "none");
+    await expect(page.locator("#standings-east")).toHaveCSS("transform", "none");
+  });
 });
 
 test("the standings leave room between each team's name and the next one's", async ({ page }) => {
