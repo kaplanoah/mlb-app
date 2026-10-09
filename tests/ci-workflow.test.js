@@ -8,14 +8,19 @@ const readRepoFile = (path) => readFileSync(new URL(`../${path}`, import.meta.ur
 const readInstalledPlaywright = () =>
   JSON.parse(readRepoFile("package-lock.json")).packages["node_modules/playwright"].version;
 
-const readWebKitImageVersion = () =>
-  readRepoFile(".github/workflows/ci.yml").match(/mcr\.microsoft\.com\/playwright:v([\d.]+)-/)?.[1];
+/** @param {string} workflow */
+const readPlaywrightImageVersion = (workflow) =>
+  readRepoFile(`.github/workflows/${workflow}`).match(
+    /mcr\.microsoft\.com\/playwright:v([\d.]+)-/,
+  )?.[1];
 
-// The image holds only the browsers its own Playwright version runs, so CI's WebKit job would find
-// no WebKit once Dependabot moves Playwright on without it.
-test("the WebKit job's image is the Playwright version the lockfile installs", () => {
-  assert.equal(readWebKitImageVersion(), readInstalledPlaywright());
-});
+// The image holds only the browsers its own Playwright version runs, so a job in it would find no
+// browser once Dependabot moves Playwright on without it.
+for (const workflow of ["ci.yml", "flaky.yml"]) {
+  test(`${workflow}'s Playwright image is the Playwright version the lockfile installs`, () => {
+    assert.equal(readPlaywrightImageVersion(workflow), readInstalledPlaywright());
+  });
+}
 
 /** @returns {string[]} the workflow's jobs, by the names they're keyed under */
 const listJobs = () => {
