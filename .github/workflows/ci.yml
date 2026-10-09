@@ -273,7 +273,7 @@ jobs:
         if: steps.decision.outputs.review == 'true'
         continue-on-error: true
         timeout-minutes: 8
-        uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
+        uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
         with: &review-inputs
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -320,7 +320,7 @@ jobs:
       - name: Review again
         if: steps.review.outcome == 'failure'
         timeout-minutes: 8
-        uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
+        uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
         with: *review-inputs
 
   # The one check to require. It runs even when a job fails, because GitHub counts a

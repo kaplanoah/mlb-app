@@ -15,7 +15,7 @@ import { endStripSlide, slideStripTo } from "./strip-slide.js";
 
 // A season's games as one list of its game days, from its first to its last, under a bar holding
 // a strip of every day between them. The strip's chosen day is the one at the top of the list, and
-// follows it as it scrolls; a tap on a day, or on Today, brings that day to the top, a day's gap
+// follows it as it scrolls, passing to the next day once none of a day's text shows; a tap on a day, or on Today, brings that day to the top, a day's gap
 // under the bar, so nothing of the day before shows. A tap on a date without games brings in its
 // No games row, which leaves once it's out of sight, and a tap on Today while the list is already
 // there pulses the date. While a finger moves the strip, the month names the day in its middle.
@@ -37,9 +37,6 @@ import { endStripSlide, slideStripTo } from "./strip-slide.js";
 // Phosphor's calendar-dot, at its Regular weight, as beside the words of a Read button.
 const CALENDAR_DOT = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-64-56a16,16,0,1,1-16-16A16,16,0,0,1,144,152Z"/></svg>`;
 
-// A day reaches the top of the list once its top is this close to it, as when a scroll stops
-// just short of it.
-const TOP_REACH_PX = 24;
 // Farther than this many screens, a jump is made at once rather than flown.
 const FLOWN_SCREENS = 3;
 // A tap on Today while the list is already there grows the date this much and back, this fast.
@@ -247,20 +244,49 @@ function followStrip() {
   });
 }
 
-/** The day at the top of the list: the last whose top has reached it. */
+/**
+ * The lowest any of a day's text ends on the screen, or null when none of it is laid out to measure.
+ * @param {HTMLElement} listed
+ */
+function findTextBottom(listed) {
+  const walker = document.createTreeWalker(listed, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  let bottom = null;
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    if (!text.nodeValue?.trim()) continue;
+    range.selectNodeContents(text);
+    for (const rect of range.getClientRects()) {
+      if (rect.height) bottom = Math.max(bottom ?? rect.bottom, rect.bottom);
+    }
+  }
+  return bottom;
+}
+
+/**
+ * Whether any of a day's text still shows under the list's top.
+ * @param {HTMLElement} listed
+ * @param {HTMLElement} list
+ */
+function isTextInSight(listed, list) {
+  const top = list.getBoundingClientRect().top + list.clientTop;
+  const bottom = findTextBottom(listed) ?? listed.getBoundingClientRect().bottom;
+  return bottom > top;
+}
+
+/** The day at the top of the list: the first with any of its text still in sight. */
 function findTopDay() {
   const list = findList();
   const listed = /** @type {HTMLElement[]} */ ([...(list?.children ?? [])]);
   if (!list || !listed.length) return null;
-  const line = list.scrollTop + readDayGap(list) + TOP_REACH_PX;
   let low = 0;
   let high = listed.length - 1;
   while (low < high) {
     const middle = Math.ceil((low + high) / 2);
-    if (listed[middle].offsetTop <= line) low = middle;
+    if (listed[middle].offsetTop <= list.scrollTop) low = middle;
     else high = middle - 1;
   }
-  return listed[low].dataset.day ?? null;
+  const isPassed = low < listed.length - 1 && !isTextInSight(listed[low], list);
+  return listed[isPassed ? low + 1 : low].dataset.day ?? null;
 }
 
 const isReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -316,6 +342,14 @@ function isStillHeld() {
   if (isAtTarget) held.hasArrived = true;
   else if (held.hasArrived) held = null;
   return !!held;
+}
+
+// A list that changes height, as when the header above it does, keeps the day a tap or Today sent
+// it to at its top.
+function keepHeldDay() {
+  const list = findList();
+  const top = held?.hasArrived && findDayTop(held.day);
+  if (list && typeof top === "number") list.scrollTop = top;
 }
 
 // The bar ends in a line once a day has scrolled under it.
@@ -596,6 +630,7 @@ export function startDayStrip(element) {
   new ResizeObserver(() => {
     const isShown = isListShown();
     if (isShown) fitEndRoom();
+    if (isShown && wasShown) keepHeldDay();
     if (isShown && !wasShown) placeList(null);
     wasShown = isShown;
   }).observe(element);
