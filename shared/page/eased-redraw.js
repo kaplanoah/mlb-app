@@ -111,9 +111,16 @@ function easeHeight({ element, from, to }) {
   resizes.set(element, resize);
 }
 
+// What a redraw adds out of sight, on a hidden tab or scrolled away, shows without fading in.
+/** @param {Element} element */
+function isOnScreen(element) {
+  const { top, bottom, width, height } = element.getBoundingClientRect();
+  return width > 0 && height > 0 && bottom > 0 && top < innerHeight;
+}
+
 /** @param {Element} element */
 function fadeIn(element) {
-  if (element.isConnected)
+  if (element.isConnected && isOnScreen(element))
     element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: EASE_MS, easing: EASING });
 }
 

@@ -85,3 +85,17 @@ test("the page draws what it opens with at once, rather than easing it in", asyn
   await expect(page.locator('[data-series="1-0"] .team-line.won')).toContainText("Liberty");
   expect(await readAnimations()).toEqual([]);
 });
+
+test("a redraw fades in only what's on screen, not the days it adds to a Games list out of sight", async ({
+  page,
+}) => {
+  const readAnimations = await listAnimations(page);
+
+  await openApp(page, { isWholeSeason: true });
+
+  await expect(page.locator("#seasonGames .listed-day").first()).toHaveAttribute(
+    "data-day",
+    /^2026-05-/,
+  );
+  expect(await readAnimations()).toEqual([]);
+});
