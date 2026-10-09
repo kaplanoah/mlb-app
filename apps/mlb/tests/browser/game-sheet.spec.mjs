@@ -634,6 +634,58 @@ test("a club whose last starters didn't load reads them again on a tap on Try ag
   await expect(mariners.locator(".rotation li")).toHaveCount(2);
 });
 
+/**
+ * The ERA row's numbers, as the sheet colors them: each one's text color and weight, whether its
+ * dot is dimmed from its club's color, and the ink a number is in unless it ranks lower.
+ * @param {import("@playwright/test").Locator} sheet
+ */
+const readEraColors = (sheet) =>
+  sheet
+    .locator(".tape-measure")
+    .first()
+    .evaluate((measure) => {
+      /** @param {string} color */
+      const paint = (color) => {
+        const probe = document.createElement("span");
+        probe.style.color = color;
+        measure.append(probe);
+        const painted = getComputedStyle(probe).color;
+        probe.remove();
+        return painted;
+      };
+      /** @param {"away" | "home"} side */
+      const readSide = (side) => {
+        const number = /** @type {HTMLElement} */ (measure.querySelector(`.tape-number.${side}`));
+        const dot = /** @type {HTMLElement} */ (number.querySelector(".tape-dot"));
+        const club = paint(getComputedStyle(number).getPropertyValue("--side"));
+        return {
+          color: getComputedStyle(number).color,
+          weight: getComputedStyle(number).fontWeight,
+          isDotDimmed: paint(getComputedStyle(dot).backgroundColor) !== club,
+        };
+      };
+      return { away: readSide("away"), home: readSide("home"), ink: paint("var(--ink)") };
+    });
+
+test("a starter's number is white and bolder when it ranks above the other's, and dim, with its dot, when it ranks below", async ({
+  page,
+}) => {
+  const era = await readEraColors(await openMatchup(page));
+  expect(era.away).toEqual({ color: era.ink, weight: "550", isDotDimmed: false });
+  expect(era.home.color).not.toBe(era.ink);
+  expect(era.home.isDotDimmed).toBe(true);
+});
+
+test("beside a starter who isn't ranked, both numbers are white, and only the unranked starter's dot dims", async ({
+  page,
+}) => {
+  const era = await readEraColors(
+    await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } }),
+  );
+  expect(era.away).toEqual({ color: era.ink, weight: "400", isDotDimmed: false });
+  expect(era.home).toEqual({ color: era.ink, weight: "400", isDotDimmed: true });
+});
+
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({
   page,
 }) => {

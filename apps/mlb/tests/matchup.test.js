@@ -133,7 +133,7 @@ function readNumber(measure, side) {
   return {
     value: readClass(number, "tabular")[0],
     rank: readClass(number, "tape-rank")[0] ?? null,
-    standing: number.match(/^<span class="tape-number \w+ (better|worse)/)?.[1] ?? null,
+    standing: number.match(/^<span class="tape-number \w+ (better|worse|unranked)/)?.[1] ?? null,
   };
 }
 
@@ -199,7 +199,7 @@ test("each starter's marks take his club's color, the away club taking its other
       { pitcher: SPRINGS },
     ]).match(/<div class="tape" style="([^"]*)">/)[1];
   assert.equal(readColors("HOU", "CIN"), "--away: #608eca; --home: #fb4c4c");
-  assert.equal(readColors("CLE", "KC"), "--away: #ff4551; --home: #528fd6");
+  assert.equal(readColors("DET", "SF"), "--away: #738eb1; --home: #fd5a1e");
 });
 
 test("two numbers that read the same mark neither starter as ahead", () => {
@@ -237,12 +237,12 @@ test("a club with no starts to go by says so", () => {
   assert.doesNotMatch(astros, /class="rotation"/);
 });
 
-test("a starter outside the qualified starters has his numbers but no rank or mark, and a line saying why", () => {
+test("a starter outside the qualified starters has his numbers marked unranked, with no rank or mark, and a line saying why, and neither is marked ahead", () => {
   const markup = renderStarters(BLUBAUGH, { ...SPRINGS, ranks: null });
   const tape = readTape(markup);
   assert.deepEqual(
     tape.map((measure) => measure.home),
-    ["4.02", "7.7", "2.9", "90.8"].map((value) => ({ value, rank: null, standing: null })),
+    ["4.02", "7.7", "2.9", "90.8"].map((value) => ({ value, rank: null, standing: "unranked" })),
   );
   assert.deepEqual(tape[0].away, { value: "3.66", rank: "17th", standing: null });
   assert.ok(tape.every(({ marks }) => marks.away !== undefined && marks.home === undefined));
@@ -254,6 +254,11 @@ test("a starter outside the qualified starters has his numbers but no rank or ma
 
 test("with neither starter ranked, the sheet says why and drops the note about the curves", () => {
   const markup = renderStarters({ ...BLUBAUGH, ranks: null }, { ...SPRINGS, ranks: null });
+  assert.ok(
+    readTape(markup).every(
+      ({ away, home }) => away.standing === "unranked" && home.standing === "unranked",
+    ),
+  );
   assert.deepEqual(readClass(markup, "tape-note"), [
     "Blubaugh hasn't pitched enough innings to rank among this season's qualified starters",
     "Springs hasn't pitched enough innings to rank among this season's qualified starters",
