@@ -256,6 +256,25 @@ test.describe("on a phone, the Games lists", () => {
     });
   }
 
+  test("come back from another tab held for where the page is now, not where it was when they left", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await page.evaluate(() => scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
+    const bar = page.locator("#games-bar");
+    await expect(bar).toHaveClass(/stuck/);
+    await expect(page.locator("#games-previous")).not.toHaveCSS("transform", "none");
+
+    await page.getByRole("tab", { name: "Bracket" }).click();
+    await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
+    await page.getByRole("tab", { name: "Games" }).click();
+
+    await expect(bar).not.toHaveClass(/stuck/);
+    await expect(bar).toHaveCSS("background-image", "none");
+    await expect(page.locator("#games-previous")).toHaveCSS("transform", "none");
+  });
+
   test("reach the screen's edges, so a swiped list slides off the screen", async ({ page }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Games" }).click();
