@@ -1,4 +1,4 @@
-import { test, expect, findGameButton, openApp, matchPath } from "./harness.mjs";
+import { test, expect, findGameButton, openApp, matchPath, NOW } from "./harness.mjs";
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -44,7 +44,9 @@ const setHidden = (page, isHidden) =>
     document.dispatchEvent(new Event("visibilitychange"));
   }, isHidden);
 
-test("Diagnostics sit past the end of settings, off, with nothing recorded", async ({ page }) => {
+test("Diagnostics sit past the end of settings, off, with nothing recorded, and say to tap Share report", async ({
+  page,
+}) => {
   await openApp(page);
 
   await openSettings(page);
@@ -53,6 +55,10 @@ test("Diagnostics sit past the end of settings, off, with nothing recorded", asy
   await expect(findSwitch(page)).toHaveAttribute("aria-checked", "false");
   await expect(findSwitch(page)).not.toBeInViewport();
   await expect(findRecords(page)).toBeHidden();
+  await expect(page.locator("#diagnosticsNote")).toHaveText(
+    "When something looks wrong, turn this on and do what went wrong again. Then open settings and tap Share report, or Copy report on a computer, to send it.",
+    { useInnerText: true },
+  );
 });
 
 test("Diagnostics, once on, start with the release and its commit", async ({ page }) => {
@@ -307,10 +313,9 @@ test("the report holds every record kept, the one on request and the reload befo
   await reloadAndRecord(page);
   await openSettings(page);
 
-  await recordOnRequest(page);
-  await findRecordButton(page).click();
+  await findReportButton(page).click();
 
-  await expect(findRecordButton(page)).toHaveText("Shared");
+  await expect(findReportButton(page)).toHaveText("Shared");
   const [{ text: report }] = await readShares(page);
   expect(report).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
   expect(report).toMatch(/^Today \d+:\d\d\s[AP]M, \w+, Bracket$/m);
@@ -318,27 +323,23 @@ test("the report holds every record kept, the one on request and the reload befo
   expect(report).toMatch(/^Viewport\n\d+:\d\d:\d\d\s[AP]M screen \d+, layout 844, /m);
 });
 
-test("once it has gone back to Record, the button records and offers the report again", async ({
-  page,
-}) => {
+test("once it has said Shared, the button offers the report again", async ({ page }) => {
   await stubShare(page);
   await openApp(page);
   await turnOnDiagnostics(page);
   await openSettings(page);
-  await recordOnRequest(page);
-  await findRecordButton(page).click();
-  await expect(findRecordButton(page)).toHaveText("Shared");
+  await findReportButton(page).click();
+  await expect(findReportButton(page)).toHaveText("Shared");
   await page.clock.runFor(2000);
 
-  await recordOnRequest(page);
-  await expect(findRecordButton(page)).toHaveText("Share report");
-  await findRecordButton(page).click();
+  await expect(findReportButton(page)).toHaveText("Share report");
+  await findReportButton(page).click();
 
-  await expect(findRecordButton(page)).toHaveText("Shared");
+  await expect(findReportButton(page)).toHaveText("Shared");
   expect(await readShares(page)).toHaveLength(2);
 });
 
-test("Record records the page as it is, with the sheets open, and its report puts it under a header naming the app, the device, and the store's jobs", async ({
+test("Share report notes the page as it is, with the sheets open, and shares it at once under a header naming the app, the device, and the store's jobs", async ({
   page,
 }) => {
   await stubShare(page);
@@ -346,10 +347,9 @@ test("Record records the page as it is, with the sheets open, and its report put
   await turnOnDiagnostics(page);
   await openSettings(page);
 
-  await recordOnRequest(page);
-  await findRecordButton(page).click();
+  await findReportButton(page).click();
 
-  await expect(findRecordButton(page)).toHaveText("Shared");
+  await expect(findReportButton(page)).toHaveText("Shared");
   const [{ text: copied }] = await readShares(page);
   expect(copied).toMatch(/^WNBA, /);
   expect(copied).toMatch(/^Device: /m);
@@ -361,13 +361,32 @@ test("Record records the page as it is, with the sheets open, and its report put
   expect(copied).toMatch(/^News job(: no run saved| last ran .*, \d+ requests?)/m);
   expect(copied).toMatch(/^Players job(: no run saved| last ran .*, \d+ requests?)/m);
   expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
-  expect(copied).toMatch(/^\+\d+ Sheet settingsDialog, shown$/m);
-  expect(copied).toMatch(/^\+\d+ Shows .*bracketWrap \d+\/\d+px/m);
-  expect(copied).toMatch(/^\+\d+ Animations: /m);
+  expect(copied).toMatch(/^\+0 Sheet settingsDialog, shown$/m);
+  expect(copied).toMatch(/^\+0 Shows .*bracketWrap \d+\/\d+px/m);
+  expect(copied).toMatch(/^\+0 Animations: /m);
+  await expect(findRecords(page).locator("summary").first()).toContainText("On request");
+});
+
+test("opening settings reads how the store's jobs last ran, for the report sent from there", async ({
+  page,
+}) => {
+  await stubShare(page);
+  const app = await openApp(page);
+  await turnOnDiagnostics(page);
+  await app.writeDocument("players/status", { ranAt: NOW, requests: 7 });
+  await openSettings(page);
+
+  await expect
+    .poll(async () => {
+      await findReportButton(page).click();
+      const shares = await readShares(page);
+      return shares.at(-1)?.text;
+    })
+    .toMatch(/^Players job last ran .*, 7 requests$/m);
 });
 
 /** @param {import("@playwright/test").Page} page */
-const findRecordButton = (page) => page.locator("#diagnosticsRecord");
+const findReportButton = (page) => page.locator("#diagnosticsReport");
 
 /** @param {import("@playwright/test").Page} page */
 const stubShare = (page) =>
@@ -384,19 +403,6 @@ const stubShare = (page) =>
 const readShares = (page) =>
   page.evaluate(() => /** @type {ShareData[]} */ (Reflect.get(window, "diagnosticsShares")));
 
-/** @param {import("@playwright/test").Page} page */
-async function recordOnRequest(page) {
-  const button = findRecordButton(page);
-  await expect(button).toHaveText("Record");
-  await button.click();
-  for (const secondsLeft of [5, 4, 3, 2, 1]) {
-    await expect(button).toHaveText(`Recording ${secondsLeft}`);
-    await expect(button).toBeDisabled();
-    await page.clock.runFor(1000);
-  }
-  await page.clock.runFor(100);
-}
-
 test("a record names the list the pager's lists went back from after a move no one made", async ({
   page,
 }) => {
@@ -410,7 +416,7 @@ test("a record names the list the pager's lists went back from after a move no o
   await expect(pages).toHaveAttribute("data-put-back-from", "east");
 
   await openSettings(page);
-  await recordOnRequest(page);
+  await findReportButton(page).click();
 
   const record = findRecords(page).locator(".diagnostics-record").first();
   await expect(record).toContainText(
@@ -418,7 +424,7 @@ test("a record names the list the pager's lists went back from after a move no o
   );
 });
 
-test("on a phone, Record counts down, then Share report, filled, shares the report, and goes back to Record", async ({
+test("on a phone, Share report shares the report at once, then offers it again", async ({
   page,
 }) => {
   await stubShare(page);
@@ -426,11 +432,8 @@ test("on a phone, Record counts down, then Share report, filled, shares the repo
   await turnOnDiagnostics(page);
   await openSettings(page);
 
-  await recordOnRequest(page);
-  const button = findRecordButton(page);
+  const button = findReportButton(page);
   await expect(button).toHaveText("Share report");
-  await expect(button).toBeEnabled();
-  await expect(button).toHaveClass(/diagnostics-report/);
   await button.click();
 
   await expect(button).toHaveText("Shared");
@@ -439,8 +442,7 @@ test("on a phone, Record counts down, then Share report, filled, shares the repo
   expect(shares[0].title).toBe("WNBA Diagnostics");
   expect(shares[0].text).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
   await page.clock.runFor(2000);
-  await expect(button).toHaveText("Record");
-  await expect(button).not.toHaveClass(/diagnostics-report/);
+  await expect(button).toHaveText("Share report");
 });
 
 test("on a phone whose share fails, Share report copies the report instead", async ({
@@ -455,10 +457,9 @@ test("on a phone whose share fails, Share report copies the report instead", asy
   await turnOnDiagnostics(page);
   await openSettings(page);
 
-  await recordOnRequest(page);
-  await findRecordButton(page).click();
+  await findReportButton(page).click();
 
-  await expect(findRecordButton(page)).toHaveText("Copied");
+  await expect(findReportButton(page)).toHaveText("Copied");
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
 });
@@ -476,31 +477,25 @@ test("on a phone, closing the share sheet copies nothing and leaves Share report
   await openSettings(page);
   await page.evaluate(() => navigator.clipboard.writeText("before"));
 
-  await recordOnRequest(page);
-  await findRecordButton(page).click();
+  await findReportButton(page).click();
   await page.clock.runFor(100);
 
-  await expect(findRecordButton(page)).toHaveText("Share report");
+  await expect(findReportButton(page)).toHaveText("Share report");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("before");
 });
 
 test.describe("on a computer", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
 
-  test("Record counts down, then Copy report copies the report and goes back to Record", async ({
-    page,
-    context,
-  }) => {
+  test("Copy report copies the report at once, then offers it again", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await stubShare(page);
     await openApp(page);
     await turnOnDiagnostics(page);
     await openSettings(page);
 
-    await recordOnRequest(page);
-    const button = findRecordButton(page);
+    const button = findReportButton(page);
     await expect(button).toHaveText("Copy report");
-    await expect(button).toHaveClass(/diagnostics-report/);
     await button.click();
 
     await expect(button).toHaveText("Copied");
@@ -510,6 +505,6 @@ test.describe("on a computer", () => {
     expect(copied).toMatch(/^Today \d+:\d\d\s[AP]M, On request, Bracket$/m);
     expect(await readShares(page)).toHaveLength(0);
     await page.clock.runFor(2000);
-    await expect(button).toHaveText("Record");
+    await expect(button).toHaveText("Copy report");
   });
 });

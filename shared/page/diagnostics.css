@@ -1,13 +1,13 @@
 /*
- * Diagnostics, at the very end of settings: the switch, the one button, which records, then sends
- * the report, and the records listed under it. Apps link it right after chrome.css, which lays out
+ * Diagnostics, at the very end of settings: the switch, the one button, which sends the report,
+ * and the records listed under it. Apps link it right after chrome.css, which lays out
  * the settings dialog around it, and before their own styles.css.
  *
  * An app's :root defines these tokens:
- *   --card, --card-border      the records' and the button's color and edge
+ *   --card, --card-border      the records' color and edge
  *   --divider                  the line over a record's lines
  *   --ink, --ink-mid, --ink-dim  the text, a record's lines, and its quieter parts
- *   --accent, --accent-ink     the button once a record is ready to send, its text, and a dip
+ *   --accent, --accent-ink     the button, its text, and a dip
  *   --radius-card, --radius-control  a record's corners and the button's
  * and chrome.css's .settings-panel sets --bottom-padding, the room under them.
  */
@@ -125,20 +125,6 @@
   text-align: right;
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
-}
-.diagnostics-button {
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--card-border);
-  color: var(--ink);
-}
-.diagnostics-button:disabled {
-  color: var(--ink-mid);
-}
-/* Once a record on request ends, sending it is the one thing to tap next, so it's filled. */
-.diagnostics-button.diagnostics-report {
-  background: var(--accent);
-  box-shadow: none;
-  color: var(--accent-ink);
 }
 
 @media (max-width: 779px) {
