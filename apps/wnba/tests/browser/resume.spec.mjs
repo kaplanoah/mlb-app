@@ -157,6 +157,9 @@ test("a page whose first load failed loads the last season once the store answer
   await expect(page.locator("#stamp")).not.toContainText("Can't reach the page's server");
 });
 
+/** @param {import("@playwright/test").Page} page */
+const readReleaseReloads = (page) => page.evaluate(() => sessionStorage.getItem("releaseReloads"));
+
 test("a page that asks a server still on the last release for one of its files reloads until they match", async ({
   page,
 }) => {
@@ -177,7 +180,8 @@ test("a page that asks a server still on the last release for one of its files r
   await expect.poll(() => loads.page).toBe(2);
   await expect(findFinalWinner(page)).toContainText("Liberty");
   await expect(page.locator(".view.active")).toBeVisible();
-  expect(await page.evaluate(() => sessionStorage.getItem("releaseReloads"))).toBe(null);
+  // The page forgets its reloads once every file has loaded, which can come after it draws.
+  await expect.poll(() => readReleaseReloads(page)).toBe(null);
   await page.clock.runFor(2000);
   expect(loads.page).toBe(2);
 });
@@ -220,9 +224,6 @@ test("a page that never read its own release still reloads when it comes back af
   deploy.isDone = true;
   await expectReload(page, () => comeBack(page));
 });
-
-/** @param {import("@playwright/test").Page} page */
-const readReleaseReloads = (page) => page.evaluate(() => sessionStorage.getItem("releaseReloads"));
 
 test("a page that has reloaded as often as it may for a missing file stays as it is", async ({
   page,
