@@ -13,7 +13,7 @@ import {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-for (let attempt = 1; attempt <= 15; attempt++) {
+for (let attempt = 1; attempt <= 40; attempt++) {
   test(`a tab tap, a tap on a day, and a tap on Today each leave the page at rest, with no ResizeObserver loop ${attempt}`, async ({
     page,
   }) => {
