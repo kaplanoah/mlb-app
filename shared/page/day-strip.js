@@ -379,6 +379,17 @@ function drawFill(fill) {
   setHtml(/** @type {HTMLElement} */ (view), renderView(fill, days));
   drawnDays.clear();
   for (const listed of days) drawnDays.set(listed.day, String(listed.markup));
+  fitEndRoom();
+}
+
+// Room after the last day lets it reach the top as every other day does, so scrolling the list
+// takes the strip's chosen day to the season's last.
+function fitEndRoom() {
+  const list = findList();
+  const last = /** @type {HTMLElement | null | undefined} */ (list?.lastElementChild);
+  if (!list || !last || !isListShown()) return;
+  const room = Math.max(0, list.clientHeight - last.offsetHeight - readDayGap(list));
+  list.style.setProperty("--end-room", `${room}px`);
 }
 
 // The list draws its days again with or without a date without games, keeping its top day where
@@ -444,6 +455,7 @@ export function fillDayStrip(fill) {
   if (isListShown()) noteAnchor();
   drawFill(fill);
   shown = fill;
+  fitEndRoom();
   placeList(putBackTop);
 }
 
@@ -525,6 +537,7 @@ export function startDayStrip(element) {
   let wasShown = false;
   new ResizeObserver(() => {
     const isShown = isListShown();
+    if (isShown) fitEndRoom();
     if (isShown && !wasShown) placeList(null);
     wasShown = isShown;
   }).observe(element);

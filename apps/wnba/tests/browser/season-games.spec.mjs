@@ -99,6 +99,24 @@ test.describe("with reduced motion", () => {
     await expect(findCell(page, august)).toBeInViewport();
   });
 
+  test("scrolling the games to their end brings the season's last day to the top, chosen in the strip, as a tap on it does", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    const last = await page.locator("#seasonGames .listed-day").last().getAttribute("data-day");
+
+    await findList(page).evaluate((list) =>
+      list.scrollTo({ top: list.scrollHeight, behavior: "instant" }),
+    );
+
+    await expectDayAtTop(page, last);
+    await findCell(page, "2026-10-24").click();
+    await expectDayAtTop(page, "2026-10-24");
+    await findCell(page, last).click();
+    await expectDayAtTop(page, last);
+  });
+
   test("a tap on a day brings its games to the top, a tap on Today brings today back, and so does a tap on Games while it shows", async ({
     page,
   }) => {

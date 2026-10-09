@@ -169,21 +169,22 @@
   color: var(--strip-chosen-ink);
 }
 
-/* Only the list scrolls, from the screen's edges, past the tab bar at its end. Safari keeps no
+/* Only the list scrolls, from the screen's edges, past the tab bar at its end, with room after its
+   last day, which the strip's code sets, for that day to reach the top. Safari keeps no
    scroll anchor, so the list's code keeps the day at its top itself, in every browser. */
 .day-list {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
-  padding: var(--day-gap) var(--reach-right) 48px var(--reach-left);
+  padding: var(--day-gap) var(--reach-right) max(48px, var(--end-room, 0px)) var(--reach-left);
   overflow-y: auto;
   overflow-anchor: none;
   overscroll-behavior-y: contain;
 }
 @media (max-width: 779px) {
   .day-list {
-    padding-bottom: var(--tab-bar-clearance);
+    padding-bottom: max(var(--tab-bar-clearance), var(--end-room, 0px));
   }
 }
 .listed-day + .listed-day {
