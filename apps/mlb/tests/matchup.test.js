@@ -7,6 +7,14 @@ import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
 
 useTimeZone(EASTERN);
 
+// Every qualified starter's number in each measure, from the lowest, as the Worker sends it.
+const SPREAD = {
+  era: [2.1, 3.0, 3.66, 4.02, 4.6, 5.3],
+  k9: [6.1, 7.7, 8.4, 9.1, 10.2, 11.5],
+  bb9: [1.8, 2.4, 2.9, 3.1, 3.4, 4.2],
+  speed: [88.9, 90.8, 92.5, 94.0, 95.4, 97.8],
+};
+
 // What the Worker answers for Astros at Athletics' starters, Blubaugh and Springs.
 const describePitcher = (id, [firstName, lastName], line, ranks, pitches) => ({
   id,
@@ -16,7 +24,7 @@ const describePitcher = (id, [firstName, lastName], line, ranks, pitches) => ({
   age: 27,
   line,
   ranks,
-  starters: { count: 46 },
+  starters: { count: 46, values: SPREAD },
   pitches,
   starts: [
     { date: "2026-09-19", opp: "SEA", home: true, ip: "5.2", runs: 2, k: 6 },
@@ -95,22 +103,37 @@ const readClass = (markup, name) =>
   );
 
 /**
- * Each measure's two sides, as the tape draws them.
+ * Each measure's two numbers, as the tape draws them, and where each starter's mark sits on its
+ * curve, as a share of its width.
  * @param {string} markup
  */
 const readTape = (markup) =>
-  [
-    ...markup.matchAll(
-      /<div class="tape-row">([\s\S]*?)<span class="tape-label">([^<]*)<\/span>([\s\S]*?)<\/div>\s*<\/div>/g,
-    ),
-  ].map(([, away, label, home]) => ({ label, away: readTapeSide(away), home: readTapeSide(home) }));
+  markup
+    .split('<div class="tape-measure">')
+    .slice(1)
+    .map((measure) => ({
+      label: readClass(measure, "tape-label")[0],
+      away: readNumber(measure, "away"),
+      home: readNumber(measure, "home"),
+      marks: Object.fromEntries(
+        [...measure.matchAll(/<b class="(away|home)" style="left: ([\d.]+)%/g)].map(
+          ([, side, left]) => [side, Number(left)],
+        ),
+      ),
+    }));
 
-/** @param {string} side */
-function readTapeSide(side) {
-  const bar = side.match(/<i class="(lead)?" style="width: (\d+)%">/);
+/**
+ * @param {string} measure
+ * @param {"away" | "home"} side
+ */
+function readNumber(measure, side) {
+  const start = measure.indexOf(`<span class="tape-number ${side}`);
+  if (start < 0) return null;
+  const number = measure.slice(start).split(/class="(?:tape-label|player-curve)"/)[0];
   return {
-    value: readClass(side, "tape-value tabular")[0],
-    bar: bar ? { width: Number(bar[2]), isLead: Boolean(bar[1]) } : null,
+    value: readClass(number, "tabular")[0],
+    rank: readClass(number, "tape-rank")[0] ?? null,
+    standing: number.match(/^<span class="tape-number \w+ (better|worse)/)?.[1] ?? null,
   };
 }
 
@@ -126,21 +149,64 @@ function checkAt(isoTime, check) {
   }
 }
 
-test("each bar is the share of starters he beats, gold for whichever starter ranks higher", () => {
+test("each measure shows each starter's number and rank under his side, the higher-ranked one bolder and the other's dot dimmed", () => {
   const markup = renderStarters();
   const tape = readTape(markup);
   assert.deepEqual(
     tape.map((measure) => measure.label),
     ["ERA", "K/9", "BB/9", "Fastball mph"],
   );
-  assert.deepEqual(tape[0], {
-    label: "ERA",
-    away: { value: "3.66", bar: { width: 64, isLead: true } },
-    home: { value: "4.02", bar: { width: 38, isLead: false } },
-  });
+  assert.deepEqual(
+    tape.map(({ away, home }) => [away, home]),
+    [
+      [
+        { value: "3.66", rank: "17th", standing: "better" },
+        { value: "4.02", rank: "29th", standing: "worse" },
+      ],
+      [
+        { value: "9.1", rank: "3rd", standing: "better" },
+        { value: "7.7", rank: "26th", standing: "worse" },
+      ],
+      [
+        { value: "3.4", rank: "33rd", standing: "worse" },
+        { value: "2.9", rank: "20th", standing: "better" },
+      ],
+      [
+        { value: "95.4", rank: "10th", standing: "better" },
+        { value: "90.8", rank: "43rd", standing: "worse" },
+      ],
+    ],
+  );
   assert.deepEqual(readClass(markup, "tape-note"), [
-    "Bars are the share of this season's 46 qualified starters he beats",
+    "Each curve is this season's 46 qualified starters, better to the right",
   ]);
+});
+
+test("both starters are marked on one curve of every qualified starter's number, the better one always further right", () => {
+  const tape = readTape(renderStarters());
+  assert.ok(tape.every(({ marks }) => marks.away !== undefined && marks.home !== undefined));
+  const [era, strikeouts, walks, speed] = tape;
+  assert.ok(era.marks.away > era.marks.home, "a lower ERA sits further right");
+  assert.ok(strikeouts.marks.away > strikeouts.marks.home);
+  assert.ok(walks.marks.home > walks.marks.away, "fewer walks sit further right");
+  assert.ok(speed.marks.away > speed.marks.home);
+});
+
+test("each starter's marks take his club's color, the away club taking its other one when the two look alike", () => {
+  const readColors = (away, home) =>
+    renderLoaded({ ...AT_ATHLETICS, away, home }, [
+      { pitcher: BLUBAUGH },
+      { pitcher: SPRINGS },
+    ]).match(/<div class="tape" style="([^"]*)">/)[1];
+  assert.equal(readColors("HOU", "CIN"), "--away: #608eca; --home: #fb4c4c");
+  assert.equal(readColors("CLE", "KC"), "--away: #ff4551; --home: #528fd6");
+});
+
+test("two numbers that read the same mark neither starter as ahead", () => {
+  const tied = { ...SPRINGS, line: { ...SPRINGS.line, k9: 9.1 } };
+  const [, strikeouts] = readTape(renderStarters(BLUBAUGH, tied));
+  assert.equal(strikeouts.away.standing, null);
+  assert.equal(strikeouts.home.standing, null);
 });
 
 test("a finished game without its starters names both clubs and has nothing to check back for", () => {
@@ -171,22 +237,22 @@ test("a club with no starts to go by says so", () => {
   assert.doesNotMatch(astros, /class="rotation"/);
 });
 
-test("a starter outside the qualified starters has his numbers, and a line saying why he has no bars", () => {
+test("a starter outside the qualified starters has his numbers but no rank or mark, and a line saying why", () => {
   const markup = renderStarters(BLUBAUGH, { ...SPRINGS, ranks: null });
   const tape = readTape(markup);
   assert.deepEqual(
     tape.map((measure) => measure.home),
-    ["4.02", "7.7", "2.9", "90.8"].map((value) => ({ value, bar: null })),
+    ["4.02", "7.7", "2.9", "90.8"].map((value) => ({ value, rank: null, standing: null })),
   );
-  assert.equal(tape[0].away.value, "3.66");
-  assert.ok(tape.every((measure) => !measure.away.bar.isLead));
+  assert.deepEqual(tape[0].away, { value: "3.66", rank: "17th", standing: null });
+  assert.ok(tape.every(({ marks }) => marks.away !== undefined && marks.home === undefined));
   assert.deepEqual(readClass(markup, "tape-note"), [
-    "Bars are the share of this season's 46 qualified starters he beats",
+    "Each curve is this season's 46 qualified starters, better to the right",
     "Springs hasn't pitched enough innings to rank among this season's qualified starters",
   ]);
 });
 
-test("with neither starter ranked, the sheet says why and drops the note about bars", () => {
+test("with neither starter ranked, the sheet says why and drops the note about the curves", () => {
   const markup = renderStarters({ ...BLUBAUGH, ranks: null }, { ...SPRINGS, ranks: null });
   assert.deepEqual(readClass(markup, "tape-note"), [
     "Blubaugh hasn't pitched enough innings to rank among this season's qualified starters",

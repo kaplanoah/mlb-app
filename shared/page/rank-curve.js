@@ -1,5 +1,6 @@
 // A player's number in a stat beside where it ranks, on a curve of every ranked player's number in
-// it, smoothed, with the player's mark on it, as a player's sheet shows each ranked stat. A stat
+// it, smoothed, with the player's mark on it, as a player's sheet shows each ranked stat, or with
+// several players' marks on one curve, as MLB's pitching matchup shows its two starters. A stat
 // where fewer is better runs from the most to the fewest, so a better rank always sits further
 // right. Each app colors the curve and the mark from its own stylesheet.
 
@@ -30,13 +31,12 @@ function measureBandwidth(values) {
 
 /**
  * The shape of every ranked player's numbers in a stat, smoothed, across the drawing from the
- * lowest to the highest, or the other way round when the fewest ranks first, and where the
- * player's sits on it, each as a share of the drawing from 0 to 100.
+ * lowest to the highest, or the other way round when the fewest ranks first, and where a number
+ * sits on it, as a share of the drawing from 0 to 100.
  * @param {number[]} values from the lowest
- * @param {number} value the player's
- * @param {boolean} [isFewestFirst]
+ * @param {boolean} isFewestFirst
  */
-export function drawSpread(values, value, isFewestFirst = false) {
+function drawCurve(values, isFewestFirst) {
   const low = values[0];
   const high = values.at(-1) ?? low;
   const width = measureBandwidth(values);
@@ -63,9 +63,47 @@ export function drawSpread(values, value, isFewestFirst = false) {
   return {
     area: `M0,${CURVE_HEIGHT} L${line} L${CURVE_WIDTH},${CURVE_HEIGHT} Z`,
     edge: `M${line}`,
-    left: high > low ? placeShare((value - low) / (high - low)) * 100 : 50,
-    top: (placeHeight(measureDensity(value)) / CURVE_HEIGHT) * 100,
+    /** @param {number} value */
+    place: (value) => ({
+      left: high > low ? placeShare((value - low) / (high - low)) * 100 : 50,
+      top: (placeHeight(measureDensity(value)) / CURVE_HEIGHT) * 100,
+    }),
   };
+}
+
+/**
+ * The shape of every ranked player's numbers in a stat, and where the player's sits on it.
+ * @param {number[]} values from the lowest
+ * @param {number} value the player's
+ * @param {boolean} [isFewestFirst]
+ */
+export function drawSpread(values, value, isFewestFirst = false) {
+  const { area, edge, place } = drawCurve(values, isFewestFirst);
+  return { area, edge, ...place(value) };
+}
+
+/**
+ * A curve of every ranked player's numbers in a stat, with a mark for each number given, any class
+ * it has naming whose it is.
+ * @param {number[]} values from the lowest
+ * @param {{ value: number, className?: string }[]} marks
+ * @param {boolean} [isFewestFirst]
+ */
+export function renderSpreadCurve(values, marks, isFewestFirst = false) {
+  const { area, edge, place } = drawCurve(values, isFewestFirst);
+  const renderMark = (/** @type {{ value: number, className?: string }} */ mark) => {
+    const { left, top } = place(mark.value);
+    const style = `left: ${left.toFixed(1)}%; top: ${top.toFixed(1)}%`;
+    const owner = mark.className ? html` class="${mark.className}"` : "";
+    return html`<i${owner} style="${style}"></i><b${owner} style="${style}"></b>`;
+  };
+  return html`<span class="player-curve" aria-hidden="true">
+    <svg viewBox="0 0 ${CURVE_WIDTH} ${CURVE_HEIGHT}" preserveAspectRatio="none">
+      <path class="player-curve-area" d="${area}"></path>
+      <path class="player-curve-edge" d="${edge}"></path>
+    </svg>
+    ${marks.map(renderMark)}
+  </span>`;
 }
 
 /**
@@ -75,15 +113,7 @@ export function drawSpread(values, value, isFewestFirst = false) {
 function renderCurve(stat, isFewestFirst) {
   if (stat.rank == null || stat.value == null || !stat.values.length)
     return html`<span class="player-curve"></span>`;
-  const { area, edge, left, top } = drawSpread(stat.values, stat.value, isFewestFirst);
-  const place = `left: ${left.toFixed(1)}%; top: ${top.toFixed(1)}%`;
-  return html`<span class="player-curve" aria-hidden="true">
-    <svg viewBox="0 0 ${CURVE_WIDTH} ${CURVE_HEIGHT}" preserveAspectRatio="none">
-      <path class="player-curve-area" d="${area}"></path>
-      <path class="player-curve-edge" d="${edge}"></path>
-    </svg>
-    <i style="${place}"></i><b style="${place}"></b>
-  </span>`;
+  return renderSpreadCurve(stat.values, [{ value: stat.value }], isFewestFirst);
 }
 
 /** @param {RankedStat} stat */

@@ -316,6 +316,22 @@ function measureAge(birthDate, now) {
 }
 
 /**
+ * Every qualified starter's number in each measure, from the lowest, which the sheet draws its
+ * curves from.
+ * @param {any[]} starters
+ */
+const listMeasureValues = (starters) =>
+  Object.fromEntries(
+    Object.keys(MEASURES).map((key) => [
+      key,
+      starters
+        .map((starter) => starter[key])
+        .filter(Number.isFinite)
+        .sort((first, second) => first - second),
+    ]),
+  );
+
+/**
  * The sheet's side for a pitcher, ranked among the season's qualified starters.
  * @param {ReturnType<typeof describePitcher>} pitcher
  * @param {{ starters: any[] }} qualified
@@ -326,7 +342,7 @@ export function composePitcher({ birthDate, ...pitcher }, { starters }, now) {
     ...pitcher,
     age: measureAge(birthDate, now),
     ranks: rankStarter(starters, pitcher.id),
-    starters: { count: starters.length },
+    starters: { count: starters.length, values: listMeasureValues(starters) },
   };
 }
 
