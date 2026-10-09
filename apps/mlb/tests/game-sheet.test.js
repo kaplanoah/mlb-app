@@ -183,7 +183,7 @@ test("a box score kept without its players' ids names them plainly", () => {
 test("each named starter's name in the matchup opens his sheet with his club", () => {
   const game = { ...slate.today.games.find((each) => each.starters?.[0]?.id), today: true };
   const sides = listSides(game);
-  const markup = String(renderMatchupBody(game, sides));
+  const markup = String(renderMatchupBody(game, sides, () => null));
   for (const side of sides.filter((each) => each.starter?.id))
     assert.match(
       markup,

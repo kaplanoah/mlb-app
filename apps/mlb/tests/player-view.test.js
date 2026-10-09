@@ -80,9 +80,9 @@ function describeRostered(mlbTeamId, club, name) {
 
 /**
  * @param {any} player
- * @param {{ starters?: any, side?: any }} [ranked]
+ * @param {{ starters?: any, side?: any, clubGames?: number | null }} [ranked]
  */
-const renderText = (player, { starters = null, side = null } = {}) =>
+const renderText = (player, { starters = null, side = null, clubGames = null } = {}) =>
   readText(
     renderPlayerBody({
       player,
@@ -91,6 +91,7 @@ const renderText = (player, { starters = null, side = null } = {}) =>
       side,
       isUnkept: false,
       isLoading: false,
+      clubGames,
     }),
   );
 
@@ -146,6 +147,15 @@ test("a starter's season ranks his numbers among the qualified starters, and sho
     /ERA and BB\/9 ranked by fewest Rank among qualified starters \(1 inning per team game\)/,
   );
   assert.match(text, /What he throws/);
+});
+
+test("a starter outside the qualified starters has his innings set against the ones he needs", () => {
+  const ohtani = describeRostered(119, "LAD", "Shohei Ohtani");
+  const side = { line: { starts: 14, era: "1.79", k9: 10.5, bb9: 2.4, speed: 98.4 } };
+  const text = renderText(ohtani, { starters: STARTERS, side, clubGames: 162 });
+  assert.match(text, /He has pitched 85 2\/3 of the 162 innings needed to qualify/);
+  const unknown = renderText(ohtani, { starters: STARTERS, side });
+  assert.match(unknown, /He hasn't pitched the innings needed to qualify/);
 });
 
 test("a reliever's season shows his totals alone", () => {

@@ -13,10 +13,11 @@ import {
 
 const NOW = Date.parse("2026-09-30T16:00:00Z");
 
-const describeLine = (id, gamesStarted, era, k9, bb9) => ({
+const describeLine = (id, gamesStarted, inningsPitched, era, k9, bb9) => ({
   player: { id },
   stat: {
     gamesStarted,
+    inningsPitched,
     era,
     strikeoutsPer9Inn: String(k9),
     walksPer9Inn: String(bb9),
@@ -34,15 +35,15 @@ const QUALIFIED = {
   stats: [
     {
       splits: [
-        describeLine(1, 30, "1.95", 11.1, 2.3),
-        describeLine(2, 26, "3.03", 10.4, 2.4),
-        describeLine(3, 22, "3.03", 6.8, 2.8),
-        describeLine(4, 15, "4.50", 8.0, 3.5),
+        describeLine(1, 30, "184.2", "1.95", 11.1, 2.3),
+        describeLine(2, 26, "160.1", "3.03", 10.4, 2.4),
+        describeLine(3, 22, "158.0", "3.03", 6.8, 2.8),
+        describeLine(4, 15, "162.0", "4.50", 8.0, 3.5),
       ],
     },
   ],
 };
-const SEASON_LINES = [...QUALIFIED.stats[0].splits, describeLine(5, 2, "0.90", 12.0, 1.0)];
+const SEASON_LINES = [...QUALIFIED.stats[0].splits, describeLine(5, 2, "10.0", "0.90", 12.0, 1.0)];
 const ARSENALS = {
   1: [
     ["FF", 0.44, 98.0],
@@ -114,7 +115,14 @@ test("a starter ranks among the season's qualified starters, ties sharing a rank
     bb9: { rank: 2, of: 4 },
     speed: { rank: 2, of: 3 },
   });
-  assert.deepEqual(pitcher.line, { starts: 26, era: "3.03", k9: 10.4, bb9: 2.4, speed: 96.1 });
+  assert.deepEqual(pitcher.line, {
+    starts: 26,
+    ip: "160.1",
+    era: "3.03",
+    k9: 10.4,
+    bb9: 2.4,
+    speed: 96.1,
+  });
   assert.equal(pitcher.starters.count, 4);
 });
 
@@ -143,10 +151,10 @@ test("a pitcher's speed is his most-thrown fastball, a four-seamer or a sinker, 
   );
 });
 
-test("a pitcher outside the qualified starters has his numbers but no ranks", () => {
+test("a pitcher outside the qualified starters has his numbers and innings but no ranks", () => {
   const pitcher = composeSide(describePerson(5));
   assert.equal(pitcher.ranks, null);
-  assert.deepEqual(pitcher.line, { starts: 2, era: "0.90", k9: 12, bb9: 1, speed: 95 });
+  assert.deepEqual(pitcher.line, { starts: 2, ip: "10.0", era: "0.90", k9: 12, bb9: 1, speed: 95 });
 });
 
 test("a pitcher yet to pitch this season has no line, and no ranks", () => {
