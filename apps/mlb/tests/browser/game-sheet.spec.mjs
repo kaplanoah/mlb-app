@@ -64,7 +64,7 @@ const PITCHERS = {
     2,
     ["Jeffrey", "Springs"],
     "L",
-    { starts: 24, era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
+    { starts: 24, ip: "128.2", era: "4.02", k9: 7.7, bb9: 2.9, speed: 90.8 },
     {
       era: { rank: 29, of: 46 },
       k9: { rank: 26, of: 46 },
@@ -722,6 +722,59 @@ test("beside a starter who isn't ranked, both numbers are white, and only the un
   );
   expect(era.away).toEqual({ color: era.ink, weight: "400", isDotDimmed: false });
   expect(era.home).toEqual({ color: era.ink, weight: "400", isDotDimmed: true });
+});
+
+/** @param {import("@playwright/test").Locator} sheet */
+const readNumberLineMiddles = (sheet) =>
+  sheet.locator(".tape-measure").evaluateAll((measures) =>
+    measures.map((measure) => {
+      /** @param {string} selector */
+      const readMiddle = (selector) => {
+        const box = /** @type {HTMLElement} */ (
+          measure.querySelector(selector)
+        ).getBoundingClientRect();
+        return Math.round(box.top + box.height / 2);
+      };
+      return {
+        away: readMiddle(".tape-number.away .tape-number-line"),
+        label: readMiddle(".tape-label"),
+        home: readMiddle(".tape-number.home .tape-number-line"),
+      };
+    }),
+  );
+
+test("an unranked starter's numbers sit level with the label and the ranked starter's", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
+  for (const middles of await readNumberLineMiddles(sheet)) {
+    expect(middles.home).toBe(middles.away);
+    expect(Math.abs(middles.label - middles.away)).toBeLessThanOrEqual(1);
+  }
+});
+
+test("an unranked starter's note sets his innings against his club's games, a step apart from the curves", async ({
+  page,
+}) => {
+  const athletics = Object.values(buildSnapshotWithStarters().standings.divisions)
+    .flat()
+    .find((/** @type {any} */ row) => row.id === "ATH");
+  const sheet = await openMatchup(page, { ...PITCHERS, 2: { ...PITCHERS[2], ranks: null } });
+  const notes = sheet.locator(".tape-note");
+
+  await expect(notes).toHaveText([
+    "Rank among qualified starters",
+    `Springs has pitched 128 2/3 of the ${athletics.w + athletics.l} innings needed to qualify`,
+  ]);
+  const space = await sheet.locator(".tape").evaluate((tape) => {
+    const curves = tape.querySelectorAll(".player-curve");
+    const lastCurve = curves[curves.length - 1].getBoundingClientRect();
+    const firstNote = /** @type {Element} */ (
+      tape.querySelector(".tape-note")
+    ).getBoundingClientRect();
+    return firstNote.top - lastCurve.bottom;
+  });
+  expect(space).toBeCloseTo(19.5, 1);
 });
 
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({
