@@ -391,6 +391,20 @@ export const listSides = (game) =>
     failed: false,
   }));
 
+// A starter the store has only by his id, when MLB couldn't describe him, keeps the name shown.
+const isNewStarter = (shown, current) =>
+  current?.id !== shown?.id || (!!current?.name && !shown?.name);
+
+/**
+ * The sides, with a fresh one wherever the game now has another starter, or names one it couldn't.
+ * @param {any[]} sides
+ * @param {MatchupGame} game
+ */
+export const updateSides = (sides, game) =>
+  listSides(game).map((current, index) =>
+    isNewStarter(sides[index].starter, current.starter) ? current : sides[index],
+  );
+
 /**
  * @param {any} side
  * @param {MatchupGame} game
