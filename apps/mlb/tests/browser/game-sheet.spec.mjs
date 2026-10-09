@@ -777,6 +777,16 @@ test("an unranked starter's note sets his innings against his club's games, a st
   expect(space).toBeCloseTo(19.5, 1);
 });
 
+test("the Matchup's stat names are a half step over the sheet's capital labels, at 13.5px", async ({
+  page,
+}) => {
+  const sheet = await openMatchup(page);
+  const sizes = await sheet
+    .locator(".tape-label")
+    .evaluateAll((labels) => labels.map((label) => getComputedStyle(label).fontSize));
+  expect(sizes).toEqual(["13.5px", "13.5px", "13.5px", "13.5px"]);
+});
+
 test("while the starters' numbers load, the matchup holds their shape, then fills it in", async ({
   page,
 }) => {
