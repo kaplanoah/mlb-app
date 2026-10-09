@@ -272,9 +272,10 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     markShownList(key);
   }
 
-  // A hidden view's pages lose their scroll position, so the pager scrolls back to its list each
-  // time it comes into view or the screen's width changes. It runs in an observer, so it only
-  // scrolls: anything that resized the page there would loop the observer.
+  // A hidden view's pages lose their scroll position, and miss the page's scrolls, so the pager
+  // scrolls back to its list and holds its pill for where the page is now each time it comes into
+  // view or the screen's width changes. It runs in an observer, so it only scrolls and moves what
+  // never takes up room: anything that resized the page there would loop the observer.
   function realignPages() {
     const { clientWidth } = findPages();
     if (clientWidth === pagesWidth) return;
@@ -282,6 +283,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     if (!clientWidth) return;
     scrollTarget = null;
     scrollToList(shownList, "instant");
+    alignHiddenLists();
   }
 
   // Lists in a hidden view have no width to scroll, so one chosen there waits for realignPages.

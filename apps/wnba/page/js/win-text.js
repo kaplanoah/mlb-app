@@ -3,6 +3,7 @@
 // plain ones.
 
 import { html } from "#shared/html.js";
+import { describeSeriesGame, describeSeriesWin } from "#shared/series-text.js";
 import { ROUNDS } from "./snapshot.js";
 
 /** @typedef {import("./games-view.js").Game} Game */
@@ -44,13 +45,6 @@ function countSeriesWins(games, through) {
 }
 
 /**
- * @param {number} own
- * @param {number} theirs
- */
-const describeStanding = (own, theirs) =>
-  own > theirs ? "lead" : own === theirs ? "tie" : "trail";
-
-/**
  * A finished game's winner over its loser.
  * @param {Game} game
  * @param {RenderTeam} renderTeam
@@ -72,8 +66,7 @@ export function describeWin(game, games, renderTeam) {
   const wins = countSeriesWins(games, game);
   const own = wins[winner.team ?? ""] ?? 0;
   const theirs = wins[loser.team ?? ""] ?? 0;
-  const result = describeResult(game, renderTeam);
-  const score = html`<span class="series-score">${own}&ndash;${theirs}</span>`;
-  if (own === Math.ceil(round.bestOf / 2)) return html`${result} to win the ${round.name} ${score}`;
-  return html`${result} in Game&nbsp;${game.number}, ${describeStanding(own, theirs)} the ${round.name} ${score}`;
+  const sides = { result: describeResult(game, renderTeam), series: round.name, own, theirs };
+  if (own === Math.ceil(round.bestOf / 2)) return describeSeriesWin(sides);
+  return describeSeriesGame({ ...sides, number: /** @type {number} */ (game.number) });
 }
