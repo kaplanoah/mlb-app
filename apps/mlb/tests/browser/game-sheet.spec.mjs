@@ -268,6 +268,44 @@ test("the game's row follows the score as the store updates it", async ({ page }
   await expect(row.locator(".game-status")).toHaveText("Final");
 });
 
+test("a starter named after the sheet opened shows on its starters line and in its matchup", async ({
+  page,
+}) => {
+  const named = buildSnapshotWithStarters();
+  const isAstrosGame = (game) => game.away === "HOU" && game.home === "ATH";
+  const [blubaugh, springs] = named.slate.today.games.find(isAstrosGame).starters;
+  /** @param {any} season @param {object[]} starters */
+  const setStarters = (season, starters) => ({
+    ...season,
+    slate: {
+      ...season.slate,
+      today: {
+        ...season.slate.today,
+        games: season.slate.today.games.map((game) =>
+          isAstrosGame(game) ? { ...game, starters } : game,
+        ),
+      },
+    },
+  });
+  const app = await openApp(page, {
+    snapshots: { 2026: setStarters(named, [blubaugh, { id: springs.id }]) },
+    pitchers: PITCHERS,
+  });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.getByRole("button", { name: ASTROS_AT_ATHLETICS }).click();
+  const sheet = page.locator("#gameSheet");
+  await expect(
+    sheet.getByRole("button", { name: "Pitching matchup: Blubaugh vs TBD" }),
+  ).toBeVisible();
+
+  const season = await app.readDocument("seasons/2026");
+  await app.writeFromWorker("seasons/2026", setStarters(season, [blubaugh, springs]));
+
+  await expect(sheet.getByRole("button", { name: BLUBAUGH_VS_SPRINGS })).toBeVisible();
+  await showSection(sheet, "Matchup");
+  await expect(sheet.locator(".pitcher-last")).toHaveText(["Blubaugh", "Springs"]);
+});
+
 test("a reload shows the open matchup before the page's code arrives, and the code reads its starters again", async ({
   page,
 }) => {
