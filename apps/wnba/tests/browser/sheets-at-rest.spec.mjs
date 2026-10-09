@@ -30,7 +30,14 @@ async function showPreviousGames(page) {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
-  await findAcesAtFever(page).scrollIntoViewIfNeeded();
+  await findAcesAtFever(page).evaluate(
+    (button) =>
+      new Promise((resolve) => {
+        const list = /** @type {HTMLElement} */ (button.closest(".day-list"));
+        list.addEventListener("scroll", resolve, { once: true });
+        button.scrollIntoView({ block: "nearest" });
+      }),
+  );
   await page.clock.runFor(1000);
   await forgetResizeLoops(page);
 }
