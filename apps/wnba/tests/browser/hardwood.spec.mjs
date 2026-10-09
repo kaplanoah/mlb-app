@@ -286,6 +286,38 @@ test("the Games list's month starts 16px under the header's line, level with Tod
   await expect(bar).not.toHaveClass(/stuck/);
 });
 
+test("an All-Star team's star sits 1px above its name's middle, where a dot sits level with it", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page, { isWholeSeason: true });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect(page.locator("#seasonGames .listed-day").first()).toHaveAttribute(
+    "data-day",
+    /^2026-05-/,
+  );
+  await page.locator('#seasonGames .day-cell[data-day="2026-07-25"]').click();
+  const readMarkAboveName = (/** @type {string} */ side) =>
+    page.locator(side).evaluate((element) => {
+      /** @param {Element} part */
+      const readMiddle = (part) => {
+        const box = part.getBoundingClientRect();
+        return (box.top + box.bottom) / 2;
+      };
+      const mark = /** @type {Element} */ (element.querySelector(".all-star-mark, .dot"));
+      return (
+        readMiddle(/** @type {Element} */ (element.querySelector(".team-name"))) - readMiddle(mark)
+      );
+    });
+  await expect(page.locator('[data-game="1032600001"] .all-star-mark').first()).toBeInViewport();
+  expect(await readMarkAboveName('[data-game="1032600001"] .game-side.away')).toBeCloseTo(1, 1);
+  expect(
+    await readMarkAboveName(
+      '.listed-day[data-day="2026-07-28"] .game-row:first-child .game-side.away',
+    ),
+  ).toBeCloseTo(0, 1);
+});
+
 test("a sheet leaves the page behind it as it is, and a switch stays round", async ({ page }) => {
   await openApp(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();

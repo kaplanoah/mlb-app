@@ -13,13 +13,20 @@ async function fetchJson(url) {
   return response.json();
 }
 
-// The whole season's schedule is a megabyte, so the fixture keeps only what a preview reads.
+// The whole season's schedule is a megabyte, so the fixture keeps only what a preview and the
+// Games view read, with each team's name for the All-Star Game's.
+const trimTeam = (team) => ({
+  teamTricode: team.teamTricode,
+  teamCity: team.teamCity,
+  teamName: team.teamName,
+  score: team.score,
+});
 const trimGame = (game) => ({
   gameId: game.gameId,
   gameStatus: game.gameStatus,
   gameDateTimeUTC: game.gameDateTimeUTC,
-  awayTeam: { teamTricode: game.awayTeam.teamTricode, score: game.awayTeam.score },
-  homeTeam: { teamTricode: game.homeTeam.teamTricode, score: game.homeTeam.score },
+  awayTeam: trimTeam(game.awayTeam),
+  homeTeam: trimTeam(game.homeTeam),
 });
 
 const trimSchedule = ({ leagueSchedule }) => ({

@@ -8,7 +8,7 @@ import {
 } from "#shared/days.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { html } from "#shared/html.js";
-import { renderClub, renderPlainClub } from "./clubs.js";
+import { renderAllStarClub, renderClub, renderPlainClub } from "./clubs.js";
 import { abbreviateDay, nameListDay, readGameDay } from "./days.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { describeSeriesAfterWin, nameTeam } from "./series.js";
@@ -16,7 +16,7 @@ import { countWinsNeeded, ROUNDS } from "./snapshot.js";
 
 /** @typedef {import("./series.js").Series} Series */
 /** @typedef {{ team: string | null, seed: number | null, score: number | null, isInBonus: boolean }} GameSide */
-/** @typedef {{ id: string, round: number | null, series: string | null, number: number | null, start: string | null, state: string, status: string, isTimeSet: boolean, period: number | null, clock: string | null, isIfNeeded: boolean, away: GameSide, home: GameSide, end?: string, networks?: string[] }} Game */
+/** @typedef {{ id: string, round: number | null, series: string | null, number: number | null, start: string | null, state: string, status: string, isTimeSet: boolean, period: number | null, clock: string | null, isIfNeeded: boolean, away: GameSide, home: GameSide, end?: string, networks?: string[], allStar?: { away: string, home: string } }} Game */
 
 // Once a series is decided, the games it no longer needs never happen.
 /**
@@ -122,6 +122,7 @@ export function describeFinalInSeries(game, games) {
  * @param {Game[]} games
  */
 function renderSeriesLabel(game, games) {
+  if (game.allStar) return html`<span class="series-label">All-Star Game</span>`;
   if (!game.round) return false;
   const round = ROUNDS[game.round];
   if (!game.away.team || !game.home.team)
@@ -136,6 +137,10 @@ function renderSeriesLabel(game, games) {
 /** @param {Game} game */
 const hasBothTeams = (game) => !!game.away.team && !!game.home.team;
 
+// The All-Star Game's teams aren't the league's, so it has no sheet, and nor do they.
+/** @param {Game} game */
+const canOpen = (game) => hasBothTeams(game) && !game.allStar;
+
 // Every game holds a line for Bonus under each team, so the teams stay put as it comes and goes.
 // A row that opens its game opens it wherever it's tapped, so its teams are plain.
 /**
@@ -145,12 +150,22 @@ const hasBothTeams = (game) => !!game.away.team && !!game.home.team;
 function describeSide(game, place) {
   const side = game[place];
   const bonus = game.state === "live" && side.isInBonus && html`<span class="bonus">Bonus</span>`;
-  const renderSideClub = hasBothTeams(game) && side.team ? renderPlainClub : renderClub;
   return {
-    lines: renderSideClub(side.team, { seed: side.seed }),
+    lines: renderSideClub(game, place),
     classes: [findLoser(game) === place && "lost"],
     extra: html`${bonus}`,
   };
+}
+
+/**
+ * @param {Game} game
+ * @param {"away" | "home"} place
+ */
+function renderSideClub(game, place) {
+  const side = game[place];
+  if (game.allStar) return renderAllStarClub({ game: game.id, name: game.allStar[place], place });
+  const renderTeam = canOpen(game) && side.team ? renderPlainClub : renderClub;
+  return renderTeam(side.team, { seed: side.seed });
 }
 
 /** @param {Game} game */
@@ -166,7 +181,7 @@ function nameOpenButton(game) {
 // The whole row opens the game's sheet, once both its teams are known.
 /** @param {Game} game */
 const renderOpenButton = (game) =>
-  hasBothTeams(game) &&
+  canOpen(game) &&
   html`<button type="button" class="game-open" aria-label="${nameOpenButton(game)}"></button>`;
 
 // Away from its row, as in an update, the button names its game itself.

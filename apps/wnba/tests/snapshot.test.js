@@ -127,7 +127,7 @@ test("the schedule lists every game of the season in order, with only a final's 
   assert.ok(
     schedule.every((game, index) => index === 0 || game.start >= schedule[index - 1].start),
   );
-  assert.ok(schedule.every((game) => !/^10[13]/.test(game.id)));
+  assert.ok(schedule.every((game) => !/^101/.test(game.id)));
   const seattle = schedule.find((game) => game.id === "1022600325");
   assert.deepEqual([seattle.state, seattle.away.score, seattle.home.score], ["final", 103, 91]);
   const live = schedule.find((game) => game.id === "1022600400");
@@ -135,6 +135,32 @@ test("the schedule lists every game of the season in order, with only a final's 
     [live.state, live.status, live.period, live.clock, live.away.score, live.home.score],
     ["pre", "", null, null, null, null],
   );
+});
+
+test("the schedule lists the All-Star Game with its teams' names, which no other game carries", () => {
+  const { schedule, games, nearestGames } = buildWithWholeSeason(
+    addToScoreboard(SEATTLE_AT_CHICAGO),
+  );
+  const allStar = schedule.find((game) => game.id === "1032600001");
+  assert.deepEqual(
+    {
+      start: allStar.start,
+      state: allStar.state,
+      allStar: allStar.allStar,
+      scores: [allStar.away.score, allStar.home.score],
+    },
+    {
+      start: "2026-07-26T00:30:00Z",
+      state: "final",
+      allStar: { away: "Spoon", home: "Coop" },
+      scores: [129, 122],
+    },
+  );
+  assert.deepEqual(
+    schedule.filter((game) => game.allStar).map((game) => game.id),
+    ["1032600001"],
+  );
+  assert.ok(![...games, ...nearestGames].some((game) => game.id === "1032600001"));
 });
 
 test("the clock reads as minutes and seconds, and tenths in the last minute", () => {

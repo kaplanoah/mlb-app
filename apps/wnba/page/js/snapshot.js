@@ -114,10 +114,23 @@ export function readPlayoffGameId(id) {
   };
 }
 
-// The games of a season that count: its regular season's, the Commissioner's Cup final, which has
-// a number of its own, and its playoffs'. The ID's 102, 105, or 104 comes before the season's last
-// two digits.
-const SEASON_GAME_ID = /^10[245](\d{2})\d{5}$/;
+// The games of a season the Games view lists: its regular season's, the Commissioner's Cup final,
+// which has a number of its own, the All-Star Game, and its playoffs'. The ID's 102, 105, 103, or
+// 104 comes before the season's last two digits.
+const SEASON_GAME_ID = /^10[2-5](\d{2})\d{5}$/;
+
+const ALL_STAR_GAME_ID = /^103/;
+
+// The All-Star Game's teams aren't the league's, so the game carries their names: a captain's name
+// or a conference, without the feeds' "Team" before it, as every team shows its name without its
+// city.
+/** @param {any} game */
+function readAllStarTeams(game) {
+  if (!ALL_STAR_GAME_ID.test(String(game.gameId))) return {};
+  /** @param {any} team */
+  const nameTeam = (team) => team?.teamName || "TBD";
+  return { allStar: { away: nameTeam(game.awayTeam), home: nameTeam(game.homeTeam) } };
+}
 
 /** @param {string} id */
 function readGameSeason(id) {
@@ -171,6 +184,7 @@ function normalizeGame(game) {
     isIfNeeded: !!game.ifNecessary,
     away: readSide(game.awayTeam ?? {}),
     home: readSide(game.homeTeam ?? {}),
+    ...readAllStarTeams(game),
   };
 }
 
@@ -326,6 +340,7 @@ function readScheduledGame(game) {
     isIfNeeded: game.isIfNeeded,
     away: readScheduledSide(game.away, isFinal),
     home: readScheduledSide(game.home, isFinal),
+    ...(game.allStar && { allStar: game.allStar }),
   };
 }
 

@@ -232,6 +232,26 @@ test("a date without games a tap brings into the list says so beside its date, n
     assert.match(renderQuietDay("2026-09-28").text, /class="game-day no-games quiet-day"/);
   }));
 
+test("the All-Star Game's row names it, and shows each team's name beside its star, the visitors' orange and the home team's white, and opens nothing", () =>
+  inEastern(() => {
+    const whole = buildSnapshot(
+      { ...AFTERNOON.responses, schedule: GAMES.preview.schedule, players: GAMES.preview.players },
+      { season: 2026, now: NOW },
+    );
+    const { days } = listDays(whole, { schedule: { games: whole.schedule } });
+    const { markup } = days.find(({ day }) => day === "2026-07-25") ?? {};
+    assert.match(readText(markup), /^Jul 25 Sat Spoon All-Star Game 129 122 Final Coop$/);
+    assert.match(
+      markup.text,
+      /class="game-side away"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: #ee6730/,
+    );
+    assert.match(
+      markup.text,
+      /class="game-side home lost"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: #ffffff/,
+    );
+    assert.doesNotMatch(markup.text, /class="game-open"|class="dot/);
+  }));
+
 test("on a day without games inside the season, the list says so at today's place and opens on it", () =>
   inEastern(() => {
     const TODAYS = ["1042600132", "1042600112"];
