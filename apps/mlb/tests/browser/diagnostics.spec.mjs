@@ -24,7 +24,7 @@ async function scrollSettings(page, distance) {
   await settings.evaluate((dialog) => dialog.removeAttribute("data-scrolled"));
 }
 
-test("on a phone, Diagnostics sit past the copyright, a scroll beyond where settings rest, off", async ({
+test("on a phone, Diagnostics sit past the copyright, a scroll beyond where settings rest, off, and say to tap Share report", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -43,6 +43,10 @@ test("on a phone, Diagnostics sit past the copyright, a scroll beyond where sett
   await expect(findSwitch(page)).toBeInViewport();
   await expect(findSwitch(page)).toHaveAttribute("aria-checked", "false");
   await expect(page.locator("#diagnostics")).toBeHidden();
+  await expect(page.locator("#diagnosticsNote")).toHaveText(
+    "When something looks wrong, turn this on and do what went wrong again. Then open settings and tap Share report, or Copy report on a computer, to send it.",
+    { useInnerText: true },
+  );
 });
 
 test("on a wide screen, Diagnostics sit under the settings and ranking, a scroll away", async ({
@@ -61,7 +65,7 @@ test("on a wide screen, Diagnostics sit under the settings and ranking, a scroll
 });
 
 /** @param {import("@playwright/test").Page} page */
-const findRecordButton = (page) => page.locator("#diagnosticsRecord");
+const findReportButton = (page) => page.locator("#diagnosticsReport");
 
 /** @param {import("@playwright/test").Page} page */
 const stubShare = (page) =>
@@ -88,12 +92,7 @@ test.describe("on a phone", () => {
     await findSwitch(page).click();
     await expect(findSwitch(page)).toHaveAttribute("aria-checked", "true");
 
-    const button = findRecordButton(page);
-    await button.click();
-    for (const secondsLeft of [5, 4, 3, 2, 1]) {
-      await expect(button).toHaveText(`Recording ${secondsLeft}`);
-      await page.clock.runFor(1000);
-    }
+    const button = findReportButton(page);
     await expect(button).toHaveText("Share report");
     await button.click();
 

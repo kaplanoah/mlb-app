@@ -1,13 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  countSecondsLeft,
   describeDevice,
   describeJobStatus,
   describeLoad,
   describeOpenSheets,
   describeTimeAway,
-  nameRecordButton,
+  nameReportButton,
   writeHeader,
   writeRecordsAsText,
 } from "../shared/page/diagnostics.js";
@@ -204,23 +203,10 @@ test("a record on request lists each open sheet and which one its dialog shows",
   assert.deepEqual(describeOpenSheets([]), ["No sheets open"]);
 });
 
-test("a record counts down the whole seconds it has left, from 5 to 1, then none", () => {
-  assert.equal(countSecondsLeft(0), 5);
-  assert.equal(countSecondsLeft(999), 5);
-  assert.equal(countSecondsLeft(1000), 4);
-  assert.equal(countSecondsLeft(4001), 1);
-  assert.equal(countSecondsLeft(5000), 0);
-  assert.equal(countSecondsLeft(6000), 0);
-});
-
-test("the record button says Record, counts down while recording, then offers the report and says it went", () => {
-  const idle = { secondsLeft: 0, reportStep: null, isTouch: true };
-  assert.equal(nameRecordButton(idle), "Record");
-  assert.equal(nameRecordButton({ ...idle, secondsLeft: 5 }), "Recording 5");
-  assert.equal(nameRecordButton({ ...idle, secondsLeft: 1 }), "Recording 1");
-  assert.equal(nameRecordButton({ ...idle, reportStep: "ready" }), "Share report");
-  assert.equal(nameRecordButton({ ...idle, reportStep: "ready", isTouch: false }), "Copy report");
-  assert.equal(nameRecordButton({ ...idle, reportStep: "shared" }), "Shared");
-  assert.equal(nameRecordButton({ ...idle, reportStep: "copied" }), "Copied");
-  assert.equal(nameRecordButton({ ...idle, secondsLeft: 3, reportStep: "ready" }), "Recording 3");
+test("the report button offers the report at once, then says it went", () => {
+  const ready = { reportStep: null, isTouch: true };
+  assert.equal(nameReportButton(ready), "Share report");
+  assert.equal(nameReportButton({ ...ready, isTouch: false }), "Copy report");
+  assert.equal(nameReportButton({ ...ready, reportStep: "shared" }), "Shared");
+  assert.equal(nameReportButton({ ...ready, reportStep: "copied" }), "Copied");
 });
