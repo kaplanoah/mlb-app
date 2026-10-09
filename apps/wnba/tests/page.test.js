@@ -4,13 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { renderBracket } from "../page/js/bracket-view.js";
 import { renderDot } from "../page/js/clubs.js";
 import { readGameDay } from "../page/js/days.js";
-import {
-  describeFinalInSeries,
-  findListsWithGames,
-  renderGames,
-  renderHeadline,
-  sortGamesByDay,
-} from "../page/js/games-view.js";
+import { describeFinalInSeries, listSeasonDays, renderHeadline } from "../page/js/games-view.js";
 import { renderScoreboard } from "../page/js/scoreboard.js";
 import {
   describeSeriesAfterWin,
@@ -48,16 +42,48 @@ const readText = (markup) =>
 const inEastern = (check) => checkInTimeZone(EASTERN, check);
 
 /**
+ * The Games list's days, with the season's own games or with its list of every game.
  * @param {object} season
- * @param {"previous" | "today" | "next"} list
+ * @param {{ schedule?: { games: any[] } | null, now?: number }} [options]
  */
-const readGameList = (season, list) => readText(renderGames(season, NOW)[list]);
+const listDays = (season, { schedule = null, now = NOW } = {}) =>
+  listSeasonDays(season, schedule, now);
+
+/**
+ * One day of the Games list, as it reads.
+ * @param {object} season
+ * @param {string} day "YYYY-MM-DD"
+ */
+function readDay(season, day) {
+  const listed = listDays(season).days.find((each) => each.day === day);
+  return listed ? readText(listed.markup) : "";
+}
 
 /** @param {object} season */
 const readGameMarkup = (season) =>
-  Object.values(renderGames(season, NOW))
-    .map((list) => list.text)
+  listDays(season)
+    .days.map(({ markup }) => markup.text)
     .join("");
+
+/**
+ * The games of each day of the Games list, by their IDs.
+ * @param {ReturnType<typeof listDays>["days"]} days
+ */
+const listGameIds = (days) =>
+  Object.fromEntries(
+    days.map(({ day, markup }) => [
+      day,
+      [...markup.text.matchAll(/data-game="(\d+)"/g)].map(([, id]) => id),
+    ]),
+  );
+
+// Every game of the season, from the whole season's schedule of the next day.
+const WHOLE_SCHEDULE = {
+  games: buildSnapshot(
+    { ...AFTERNOON.responses, schedule: GAMES.preview.schedule },
+    { season: 2026, now: NOW },
+  ).schedule,
+};
 
 function replaceGame(season, id, changes) {
   return {
@@ -65,6 +91,17 @@ function replaceGame(season, id, changes) {
     games: season.games.map((game) => (game.id === id ? { ...game, ...changes } : game)),
   };
 }
+
+/**
+ * The season with only the games that pass `isKept`, among its own and each team's nearest.
+ * @param {any} season
+ * @param {(game: any) => boolean} isKept
+ */
+const keepGames = (season, isKept) => ({
+  ...season,
+  games: season.games.filter(isKept),
+  nearestGames: season.nearestGames.filter(isKept),
+});
 
 // Tonight's Dream and Mystics game, under way in the fourth.
 const LIVE_TONIGHT = replaceGame(SEASON, "1042600132", {
@@ -116,22 +153,40 @@ test("a final reads as how its winner left the series: ahead, level, behind, or 
   );
 });
 
-test("today's games come first, then the days ahead, then results newest first", () =>
+test("the Games list runs day by day from the season's first game to its last, each day's games in order, and opens on today", () =>
   inEastern(() => {
-    const games = SEASON.games.filter((game) => game.away.team || game.home.team);
-    const { today, ahead, before } = sortGamesByDay(games, NOW);
-    assert.deepEqual(
-      today.map((game) => game.id),
-      ["1042600132", "1042600112"],
-    );
-    assert.equal(ahead[0].games[0].id, "1042600123");
-    assert.deepEqual(
-      before.map(({ games: dayGames }) => dayGames.map((game) => game.id)),
-      [
-        ["1042600122", "1042600102"],
-        ["1042600101", "1042600121", "1042600131", "1042600111"],
-      ],
-    );
+    const { days, today, startDay } = listDays(SEASON);
+    assert.equal(today, "2026-09-30");
+    assert.equal(startDay, "2026-09-30");
+    const ids = listGameIds(days);
+    assert.deepEqual(Object.keys(ids).slice(0, 4), [
+      "2026-09-27",
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01",
+    ]);
+    assert.deepEqual(Object.keys(ids), [...Object.keys(ids)].sort());
+    assert.deepEqual(ids["2026-09-30"], ["1042600132", "1042600112"]);
+    assert.deepEqual(ids["2026-09-29"], ["1042600122", "1042600102"]);
+    assert.deepEqual(ids["2026-09-27"], ["1042600101", "1042600121", "1042600131", "1042600111"]);
+    assert.equal(ids["2026-10-01"][0], "1042600123");
+  }));
+
+test("the Games list takes every game of the season from the store's list of them, with the season's own copy of a game over it", () =>
+  inEastern(() => {
+    const { days } = listDays(LIVE_TONIGHT, { schedule: WHOLE_SCHEDULE });
+    const ids = listGameIds(days);
+    assert.ok(days[0].day < "2026-06-01");
+    assert.ok(days.length > 100);
+    assert.equal(Object.values(ids).flat().length, new Set(Object.values(ids).flat()).size);
+    const today = readText(days.find(({ day }) => day === "2026-09-30").markup);
+    assert.match(today, /^Sep 30 Wed 4 Dream 1st Rd 1-0 71 68 Q4 3:48 5 Mystics /);
+  }));
+
+test("a Finals game before either team is known lists as its number between two to-be-decided sides", () =>
+  inEastern(() => {
+    const { days } = listDays(SEASON, { schedule: WHOLE_SCHEDULE });
+    assert.match(readText(days.at(-1).markup), /^\w+ \d+ \w+ TBD Finals G\d+ .* TBD$/);
   }));
 
 test("a game without a set time falls on the league's day, even out west", () => {
@@ -143,10 +198,19 @@ test("a game without a set time falls on the league's day, even out west", () =>
   assert.deepEqual(checkInTimeZone("America/Los_Angeles", readDay), [10, 4]);
 });
 
-test("a live game shows its clock and who's in the bonus, and stays with today's", () =>
+test("a live game shows its clock and who's in the bonus", () =>
   inEastern(() => {
-    const text = readGameList(LIVE_TONIGHT, "today");
+    const text = readDay(LIVE_TONIGHT, "2026-09-30");
     assert.match(text, /^Sep 30 Wed 4 Dream 1st Rd 1-0 71 68 Q4 3:48 5 Mystics Bonus 2 Valkyries /);
+  }));
+
+test("a game still under way past midnight stays on the day it began, which the list opens on", () =>
+  inEastern(() => {
+    const afterMidnight = Date.parse("2026-10-01T04:30:00Z");
+    const { today, startDay } = listDays(LIVE_TONIGHT, { now: afterMidnight });
+    assert.equal(today, "2026-10-01");
+    assert.equal(startDay, "2026-09-30");
+    assert.equal(listDays(SEASON, { now: afterMidnight }).startDay, "2026-10-01");
   }));
 
 test("a final dims the loser, and a game not yet played shows its start in the viewer's time", () =>
@@ -155,28 +219,67 @@ test("a final dims the loser, and a game not yet played shows its start in the v
       readGameMarkup(SEASON),
       /data-game="1042600102">\s*<span class="game-side away lost">/,
     );
-    assert.match(readGameList(SEASON, "today"), /^Sep 30 Wed 4 Dream 1st Rd 1-0 7:00 PM 5 Mystics/);
-    const western = checkInTimeZone("America/Los_Angeles", () => readGameList(SEASON, "today"));
+    assert.match(readDay(SEASON, "2026-09-30"), /^Sep 30 Wed 4 Dream 1st Rd 1-0 7:00 PM 5 Mystics/);
+    const western = checkInTimeZone("America/Los_Angeles", () => readDay(SEASON, "2026-09-30"));
     assert.match(western, /^Sep 30 Wed 4 Dream 1st Rd 1-0 4:00 PM 5 Mystics/);
   }));
 
-test("which Games lists have games: today's and the ones ahead", () =>
+test("a date without games a tap brings into the list says so beside its date, named as the list names a day", () =>
   inEastern(() => {
-    const TODAYS = ["1042600132", "1042600112"];
-    const dayOff = { ...SEASON, games: SEASON.games.filter((game) => !TODAYS.includes(game.id)) };
-    const onlyResults = { ...SEASON, games: SEASON.games.filter((game) => game.state === "final") };
-    assert.deepEqual(findListsWithGames(SEASON, NOW), { hasGamesToday: true, hasGamesAhead: true });
-    assert.deepEqual(findListsWithGames(dayOff, NOW), {
-      hasGamesToday: false,
-      hasGamesAhead: true,
-    });
-    assert.deepEqual(findListsWithGames(onlyResults, NOW), {
-      hasGamesToday: false,
-      hasGamesAhead: false,
-    });
+    const { renderQuietDay } = listDays(SEASON);
+    assert.equal(readText(renderQuietDay("2026-09-28")), "Sep 28 Mon No games");
+    assert.equal(readText(renderQuietDay("2026-10-01")), "Oct 1 Tmrw No games");
+    assert.match(renderQuietDay("2026-09-28").text, /class="game-day no-games quiet-day"/);
   }));
 
-test("a game a finished series no longer needs is left off, and an empty list says so", () =>
+test("the All-Star Game's row names it, and shows each team's name beside its star, the visitors' orange and the home team's white, and opens nothing", () =>
+  inEastern(() => {
+    const whole = buildSnapshot(
+      { ...AFTERNOON.responses, schedule: GAMES.preview.schedule, players: GAMES.preview.players },
+      { season: 2026, now: NOW },
+    );
+    const { days } = listDays(whole, { schedule: { games: whole.schedule } });
+    const { markup } = days.find(({ day }) => day === "2026-07-25") ?? {};
+    assert.match(readText(markup), /^Jul 25 Sat Spoon All-Star Game 129 122 Final Coop$/);
+    assert.match(
+      markup.text,
+      /class="game-side away"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: #ee6730/,
+    );
+    assert.match(
+      markup.text,
+      /class="game-side home lost"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: #ffffff/,
+    );
+    assert.doesNotMatch(markup.text, /class="game-open"|class="dot/);
+  }));
+
+test("on a day without games inside the season, the list says so at today's place and opens on it", () =>
+  inEastern(() => {
+    const TODAYS = ["1042600132", "1042600112"];
+    const dayOff = keepGames(SEASON, (game) => !TODAYS.includes(game.id));
+    const { days, startDay } = listDays(dayOff);
+    const keys = days.map(({ day }) => day);
+    assert.equal(keys.indexOf("2026-09-30"), keys.indexOf("2026-09-29") + 1);
+    assert.equal(readDay(dayOff, "2026-09-30"), "Sep 30 Wed No games today");
+    assert.equal(startDay, "2026-09-30");
+    assert.match(
+      days[keys.indexOf("2026-09-30")].markup.text,
+      /class="game-day no-games is-today"/,
+    );
+  }));
+
+test("a list over before today opens on its last day, one not begun on its first, and neither says there are no games today", () =>
+  inEastern(() => {
+    const onlyResults = keepGames(SEASON, (game) => game.state === "final");
+    const over = listDays(onlyResults);
+    assert.equal(over.startDay, "2026-09-29");
+    assert.equal(over.days.at(-1).day, "2026-09-29");
+    assert.doesNotMatch(readGameMarkup(onlyResults), /No games today/);
+    const notBegun = listDays(SEASON, { now: Date.parse("2026-09-20T16:00:00Z") });
+    assert.equal(notBegun.startDay, "2026-09-27");
+    assert.ok(notBegun.days.every(({ markup }) => !/No games today/.test(markup.text)));
+  }));
+
+test("a game a finished series no longer needs is left off, and a season without games says so", () =>
   inEastern(() => {
     const game3 = {
       ...SEASON.games.find((game) => game.id === "1042600102"),
@@ -188,17 +291,9 @@ test("a game a finished series no longer needs is left off, and an empty list sa
     };
     const season = { ...SEASON, games: [...SEASON.games, game3] };
     assert.doesNotMatch(readGameMarkup(season), /1042600103/);
-    const onlyResults = { ...SEASON, games: SEASON.games.filter((game) => game.state === "final") };
-    assert.equal(readGameList(onlyResults, "today"), "No games today");
-    assert.equal(readGameList(onlyResults, "next"), "No more games scheduled");
-    assert.match(readGameList(onlyResults, "previous"), /^Sep 29 Yest .* Final 2 Valkyries$/);
-    assert.equal(readGameList({ games: [] }, "previous"), "No playoff games yet");
-    const nothingPlayed = {
-      ...SEASON,
-      games: SEASON.games.filter((game) => game.state !== "final"),
-    };
-    assert.equal(readGameList(nothingPlayed, "previous"), "No results yet");
-    assert.match(readGameList(nothingPlayed, "today"), /^Sep 30 Wed 4 Dream /);
+    const empty = listDays({ games: [] });
+    assert.deepEqual(empty.days, []);
+    assert.equal(empty.emptyNote, "No games scheduled yet");
   }));
 
 test("the bracket and standings say in a short note when they have nothing yet", () => {
@@ -212,12 +307,11 @@ test("the bracket and standings say in a short note when they have nothing yet",
 test("each game's label counts its series as it stood at tip-off, or after the game once it's final", () =>
   inEastern(() => {
     assert.match(
-      readGameList(SEASON, "today"),
+      readDay(SEASON, "2026-09-30"),
       /^Sep 30 Wed 4 Dream 1st Rd 1-0 7:00 PM 5 Mystics /,
     );
-    const results = readGameList(SEASON, "previous");
-    assert.match(results, / 8 Liberty 1st Rd 1-0 91 75 Final 1 Lynx /);
-    assert.match(results, / 1 Lynx 1st Rd 0-2 71 87 Final 8 Liberty /);
+    assert.match(readDay(SEASON, "2026-09-27"), / 8 Liberty 1st Rd 1-0 91 75 Final 1 Lynx /);
+    assert.match(readDay(SEASON, "2026-09-29"), / 1 Lynx 1st Rd 0-2 71 87 Final 8 Liberty$/);
     const labels = [...readGameMarkup(SEASON).matchAll(/class="series-label( decided)?"/g)];
     assert.deepEqual(
       labels.filter(([, decided]) => decided).length,
@@ -227,47 +321,53 @@ test("each game's label counts its series as it stood at tip-off, or after the g
   }));
 
 /**
- * Each day's heading in a list, as it reads.
+ * Each day's heading in the Games list, as it reads, or as a screen reader names it.
  * @param {object} season
- * @param {"previous" | "today" | "next"} list
+ * @param {RegExp} pattern
  */
-const readDayLabels = (season, list) =>
-  [
-    ...renderGames(season, NOW)[list].text.matchAll(/<h3 class="day-label"[^>]*>([\s\S]*?)<\/h3>/g),
-  ].map(([, label]) => readText({ text: label }));
+const readDayLabels = (season, pattern = /<h3 class="day-label"[^>]*>([\s\S]*?)<\/h3>/g) =>
+  [...readGameMarkup(season).matchAll(pattern)].map(([, label]) => readText({ text: label }));
 
-test("each day's games share a box beside its date, named for yesterday, tomorrow, or its weekday", () =>
+test("each day's games share a box beside its date, named for yesterday, tomorrow, or its weekday, today's marked", () =>
   inEastern(() => {
-    const markup = renderGames(SEASON, NOW);
-    assert.equal(markup.previous.text.match(/<section class="game-day">/g).length, 2);
-    assert.deepEqual(readDayLabels(SEASON, "previous"), ["Sep 29 Yest", "Sep 27 Sun"]);
-    assert.deepEqual(readDayLabels(SEASON, "today"), ["Sep 30 Wed"]);
-    assert.deepEqual(readDayLabels(SEASON, "next").slice(0, 3), [
+    const { days } = listDays(SEASON);
+    assert.ok(
+      days.every(({ markup }) => markup.text.match(/<section class="game-day/g).length === 1),
+    );
+    assert.deepEqual(readDayLabels(SEASON).slice(0, 6), [
+      "Sep 27 Sun",
+      "Sep 29 Yest",
+      "Sep 30 Wed",
       "Oct 1 Tmrw",
       "Oct 2 Fri",
       "Oct 4 Sun",
     ]);
+    const today = days.find(({ day }) => day === "2026-09-30");
+    assert.match(today.markup.text, /<section class="game-day is-today" style="--games: 2">/);
+    assert.equal(readGameMarkup(SEASON).match(/is-today/g).length, 1);
   }));
 
 test("a day's date reads in full to a screen reader, and every day's name looks alike", () =>
   inEastern(() => {
-    const markup = renderGames(SEASON, NOW);
-    const readNames = (list) =>
-      [...markup[list].text.matchAll(/<h3 class="day-label" aria-label="([^"]*)"/g)].map(
-        ([, name]) => name,
-      );
-    const readDayNameClasses = (list) =>
-      [...markup[list].text.matchAll(/<span class="(day-name[^"]*)">/g)].map(([, name]) => name);
-    assert.deepEqual(readNames("previous"), ["Yesterday, Sep 29", "Sunday, Sep 27"]);
-    assert.deepEqual(readNames("today"), ["Wednesday, Sep 30"]);
-    assert.deepEqual(readNames("next").slice(0, 2), ["Tomorrow, Oct 1", "Friday, Oct 2"]);
-    for (const list of ["previous", "today", "next"])
-      assert.deepEqual(new Set(readDayNameClasses(list)), new Set(["day-name"]));
+    assert.deepEqual(
+      readDayLabels(SEASON, /<h3 class="day-label" aria-label="([^"]*)"/g).slice(0, 5),
+      [
+        "Sunday, Sep 27",
+        "Yesterday, Sep 29",
+        "Wednesday, Sep 30",
+        "Tomorrow, Oct 1",
+        "Friday, Oct 2",
+      ],
+    );
+    const classes = [...readGameMarkup(SEASON).matchAll(/<span class="(day-name[^"]*)">/g)].map(
+      ([, name]) => name,
+    );
+    assert.deepEqual(new Set(classes), new Set(["day-name"]));
   }));
 
 test("a game whose teams aren't both known yet names its number instead of a series count", () =>
   inEastern(() => {
-    const text = readGameList(SEASON, "next");
+    const text = readText({ text: readGameMarkup(SEASON) });
     assert.match(text, / 8 Liberty Semis G1 TBD TBD /);
     assert.match(text, / TBD Semis G3 TBD 8 Liberty /);
   }));
@@ -870,12 +970,7 @@ const listTeamButtons = (markup) =>
   );
 
 test("a game's row that opens the game names its teams plainly, and a row still waiting on a team has the other open its sheet", () => {
-  const lists = renderGames(SEASON, NOW);
-  const markup = {
-    text: Object.values(lists)
-      .map((list) => list.text)
-      .join(""),
-  };
+  const markup = { text: readGameMarkup(SEASON) };
   const waiting = SEASON.games.filter((game) => !game.away.team !== !game.home.team);
   assert.ok(waiting.length > 0);
   assert.deepEqual(
@@ -884,7 +979,7 @@ test("a game's row that opens the game names its teams plainly, and a row still 
   );
   assert.match(markup.text, /<span class="club tbd">/);
   assert.match(
-    lists.previous.text,
+    markup.text,
     /<span class="club"><span class="dot"[^>]*><\/span><span class="seed">3<\/span><span class="team-name">Aces<\/span><\/span>/,
   );
 });
@@ -1091,20 +1186,33 @@ test("a score shows in scoreboard digits, and still reads as its number", () => 
   const markup = renderScoreboard(89).text;
   assert.match(markup, /<span class="scoreboard-text">89<\/span>/);
   assert.equal(markup.match(/<svg/g).length, 3);
-  assert.equal(
-    markup.match(/class="on"/g).length,
-    7 + 6,
+  assert.deepEqual(
+    readLitPlaces({ text: markup }),
+    [0, 7, 6],
     "an 8 lights every segment, a 9 all but one",
   );
   assert.match(renderScoreboard(68, { isLoser: true }).text, /class="scoreboard lost"/);
 });
 
-/** @param {{ text: string }} markup */
+// A season's list shows hundreds of scores, so each place draws its lit segments in one shape and
+// its dark ones in another.
+test("each place of a score draws its segments in at most two shapes, lit and dark", () => {
+  const places = renderScoreboard(106).text.split("<svg").slice(1);
+  assert.deepEqual(
+    places.map((place) => (place.match(/<(path|rect)\b/g) ?? []).length),
+    [1, 2, 2],
+  );
+});
+
+/**
+ * How many segments each place of a score lights, one outline each in its lit shape.
+ * @param {{ text: string }} markup
+ */
 const readLitPlaces = (markup) =>
   markup.text
     .split("<svg")
     .slice(1)
-    .map((place) => (place.match(/class="on"/g) ?? []).length);
+    .map((place) => (place.match(/class="on" d="([^"]*)"/)?.[1].match(/M/g) ?? []).length);
 
 test("every score fills a narrow hundreds place and two digits, with the places it doesn't reach dark", () => {
   assert.match(renderScoreboard(7).text, /<svg class="hundreds"/);
@@ -1139,7 +1247,7 @@ test("between periods the league's word for the break shows in place of the cloc
 
 test("each game's score shows in scoreboard digits, the loser's dimmed", () =>
   inEastern(() => {
-    const markup = renderGames(SEASON, NOW).previous.text;
+    const markup = readGameMarkup(SEASON);
     assert.match(markup, /class="scoreboard lost"\s*><span class="scoreboard-text">71<\/span>/);
     assert.match(markup, /class="scoreboard"\s*><span class="scoreboard-text">87<\/span>/);
   }));

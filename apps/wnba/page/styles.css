@@ -156,6 +156,10 @@
   --block-side: #d6bfa0;
   --dot-shadow: color-mix(in srgb, var(--shadow-ink) 30%, transparent);
   --dot-light: rgba(255, 255, 255, 0.49);
+  --all-star-shadow: color-mix(in srgb, var(--shadow-ink) 18%, transparent);
+  --all-star-light: rgba(255, 255, 255, 0.49);
+  --all-star-hairline: color-mix(in srgb, var(--shadow-ink) 3%, transparent);
+  --all-star-shift: -1px;
   --accent: var(--action);
   --accent-ink: var(--action-ink);
   --focus-ring: var(--teal);
@@ -172,6 +176,8 @@
   /* Barlow Condensed reads a little smaller than Barlow in a sentence, so it takes its own size there,
      matched by eye. */
   --size-read-condensed: 1.03125rem;
+  /* Today's note when it has no games, a half step under a sentence. */
+  --size-empty-day: 0.96875rem;
   --gate-heading-font: var(--heading);
   --gate-code-font: var(--numbers);
   --gate-problem: var(--now);
@@ -180,6 +186,13 @@
   --header-gap: 14px;
   --pager-label: var(--ink);
   --pager-chosen-edge: color-mix(in srgb, var(--action) 70%, var(--shadow-ink));
+  --strip-month: var(--structure);
+  --strip-today: var(--now);
+  --strip-chosen: var(--action);
+  --strip-chosen-ink: var(--action-ink);
+  --strip-chosen-edge: var(--pager-chosen-edge);
+  --strip-action: var(--action);
+  --day-gap: 8px;
   --held-bar-fade: 0px;
   --held-bar-line: var(--divider);
   --updates-head: var(--structure);
@@ -222,6 +235,8 @@
   --block-side: #261610;
   --dot-shadow: color-mix(in srgb, var(--shadow-ink) 62%, transparent);
   --dot-light: rgba(255, 255, 255, 0.15);
+  --all-star-shadow: color-mix(in srgb, var(--shadow-ink) 37.2%, transparent);
+  --all-star-light: rgba(255, 255, 255, 0.15);
   --logos-for-light: none;
   --logos-for-dark: inline;
   --won-row-wash: 12%;
@@ -346,9 +361,43 @@ header.top h1 {
   color: var(--ink-dim);
   font-size: var(--size-read);
 }
-/* Centered under its pill, its capitals a touch above the middle of the date's number beside a
-   list's first game, where it looks level to the eye. */
-.pager-page .empty-note {
+/* The season's games sit under a strip of its days, whose month's capitals start 16px under the
+   header's line. Each day's card draws only near the screen, at the height its games take inside
+   its edge. Today's date is orange, as it is in the strip. */
+.day-view {
+  margin-top: calc(5.5px - var(--header-gap));
+}
+.day-list .game-day .game-list {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height));
+}
+.game-day.is-today .day-number {
+  color: var(--strip-today);
+}
+/* Centered beside today's date, its capitals 41.9px down the day, a touch above the middle of the
+   date's number, where they look level to the eye. */
+.no-games .empty-note {
+  margin: calc(41.9px - 0.35 * var(--size-empty-day)) 0 0;
+  font-size: var(--size-empty-day);
+  text-align: center;
+  text-box: trim-both cap alphabetic;
+}
+/* A date without games a tap brings in is a short row, its note beside its date. */
+.game-day.quiet-day {
+  align-items: center;
+}
+.quiet-day .day-label {
+  height: 58px;
+}
+.no-games.quiet-day .empty-note {
+  margin: 0;
+  padding-left: var(--day-inset);
+  font-size: var(--size-glance);
+  color: var(--ink-dim);
+  text-align: left;
+}
+/* A season without games yet says so where its first day would be. */
+.day-view > .empty-note {
   margin-top: 31.5px;
   text-align: center;
 }
@@ -441,9 +490,6 @@ header.top h1 {
   grid-template-columns: 40px minmax(0, 1fr);
   column-gap: 12px;
   align-items: start;
-}
-.game-day + .game-day {
-  margin-top: 8px;
 }
 .day-label {
   display: flex;
@@ -593,20 +639,20 @@ header.top h1 {
 .scoreboard svg.hundreds {
   margin-right: -1px;
 }
-.scoreboard rect {
+.scoreboard path {
   fill: var(--led);
   opacity: 0.1;
 }
-.scoreboard rect.on {
+.scoreboard path.on {
   opacity: 1;
 }
 .scoreboard.lost svg {
   filter: none;
 }
-.scoreboard.lost rect {
+.scoreboard.lost path {
   opacity: 0.07;
 }
-.scoreboard.lost rect.on {
+.scoreboard.lost path.on {
   fill: var(--led-dim);
   opacity: 0.72;
 }

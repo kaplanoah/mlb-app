@@ -2,6 +2,8 @@
 // is scrolled and whether scrollend or the fallback timer last settled it, and for each list where
 // it sits on the screen, how it's styled, and its first item's opacity and what a tap on it would
 // land on, and with every animation on the page that hasn't finished. A list the phone laid out but didn't draw still names its item.
+// A season's list of days (day-strip.js) says the same of the day at its top, and which day its
+// strip has chosen.
 
 /** @param {DOMRect} rect */
 const describeRect = ({ left, top, width, height }) =>
@@ -81,3 +83,31 @@ export const describeShownPagers = () =>
   /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".pager-pages")])
     .filter((pages) => pages.clientWidth > 0)
     .map(describePages);
+
+/** @param {HTMLElement} list */
+function findDayAtTop(list) {
+  const top = list.getBoundingClientRect().top + 1;
+  const days = /** @type {HTMLElement[]} */ ([...list.children]);
+  return days.find((day) => day.getBoundingClientRect().bottom > top) ?? null;
+}
+
+/** @param {HTMLElement} list */
+function describeDayList(list) {
+  const view = list.closest(".day-view");
+  const chosen = /** @type {HTMLElement | null} */ (view?.querySelector(".day-cell.is-chosen"));
+  const day = findDayAtTop(list);
+  return [
+    `${view?.id ?? "day list"} scrolled ${Math.round(list.scrollTop)} of ${list.scrollHeight}, ${list.clientHeight} tall`,
+    `strip on ${chosen?.dataset.day ?? "no day"}`,
+    `${day?.dataset.day ?? "no day"} at the top, ${describeFirstItem(day)}`,
+  ].join("; ");
+}
+
+/**
+ * A line for each season's list of days showing on the screen.
+ * @returns {string[]}
+ */
+export const describeShownDayLists = () =>
+  /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".day-list")])
+    .filter((list) => list.clientHeight > 0)
+    .map(describeDayList);

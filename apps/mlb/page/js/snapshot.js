@@ -574,6 +574,36 @@ function normalizeGame(game) {
   };
 }
 
+// The All-Star Game's teams are its leagues'.
+const ALL_STAR_LEAGUES = { 159: "AL", 160: "NL" };
+
+/**
+ * The All-Star Game, when the schedule's days hold it, with its leagues for its clubs.
+ * @param {any} schedule
+ */
+function findAllStarGame(schedule) {
+  const game = ((schedule && schedule.dates) || [])
+    .flatMap((day) => day.games || [])
+    .find((each) => each.gameType === "A");
+  if (!game) return null;
+  const normalized = normalizeGame(game);
+  /** @param {"away" | "home"} key */
+  const readLeague = (key) => ALL_STAR_LEAGUES[game.teams?.[key]?.team?.id] ?? null;
+  return {
+    ...normalized,
+    away: { ...normalized.away, id: readLeague("away") },
+    home: { ...normalized.home, id: readLeague("home") },
+  };
+}
+
+// It sits beside the slate's lists rather than in them, since the header, the Updates box, and the
+// store's box scores and pitchers follow the clubs' games, and only the Games view lists it.
+function summarizeAllStarGame(game) {
+  if (!game || game.state === "off") return null;
+  const { starters, postseason, networks, ...summary } = summarizeGame(game, new Map());
+  return { date: game.date, ...summary, allStar: true };
+}
+
 // A suspended game is listed again on the day it resumes; the later listing counts.
 function listScheduledGames(...responses) {
   const gamesByPk = new Map();
@@ -1076,6 +1106,13 @@ function readRecords(standings) {
 const listPitchers = (responses) =>
   new Map((responses.pitchers?.people || []).map((person) => [person.id, person]));
 
+/** @returns {ReturnType<typeof buildSlate> & { allStar?: any }} */
+function buildSlateWithAllStar(responses, games, clubGames, now) {
+  const slate = buildSlate(games, clubGames, now, listPitchers(responses));
+  const allStar = summarizeAllStarGame(findAllStarGame(responses.schedule));
+  return allStar ? { ...slate, allStar } : slate;
+}
+
 export function buildSnapshot(responses, { season, now = Date.now() }) {
   const games = responses.schedule ? listScheduledGames(responses.schedule) : [];
   const postseasonGames = listPostseasonGames(responses);
@@ -1100,7 +1137,7 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
     series,
     log,
     standings: hasStandings ? buildStandings(responses.standings, clubGames) : null,
-    slate: responses.schedule ? buildSlate(games, clubGames, now, listPitchers(responses)) : null,
+    slate: responses.schedule ? buildSlateWithAllStar(responses, games, clubGames, now) : null,
     missing: findMissingFields(responses),
   };
 }
@@ -1109,7 +1146,10 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
 export function choosePollDelay(snapshot, now = Date.now()) {
   const slate = snapshot && snapshot.slate;
   if (!slate) return null;
-  const games = [slate.today, slate.nextDay].filter(Boolean).flatMap((day) => day.games);
+  const games = [
+    ...[slate.today, slate.nextDay].filter(Boolean).flatMap((day) => day.games),
+    slate.allStar,
+  ].filter(Boolean);
   return PollSchedule.choosePollDelay({
     isLive: games.some((game) => game.state === "live"),
     starts: games

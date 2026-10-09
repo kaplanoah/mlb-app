@@ -28,6 +28,8 @@ const createStories = (photoUrl) =>
 async function showTheme(page, theme) {
   await page.emulateMedia({ colorScheme: theme });
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  // A link that eases its color on hover eases it into the new theme's too.
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
 }
 
 /** @param {import("@playwright/test").Page} page */
@@ -50,7 +52,7 @@ const VIEWS = [
   {
     name: "Games",
     open: (page) => page.getByRole("tab", { name: "Games" }).click(),
-    shown: (page) => page.locator("#games-today .game-row").first(),
+    shown: (page) => page.locator("#seasonGames .game-day.is-today .game-row").first(),
   },
   {
     name: "Standings",

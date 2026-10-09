@@ -41,29 +41,42 @@ function findByPath(part, path) {
   return element;
 }
 
+// After two minutes away, a list goes back to where it starts, as the Games view's lists do
+// (last-game-list.js).
+const START_AFTER_AWAY_MS = 2 * 60 * 1000;
+
 /**
  * @param {Element} part
  * @param {unknown} scrolls
+ * @param {unknown} savedAt
  */
-function restoreScrolls(part, scrolls) {
+function restoreScrolls(part, scrolls, savedAt) {
   if (!Array.isArray(scrolls)) return;
-  for (const { path, left } of scrolls) {
+  const isLongAway = !(Date.now() - Number(savedAt) < START_AFTER_AWAY_MS);
+  for (const { path, left, top, startTop } of scrolls) {
     const element = Array.isArray(path) ? findByPath(part, path) : null;
-    if (element) element.scrollLeft = left;
+    if (!element) continue;
+    element.scrollLeft = Number(left) || 0;
+    const shownTop = Number(isLongAway && startTop !== undefined ? startTop : top) || 0;
+    element.scrollTop = shownTop;
+    // The page around a list can settle a little shorter or taller once its code draws it, which
+    // can stop a scroll near the list's end short, so the list's code can take it again.
+    if (element instanceof HTMLElement && shownTop > 0)
+      element.dataset.putBackTop = String(shownTop);
   }
 }
 
 /**
  * @param {string} id
- * @param {{ markup: string, hidden: boolean, classes?: unknown, style?: unknown, scrolls?: unknown }} part
+ * @param {{ markup: string, hidden: boolean, classes?: unknown, style?: unknown, scrolls?: unknown, savedAt?: unknown }} part
  */
-function showPart(id, { markup, hidden, classes, style, scrolls }) {
+function showPart(id, { markup, hidden, classes, style, scrolls, savedAt }) {
   const element = /** @type {HTMLElement} */ (document.getElementById(id));
   element.innerHTML = markup;
   element.hidden = hidden === true;
   if (typeof classes === "string") element.classList.add(...classes.split(" ").filter(Boolean));
   if (typeof style === "string") element.setAttribute("style", style);
-  restoreScrolls(element, scrolls);
+  restoreScrolls(element, scrolls, savedAt);
 }
 
 /** @param {any} saved */

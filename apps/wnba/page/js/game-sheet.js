@@ -16,6 +16,7 @@ import { fetchBoxScore, fetchLead, fetchPreview } from "./game-details-fetch.js"
 import {
   describeFinalInSeries,
   findLoser,
+  listSeasonGames,
   nameGame,
   renderHeadline,
   renderStatus,
@@ -39,13 +40,12 @@ let unwatchDetails = null;
 const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gameSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
-// A team's nearest game may be a playoff game or one of its regular season's, which only the
-// nearest games hold.
+// A game may be a playoff game, a team's nearest, or any other of the season's, which only its
+// list of every game holds, and the season's own copy, which carries a game while it's played,
+// comes first.
 /** @param {string} id */
 const findGame = (id) =>
-  [...(session.season?.games ?? []), ...(session.season?.nearestGames ?? [])].find(
-    (game) => game.id === id,
-  ) ?? null;
+  listSeasonGames(session.season, session.schedule).find((game) => game.id === id) ?? null;
 
 /** @param {Game} game */
 const chooseKind = (game) => (game.state === "pre" ? "preview" : "box");
@@ -322,7 +322,7 @@ function forgetGame() {
 
 export function startGameSheet() {
   watchRetries(findSheet(), retryDetails);
-  for (const holder of ["gamePager", "updates", "teamBody"])
+  for (const holder of ["seasonGames", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
     closeButton: findElement("gameCloseBtn"),

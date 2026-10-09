@@ -6,6 +6,7 @@ import {
   capNotifications,
   describeAsNotification,
 } from "../../../../shared/worker/notifications.js";
+import { nameScheduleKey } from "../../page/js/snapshot.js";
 import { nameMeetingsKey } from "./preview.js";
 
 // Keeps the current season's saved data up to date from the league, whether or not a page is
@@ -71,6 +72,7 @@ function prepareGames(savedGames, games, { isStandIn, asOf }) {
 // A feed that didn't answer leaves what it feeds as it was.
 export async function saveSnapshot(docs, snapshot) {
   await saveSeason(docs, snapshot);
+  await saveSchedule(docs, snapshot);
   if (!snapshot.missing.includes("players")) await saveAverages(docs, snapshot);
   if (!snapshot.missing.includes("schedule")) await saveMeetings(docs, snapshot);
 }
@@ -95,15 +97,37 @@ async function saveAverages(docs, snapshot) {
   });
 }
 
+// The season's games need the same feeds as the record's.
+async function saveSchedule(docs, snapshot) {
+  const { hasGames, isStandIn } = readGameFeeds(snapshot);
+  if (!hasGames) return;
+  const key = nameScheduleKey(snapshot.season);
+  const doc = await docs.read(key);
+  const games = isStandIn ? keepFurtherGames(doc?.games, snapshot.schedule) : snapshot.schedule;
+  if (doc?.version === snapshot.version && isSameJson(doc.games, games)) return;
+  await docs.write(key, {
+    version: snapshot.version,
+    year: snapshot.season,
+    games,
+    updatedAt: snapshot.asOf,
+  });
+}
+
+/** @param {{ missing: string[], standIn?: string | null }} snapshot */
+function readGameFeeds(snapshot) {
+  const missing = new Set(snapshot.missing);
+  const isStandIn = missing.has("scoreboard") && !!snapshot.standIn;
+  const hasGames = (!missing.has("scoreboard") || isStandIn) && !missing.has("schedule");
+  return { missing, isStandIn, hasGames };
+}
+
 // The games need both of their feeds: the schedule alone can be behind on today's, and the
 // scoreboard alone has only today's, unless ESPN stood in for the scoreboard. Series counted from
 // games ESPN may lack wait for the bracket.
 async function saveSeason(docs, snapshot) {
   const key = nameSeasonKey(snapshot.season);
   const doc = (await docs.read(key)) ?? { year: snapshot.season };
-  const missing = new Set(snapshot.missing);
-  const isStandIn = missing.has("scoreboard") && !!snapshot.standIn;
-  const hasGames = (!missing.has("scoreboard") || isStandIn) && !missing.has("schedule");
+  const { missing, isStandIn, hasGames } = readGameFeeds(snapshot);
   const update = { isStandIn, asOf: snapshot.asOf };
   const saving = {
     ...snapshot,
@@ -129,6 +153,8 @@ async function saveSeason(docs, snapshot) {
 export const readUpdates = (docs, year) => docs.read(nameSeasonKey(year));
 
 export const readAverages = (docs, year) => docs.read(nameAveragesKey(year));
+
+export const readSchedule = (docs, year) => docs.read(nameScheduleKey(year));
 
 export function describeSnapshotStatus(snapshot) {
   const missing = snapshot.missing || [];

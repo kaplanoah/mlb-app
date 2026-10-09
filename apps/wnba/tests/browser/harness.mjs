@@ -192,6 +192,18 @@ function createStoreFetch(league) {
 }
 
 /**
+ * Every game of the season, from the whole season's schedule of the next day with the afternoon's
+ * scoreboard, as the store keeps it.
+ */
+function readWholeSeasonSchedule() {
+  const snapshot = buildSnapshot(
+    { ...AFTERNOON.responses, schedule: GAMES.preview.schedule },
+    { season: 2026, now: Date.parse(NOW) },
+  );
+  return { version: snapshot.version, year: 2026, games: snapshot.schedule };
+}
+
+/**
  * The Worker's store, already updated once from the afternoon's feeds, with each upcoming game's
  * meetings from the schedule, and what its jobs keep: the rosters, players' numbers, and finals'
  * box scores and leads.
@@ -223,11 +235,19 @@ async function createAfternoonStore(league = {}) {
  * dismissed unless a test is about it.
  * @param {import("@playwright/test").Page} page
  * A past season's record is built from the afternoon's by its change in `pastSeasons`, by year.
- * @param {{ league?: Parameters<typeof listLeagueAnswers>[0], isLeagueDownForPage?: boolean, isShowingUpdates?: boolean, pastSeasons?: Record<number, (season: any) => any> }} [options]
+ * The store keeps the afternoon's list of the season's games, its playoffs', or every game of the
+ * season, regular season and all, for `isWholeSeason`.
+ * @param {{ league?: Parameters<typeof listLeagueAnswers>[0], isLeagueDownForPage?: boolean, isShowingUpdates?: boolean, pastSeasons?: Record<number, (season: any) => any>, isWholeSeason?: boolean }} [options]
  */
 export async function openApp(
   page,
-  { league = {}, isLeagueDownForPage = false, isShowingUpdates = false, pastSeasons = {} } = {},
+  {
+    league = {},
+    isLeagueDownForPage = false,
+    isShowingUpdates = false,
+    pastSeasons = {},
+    isWholeSeason = false,
+  } = {},
 ) {
   if (!isShowingUpdates)
     await page.addInitScript(() => localStorage.setItem("updatesSeenAt", String(Date.now() * 2)));
@@ -236,6 +256,7 @@ export async function openApp(
   const readSeason = async () => structuredClone(await context.ctx.storage.get("seasons/2026"));
   for (const [year, change] of Object.entries(pastSeasons))
     await context.ctx.storage.put(`seasons/${year}`, change(await readSeason()));
+  if (isWholeSeason) await context.ctx.storage.put("schedules/2026", readWholeSeasonSchedule());
   const openSockets = await connectToStore(page, testStore);
   const fetchImpl = isLeagueDownForPage
     ? async () => new Response("", { status: 503 })
@@ -281,6 +302,13 @@ export async function openApp(
      * @param {any} data
      */
     writeDocument: (path, data) => store.docs.write(path, data),
+    /**
+     * A change to a document the Worker saves, which the store pushes to the pages watching it.
+     * @param {string} path
+     * @param {(doc: any) => any} change
+     */
+    changeDocument: async (path, change) =>
+      store.docs.write(path, change(structuredClone(await store.docs.read(path)))),
     listWatchedPaths: () =>
       context.ctx
         .getWebSockets()
@@ -321,30 +349,65 @@ export async function openLockedApp(page, { accessCode }) {
 }
 
 /**
- * Shows the Games list that has the game a button names, and finds the button once the list has
- * come to rest, before which a tap on it does nothing.
+ * Shows the Games view and finds the button of the game it names, brought into the list's view.
  * @param {import("@playwright/test").Page} page
  * @param {string} name
  */
 export async function findGameButton(page, name) {
-  await page.getByRole("tab", { name: "Games" }).click();
-  for (const list of ["Today", "Previous", "Next"]) {
-    await page.getByRole("tab", { name: list }).click();
-    const games = page.locator(`#games-${list.toLowerCase()}`);
-    const button = games.getByRole("button", { name });
-    if (!(await button.count())) continue;
-    await expect(games).not.toHaveAttribute("inert");
-    return button;
-  }
-  throw new Error(`No game is named ${name}`);
+  const tab = page.getByRole("tab", { name: "Games" });
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  const button = page.locator("#seasonGames").getByRole("button", { name });
+  await button.scrollIntoViewIfNeeded();
+  return button;
 }
 
 /**
- * Opens the sheet of the game a button names, from whichever of the Games lists has it.
+ * Opens the sheet of the game a button names, from the Games view.
  * @param {import("@playwright/test").Page} page
  * @param {string} name
  */
 export async function openGameSheet(page, name) {
   await (await findGameButton(page, name)).click();
   return page.locator("#gameSheet");
+}
+
+// The gap between the Games list's days, which a day brought to the top keeps under the bar.
+const DAY_GAP_PX = 8;
+
+/**
+ * Where a day of the Games list sits: how far its top is under the list's, and whether any of the
+ * day before it shows.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} day
+ */
+const readDayPlace = (page, day) =>
+  page.evaluate((shownDay) => {
+    const list = /** @type {Element} */ (document.querySelector("#seasonGames .day-list"));
+    const listed = /** @type {Element} */ (list.querySelector(`[data-day="${shownDay}"]`));
+    const listTop = list.getBoundingClientRect().top;
+    const previous = listed.previousElementSibling;
+    return {
+      gap: Math.round(listed.getBoundingClientRect().top - listTop),
+      isDayBeforeShown: !!previous && previous.getBoundingClientRect().bottom > listTop + 0.5,
+    };
+  }, day);
+
+/**
+ * Expects `day` chosen in the strip and at the top of the Games list, a day's gap under the bar
+ * with nothing of the day before it showing, and a finger just under the gap landing on it.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} day
+ */
+export async function expectDayAtTop(page, day) {
+  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute("data-day", day);
+  await expect
+    .poll(() => readDayPlace(page, day))
+    .toEqual({ gap: DAY_GAP_PX, isDayBeforeShown: false });
+  const landing = await page.evaluate(() => {
+    const list = /** @type {Element} */ (document.querySelector("#seasonGames .day-list"));
+    const { top, left, width } = list.getBoundingClientRect();
+    const found = document.elementFromPoint(left + width / 2, top + 20);
+    return found?.closest(".listed-day")?.getAttribute("data-day") ?? null;
+  });
+  expect(landing).toBe(day);
 }

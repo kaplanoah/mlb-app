@@ -9,6 +9,7 @@ import { describeDrought, listRankedOrder } from "../page/js/clubs.js";
 import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
 import { renderGameFaceOff, renderGameList } from "../page/js/games-view.js";
+import { listSlateGames } from "../page/js/slate.js";
 import { html } from "../../../shared/page/html.js";
 import { renderUpdates as renderUpdateBox } from "../../../shared/page/updates.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
@@ -831,6 +832,79 @@ const describeGameList = (slate, list) =>
         .trim(),
     )
     .filter(Boolean);
+
+const ALL_STAR_GAME = {
+  date: "2026-07-14",
+  id: "823443",
+  away: "AL",
+  home: "NL",
+  state: "final",
+  start: "2026-07-15T00:00:00Z",
+  score: [4, 0],
+  allStar: true,
+};
+
+/**
+ * @param {string} date
+ * @param {"pre" | "final"} state
+ */
+const listClubGame = (date, state) => ({
+  date,
+  id: date,
+  away: "NYY",
+  home: "BOS",
+  state,
+  start: `${date}T17:05:00Z`,
+  ...(state === "final" && { score: [3, 2] }),
+});
+
+/**
+ * A slate over the All-Star break, on `today`.
+ * @param {string} today
+ * @param {string} lastPlayed
+ * @param {string} nextPlayed
+ */
+const buildBreakSlate = (today, lastPlayed, nextPlayed) => ({
+  today: { date: today, games: [] },
+  previous: [listClubGame(lastPlayed, "final")],
+  next: [listClubGame(nextPlayed, "pre")],
+  allStar: ALL_STAR_GAME,
+});
+
+test("games list: the All-Star Game shows on its day, its leagues' stars beside their names, and opens nothing", () =>
+  checkInTimeZone(EASTERN, () => {
+    const slate = buildBreakSlate("2026-07-14", "2026-07-12", "2026-07-17");
+    assert.deepEqual(describeGameList(slate, "today"), [
+      "Tue, Jul 14",
+      "American League All-Star Game 4 - 0 Final National League",
+    ]);
+    const rendered = String(renderGameList(slate, "today"));
+    assert.match(
+      rendered,
+      /class="game-side away won"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: var\(--al\)/,
+    );
+    assert.match(
+      rendered,
+      /class="game-side home"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: var\(--nl\)/,
+    );
+    assert.doesNotMatch(rendered, /game-open|class="dot/);
+  }));
+
+test("games list: the All-Star Game is in Next and Previous only over the break, as the nearest game that way", () =>
+  checkInTimeZone(EASTERN, () => {
+    const isListed = (slate, list) => describeGameList(slate, list).includes("Tue, Jul 14");
+    assert.ok(isListed(buildBreakSlate("2026-07-13", "2026-07-12", "2026-07-17"), "next"));
+    assert.ok(isListed(buildBreakSlate("2026-07-16", "2026-07-12", "2026-07-17"), "previous"));
+    assert.ok(!isListed(buildBreakSlate("2026-07-18", "2026-07-17", "2026-07-19"), "previous"));
+    assert.ok(!isListed(buildBreakSlate("2026-07-10", "2026-07-09", "2026-07-11"), "next"));
+    assert.ok(!isListed(buildBreakSlate("2026-07-16", "2026-07-12", "2026-07-17"), "today"));
+    const onItsDay = buildBreakSlate("2026-07-14", "2026-07-12", "2026-07-17");
+    assert.deepEqual(
+      listSlateGames(onItsDay).map((game) => game.id),
+      ["2026-07-12", "2026-07-17"],
+      "the store reads box scores for the clubs' games only",
+    );
+  }));
 
 test("games list: live halves, a doubleheader in game order, a postponement, an unknown opponent", () => {
   const slate = {

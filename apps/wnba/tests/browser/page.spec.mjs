@@ -1,4 +1,4 @@
-import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { test, expect, expectDayAtTop, openApp, matchPath } from "./harness.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import {
   listTapFlashes,
@@ -47,7 +47,9 @@ test("the page opens on the bracket the Worker saved, and each tab shows its vie
   expect(stampColors.time).not.toBe(stampColors.line);
 
   await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator("#games-today .game-row").first()).toContainText("7:00");
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row").first()).toContainText(
+    "7:00",
+  );
   await page.getByRole("tab", { name: "Standings" }).click();
   await expect(page.locator("#standings-league tr.playoff-line + tr")).toContainText("Fire");
   await expect(page.locator("nav.tabs").getByRole("tab")).toHaveText([
@@ -61,10 +63,9 @@ test("the page opens on the bracket the Worker saved, and each tab shows its vie
 test("every font the page's views draw with is preloaded", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  for (const list of ["Previous", "Today", "Next"]) {
-    await page.getByRole("tab", { name: list }).click();
-    await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
-  }
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row").first()).toBeVisible();
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  await expect(page.locator("#seasonGames .scoreboard").first()).toBeVisible();
   await page.getByRole("tab", { name: "Standings" }).click();
   await expect(page.locator("#standings-league tr").nth(2)).toBeVisible();
 
@@ -74,12 +75,12 @@ test("every font the page's views draw with is preloaded", async ({ page }) => {
 test("a losing score is dimmed, without the winner's glow", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  const loser = page.locator("#games-previous .scoreboard.lost");
-  const winner = page.locator("#games-previous .scoreboard:not(.lost)");
-  await expect(loser.locator("rect.on").first()).toHaveCSS("opacity", "0.72");
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  const loser = page.locator("#seasonGames .scoreboard.lost");
+  const winner = page.locator("#seasonGames .scoreboard:not(.lost)");
+  await expect(loser.locator("path.on").first()).toHaveCSS("opacity", "0.72");
   await expect(loser.locator("svg").first()).toHaveCSS("filter", "none");
-  await expect(winner.locator("rect.on").first()).toHaveCSS("opacity", "1");
+  await expect(winner.locator("path.on").first()).toHaveCSS("opacity", "1");
   await expect(winner.locator("svg").first()).not.toHaveCSS("filter", "none");
 });
 
@@ -88,10 +89,10 @@ test("a score's glow is on its digits' svgs, since Safari draws no filter on an 
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await expect(page.locator("#games-previous .scoreboard rect.on").first()).toBeVisible();
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  await expect(page.locator("#seasonGames .scoreboard path.on").first()).toBeVisible();
   const shapeFilters = await page
-    .locator(".scoreboard rect")
+    .locator(".scoreboard path")
     .evaluateAll((shapes) => [...new Set(shapes.map((shape) => getComputedStyle(shape).filter))]);
   expect(shapeFilters).toEqual(["none"]);
 });
@@ -102,13 +103,15 @@ test("every piece of text keeps to the type scale, in every view", async ({ page
   expect(await listLowContrastText(page)).toEqual([]);
   expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("tab", { name: "Games" }).click();
-  for (const list of ["Previous", "Today", "Next"]) {
-    await page.getByRole("tab", { name: list }).click();
-    await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
-    expect(await listOffScaleText(page)).toEqual([]);
-    expect(await listLowContrastText(page)).toEqual([]);
-    expect(await listStrayPeriods(page)).toEqual([]);
-  }
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row").first()).toBeVisible();
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  await expect(page.locator("#seasonGames .scoreboard").first()).toBeVisible();
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
   await page.getByRole("tab", { name: "Standings" }).click();
   await expect(page.locator("#standings-league tr").nth(2)).toBeVisible();
   expect(await listOffScaleText(page)).toEqual([]);
@@ -150,29 +153,6 @@ test("a score the Worker saves shows up without a reload", async ({ page }) => {
   await expect(page.locator("#stamp")).toHaveCSS("font-size", "14px");
 });
 
-test("the Games tab opens on today's games, and its pill moves to the results and the games ahead", async ({
-  page,
-}) => {
-  await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  const today = page.getByRole("tab", { name: "Today" });
-  await expect(today).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#games-today")).toContainText("Dream");
-
-  await page.getByRole("tab", { name: "Previous" }).click();
-  await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.locator("#games-previous .day-name").first()).toHaveText("Yest");
-  await expect(page.locator("#games-previous")).toContainText("Final");
-
-  await page.getByRole("tab", { name: "Next" }).click();
-  await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#games-next")).toContainText("Semis");
-  await expect(page.locator("#games-today")).toHaveJSProperty("inert", true);
-});
-
 test.describe("on a phone, the standings", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -189,77 +169,6 @@ test.describe("on a phone, the standings", () => {
     await expect(page.getByRole("tab", { name: "East" })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#standings-east")).toBeInViewport();
     const box = await pages.boundingBox();
-    expect(box.x).toBe(0);
-    expect(box.width).toBe(390);
-  });
-});
-
-test.describe("on a phone, the Games lists", () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-
-  test("swipe sideways from today's to the results, and the pill follows", async ({ page }) => {
-    await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    const pages = page.locator("#games-pages");
-    await expect(page.locator("#games-today")).toContainText("Dream");
-
-    await pages.evaluate((element) => element.scrollTo({ left: 0, behavior: "instant" }));
-
-    await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await expect(page.locator("#games-previous")).toBeInViewport();
-  });
-
-  test("go back to today's when the Games tab is tapped while another shows", async ({ page }) => {
-    await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    await page.getByRole("tab", { name: "Previous" }).click();
-    await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-
-    await page.getByRole("tab", { name: "Games" }).click();
-
-    await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator("#games-today")).toBeInViewport();
-  });
-
-  for (const { when, waitForTap } of [
-    { when: "before the lists move", waitForTap: "" },
-    { when: "while the lists slide away from it", waitForTap: "scroll" },
-  ]) {
-    test(`go back to today's when the Games tab is tapped ${when}`, async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: "no-preference" });
-      await openApp(page);
-      await page.getByRole("tab", { name: "Games" }).dispatchEvent("click");
-      await expect(page.locator("#games-today")).toBeInViewport();
-
-      await page.locator("#games-pages").evaluate(async (pages, waitForTap) => {
-        const waitFor = (/** @type {string} */ type) =>
-          new Promise((resolve) => pages.addEventListener(type, resolve, { once: true }));
-        const slideStarts = waitForTap ? waitFor(waitForTap) : Promise.resolve();
-        document.getElementById("games-tab-previous").click();
-        await slideStarts;
-        const slideEnds = waitFor("scrollend");
-        document.getElementById("tab-games").click();
-        await slideEnds;
-      }, waitForTap);
-
-      await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-      await expect(page.locator("#games-today")).toBeInViewport();
-    });
-  }
-
-  test("reach the screen's edges, so a swiped list slides off the screen", async ({ page }) => {
-    await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    const box = await page.locator("#games-pages").boundingBox();
     expect(box.x).toBe(0);
     expect(box.width).toBe(390);
   });
@@ -615,11 +524,13 @@ test("the Games lists' days, series labels, and statuses are in Barlow, apart fr
       .evaluate((element) =>
         getComputedStyle(element).fontFamily.split(",")[0].replaceAll('"', ""),
       );
-  expect(await readFirstFont(page.locator("#gamePager .day-month"))).toBe("Barlow");
-  expect(await readFirstFont(page.locator("#gamePager .day-name"))).toBe("Barlow");
-  expect(await readFirstFont(page.locator("#gamePager .series-label"))).toBe("Barlow");
-  expect(await readFirstFont(page.locator("#gamePager .game-status"))).toBe("Barlow");
-  expect(await readFirstFont(page.locator("#gamePager .game-side .club"))).toBe("Barlow Condensed");
+  expect(await readFirstFont(page.locator("#seasonGames .day-month"))).toBe("Barlow");
+  expect(await readFirstFont(page.locator("#seasonGames .day-name"))).toBe("Barlow");
+  expect(await readFirstFont(page.locator("#seasonGames .series-label"))).toBe("Barlow");
+  expect(await readFirstFont(page.locator("#seasonGames .game-status"))).toBe("Barlow");
+  expect(await readFirstFont(page.locator("#seasonGames .game-side .club"))).toBe(
+    "Barlow Condensed",
+  );
 });
 
 test("a Games list's day reads its month, date, and weekday at their sizes, weights, and spacing, 3px and then 4.5px apart", async ({
@@ -627,7 +538,7 @@ test("a Games list's day reads its month, date, and weekday at their sizes, weig
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const day = page.locator("#games-next .day-label").first();
+  const day = page.locator("#seasonGames .game-day.is-today .day-label");
   await expect(day).toBeVisible();
   const parts = await day.evaluate((label) =>
     [".day-month", ".day-number", ".day-name"].map((selector) => {
@@ -655,7 +566,7 @@ test("a game's dots, names, and time center on their capitals, level with each o
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const row = page
-    .locator("#games-next .game-row")
+    .locator("#seasonGames .game-row")
     .filter({ has: page.locator(".time") })
     .first();
   await expect(row).toBeVisible();
@@ -689,9 +600,9 @@ test("a game that may never happen says If needed in a status's dim ink, a weigh
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const ifNeeded = page.locator("#games-next .if-needed").first();
+  const ifNeeded = page.locator("#seasonGames .if-needed").first();
   await expect(ifNeeded).toHaveText("If needed");
-  const final = page.locator("#gamePager .game-status", { hasText: "Final" }).first();
+  const final = page.locator("#seasonGames .game-status", { hasText: "Final" }).first();
   const readStyle = (/** @type {import("@playwright/test").Locator} */ locator) =>
     locator.evaluate((element) => {
       const { color, fontWeight } = getComputedStyle(element);
@@ -704,42 +615,56 @@ test("a game that may never happen says If needed in a status's dim ink, a weigh
 });
 
 const TODAYS_GAMES = ["1042600132", "1042600112"];
-/** @param {any} season */
-const dropTodaysGames = (season) => ({
-  ...season,
-  games: season.games.filter((/** @type {any} */ game) => !TODAYS_GAMES.includes(game.id)),
-});
+/** @param {any[]} games */
+const leaveOutToday = (games) =>
+  games.filter((/** @type {any} */ game) => !TODAYS_GAMES.includes(game.id));
 
-test("on a day without games, the Games view starts on Next, and a list someone picks stays shown", async ({
+/**
+ * Leaves today's games out of the season and its list of every game, as on a day without games.
+ * @param {Awaited<ReturnType<typeof openApp>>} app
+ */
+async function dropTodaysGames(app) {
+  await app.changeDocument("schedules/2026", (schedule) => ({
+    ...schedule,
+    games: leaveOutToday(schedule.games),
+  }));
+  await app.changeSeason((season) => ({
+    ...season,
+    games: leaveOutToday(season.games),
+    nearestGames: leaveOutToday(season.nearestGames),
+  }));
+}
+
+test("on a day without games, the Games list has a day saying so at today's place, and opens on it", async ({
   page,
 }) => {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
-  await expect(shownGames).toHaveId("games-today");
+  await dropTodaysGames(app);
+  const today = page.locator('#seasonGames .listed-day[data-day="2026-09-30"]');
+  await expect(today.locator(".empty-note")).toHaveText("No games today");
+  await expect(today.locator(".day-number")).toHaveText("30");
+  await expect(page.locator("#seasonGames .no-games")).toHaveCount(1);
+  const days = await page
+    .locator("#seasonGames .listed-day")
+    .evaluateAll((listed) => listed.map((day) => day.getAttribute("data-day")));
+  expect(days.indexOf("2026-09-30")).toBe(days.indexOf("2026-09-29") + 1);
+  await expect(page.locator('#seasonGames .day-cell[data-day="2026-09-30"]')).toBeEnabled();
 
-  await app.changeSeason(dropTodaysGames);
-  await expect(shownGames).toHaveId("games-next");
   await page.reload();
-  await expect(shownGames).toHaveId("games-next");
-
-  await page.getByRole("tab", { name: "Today" }).click();
-  await expect(shownGames).toHaveId("games-today");
-  await page.clock.runFor(60_000);
-  await expect(page.locator("#games-today .empty-note")).toHaveText("No games today");
-  await expect(shownGames).toHaveId("games-today");
-  await page.reload();
-  await expect(shownGames).toHaveId("games-today");
+  await expect(today).toBeInViewport();
+  await expectDayAtTop(page, "2026-09-30");
 });
 
-test("a Games list with nothing in it centers its note under the pill, a touch above the middle of the date's number beside a list's first game", async ({
+test("No games today is 15.5px, centered beside today's date, its capitals a touch above the middle of the date's number", async ({
   page,
 }) => {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await app.changeSeason(dropTodaysGames);
-  const note = page.locator("#games-today .empty-note");
+  await dropTodaysGames(app);
+  const note = page.locator("#seasonGames .no-games .empty-note");
   await expect(note).toHaveText("No games today");
+  await expect(note).toHaveCSS("font-size", "15.5px");
   // A zero-height box set inline after a text has its top on the text's baseline, and the
   // capitals' middle sits half a capital above it. Chromium's builds set a baseline up to a pixel
   // apart, so the note's lead over the number is checked loosely.
@@ -758,18 +683,18 @@ test("a Games list with nothing in it centers its note under the pill, a touch a
       return baseline - capitalHeight / 2;
     }, selector);
 
-  const noteMiddle = await readCapitalsMiddle("#games-today .empty-note");
-  const numberMiddle = await readCapitalsMiddle("#games-next .day-number");
+  const noteMiddle = await readCapitalsMiddle("#seasonGames .no-games .empty-note");
+  const numberMiddle = await readCapitalsMiddle("#seasonGames .no-games .day-number");
   expect(numberMiddle - noteMiddle).toBeGreaterThan(2.4);
   expect(numberMiddle - noteMiddle).toBeLessThan(5);
-  const [textMiddle, listMiddle] = await note.evaluate((element) => {
+  const [textMiddle, columnMiddle] = await note.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
     const text = range.getBoundingClientRect();
-    const list = element.closest(".pager-page").getBoundingClientRect();
-    return [text.left + text.width / 2, list.left + list.width / 2];
+    const column = element.getBoundingClientRect();
+    return [text.left + text.width / 2, column.left + column.width / 2];
   });
-  expect(Math.abs(textMiddle - listMiddle)).toBeLessThanOrEqual(1);
+  expect(Math.abs(textMiddle - columnMiddle)).toBeLessThanOrEqual(1);
 });
 
 test("a game's series label is on the type scale's small step, and it and If needed read lighter than Final", async ({
@@ -784,10 +709,10 @@ test("a game's series label is on the type scale's small step, and it and If nee
   const ifNeeded = page.locator('[data-game="1042600132"] .game-status');
   await expect(ifNeeded).toHaveText("If needed");
   await expect(ifNeeded.locator(".if-needed")).toHaveCSS("font-weight", "500");
-  const final = page.locator("#gamePager .game-status", { hasText: "Final" }).first();
+  const final = page.locator("#seasonGames .game-status", { hasText: "Final" }).first();
   await expect(final).toHaveCSS("font-weight", "600");
-  await expect(page.locator("#gamePager .series-label").first()).toHaveCSS("font-weight", "500");
-  await expect(page.locator("#gamePager .series-label").first()).toHaveCSS("font-size", "13px");
+  await expect(page.locator("#seasonGames .series-label").first()).toHaveCSS("font-weight", "500");
+  await expect(page.locator("#seasonGames .series-label").first()).toHaveCSS("font-size", "13px");
 });
 
 test("a break between periods reads in the status's capitals, in the live game's orange", async ({
@@ -823,8 +748,9 @@ test("a break between periods reads in the status's capitals, in the live game's
 test("every score panel is one size, a game past 100 like any other", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  const sizes = await page.locator("#games-previous .scoreboard").evaluateAll((panels) =>
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  await expect(page.locator("#seasonGames .scoreboard").first()).toBeVisible();
+  const sizes = await page.locator("#seasonGames .scoreboard").evaluateAll((panels) =>
     panels.map((panel) => {
       const box = panel.getBoundingClientRect();
       return `${Math.round(box.width * 10) / 10}x${Math.round(box.height * 10) / 10}`;
@@ -832,7 +758,7 @@ test("every score panel is one size, a game past 100 like any other", async ({ p
   );
   expect(sizes.length).toBeGreaterThan(4);
   expect(new Set(sizes).size).toBe(1);
-  const texts = await page.locator("#games-previous .scoreboard-text").allTextContents();
+  const texts = await page.locator("#seasonGames .scoreboard-text").allTextContents();
   expect(texts.some((text) => Number(text) >= 100)).toBe(true);
 });
 
@@ -841,7 +767,7 @@ test("a seed sits a little lighter than its team's name, centered on its row lik
 }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const club = page.locator("#gamePager .game-side .club").first();
+  const club = page.locator("#seasonGames .game-side .club").first();
   const { nameWeight, seedWeight, offset } = await club.evaluate((element) => {
     const seed = /** @type {Element} */ (element.querySelector(".seed"));
     const name = /** @type {Element} */ (element.querySelector(".team-name"));
@@ -938,13 +864,15 @@ test.describe("on a phone, the text", () => {
     expect(await listStrayPeriods(page)).toEqual([]);
 
     await page.getByRole("tab", { name: "Games" }).click();
-    for (const list of ["Previous", "Today", "Next"]) {
-      await page.getByRole("tab", { name: list }).click();
-      await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
-      expect(await listOffScaleText(page)).toEqual([]);
-      expect(await listLowContrastText(page)).toEqual([]);
-      expect(await listStrayPeriods(page)).toEqual([]);
-    }
+    await expect(page.locator("#seasonGames .game-day.is-today .game-row").first()).toBeVisible();
+    expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
+    await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+    await expect(page.locator("#seasonGames .scoreboard").first()).toBeVisible();
+    expect(await listOffScaleText(page)).toEqual([]);
+    expect(await listLowContrastText(page)).toEqual([]);
+    expect(await listStrayPeriods(page)).toEqual([]);
 
     await page.getByRole("tab", { name: "Standings" }).click();
     const standings = page.locator("#standings-league");
@@ -1387,13 +1315,12 @@ test("redrawing the games each minute keeps keyboard focus on the game it was on
 test("each day's games sit in a box of their own, apart from the next day's", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
   const [first, second] = await page
-    .locator("#games-previous .game-day")
+    .locator("#seasonGames .game-day")
     .evaluateAll((days) => days.map((day) => day.getBoundingClientRect()));
   expect(second.top - first.bottom).toBe(8);
   const box = await page
-    .locator("#games-previous .game-day .game-list")
+    .locator("#seasonGames .game-day .game-list")
     .first()
     .evaluate((list) => getComputedStyle(list).borderTopStyle);
   expect(box).toBe("solid");
@@ -1402,7 +1329,7 @@ test("each day's games sit in a box of their own, apart from the next day's", as
 test("each day's date sits to the left of its games, level with the first", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  const day = page.locator("#games-today .game-day").first();
+  const day = page.locator("#seasonGames .game-day.is-today");
   const date = await day.locator(".day-label").boundingBox();
   const list = await day.locator(".game-list").boundingBox();
   const firstGame = await day.locator(".game-row").first().boundingBox();
@@ -1415,8 +1342,8 @@ test("each day's date sits to the left of its games, level with the first", asyn
 test("a game's series line, score, and status each have room in its row", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  const row = page.locator("#games-previous .game-row:has(.score)").first();
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  const row = page.locator("#seasonGames .game-row:has(.score)").first();
   const [box, label, score, status] = await Promise.all(
     [
       row,
@@ -1448,7 +1375,7 @@ for (const { width, edge, gap, inset } of DAY_ROOM_BY_WIDTH) {
     }) => {
       await openApp(page);
       await page.getByRole("tab", { name: "Games" }).click();
-      const day = page.locator("#games-today .game-day").first();
+      const day = page.locator("#seasonGames .game-day.is-today");
       const date = await day.locator(".day-label").boundingBox();
       const list = await day.locator(".game-list").boundingBox();
       const firstDot = await day.locator(".game-side.away .dot").first().boundingBox();
@@ -1466,10 +1393,10 @@ for (const width of [440, 430, 402, 390, 375, 360]) {
     test("every team's whole name fits in its game row", async ({ page }) => {
       await openApp(page);
       await page.getByRole("tab", { name: "Games" }).click();
-      await expect(page.locator("#gamePager .game-side .team-name").first()).toBeVisible();
+      await expect(page.locator("#seasonGames .game-side .team-name").first()).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       const cutNames = await page
-        .locator("#gamePager .game-side .team-name")
+        .locator("#seasonGames .game-side .team-name")
         .evaluateAll((names) =>
           names
             .filter((name) => name.scrollWidth > name.getBoundingClientRect().width + 0.5)
@@ -1552,7 +1479,7 @@ for (const theme of ["Maple", "Walnut"])
     expect(Math.abs(card - floor)).toBeGreaterThan(Math.abs(brightest - floor) * 0.6);
     expect(Math.abs(card - floor)).toBeLessThan(Math.abs(brightest - floor) * 0.9);
     await page.getByRole("tab", { name: "Games" }).click();
-    const day = page.locator("#games-today .game-day .game-list");
+    const day = page.locator("#seasonGames .game-day.is-today .game-list");
     expect(await day.evaluate((card) => getComputedStyle(card).backgroundColor)).toBe(face);
   });
 
@@ -1572,7 +1499,9 @@ test("a day of games and a series in the bracket share one thin outline, lighter
   const series = await readOutline(seriesCard);
   expect(sumChannels(series[1])).toBeGreaterThan(sumChannels(await readTokenColor(page, "--line")));
   await page.getByRole("tab", { name: "Games" }).click();
-  expect(await readOutline(page.locator("#games-today .game-day .game-list"))).toEqual(series);
+  expect(await readOutline(page.locator("#seasonGames .game-day.is-today .game-list"))).toEqual(
+    series,
+  );
 });
 
 test("on a wide screen, the Games and Standings lists keep to one phone's width, in the middle of the page", async ({
@@ -1581,7 +1510,7 @@ test("on a wide screen, the Games and Standings lists keep to one phone's width,
   await openApp(page);
   const pageMiddle = page.viewportSize().width / 2;
   for (const { tab, pill, list } of [
-    { tab: "Games", pill: "#gamePager .pager-tabs", list: "#games-today .game-day" },
+    { tab: "Games", pill: "#seasonGames .day-bar-head", list: "#seasonGames .game-day.is-today" },
     {
       tab: "Standings",
       pill: "#standingsPager .pager-tabs",
@@ -1895,18 +1824,18 @@ test.describe("on a phone", () => {
     }
   });
 
-  const readGamesPosition = (page) =>
-    page.locator("#games-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth);
+  const readStandingsPosition = (page) =>
+    page.locator("#standings-pages").evaluate((pages) => pages.scrollLeft / pages.clientWidth);
 
   /**
-   * Starts noting where the Games lists were each time the pill changed its chosen name.
+   * Starts noting where the standings' lists were each time the pill changed its chosen name.
    * @param {import("@playwright/test").Page} page
    * @returns {Promise<() => Promise<{ name: string, position: number }[]>>}
    */
   async function noteNameChoices(page) {
     await page.evaluate(() => {
       const choices = /** @type {object[]} */ ([]);
-      const pages = /** @type {HTMLElement} */ (document.getElementById("games-pages"));
+      const pages = /** @type {HTMLElement} */ (document.getElementById("standings-pages"));
       new MutationObserver((records) => {
         for (const record of records) {
           const tab = /** @type {HTMLElement} */ (record.target);
@@ -1916,7 +1845,7 @@ test.describe("on a phone", () => {
             position: pages.scrollLeft / pages.clientWidth,
           });
         }
-      }).observe(/** @type {Node} */ (document.querySelector("#games-bar [role=tablist]")), {
+      }).observe(/** @type {Node} */ (document.querySelector("#standings-bar [role=tablist]")), {
         attributes: true,
         attributeFilter: ["aria-selected"],
         subtree: true,
@@ -1930,27 +1859,26 @@ test.describe("on a phone", () => {
     page,
   }) => {
     await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    await page.getByRole("tab", { name: "Previous" }).click();
-    await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await expect(page.getByRole("tab", { name: "League" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    const tabList = page.locator("#games-bar [role=tablist]");
+    const tabList = page.locator("#standings-bar [role=tablist]");
     const readChoices = await noteNameChoices(page);
     const readFades = await noteNameFades(tabList);
 
-    await page.getByRole("tab", { name: "Next" }).click();
+    await page.getByRole("tab", { name: "West" }).click();
 
-    await expect.poll(() => readGamesPosition(page)).toBe(2);
+    await expect.poll(() => readStandingsPosition(page)).toBe(2);
     const [choice, ...later] = await readChoices();
-    expect(choice).toEqual({ name: "Next", position: 0 });
+    expect(choice).toEqual({ name: "West", position: 0 });
     expect(later).toEqual([]);
     const fades = await readFades();
     expect(listFillFades(fades)).toEqual([
-      "Next 0.18s 0s ease-in-out",
-      "Previous 0.18s 0s ease-in-out",
+      "League 0.18s 0s ease-in-out",
+      "West 0.18s 0s ease-in-out",
     ]);
     const fillStarts = fades
       .filter(({ property }) => property === "background-color")
@@ -1960,76 +1888,76 @@ test.describe("on a phone", () => {
       .filter(({ property }) => property === "color")
       .map(({ name, duration, delay }) => `${name} ${duration} ${delay}`)
       .sort();
-    expect(letterFades).toEqual(["Next 0.2s 0.025s", "Previous 0.18s 0s"]);
-    expect(await readFilledNames(tabList)).toEqual(["Next"]);
+    expect(letterFades).toEqual(["League 0.18s 0s", "West 0.2s 0.025s"]);
+    expect(await readFilledNames(tabList)).toEqual(["West"]);
   });
 
   test("with reduced motion, a tap moves the pill's fill at once, fading nothing", async ({
     page,
   }) => {
     await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    const tabList = page.locator("#games-bar [role=tablist]");
+    await page.getByRole("tab", { name: "Standings" }).click();
+    const tabList = page.locator("#standings-bar [role=tablist]");
     const readFades = await noteNameFades(tabList);
 
-    await page.getByRole("tab", { name: "Next" }).click();
+    await page.getByRole("tab", { name: "West" }).click();
 
-    await expect.poll(() => readGamesPosition(page)).toBe(2);
-    expect(await readFilledNames(tabList)).toEqual(["Next"]);
+    await expect.poll(() => readStandingsPosition(page)).toBe(2);
+    expect(await readFilledNames(tabList)).toEqual(["West"]);
     expect(await readFades()).toEqual([]);
   });
 
-  test("a finger swiping the Games lists past halfway leaves the pill as it is while it moves them, and once it lifts, the pill hands off to the list they snap to as they set off", async ({
+  test("a finger swiping the standings past halfway leaves the pill as it is while it moves them, and once it lifts, the pill hands off to the list they snap to as they set off", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    await expect.poll(() => readGamesPosition(page)).toBe(1);
-    const tabList = page.locator("#games-bar [role=tablist]");
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await expect.poll(() => readStandingsPosition(page)).toBe(0);
+    const tabList = page.locator("#standings-bar [role=tablist]");
     const readChoices = await noteNameChoices(page);
     const readFades = await noteNameFades(tabList);
 
     const release = await drag(page, { x: 330, y: 500 }, { x: -250 }, { durationMs: 1000 });
-    const liftPosition = await readGamesPosition(page);
-    expect(liftPosition).toBeGreaterThan(1.5);
-    expect(liftPosition).toBeLessThan(1.9);
+    const liftPosition = await readStandingsPosition(page);
+    expect(liftPosition).toBeGreaterThan(0.5);
+    expect(liftPosition).toBeLessThan(0.9);
     expect(await readChoices()).toEqual([]);
-    expect(await readFilledNames(tabList)).toEqual(["Today"]);
+    expect(await readFilledNames(tabList)).toEqual(["League"]);
     await release();
 
-    await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-    await expect.poll(() => readGamesPosition(page)).toBe(2);
+    await expect(page.getByRole("tab", { name: "East" })).toHaveAttribute("aria-selected", "true");
+    await expect.poll(() => readStandingsPosition(page)).toBe(1);
     const [choice, ...later] = await readChoices();
-    expect(choice.name).toBe("Next");
+    expect(choice.name).toBe("East");
     expect(choice.position).toBeGreaterThan(liftPosition);
-    expect(choice.position).toBeLessThan(1.98);
+    expect(choice.position).toBeLessThan(0.98);
     expect(later).toEqual([]);
     expect(listFillFades(await readFades())).toEqual([
-      "Next 0.18s 0s ease-in-out",
-      "Today 0.18s 0s ease-in-out",
+      "East 0.18s 0s ease-in-out",
+      "League 0.18s 0s ease-in-out",
     ]);
   });
 
-  test("a finger swiping the Games lists short of halfway leaves the pill as it is, and once it lifts, the lists spring back with the pill never changing", async ({
+  test("a finger swiping the standings short of halfway leaves the pill as it is, and once it lifts, the lists spring back with the pill never changing", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    await expect.poll(() => readGamesPosition(page)).toBe(1);
-    const tabList = page.locator("#games-bar [role=tablist]");
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await expect.poll(() => readStandingsPosition(page)).toBe(0);
+    const tabList = page.locator("#standings-bar [role=tablist]");
     const readChoices = await noteNameChoices(page);
     const readFades = await noteNameFades(tabList);
 
     const release = await drag(page, { x: 330, y: 500 }, { x: -120 }, { durationMs: 1000 });
-    expect(await readGamesPosition(page)).toBeGreaterThan(1.2);
+    expect(await readStandingsPosition(page)).toBeGreaterThan(0.2);
     await release();
 
-    await expect.poll(() => readGamesPosition(page)).toBe(1);
+    await expect.poll(() => readStandingsPosition(page)).toBe(0);
     expect(await readChoices()).toEqual([]);
     expect(await readFades()).toEqual([]);
-    expect(await readFilledNames(tabList)).toEqual(["Today"]);
+    expect(await readFilledNames(tabList)).toEqual(["League"]);
   });
 
   test("the standings show every column, in the playoffs and before them, with a winning streak below the line paler than one above it", async ({
@@ -2084,11 +2012,11 @@ test.describe("on a phone", () => {
     expect(await listTapsOffButtons(page)).toEqual([]);
 
     await page.getByRole("tab", { name: "Games" }).click();
-    for (const list of ["Previous", "Today", "Next"]) {
-      await page.getByRole("tab", { name: list }).click();
-      await expect(page.locator(`#games-${list.toLowerCase()} .game-row`).first()).toBeVisible();
-      expect(await listTapsOffButtons(page)).toEqual([]);
-    }
+    await expect(page.locator("#seasonGames .game-day.is-today .game-row").first()).toBeVisible();
+    expect(await listTapsOffButtons(page)).toEqual([]);
+    await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+    await expect(page.locator("#seasonGames .scoreboard").first()).toBeVisible();
+    expect(await listTapsOffButtons(page)).toEqual([]);
 
     await page.getByRole("tab", { name: "Standings" }).click();
     for (const list of ["League", "East", "West"]) {

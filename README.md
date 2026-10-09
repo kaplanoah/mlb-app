@@ -18,8 +18,8 @@ A private web page that follows the MLB season, from spring training through the
 World Series. It shows the standings, the postseason bracket (projected from the
 standings until the field is set), your ranking of who you want to win the World
 Series, each team's
-previous, current and next game with its starting pitchers, and scores that update
-automatically. Tap a team's name for its sheet: its place in each race, its next game, how far
+previous, current and next game with its starting pitchers, the All-Star Game, and scores
+that update automatically. Tap a team's name for its sheet: its place in each race, its next game, how far
 it's gone in the postseason, and every World Series it has won. Tap the rest of a game to
 compare its starters: how they rank among the season's qualified starters,
 what they throw, and how their last starts went. A game later today whose club hasn't named
@@ -36,7 +36,8 @@ when something happens to a team in your ranking.
 ### WNBA
 
 A private web page that follows the WNBA season. It shows the playoff bracket,
-every playoff game with live scores and clocks, and the league and conference standings with
+every game of the season, the All-Star Game too, from opening day to the last, under a strip of its days, with live
+scores and clocks, and the league and conference standings with
 the playoff line and, once the field is set, each team's first round and where its run stands. Tap a team's name or dot anywhere, even inside a game, for its season: its
 conference, seed, and record, its scoring, home and road records, top scorer,
 titles, and how far it got in the playoffs. Tap a game for its details: which

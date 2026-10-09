@@ -55,24 +55,70 @@ export const forgetResizeLoops = (page) =>
     /** @type {any} */ (window).resizeLoops.length = 0;
   });
 
+// A whole season's page can take longer than an expectation's usual wait to load in CI's WebKit,
+// which draws without the phone's GPU; once loaded, the page must be at rest as quickly as any.
+const LOAD_TIMEOUT_MS = 15_000;
+
+/**
+ * Lists where the page asked for each frame across `durationMs` of its clock, by the first line
+ * of the page's own code that asked, with how many times, so a failure says what kept asking.
+ * @param {import("@playwright/test").Page} page
+ * @param {number} durationMs
+ * @returns {Promise<string[]>}
+ */
+async function listFrameRequestsAcross(page, durationMs) {
+  await page.evaluate(() => {
+    const counted = /** @type {any} */ (window);
+    counted.pageRequestFrame ??= window.requestAnimationFrame;
+    /** @type {Map<string, number>} */
+    const requests = new Map();
+    counted.frameRequests = requests;
+    window.requestAnimationFrame = (callback) => {
+      const pageFrames = (new Error().stack ?? "")
+        .split("\n")
+        .filter((line) => line.includes("http"));
+      const askedAt = pageFrames[0]?.trim() ?? "somewhere";
+      requests.set(askedAt, (requests.get(askedAt) ?? 0) + 1);
+      return counted.pageRequestFrame(callback);
+    };
+  });
+  await page.clock.runFor(durationMs);
+  return page.evaluate(() =>
+    [.../** @type {Map<string, number>} */ (/** @type {any} */ (window).frameRequests)].map(
+      ([askedAt, count]) => `${count} from ${askedAt}`,
+    ),
+  );
+}
+
 /**
  * Counts the frames the page asks for across `durationMs` of its clock.
  * @param {import("@playwright/test").Page} page
  * @param {number} durationMs
  */
 export async function countFramesAcross(page, durationMs) {
-  await page.evaluate(() => {
-    const counted = /** @type {any} */ (window);
-    counted.pageRequestFrame ??= window.requestAnimationFrame;
-    const counter = { frames: 0 };
-    counted.frameCounter = counter;
-    window.requestAnimationFrame = (callback) => {
-      counter.frames += 1;
-      return counted.pageRequestFrame(callback);
-    };
-  });
-  await page.clock.runFor(durationMs);
-  return page.evaluate(() => /** @type {any} */ (window).frameCounter.frames);
+  const requests = await listFrameRequestsAcross(page, durationMs);
+  return requests.reduce((total, request) => total + Number.parseInt(request, 10), 0);
+}
+
+/**
+ * Waits for a second of the page's clock without a frame asked for. A wait that times out names
+ * what last kept asking, which a poll's own timeout leaves out.
+ * @param {import("@playwright/test").Page} page
+ */
+async function waitForNoFrameRequests(page) {
+  /** @type {string[]} */
+  let lastRequests = [];
+  try {
+    await expect
+      .poll(async () => (lastRequests = await listFrameRequestsAcross(page, 1000)), {
+        timeout: LOAD_TIMEOUT_MS,
+      })
+      .toEqual([]);
+  } catch (error) {
+    throw new Error(`The page kept asking for frames: ${lastRequests.join("; ")}`, {
+      cause: error,
+    });
+  }
 }
 
 /**
@@ -83,9 +129,13 @@ export async function countFramesAcross(page, durationMs) {
  * @param {import("@playwright/test").Page} page
  */
 export async function waitForLoadToSettle(page) {
-  await expect(page.locator("#loadNote")).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("syncedAt"))).not.toBeNull();
-  await expect.poll(() => countFramesAcross(page, 1000)).toBe(0);
+  await expect(page.locator("#loadNote")).toHaveCount(0, { timeout: LOAD_TIMEOUT_MS });
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("syncedAt")), {
+      timeout: LOAD_TIMEOUT_MS,
+    })
+    .not.toBeNull();
+  await waitForNoFrameRequests(page);
 }
 
 /**
@@ -95,7 +145,7 @@ export async function waitForLoadToSettle(page) {
  */
 export async function expectAtRest(page) {
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
-  expect(await countFramesAcross(page, 1000)).toBe(0);
+  expect(await listFrameRequestsAcross(page, 1000)).toEqual([]);
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 }
 
