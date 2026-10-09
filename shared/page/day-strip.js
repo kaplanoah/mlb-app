@@ -6,6 +6,7 @@ import {
   formatShortWeekday,
   readCalendarDate,
 } from "./days.js";
+import { dayStripLog } from "./day-strip-log.js";
 import { html, setHtml } from "./html.js";
 import { isAwayLong } from "./last-game-list.js";
 import { watchTimeAway } from "./resume.js";
@@ -287,10 +288,17 @@ function findDayTop(day) {
 function showDay(day, motion) {
   const list = findList();
   const top = findDayTop(day);
-  if (!list || top === null) return;
+  if (!list || top === null) {
+    dayStripLog.noteStep(`${day} isn't in the list`);
+    return;
+  }
   held = { day, hasArrived: false };
   const isFar = Math.abs(top - list.scrollTop) > FLOWN_SCREENS * list.clientHeight;
-  if (motion === "instant" || isFar) list.scrollTo({ top, behavior: "instant" });
+  const isJump = motion === "instant" || isFar || isReducedMotion();
+  dayStripLog.noteStep(
+    `${isJump ? "jump" : "fly"} to ${day}, list ${Math.round(list.scrollTop)} to ${Math.round(top)}`,
+  );
+  if (isJump) list.scrollTo({ top, behavior: "instant" });
   else scrollWithSpring(list, top);
   chooseDay(day, motion === "instant" ? "instant" : chooseMotion());
 }
@@ -493,7 +501,10 @@ export function fillDayStrip(fill) {
 /** @param {Event} event */
 function noteTouch(event) {
   const target = /** @type {Node} */ (event.target);
-  if (findList()?.contains(target)) held = null;
+  if (held && findList()?.contains(target)) {
+    dayStripLog.noteStep(`the list's touch takes it over on its way to ${held.day}`);
+    held = null;
+  }
   if (findStrip()?.contains(target)) {
     endStripSlide();
     isStripSwiped = true;
@@ -515,6 +526,9 @@ function isOnStartDay() {
 // A tap on Today where the list already is has nowhere to go, so the date says it's there.
 function pulseStartDay() {
   const cell = shown && findCell(shown.startDay);
+  dayStripLog.noteStep(
+    `already on ${shown?.startDay}, ${isReducedMotion() ? "less motion, no pulse" : "pulse"}`,
+  );
   if (!cell || isReducedMotion()) return;
   cell.animate(
     [
