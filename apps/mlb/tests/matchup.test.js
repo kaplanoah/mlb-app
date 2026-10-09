@@ -1,6 +1,6 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { listSides, renderMatchupBody } from "../page/js/matchup.js";
+import { listSides, renderMatchupBody, updateSides } from "../page/js/matchup.js";
 import { Markup, convertToText } from "../../../shared/page/html.js";
 import { normalizeSpaces } from "../../../tests/text.js";
 import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
@@ -403,4 +403,31 @@ test("a lone named starter whose numbers didn't load leaves the section saying s
   };
   const markup = renderLoaded(oneNamed, [{ failed: true }, {}]);
   assert.deepEqual(readClass(markup, "retry-title scout-note"), ["Couldn't load his numbers"]);
+});
+
+test("a starter named after the sheet read its sides takes his side's place, and the other side stays as it loaded", () => {
+  const unnamed = { ...AT_ATHLETICS, starters: [AT_ATHLETICS.starters[0], { id: 2 }] };
+  const sides = listSides(unnamed).map((side) => ({ ...side, pitcher: BLUBAUGH }));
+  const [away, home] = updateSides(sides, AT_ATHLETICS);
+  assert.equal(away, sides[0]);
+  assert.deepEqual(home.starter, { id: 2, name: "Springs" });
+  assert.equal(home.pitcher, null);
+});
+
+test("a club's starter changed after the sheet read its sides takes his side's place", () => {
+  const sides = listSides(AT_ATHLETICS);
+  const changed = {
+    ...AT_ATHLETICS,
+    starters: [{ id: 3, name: "Brown" }, AT_ATHLETICS.starters[1]],
+  };
+  const [away, home] = updateSides(sides, changed);
+  assert.deepEqual(away.starter, { id: 3, name: "Brown" });
+  assert.equal(home, sides[1]);
+});
+
+test("a starter the store has only by his id keeps the side that names him", () => {
+  const sides = listSides(AT_ATHLETICS);
+  const unnamed = { ...AT_ATHLETICS, starters: [{ id: 1 }, { id: 2 }] };
+  assert.deepEqual(updateSides(sides, unnamed), sides);
+  assert.equal(updateSides(sides, unnamed)[0], sides[0]);
 });

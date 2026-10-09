@@ -431,10 +431,11 @@ async function fetchPitchers(getJson, season, ids) {
 const readUnlessFailed = (promise) => promise.catch(() => null);
 
 // The season's dates come first because they decide how far back the schedule reaches, and the
-// games come before the standings and their starters, since a game that just ended is what makes
-// those worth reading again. `getJson` is handed each request's name as well as its path. The
-// bracket and the games can't do without the postseason and the schedule, but they can without
-// the season's dates or the standings, which the snapshot then lists as missing.
+// games come before the standings, since a game that just ended is what makes them worth reading
+// again. The starters come last, since which games the slate lists depends on the standings,
+// which set the postseason's field. `getJson` is handed each request's name as well as its path.
+// The bracket and the games can't do without the postseason and the schedule, but they can
+// without the season's dates or the standings, which the snapshot then lists as missing.
 export async function fetchResponses(getJson, season, now = Date.now()) {
   const seasonDates = await readUnlessFailed(
     getJson(listMlbRequests(season, now).season, "season"),
@@ -444,13 +445,11 @@ export async function fetchResponses(getJson, season, now = Date.now()) {
     getJson(requests.postseason, "postseason"),
     requests.schedule ? getJson(requests.schedule, "schedule") : null,
   ]);
-  const responses = { season: seasonDates, standings: null, postseason, schedule };
+  const standings = await readUnlessFailed(getJson(requests.standings, "standings"));
+  const responses = { season: seasonDates, standings, postseason, schedule };
   const { slate } = buildSnapshot(responses, { season, now });
-  const [standings, pitchers] = await Promise.all([
-    readUnlessFailed(getJson(requests.standings, "standings")),
-    fetchPitchers(getJson, season, listStarterIds(slate)),
-  ]);
-  return { ...responses, standings, pitchers };
+  const pitchers = await fetchPitchers(getJson, season, listStarterIds(slate));
+  return { ...responses, pitchers };
 }
 
 /**
