@@ -1,0 +1,30 @@
+name: Conflicts
+
+# GitHub runs no CI on a pull request in conflict and says nothing of it, so each merge to main
+# comments on the open pull requests it left in conflict, which wakes whoever drives them.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Only main's latest commit matters.
+concurrency:
+  group: conflicts
+  cancel-in-progress: true
+
+jobs:
+  flag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Comment on pull requests left in conflict
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node worker/flag-conflicts.mjs
