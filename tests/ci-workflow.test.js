@@ -16,3 +16,21 @@ const readWebKitImageVersion = () =>
 test("the WebKit job's image is the Playwright version the lockfile installs", () => {
   assert.equal(readWebKitImageVersion(), readInstalledPlaywright());
 });
+
+/** @returns {string[]} the workflow's jobs, by the names they're keyed under */
+const listJobs = () => {
+  const jobs = readRepoFile(".github/workflows/ci.yml").split(/^jobs:$/m)[1] ?? "";
+  return [...jobs.matchAll(/^ {2}([a-z-]+):$/gm)].map(([, job]) => job);
+};
+
+const readCheckNeeds = () =>
+  readRepoFile(".github/workflows/ci.yml")
+    .match(/^ {2}check:\n(?: {4}.*\n)*? {4}needs: \[(.*)\]$/m)?.[1]
+    .split(", ");
+
+// check is the one job a merge waits on, so a job it doesn't need could fail without stopping
+// one. caches only costs pull requests their cache when it fails.
+test("the check job needs every other job but caches", () => {
+  const others = listJobs().filter((job) => !["check", "caches"].includes(job));
+  assert.deepEqual(readCheckNeeds()?.toSorted(), others.toSorted());
+});
