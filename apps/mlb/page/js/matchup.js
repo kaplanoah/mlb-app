@@ -93,18 +93,26 @@ function renderPitcherId(side, isSectionFailed) {
 }
 
 /**
- * The starter whose number in a measure ranks higher, or null when either is unranked or the two
- * read the same, since numbers are rounded to be shown and marking either as ahead would look
- * wrong.
+ * How each starter's number in a measure stands against the other's: better or worse when both
+ * are ranked and one ranks higher, unranked when his isn't ranked, and level otherwise. Two ranked
+ * numbers that read the same stand level, since numbers are rounded to be shown and marking either
+ * as ahead would look wrong.
  * @param {any[]} sides
  * @param {(typeof TAPE)[number]} measure
+ * @returns {("better" | "worse" | "unranked" | null)[]}
  */
-function findLeader(sides, measure) {
-  const [away, home] = sides.map((side) => side.pitcher?.ranks?.[measure.key]?.rank);
-  if (!away || !home || away === home) return null;
-  const [awayShown, homeShown] = sides.map((side) => measure.format(side.pitcher.line));
-  if (awayShown === homeShown) return null;
-  return away < home ? "away" : "home";
+function findStandings(sides, measure) {
+  const shown = sides.map((side) =>
+    side.pitcher?.line?.[measure.key] == null ? null : measure.format(side.pitcher.line),
+  );
+  const ranks = sides.map((side) => side.pitcher?.ranks?.[measure.key]?.rank ?? null);
+  const isCompared = ranks.every(Boolean) && shown[0] !== shown[1];
+  return sides.map((_, index) => {
+    if (shown[index] == null) return null;
+    if (!ranks[index]) return "unranked";
+    if (!isCompared) return null;
+    return ranks[index] < ranks[1 - index] ? "better" : "worse";
+  });
 }
 
 /**
@@ -126,17 +134,16 @@ const renderPendingNumber = (side) =>
 
 /**
  * A starter's number in a measure under his side of the face-off, over his rank, bolder when it
- * ranks higher than the other starter's.
+ * ranks higher than the other starter's and dimmed when it ranks lower.
  * @param {any} side
  * @param {(typeof TAPE)[number]} measure
- * @param {"away" | "home" | null} leader
+ * @param {"better" | "worse" | "unranked" | null} standing
  */
-function renderNumber(side, measure, leader) {
+function renderNumber(side, measure, standing) {
   if (isLoadingPitcher(side)) return renderPendingNumber(side);
   const line = side.pitcher?.line;
   if (line?.[measure.key] == null) return html`<span class="tape-number ${side.key}"></span>`;
   const rank = side.pitcher.ranks?.[measure.key];
-  const standing = leader && (leader === side.key ? "better" : "worse");
   const classes = ["tape-number", side.key, standing].filter(Boolean).join(" ");
   return html`<span class="${classes}">
     <span class="tape-number-line"><span class="tape-dot"></span><span class="tabular">${measure.format(line)}</span></span>
@@ -166,12 +173,12 @@ function renderCurve(sides, measure) {
  * @param {(typeof TAPE)[number]} measure
  */
 function renderMeasure(sides, measure) {
-  const leader = findLeader(sides, measure);
+  const [away, home] = findStandings(sides, measure);
   return html`<div class="tape-measure">
     <div class="tape-numbers">
-      ${renderNumber(sides[0], measure, leader)}
+      ${renderNumber(sides[0], measure, away)}
       <span class="tape-label">${measure.label}</span>
-      ${renderNumber(sides[1], measure, leader)}
+      ${renderNumber(sides[1], measure, home)}
     </div>
     ${renderCurve(sides, measure)}
   </div>`;
