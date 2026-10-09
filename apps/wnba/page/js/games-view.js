@@ -1,7 +1,14 @@
-import { countDaysBetween, formatClockTime, formatShortMonth } from "#shared/days.js";
+import {
+  chooseListedDay,
+  countDaysBetween,
+  formatCalendarDate,
+  formatClockTime,
+  formatShortMonth,
+  readCalendarDate,
+} from "#shared/days.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { html } from "#shared/html.js";
-import { renderClub, renderPlainClub } from "./clubs.js";
+import { renderAllStarClub, renderClub, renderPlainClub } from "./clubs.js";
 import { abbreviateDay, nameListDay, readGameDay } from "./days.js";
 import { renderScoreboard } from "./scoreboard.js";
 import { describeSeriesAfterWin, nameTeam } from "./series.js";
@@ -9,10 +16,7 @@ import { countWinsNeeded, ROUNDS } from "./snapshot.js";
 
 /** @typedef {import("./series.js").Series} Series */
 /** @typedef {{ team: string | null, seed: number | null, score: number | null, isInBonus: boolean }} GameSide */
-/** @typedef {{ id: string, round: number | null, series: string | null, number: number | null, start: string | null, state: string, status: string, isTimeSet: boolean, period: number | null, clock: string | null, isIfNeeded: boolean, away: GameSide, home: GameSide, end?: string, networks?: string[] }} Game */
-
-/** @param {Game} game */
-const hasATeam = (game) => !!(game.away.team || game.home.team);
+/** @typedef {{ id: string, round: number | null, series: string | null, number: number | null, start: string | null, state: string, status: string, isTimeSet: boolean, period: number | null, clock: string | null, isIfNeeded: boolean, away: GameSide, home: GameSide, end?: string, networks?: string[], allStar?: { away: string, home: string } }} Game */
 
 // Once a series is decided, the games it no longer needs never happen.
 /**
@@ -118,6 +122,7 @@ export function describeFinalInSeries(game, games) {
  * @param {Game[]} games
  */
 function renderSeriesLabel(game, games) {
+  if (game.allStar) return html`<span class="series-label">All-Star Game</span>`;
   if (!game.round) return false;
   const round = ROUNDS[game.round];
   if (!game.away.team || !game.home.team)
@@ -132,6 +137,10 @@ function renderSeriesLabel(game, games) {
 /** @param {Game} game */
 const hasBothTeams = (game) => !!game.away.team && !!game.home.team;
 
+// The All-Star Game's teams aren't the league's, so it has no sheet, and nor do they.
+/** @param {Game} game */
+const canOpen = (game) => hasBothTeams(game) && !game.allStar;
+
 // Every game holds a line for Bonus under each team, so the teams stay put as it comes and goes.
 // A row that opens its game opens it wherever it's tapped, so its teams are plain.
 /**
@@ -141,12 +150,22 @@ const hasBothTeams = (game) => !!game.away.team && !!game.home.team;
 function describeSide(game, place) {
   const side = game[place];
   const bonus = game.state === "live" && side.isInBonus && html`<span class="bonus">Bonus</span>`;
-  const renderSideClub = hasBothTeams(game) && side.team ? renderPlainClub : renderClub;
   return {
-    lines: renderSideClub(side.team, { seed: side.seed }),
+    lines: renderSideClub(game, place),
     classes: [findLoser(game) === place && "lost"],
     extra: html`${bonus}`,
   };
+}
+
+/**
+ * @param {Game} game
+ * @param {"away" | "home"} place
+ */
+function renderSideClub(game, place) {
+  const side = game[place];
+  if (game.allStar) return renderAllStarClub({ game: game.id, name: game.allStar[place], place });
+  const renderTeam = canOpen(game) && side.team ? renderPlainClub : renderClub;
+  return renderTeam(side.team, { seed: side.seed });
 }
 
 /** @param {Game} game */
@@ -162,7 +181,7 @@ function nameOpenButton(game) {
 // The whole row opens the game's sheet, once both its teams are known.
 /** @param {Game} game */
 const renderOpenButton = (game) =>
-  hasBothTeams(game) &&
+  canOpen(game) &&
   html`<button type="button" class="game-open" aria-label="${nameOpenButton(game)}"></button>`;
 
 // Away from its row, as in an update, the button names its game itself.
@@ -197,31 +216,55 @@ const renderGameList = (games, allGames) =>
   </ul>`;
 
 /**
- * A day's games in a box of their own, beside its date as a wall calendar shows it.
+ * A day's date as a wall calendar shows it, beside its games.
+ * @param {Date} day
+ * @param {number} now
+ */
+const renderDayLabel = (day, now) =>
+  html`<h3 class="day-label" aria-label="${nameListDay(day, now)}, ${formatShortMonth(day)} ${day.getDate()}">
+    <span class="day-month">${formatShortMonth(day)}</span
+    ><span class="day-number tabular">${day.getDate()}</span
+    ><span class="day-name">${abbreviateDay(day, now)}</span>
+  </h3>`;
+
+/**
+ * A day's games in a box of their own, beside its date, with how many it holds, so the box takes
+ * its height before it's drawn.
  * @param {{ day: Date, games: Game[] }} gameDay
  * @param {Game[]} allGames
  * @param {number} now
  */
 const renderDay = ({ day, games }, allGames, now) =>
-  html`<section class="game-day">
-    <h3 class="day-label" aria-label="${nameListDay(day, now)}, ${formatShortMonth(day)} ${day.getDate()}">
-      <span class="day-month">${formatShortMonth(day)}</span
-      ><span class="day-number tabular">${day.getDate()}</span
-      ><span class="day-name">${abbreviateDay(day, now)}</span>
-    </h3>
-    ${renderGameList(games, allGames)}
+  html`<section class="game-day${isToday(day, now) ? " is-today" : ""}" style="--games: ${games.length}">
+    ${renderDayLabel(day, now)} ${renderGameList(games, allGames)}
+  </section>`;
+
+/** @param {number} now */
+const renderNoGamesToday = (now) =>
+  html`<section class="game-day no-games is-today">
+    ${renderDayLabel(new Date(now), now)}
+    <p class="empty-note">No games today</p>
   </section>`;
 
 /**
- * Games grouped by day, in the order given.
- * @param {{ day: Date, games: Game[] }[]} days
- * @param {Game[]} allGames
+ * A date without games, which a tap on it in the strip brings into the list.
+ * @param {string} day "YYYY-MM-DD"
  * @param {number} now
  */
-const renderDays = (days, allGames, now) =>
-  html`${days.map((gameDay) => renderDay(gameDay, allGames, now))}`;
+const renderQuietDay = (day, now) =>
+  html`<section class="game-day no-games quiet-day">
+    ${renderDayLabel(readCalendarDate(day), now)}
+    <p class="empty-note">No games</p>
+  </section>`;
 
 /**
+ * @param {Date} day
+ * @param {number} now
+ */
+const isToday = (day, now) => countDaysBetween(new Date(now), day) === 0;
+
+/**
+ * Games grouped by day, in the order given.
  * @param {Game[]} games
  * @returns {{ day: Date, games: Game[] }[]}
  */
@@ -237,69 +280,61 @@ function groupByDay(games) {
   return [...days.values()];
 }
 
+/** @param {Game} game */
+const readStart = (game) => Date.parse(game.start ?? "");
+
 /**
- * Splits the games into today's, the days ahead, and the days before. A game still under way
- * past midnight stays with today's.
+ * Every game of the season, from the store's list of them, with the season's own copies, which
+ * carry a game while it's played, over it. A season the store has no list for has its own games.
+ * @param {{ games?: Game[], nearestGames?: Game[] } | null} season
+ * @param {{ games?: Game[] } | null} schedule
+ */
+export function listSeasonGames(season, schedule) {
+  const byId = new Map((schedule?.games ?? []).map((game) => [game.id, game]));
+  for (const game of [...(season?.nearestGames ?? []), ...(season?.games ?? [])])
+    byId.set(game.id, game);
+  return [...byId.values()].sort((first, second) => readStart(first) - readStart(second));
+}
+
+/**
+ * The day a game still under way began, when it began before today, as one does past midnight, so
+ * the list opens on it.
  * @param {Game[]} games
- * @param {number} now
+ * @param {string} today
  */
-export function sortGamesByDay(games, now) {
-  const today = [];
-  const ahead = [];
-  const before = [];
-  for (const game of games) {
-    const day = readGameDay(game);
-    const offset = day ? countDaysBetween(new Date(now), day) : 1;
-    if (offset === 0 || game.state === "live") today.push(game);
-    else if (offset > 0) ahead.push(game);
-    else before.push(game);
-  }
-  return { today, ahead: groupByDay(ahead), before: groupByDay(before).reverse() };
+function findLiveDayBefore(games, today) {
+  const live = games.find((game) => game.state === "live");
+  const day = live && readGameDay(live);
+  const date = day && formatCalendarDate(day);
+  return date && date < today ? date : null;
 }
 
-/** @param {string} text */
-const renderEmptyNote = (text) => html`<p class="empty-note">${text}</p>`;
-
 /**
- * @param {Game[]} today
- * @param {Game[]} allGames
+ * Each game day of the season as the Games view lists it, from its first to its last, with a day
+ * saying there are no games today when today falls between them, and the day the list opens on.
+ * @param {{ games?: Game[], nearestGames?: Game[], series?: Series[] } | null} season
+ * @param {{ games?: Game[] } | null} schedule
  * @param {number} now
  */
-const renderToday = (today, allGames, now) =>
-  today.length
-    ? renderDay({ day: new Date(now), games: today }, allGames, now)
-    : renderEmptyNote("No games today");
-
-/**
- * The Games view's three lists: results, newest first, today's games, and the games ahead.
- * @param {{ games?: Game[], series?: Series[] } | null} season
- * @param {number} now
- */
-function sortShownGames(season, now) {
+export function listSeasonDays(season, schedule, now) {
   const seriesById = new Map((season?.series ?? []).map((series) => [series.id, series]));
-  const allGames = season?.games ?? [];
-  const shown = allGames.filter((game) => hasATeam(game) && !isCalledOff(game, seriesById));
-  return sortGamesByDay(shown, now);
-}
-
-/** Whether today's list and the Next list show any games. */
-export function findListsWithGames(season, now) {
-  const { today, ahead } = sortShownGames(season, now);
-  return { hasGamesToday: today.length > 0, hasGamesAhead: ahead.length > 0 };
-}
-
-export function renderGames(season, now) {
-  const allGames = season?.games ?? [];
-  const { today, ahead, before } = sortShownGames(season, now);
-  if (!today.length && !ahead.length && !before.length) {
-    const note = renderEmptyNote("No playoff games yet");
-    return { previous: note, today: note, next: note };
+  const games = listSeasonGames(season, schedule).filter((game) => !isCalledOff(game, seriesById));
+  const days = groupByDay(games).map((gameDay) => ({
+    day: formatCalendarDate(gameDay.day),
+    markup: renderDay(gameDay, games, now),
+  }));
+  const today = formatCalendarDate(new Date(now));
+  const isTodayInSeason = !!days.length && days[0].day < today && today < days.at(-1).day;
+  if (isTodayInSeason && !days.some(({ day }) => day === today)) {
+    const after = days.findIndex(({ day }) => day > today);
+    days.splice(after, 0, { day: today, markup: renderNoGamesToday(now) });
   }
+  const startDay = chooseListedDay(days, findLiveDayBefore(games, today) ?? today);
   return {
-    previous: before.length ? renderDays(before, allGames, now) : renderEmptyNote("No results yet"),
-    today: renderToday(today, allGames, now),
-    next: ahead.length
-      ? renderDays(ahead, allGames, now)
-      : renderEmptyNote("No more games scheduled"),
+    days,
+    today,
+    startDay,
+    emptyNote: "No games scheduled yet",
+    renderQuietDay: (/** @type {string} */ day) => renderQuietDay(day, now),
   };
 }

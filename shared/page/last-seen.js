@@ -46,27 +46,42 @@ function readPath(part, element) {
   return path;
 }
 
-// A list or bracket that scrolls sideways shows where it was, rather than its start.
+// A list or bracket that scrolls shows where it was, rather than its start, and a list that names
+// where it starts, as a season's days do, keeps that too, for a page left long enough ago.
+/** @param {HTMLElement} element */
+const hasScroll = (element) =>
+  element.scrollLeft > 0 || element.scrollTop > 0 || "startTop" in element.dataset;
+
 /** @param {Element} part */
 const readScrolls = (part) =>
-  [...part.querySelectorAll("*")]
-    .filter((element) => element.scrollLeft > 0)
-    .map((element) => ({ path: readPath(part, element), left: element.scrollLeft }));
+  /** @type {HTMLElement[]} */ ([...part.querySelectorAll("*")])
+    .filter(hasScroll)
+    .map((element) => ({
+      path: readPath(part, element),
+      left: element.scrollLeft,
+      top: element.scrollTop,
+      startTop: Number(element.dataset.startTop ?? element.scrollTop),
+    }));
 
 // A part's classes and colors can come from its code rather than its markup, like a pager's
 // classes and a game sheet's teams' colors.
-/** @param {HTMLElement} part */
-const readDrawnPart = (part) => ({
+/**
+ * @param {HTMLElement} part
+ * @param {number} savedAt
+ */
+const readDrawnPart = (part, savedAt) => ({
   markup: part.innerHTML,
   hidden: part.hidden,
   classes: part.className,
   style: part.getAttribute("style"),
   scrolls: readScrolls(part),
+  savedAt,
 });
 
-function readDrawnParts() {
+/** @param {number} savedAt */
+function readDrawnParts(savedAt) {
   const parts = /** @type {HTMLElement[]} */ ([...document.querySelectorAll("[data-last-drawn]")]);
-  return Object.fromEntries(parts.map((part) => [part.id, readDrawnPart(part)]));
+  return Object.fromEntries(parts.map((part) => [part.id, readDrawnPart(part, savedAt)]));
 }
 
 /** @param {HTMLImageElement} image */
@@ -97,12 +112,15 @@ function saveItem(key, value) {
   }
 }
 
-/** @param {() => any} readShown what the page shows, or null before it has anything to show */
-function saveLastSeen(readShown) {
+/**
+ * @param {() => any} readShown what the page shows, or null before it has anything to show
+ * @param {number} savedAt when the page left the screen
+ */
+function saveLastSeen(readShown, savedAt) {
   const shown = readShown();
   if (!shown) return;
   saveItem(LAST_SEEN_KEY, shown);
-  saveItem(LAST_DRAWN_KEY, readDrawnParts());
+  saveItem(LAST_DRAWN_KEY, readDrawnParts(savedAt));
   saveItem(OPEN_SHEETS_KEY, listOpenSheets());
   keepImages(listDrawnImages());
 }
@@ -111,8 +129,17 @@ function saveLastSeen(readShown) {
 // or is dropped.
 /** @param {() => any} readShown what the page shows, or null before it has anything to show */
 export function keepLastSeen(readShown) {
+  /** @type {number | null} */
+  let hiddenAt = null;
+  const readLeftAt = () => hiddenAt ?? Date.now();
+  // A page that unloads while hidden says it's hidden once more, but has been away since it was
+  // first hidden.
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) saveLastSeen(readShown);
+    if (!document.hidden) hiddenAt = null;
+    else {
+      hiddenAt = readLeftAt();
+      saveLastSeen(readShown, hiddenAt);
+    }
   });
-  addEventListener("pagehide", () => saveLastSeen(readShown));
+  addEventListener("pagehide", () => saveLastSeen(readShown, readLeftAt()));
 }

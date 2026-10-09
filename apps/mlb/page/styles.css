@@ -52,6 +52,9 @@
   --copper-ink: #cd9566;
   --al: #7fb0c8;
   --nl: #e0a2a2;
+  --all-star-shadow: rgba(0, 0, 0, 0.138);
+  --all-star-light: rgba(241, 234, 212, 0.13);
+  --all-star-shift: -3px;
   --out: #998b7d;
   --accent: var(--gold);
   --accent-ink: var(--gold-ink);

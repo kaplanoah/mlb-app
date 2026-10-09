@@ -1,5 +1,6 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
 import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
+import { renderAllStarMark } from "#shared/all-star.js";
 import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
 import { chooseStartList, fillGameLists } from "#shared/game-pager.js";
 import { html } from "#shared/html.js";
@@ -200,6 +201,51 @@ function renderGame(game, series, isToday) {
   });
 }
 
+// The All-Star Game's teams are its leagues, in the colors the page gives them, and its star is set
+// in as a club's dot is, with the dot's own shadow and light.
+const ALL_STAR_LEAGUES = {
+  AL: { name: "American League", color: "var(--al)" },
+  NL: { name: "National League", color: "var(--nl)" },
+};
+const ALL_STAR_LOOK = { size: 19, shadow: { x: 0, y: 2, blur: 3 }, light: { x: 0, y: 1 } };
+
+/**
+ * @param {any} game
+ * @param {"away" | "home"} place
+ */
+function renderAllStarClub(game, place) {
+  const league = ALL_STAR_LEAGUES[game[place]];
+  if (!league) return renderSideClub(null);
+  const star = renderAllStarMark({
+    id: `all-star-${game.id}-${place}`,
+    color: league.color,
+    look: ALL_STAR_LOOK,
+  });
+  return html`<span class="club">${star}<span class="team-name">${league.name}</span></span>`;
+}
+
+// Its teams aren't clubs, so it has no sheet, and nor do they.
+function renderAllStarGame(game) {
+  const [awayScore, homeScore] = game.score || [];
+  const isFinal = game.state === "final";
+  const awayLost = isFinal && awayScore < homeScore;
+  const homeLost = isFinal && homeScore < awayScore;
+  return renderGameRow({
+    classes: [game.state, game.delay && "delayed"],
+    away: { lines: renderAllStarClub(game, "away"), classes: [homeLost && "won"] },
+    home: { lines: renderAllStarClub(game, "home"), classes: [awayLost && "won"] },
+    label: html`All-Star Game`,
+    headline: renderHeadline(game, awayLost, homeLost),
+    status: renderStatus(game),
+  });
+}
+
+function renderListedGame(game, list) {
+  if (game.allStar) return renderAllStarGame(game);
+  const isToday = list === "today";
+  return renderGame(game, isToday ? findGameSeries(game) : null, isToday);
+}
+
 // A game's sheet heads its Game section with the game's row, whose clubs each open their own
 // sheet, and leaves its starters to the line under it.
 export function renderGameFaceOff(game) {
@@ -244,10 +290,9 @@ export function renderGameList(slate, list) {
   if (!slate) return html`<p class="stand-empty">${describeMissingSlate()}</p>`;
   const games = listSlateList(slate, list);
   if (!games.length) return html`<p class="stand-empty">${EMPTY_LIST_TEXT[list]}</p>`;
-  const isToday = list === "today";
   return html`${groupByDay(games, list === "previous").map(
     (day) => html`<h3 class="game-day">${formatGameDay(day.date)}</h3>
-      <ul class="game-list">${day.games.map((game) => renderGame(game, isToday ? findGameSeries(game) : null, isToday))}</ul>`,
+      <ul class="game-list">${day.games.map((game) => renderListedGame(game, list))}</ul>`,
   )}`;
 }
 

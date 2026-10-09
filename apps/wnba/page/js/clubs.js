@@ -1,3 +1,4 @@
+import { renderAllStarMark } from "#shared/all-star.js";
 import { html } from "#shared/html.js";
 import { renderTeamSheetButton } from "#shared/team-sheet.js";
 import { nameTeam } from "./series.js";
@@ -62,3 +63,36 @@ export const renderTeamButton = (code, content) =>
  */
 export const renderTeamName = (code) =>
   code && TEAMS[code] ? renderTeamButton(code, nameTeam(code)) : nameTeam(code);
+
+// The All-Star Game's teams wear the classic pair: the West orange and the East white, and in a
+// year of captains' teams, the visitors orange and the home team white.
+const ALL_STAR_COLORS = { orange: "#ee6730", white: "#ffffff" };
+
+// Its star is set into the card as a dot is, with the dot's own shadow and light.
+const ALL_STAR_LOOK = {
+  size: 18.5,
+  shadow: { x: 0.4, y: 0.4, blur: 1 },
+  light: { x: 0.4, y: 0.4 },
+  hairline: 0.15,
+};
+
+/**
+ * @param {string} name
+ * @param {"away" | "home"} place
+ */
+function chooseAllStarColor(name, place) {
+  if (/\bWest\b/i.test(name)) return ALL_STAR_COLORS.orange;
+  if (/\bEast\b/i.test(name)) return ALL_STAR_COLORS.white;
+  return place === "away" ? ALL_STAR_COLORS.orange : ALL_STAR_COLORS.white;
+}
+
+/**
+ * An All-Star team's star, in its uniform's color, and its name.
+ * @param {{ game: string, name: string, place: "away" | "home" }} team `game` is the game's ID
+ */
+export const renderAllStarClub = ({ game, name, place }) =>
+  html`<span class="club">${renderAllStarMark({
+    id: `all-star-${game}-${place}`,
+    color: chooseAllStarColor(name, place),
+    look: ALL_STAR_LOOK,
+  })}<span class="team-name">${name}</span></span>`;

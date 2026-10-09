@@ -7,6 +7,7 @@ import {
   listNotifications,
   loadCurrentSnapshot,
   readAverages,
+  readSchedule,
   readUpdates,
   saveSnapshot,
 } from "../worker/src/season-updater.js";
@@ -76,7 +77,7 @@ test("the season saves its version, games, series, standings, and top scorers, e
   await saveSnapshot(docs, SNAPSHOT);
   await saveSnapshot(docs, { ...SNAPSHOT, asOf: "2026-09-30T22:00:00Z" });
 
-  assert.deepEqual(docs.writes, ["seasons/2026", "averages/2026"]);
+  assert.deepEqual(docs.writes, ["seasons/2026", "schedules/2026", "averages/2026"]);
   const averages = await readAverages(docs, 2026);
   assert.equal(averages.players.length, SNAPSHOT.averages.length);
   assert.ok(!("averages" in (await readUpdates(docs, 2026))));
@@ -174,6 +175,75 @@ test("a game found final without being seen live has no end", async () => {
   assert.equal(findTonight(saved).end, undefined);
   const earlier = saved.games.find((game) => game.id === "1042600102");
   assert.equal(earlier.end, undefined);
+});
+
+// The afternoon's feeds with the whole season's schedule, and tonight's first game on the
+// scoreboard as it stands: under way at the half, or over.
+function buildTonight(gameStatus, [awayScore, homeScore] = [0, 0]) {
+  const games = AFTERNOON.responses.scoreboard.scoreboard.games.map((game) =>
+    game.gameId === "1042600132"
+      ? {
+          ...game,
+          gameStatus,
+          gameStatusText: gameStatus === 3 ? "Final" : "Half",
+          period: 2,
+          awayTeam: { ...game.awayTeam, score: awayScore },
+          homeTeam: { ...game.homeTeam, score: homeScore },
+        }
+      : game,
+  );
+  const scoreboard = { scoreboard: { ...AFTERNOON.responses.scoreboard.scoreboard, games } };
+  return buildSnapshot(
+    { ...RESPONSES, schedule: GAMES.preview.schedule, scoreboard },
+    { season: 2026, now: NOW },
+  );
+}
+
+const findScheduledTonight = (schedule) => schedule.games.find((game) => game.id === "1042600132");
+
+test("every game of the season is saved apart from the season, regular season and all", async () => {
+  const docs = createDocs();
+  await saveSnapshot(docs, WHOLE_SEASON);
+  const schedule = await readSchedule(docs, 2026);
+  assert.equal(schedule.version, WHOLE_SEASON.version);
+  assert.equal(schedule.games.length, WHOLE_SEASON.schedule.length);
+  assert.ok(schedule.games.length > 300);
+  assert.ok(schedule.games.some((game) => game.round === null));
+  assert.ok(schedule.games.some((game) => game.round === 3));
+  assert.ok(!("schedule" in (await readUpdates(docs, 2026))));
+});
+
+test("the season's games are saved again only as a game ends, not while one is played", async () => {
+  const docs = createDocs();
+  await saveSnapshot(docs, WHOLE_SEASON);
+  docs.writes.length = 0;
+
+  await saveSnapshot(docs, buildTonight(2, [41, 38]));
+  assert.ok(!docs.writes.includes("schedules/2026"));
+  const live = (await readUpdates(docs, 2026)).games.find((game) => game.id === "1042600132");
+  assert.equal(live.state, "live");
+  assert.equal(findScheduledTonight(await readSchedule(docs, 2026)).state, "pre");
+
+  await saveSnapshot(docs, buildTonight(3, [84, 79]));
+  assert.ok(docs.writes.includes("schedules/2026"));
+  const final = findScheduledTonight(await readSchedule(docs, 2026));
+  assert.equal(final.state, "final");
+  assert.deepEqual([final.away.score, final.home.score], [84, 79]);
+});
+
+test("the season's games stay as they were unless both the scoreboard and the schedule answered", async () => {
+  const docs = createDocs();
+  await saveSnapshot(docs, buildTonight(3, [84, 79]));
+  const saved = await readSchedule(docs, 2026);
+
+  for (const feed of ["scoreboard", "schedule"]) {
+    const without = buildSnapshot(
+      { ...RESPONSES, schedule: GAMES.preview.schedule, [feed]: null },
+      { season: 2026, now: NOW },
+    );
+    await saveSnapshot(docs, without);
+  }
+  assert.deepEqual(await readSchedule(docs, 2026), saved);
 });
 
 /**

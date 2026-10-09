@@ -1,4 +1,4 @@
-import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { test, expect, expectDayAtTop, openApp, matchPath } from "./harness.mjs";
 import { SNAPSHOT_VERSION } from "../../page/js/snapshot.js";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -17,10 +17,15 @@ const moveBackAYear = (time) => time && new Date(Date.parse(time) - YEAR_MS).toI
 const keepAsLastSeason = (season) => ({
   ...season,
   season: 2025,
-  games: season.games
-    .filter((game) => game.state === "final")
-    .map((game) => ({ ...game, start: moveBackAYear(game.start), end: moveBackAYear(game.end) })),
+  games: keepFinalsAYearBack(season.games),
+  nearestGames: keepFinalsAYearBack(season.nearestGames),
 });
+
+/** @param {any[]} games */
+const keepFinalsAYearBack = (games) =>
+  games
+    .filter((game) => game.state === "final")
+    .map((game) => ({ ...game, start: moveBackAYear(game.start), end: moveBackAYear(game.end) }));
 
 const ONE_PAST_SEASON = { pastSeasons: { 2025: keepAsLastSeason } };
 
@@ -37,13 +42,6 @@ async function chooseSeason(page, year) {
   await page.keyboard.press("Escape");
   await expect(page.locator("#settingsDialog")).toBeHidden();
 }
-
-/**
- * @param {import("@playwright/test").Page} page
- * @param {string} list
- */
-const expectGameList = (page, list) =>
-  expect(page.getByRole("tab", { name: list })).toHaveAttribute("aria-selected", "true");
 
 test("with only the current season kept, settings show no Season picker", async ({ page }) => {
   await openApp(page);
@@ -72,28 +70,32 @@ test("a new season the store moves on to joins the list, and the page shows it",
   await expect(picker).toHaveValue("2027");
 });
 
-test("a past season's Games tab starts on its results, and the current season's on today", async ({
+test("a past season's Games tab opens on its last day, and the current season's on today", async ({
   page,
 }) => {
   await openApp(page, ONE_PAST_SEASON);
   await page.getByRole("tab", { name: "Games" }).click();
-  await expectGameList(page, "Today");
-
+  await expectDayAtTop(page, "2026-09-30");
   await chooseSeason(page, 2025);
 
-  await expectGameList(page, "Previous");
-  await expect(page.locator("#games-previous")).toContainText("Final");
-  await expect(page.locator("#games-today")).toHaveText("No games today");
-  await expect(page.locator("#games-next")).toHaveText("No more games scheduled");
-
-  await page.getByRole("tab", { name: "Next" }).click();
-  await expectGameList(page, "Next");
+  const days = page.locator("#seasonGames .listed-day");
+  const lastDay = await days.last().getAttribute("data-day");
+  expect(lastDay.startsWith("2025-09")).toBe(true);
+  await expect(page.locator("#seasonGames .day-list")).toContainText("Final");
+  await expect(page.locator("#seasonGames .no-games")).toHaveCount(0);
+  expect((await days.first().getAttribute("data-day")).startsWith("2025-")).toBe(true);
+  await expect(days.last()).toBeInViewport();
+  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute(
+    "data-day",
+    lastDay,
+  );
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
   await page.getByRole("tab", { name: "Games" }).click();
-  await expectGameList(page, "Previous");
+  await expect(days.last()).toBeInViewport();
 
   await chooseSeason(page, 2026);
-  await expectGameList(page, "Today");
-  await expect(page.locator("#games-today")).toContainText("Dream");
+  await expectDayAtTop(page, "2026-09-30");
+  await expect(page.locator("#seasonGames .game-day.is-today")).toContainText("Dream");
 });
 
 test("a past season's final opens its sheet with its box score", async ({ page }) => {
@@ -102,7 +104,7 @@ test("a past season's final opens its sheet with its box score", async ({ page }
   await page.getByRole("tab", { name: "Games" }).click();
 
   await page
-    .locator("#games-previous")
+    .locator("#seasonGames")
     .getByRole("button", { name: "Game details: Aces at Fever, First Round Game 2" })
     .click();
 

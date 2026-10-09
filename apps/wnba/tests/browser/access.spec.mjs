@@ -88,11 +88,11 @@ test("a page left open when the code changes goes back to the gate on its next r
   const app = await openLockedApp(page, { accessCode: "FASTBREAK" });
   await signIn(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
+  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
 
   app.changeAccessCode("LAYUP");
   await page
-    .locator("#games-previous")
+    .locator("#seasonGames .game-day.is-today")
     .getByRole("button", { name: /^Game details: / })
     .first()
     .click();

@@ -1,6 +1,5 @@
-import { isStartListChosen, showStartList } from "./game-pager.js";
 import { saveLastTab } from "./last-tab.js";
-import { scrollToTop } from "./scroll-to-top.js";
+import { scrollToTop } from "./spring-scroll.js";
 import { moveTabSelection } from "./tab-bar.js";
 import { readSelectedTab, selectTab, wireTabs } from "./tabs.js";
 
@@ -24,12 +23,26 @@ function switchTab(tab) {
   saveLastTab(tab);
 }
 
-// As on iPhone, choosing the tab that's already showing takes it back to where it starts: the
-// Games tab to its start list, today's or a past season's results, then to the top.
+// What choosing a tab that's already showing does instead of scrolling to the top, for a tab whose
+// start isn't its top, like a Games view's today.
+/** @type {Map<string, () => boolean>} */
+const startReturns = new Map();
+
+/**
+ * Has choosing `tab` while it's showing call `returnToStart`, which says whether it moved the tab,
+ * as when the tab wasn't already at its start.
+ * @param {string} tab
+ * @param {() => boolean} returnToStart
+ */
+export function setTabStart(tab, returnToStart) {
+  startReturns.set(tab, returnToStart);
+}
+
+// As on iPhone, choosing the tab that's already showing takes it back to where it starts, and then
+// to the top.
 /** @param {string} tab */
 function returnToStart(tab) {
-  if (tab === "games" && !isStartListChosen()) showStartList();
-  else scrollToTop();
+  if (!startReturns.get(tab)?.()) scrollToTop();
 }
 
 /** @param {string} tab */

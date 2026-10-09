@@ -1,0 +1,215 @@
+/*
+ * A season's games as one list under a strip of its days, as day-strip.js builds it in a
+ * .day-view. While it shows, the page holds still, and only the list scrolls, under the strip, so
+ * the header above it stays in view. Apps link it after chrome.css, before their own styles.css.
+ *
+ * Beside chrome.css's --bg, --ink, --ink-dim, and --radius-control, and pager.css's --page-gutter
+ * and --held-bar-line, an app's :root defines these tokens:
+ *   --strip-month          the month over the strip
+ *   --strip-today          today's date, in the strip and beside its games
+ *   --strip-chosen         the fill of the day at the top of the list
+ *   --strip-chosen-ink     what's written on it
+ *   --strip-chosen-edge    the outline inside its fill, or transparent for none
+ *   --strip-action         Today, the way back to the start day
+ *   --day-gap              the gap between days, kept above a day brought to the top
+ */
+
+/* The page and the view fill the screen, and the list takes what's left under the bar. A phone on
+   the Home Screen lays the page out short of the screen by the top safe area unless the page is
+   taller than it (chrome.css), so there the page stays that much taller. Safari doesn't lay the
+   page out again when a tab changes only the root's height, so the root keeps it on every tab,
+   where what's taller than it still scrolls the page. */
+:root {
+  height: 100%;
+}
+/* The Home Screen bar takes its own height off the page's top (chrome.css). */
+:root:has(.view.active > .day-view) body {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - var(--home-screen-bar-height, 0px));
+  padding-bottom: 0;
+}
+@media (max-width: 779px) {
+  :root {
+    height: calc(100% + env(safe-area-inset-top) + 1px);
+  }
+}
+.view.active:has(> .day-view) {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.day-view {
+  --reach-left: calc(var(--page-gutter) + 1px);
+  --reach-right: var(--page-gutter);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  min-height: 0;
+  margin-inline: auto;
+}
+
+/* The bar is the page's color, with a line under it once a day has scrolled under it. */
+.day-bar {
+  position: relative;
+  z-index: 5;
+  margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
+  padding-bottom: 7px;
+  background: var(--bg);
+}
+.day-bar.stuck {
+  box-shadow: 0 1px 0 var(--held-bar-line);
+}
+/* Today's tap height leaves room under the month, so the strip tucks into it, its weekdays'
+   capitals 16.5px under the month's. */
+.day-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--control-height, 30px);
+  margin-bottom: -1px;
+  padding-inline: var(--reach-left) var(--reach-right);
+}
+.strip-month {
+  margin: 0;
+  font-size: var(--size-small);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--strip-month);
+}
+/* Today looks the same wherever the list is, so it reads as a shortcut, never as where the list
+   is. Its calendar names what it does before its word, and its tap area runs past them. */
+.go-today {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-block: -7px;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--size-glance);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--strip-action);
+  cursor: pointer;
+}
+/* Today's capitals and its icon sit level with the month's capitals, whose smaller size sets them
+   higher in the same line. */
+.go-today > span {
+  translate: 0 -1px;
+}
+.go-today svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  translate: 0 -0.5px;
+}
+
+/* The days run to the screen's edges, each a weekday over its date, the month on its first and
+   Today on today's. */
+.day-strip {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  padding-inline: var(--reach-left) var(--reach-right);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.day-strip::-webkit-scrollbar {
+  display: none;
+}
+.day-cell {
+  flex: 0 0 46px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  padding: 5px 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  font: inherit;
+  color: var(--ink);
+}
+.day-cell:enabled {
+  cursor: pointer;
+}
+.cell-name,
+.cell-month {
+  font-size: var(--size-small);
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+.cell-month {
+  color: var(--strip-month);
+}
+.cell-number {
+  font-size: var(--size-read);
+  font-weight: 600;
+  line-height: 1;
+}
+/* A day without games is quieter: as dim as a weekday, the dimmest a date can be and still read,
+   and a step lighter. */
+.day-cell.is-quiet:not(:not(.is-sliding) > .is-chosen) :is(.cell-name, .cell-month, .cell-number) {
+  color: var(--ink-dim);
+}
+.day-cell.is-quiet .cell-number {
+  font-weight: 500;
+}
+.day-cell.is-today .cell-number {
+  color: var(--strip-today);
+}
+/* The chosen day's box. While the list's scroll slides the dates behind it (strip-slide.js), the box
+   is its own, over the strip, the chosen date looks like any other, and the box shows a copy of
+   the dates, each in its ink. */
+.day-strip:not(.is-sliding) > .day-cell.is-chosen,
+.strip-lens {
+  background: var(--strip-chosen);
+  box-shadow: inset 0 0 0 1px var(--strip-chosen-edge);
+}
+:not(.is-sliding) > .day-cell.is-chosen :is(.cell-name, .cell-month, .cell-number) {
+  color: var(--strip-chosen-ink);
+}
+.strip-lens {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  pointer-events: none;
+}
+.strip-lens-track {
+  display: flex;
+  gap: 2px;
+}
+
+/* Only the list scrolls, from the screen's edges, past the tab bar at its end, with room after its
+   last day, which the strip's code sets, for that day to reach the top. Safari keeps no
+   scroll anchor, so the list's code keeps the day at its top itself, in every browser. */
+.day-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
+  padding: var(--day-gap) var(--reach-right) max(48px, var(--end-room, 0px)) var(--reach-left);
+  overflow-y: auto;
+  overflow-anchor: none;
+  overscroll-behavior-y: contain;
+}
+@media (max-width: 779px) {
+  .day-list {
+    padding-bottom: max(var(--tab-bar-clearance), var(--end-room, 0px));
+  }
+}
+.listed-day + .listed-day {
+  margin-top: var(--day-gap);
+}

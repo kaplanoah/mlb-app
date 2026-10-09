@@ -107,14 +107,13 @@ test("a Read button is raised like a card, a button's height, its words centered
   expect(look.roomAbove).toBe(look.roomBelow);
 });
 
-test("a pill's names are buttons, in sentence case at a button's weight and height, centered on their capitals, the pill 10px under the header and 9px over the first card, and its bar held at the top ends in a line, not a fade", async ({
+test("a pill's names are buttons, in sentence case at a button's weight and height, centered on their capitals, the pill 10px under the header and 9px over its lists, and its bar held at the top ends in a line, not a fade", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await openApp(page);
-  await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Previous" }).click();
-  const name = page.locator("#games-bar .pager-tabs button").first();
+  await page.getByRole("tab", { name: "Standings" }).click();
+  const name = page.locator("#standings-bar .pager-tabs button").first();
   await expect(name).toHaveCSS("text-transform", "none");
   await expect(name).toHaveCSS("font-weight", "500");
   await expect(name).toHaveCSS("height", "30px");
@@ -123,14 +122,14 @@ test("a pill's names are buttons, in sentence case at a button's weight and heig
     const readBox = (/** @type {string} */ selector) =>
       /** @type {Element} */ (document.querySelector(selector)).getBoundingClientRect();
     const header = readBox("header.top");
-    const pill = readBox("#games-bar .pager-tabs");
-    const card = readBox("#games-previous .game-list");
-    return { above: pill.top - header.bottom, height: pill.height, below: card.top - pill.bottom };
+    const pill = readBox("#standings-bar .pager-tabs");
+    const lists = readBox("#standings-pages");
+    return { above: pill.top - header.bottom, height: pill.height, below: lists.top - pill.bottom };
   });
   expect(room).toEqual({ above: 10, height: 30, below: 9 });
 
   await page.evaluate(() => scrollTo({ top: 400, behavior: "instant" }));
-  const bar = page.locator("#games-bar");
+  const bar = page.locator("#standings-bar");
   await expect(bar).toHaveClass(/stuck/);
   const divider = await readTokenColor(page, "--divider");
   await expect(bar).toHaveCSS("box-shadow", `${divider} 0px 1px 0px 0px`);
@@ -162,30 +161,165 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
   }) => {
     await page.emulateMedia({ colorScheme });
     await openApp(page);
-    await page.getByRole("tab", { name: "Games" }).click();
-    await page.getByRole("tab", { name: "Previous" }).click();
-    const chosen = page.locator("#games-bar .pager-tabs button.active");
-    await expect(chosen).toHaveText("Previous");
-    await page.clock.runFor(2000);
+    await page.getByRole("tab", { name: "Standings" }).click();
+    const chosen = page.locator("#standings-bar .pager-tabs button.active");
+    await expect(chosen).toHaveText("League");
     const [orange, onOrange, ink] = await Promise.all(
       ["--orange", "--orange-ink", "--ink"].map(async (token) =>
         readChannels(page, await readTokenColor(page, token)),
       ),
     );
-    const [previous, ...others] = await readPillNames(page.locator("#games-bar [role=tablist]"));
-    expect(previous.name).toBe("Previous");
-    expect(await readChannels(page, previous.fill)).toEqual(orange);
-    expect(await readChannels(page, previous.textColor)).toEqual(onOrange);
+    const [league, ...others] = await readPillNames(page.locator("#standings-bar [role=tablist]"));
+    expect(league.name).toBe("League");
+    expect(await readChannels(page, league.fill)).toEqual(orange);
+    expect(await readChannels(page, league.textColor)).toEqual(onOrange);
     for (const other of others) {
       expect(other.fill, other.name).toBe("rgba(0, 0, 0, 0)");
       expect(await readChannels(page, other.textColor), other.name).toEqual(ink);
     }
-    await expect(page.locator("#games-bar .pager-tabs button:not(.active)").first()).toHaveCSS(
+    await expect(page.locator("#standings-bar .pager-tabs button:not(.active)").first()).toHaveCSS(
       "font-weight",
       "500",
     );
   });
+
+  test(`the day at the top of the Games list is filled orange inside the darker edge, today's date is orange, the month teal, a date without games as dim as a weekday and a step lighter, and Today orange, in ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await openApp(page, { isWholeSeason: true });
+    await page.getByRole("tab", { name: "Games" }).click();
+    const chosen = page.locator("#seasonGames .day-cell.is-chosen");
+    await expect(chosen).toHaveAttribute("data-day", "2026-09-30");
+    const [orange, onOrange, teal, inkDim, edge] = await Promise.all(
+      ["--orange", "--orange-ink", "--teal", "--ink-dim", "--pager-chosen-edge"].map(
+        async (token) => readChannels(page, await readTokenColor(page, token)),
+      ),
+    );
+    const readColor = (/** @type {import("@playwright/test").Locator} */ locator, property) =>
+      locator.evaluate((element, name) => getComputedStyle(element)[name], property);
+    expect(await readChannels(page, await readColor(chosen, "backgroundColor"))).toEqual(orange);
+    const chosenEdge = await readColor(chosen, "boxShadow");
+    expect(await readChannels(page, chosenEdge.replace(/\) .*$/, ")"))).toEqual(edge);
+    const chosenNumber = chosen.locator(".cell-number");
+    expect(await readChannels(page, await readColor(chosenNumber, "color"))).toEqual(onOrange);
+
+    await page.locator('#seasonGames .day-cell[data-day="2026-09-27"]').click();
+    await expect(chosen).toHaveAttribute("data-day", "2026-09-27");
+    const today = page.locator("#seasonGames .day-cell.is-today .cell-number");
+    expect(await readChannels(page, await readColor(today, "color"))).toEqual(orange);
+    const besideGames = page.locator("#seasonGames .game-day.is-today .day-number");
+    expect(await readChannels(page, await readColor(besideGames, "color"))).toEqual(orange);
+    const month = page.locator("#seasonGames .strip-month");
+    await expect(month).toHaveText("September");
+    expect(await readChannels(page, await readColor(month, "color"))).toEqual(teal);
+    const weekday = page.locator('#seasonGames .day-cell[data-day="2026-09-29"] .cell-name');
+    expect(await readChannels(page, await readColor(weekday, "color"))).toEqual(inkDim);
+    const quietNumber = page.locator('#seasonGames .day-cell[data-day="2026-09-28"] .cell-number');
+    expect(await readChannels(page, await readColor(quietNumber, "color"))).toEqual(inkDim);
+    await expect(quietNumber).toHaveCSS("font-weight", "500");
+    const gameNumber = page.locator('#seasonGames .day-cell[data-day="2026-09-29"] .cell-number');
+    await expect(gameNumber).toHaveCSS("font-weight", "600");
+    const goToday = page.locator("#seasonGames .go-today");
+    await expect(goToday).toHaveText("Today");
+    expect(await readChannels(page, await readColor(goToday, "color"))).toEqual(orange);
+    await expect(goToday).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(goToday).toHaveCSS("box-shadow", "none");
+  });
 }
+
+test("the Games list's month starts 16px under the header's line, level with Today and its icon, the weekdays' capitals 16.5px under its, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page, { isWholeSeason: true });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toBeVisible();
+  const sizes = await page.evaluate(() => {
+    const readBox = (/** @type {string} */ selector) =>
+      /** @type {Element} */ (document.querySelector(selector)).getBoundingClientRect();
+    // A zero-height box set inline after a text has its top on the text's baseline.
+    const readCapitals = (/** @type {string} */ selector) => {
+      const text = /** @type {HTMLElement} */ (document.querySelector(selector));
+      const style = getComputedStyle(text);
+      const context = /** @type {CanvasRenderingContext2D} */ (
+        document.createElement("canvas").getContext("2d")
+      );
+      // Measured large and scaled down, since a canvas rounds its text's bounds to whole pixels.
+      context.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+      const capHeight =
+        (context.measureText("H").actualBoundingBoxAscent * parseFloat(style.fontSize)) / 1000;
+      const probe = document.createElement("span");
+      probe.style.cssText = "display: inline-block; width: 0; height: 0";
+      text.append(probe);
+      const baseline = probe.getBoundingClientRect().top;
+      probe.remove();
+      return { top: baseline - capHeight, middle: baseline - capHeight / 2, bottom: baseline };
+    };
+    const header = readBox("header.top");
+    const month = readCapitals("#seasonGames .strip-month");
+    const today = readCapitals("#seasonGames .go-today span");
+    const weekday = readCapitals('#seasonGames .day-cell[data-day="2026-09-29"] .cell-name');
+    const icon = readBox("#seasonGames .go-today svg");
+    const cells = [...document.querySelectorAll("#seasonGames .day-cell")].slice(0, 2);
+    const [first, second] = cells.map((cell) => cell.getBoundingClientRect());
+    const name = readBox('#seasonGames .day-cell[data-day="2026-09-29"] .cell-name');
+    const number = readBox('#seasonGames .day-cell[data-day="2026-09-29"] .cell-number');
+    return {
+      above: month.top - header.bottom,
+      monthToWeekdays: weekday.top - month.bottom,
+      todayFromMonth: today.middle - month.middle,
+      iconFromMonth: (icon.top + icon.bottom) / 2 - month.middle,
+      width: first.width,
+      gap: second.left - first.right,
+      nameToNumber: number.top - name.bottom,
+    };
+  });
+  const { above, monthToWeekdays, todayFromMonth, iconFromMonth, ...steps } = sizes;
+  expect(above).toBeCloseTo(16, 0);
+  expect(monthToWeekdays).toBeCloseTo(16.5, 0);
+  expect(todayFromMonth).toBeCloseTo(0, 0);
+  expect(iconFromMonth).toBeCloseTo(0, 0);
+  expect(steps).toEqual({ width: 46, gap: 2, nameToNumber: 2 });
+  const bar = page.locator("#seasonGames .day-bar");
+  await expect(bar).toHaveClass(/stuck/);
+  const divider = await readTokenColor(page, "--divider");
+  await expect(bar).toHaveCSS("box-shadow", `${divider} 0px 1px 0px 0px`);
+  await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
+  await expect(bar).not.toHaveClass(/stuck/);
+});
+
+test("an All-Star team's star sits 1px above its name's middle, where a dot sits level with it", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openApp(page, { isWholeSeason: true });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect(page.locator("#seasonGames .listed-day").first()).toHaveAttribute(
+    "data-day",
+    /^2026-05-/,
+  );
+  await page.locator('#seasonGames .day-cell[data-day="2026-07-25"]').click();
+  const readMarkAboveName = (/** @type {string} */ side) =>
+    page.locator(side).evaluate((element) => {
+      /** @param {Element} part */
+      const readMiddle = (part) => {
+        const box = part.getBoundingClientRect();
+        return (box.top + box.bottom) / 2;
+      };
+      const mark = /** @type {Element} */ (element.querySelector(".all-star-mark, .dot"));
+      return (
+        readMiddle(/** @type {Element} */ (element.querySelector(".team-name"))) - readMiddle(mark)
+      );
+    });
+  await expect(page.locator('[data-game="1032600001"] .all-star-mark').first()).toBeInViewport();
+  expect(await readMarkAboveName('[data-game="1032600001"] .game-side.away')).toBeCloseTo(1, 1);
+  expect(
+    await readMarkAboveName(
+      '.listed-day[data-day="2026-07-28"] .game-row:first-child .game-side.away',
+    ),
+  ).toBeCloseTo(0, 1);
+});
 
 test("a sheet leaves the page behind it as it is, and a switch stays round", async ({ page }) => {
   await openApp(page);

@@ -40,15 +40,52 @@ const LIT = [
   "abcdfg",
 ];
 
-/** @param {number | null} digit null for a place the score doesn't reach */
-function renderDigit(digit) {
-  const lit = digit === null ? "" : LIT[digit];
-  const segments = SEGMENTS.map(
-    ({ name, box: [x, y, width, height] }) =>
-      html`<rect class="${lit.includes(name) ? "on" : ""}" x="${x}" y="${y}" width="${width}" height="${height}" rx="1.17"/>`,
-  );
-  return html`<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" aria-hidden="true">${segments}</svg>`;
+const CORNER = 1.17;
+
+/** @typedef {{ name?: string, box: string[] }} Segment */
+
+/**
+ * A segment as a rounded rectangle's outline, so a digit's segments share one path.
+ * @param {string[]} box
+ */
+function outlineSegment([x, y, width, height]) {
+  const [left, top] = [Number(x), Number(y)];
+  const across = (Number(width) - 2 * CORNER).toFixed(2);
+  const down = (Number(height) - 2 * CORNER).toFixed(2);
+  /** @param {number} dx @param {number} dy */
+  const traceCorner = (dx, dy) => `a${CORNER} ${CORNER} 0 0 1 ${dx} ${dy}`;
+  return `M${(left + CORNER).toFixed(2)} ${top.toFixed(2)}h${across}${traceCorner(CORNER, CORNER)}v${down}${traceCorner(-CORNER, CORNER)}h-${across}${traceCorner(-CORNER, -CORNER)}v-${down}${traceCorner(CORNER, -CORNER)}z`;
 }
+
+/**
+ * A digit's lit segments in one path and its dark ones in another.
+ * @param {Segment[]} segments
+ * @param {(segment: Segment) => boolean} isLit
+ */
+function renderSegments(segments, isLit) {
+  /** @param {boolean} lit */
+  const outline = (lit) =>
+    segments
+      .filter((segment) => isLit(segment) === lit)
+      .map(({ box }) => outlineSegment(box))
+      .join("");
+  const [on, off] = [outline(true), outline(false)];
+  return html`${on && html`<path class="on" d="${on}"/>`}${off && html`<path d="${off}"/>`}`;
+}
+
+/** @param {number | null} digit null for a place the score doesn't reach */
+function drawDigit(digit) {
+  const lit = digit === null ? "" : LIT[digit];
+  return html`<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" aria-hidden="true"
+    >${renderSegments(SEGMENTS, ({ name }) => lit.includes(name ?? ""))}</svg
+  >`;
+}
+
+// Each digit is drawn once, since a season's list shows hundreds of scores.
+const DIGITS = new Map([null, ...LIT.keys()].map((digit) => [digit, drawDigit(digit)]));
+
+/** @param {number | null} digit */
+const renderDigit = (digit) => DIGITS.get(digit);
 
 // A basketball score never reaches 200, so, as on an arena's board, its hundreds place is a narrow
 // one that holds just a 1's two segments.
@@ -58,15 +95,11 @@ const HUNDREDS_SEGMENTS = SEGMENTS.filter(({ name }) => "bc".includes(name)).map
 );
 
 /** @param {boolean} isLit */
-function renderHundreds(isLit) {
-  const segments = HUNDREDS_SEGMENTS.map(
-    ({ box: [x, y, width, height] }) =>
-      html`<rect class="${isLit ? "on" : ""}" x="${x}" y="${y}" width="${width}" height="${height}" rx="1.17"/>`,
-  );
-  return html`<svg class="hundreds" viewBox="0 0 ${HUNDREDS_WIDTH} ${HEIGHT}" aria-hidden="true"
-    >${segments}</svg
+const drawHundreds = (isLit) =>
+  html`<svg class="hundreds" viewBox="0 0 ${HUNDREDS_WIDTH} ${HEIGHT}" aria-hidden="true"
+    >${renderSegments(HUNDREDS_SEGMENTS, () => isLit)}</svg
   >`;
-}
+const HUNDREDS = new Map([false, true].map((isLit) => [isLit, drawHundreds(isLit)]));
 
 /**
  * The tens and ones a score lights, with a 0 for the tens once a score reaches 100.
@@ -87,7 +120,7 @@ function readLastTwoPlaces(score) {
  */
 export function renderScoreboard(score, { isLoser = false } = {}) {
   return html`<span class="scoreboard${isLoser ? " lost" : ""}"
-    ><span class="scoreboard-text">${score}</span>${renderHundreds((score ?? 0) >= 100)}${readLastTwoPlaces(
+    ><span class="scoreboard-text">${score}</span>${HUNDREDS.get((score ?? 0) >= 100)}${readLastTwoPlaces(
       score,
     ).map(renderDigit)}</span
   >`;
