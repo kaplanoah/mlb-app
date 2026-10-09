@@ -66,6 +66,9 @@ let anchor = null;
 let quietDay = null;
 // A finger or wheel moving the strip has the month name the day in its middle, until the list moves.
 let isStripSwiped = false;
+// The strip's dates slide only while a finger or wheel has moved the list, since the list's own
+// moves, as it's placed, redrawn, or sent to a day, already choose their day.
+let isListInHand = false;
 /** @type {Map<string, string>} */
 const drawnDays = new Map();
 
@@ -209,7 +212,7 @@ function followTopDay(day) {
   const strip = findStrip();
   const from = chosenDay && findCell(chosenDay);
   const to = findCell(day);
-  if (!strip || !from || !to || isReducedMotion()) {
+  if (!strip || !from || !to || !isListInHand || isReducedMotion()) {
     chooseDay(day, "instant");
     return;
   }
@@ -293,6 +296,7 @@ function showDay(day, motion) {
     return;
   }
   held = { day, hasArrived: false };
+  isListInHand = false;
   const isFar = Math.abs(top - list.scrollTop) > FLOWN_SCREENS * list.clientHeight;
   const isJump = motion === "instant" || isFar || isReducedMotion();
   dayStripLog.noteStep(
@@ -375,6 +379,7 @@ export function startOverDayStrip() {
   anchor = null;
   quietDay = null;
   isStripSwiped = false;
+  isListInHand = false;
 }
 
 /**
@@ -501,6 +506,7 @@ export function fillDayStrip(fill) {
 /** @param {Event} event */
 function noteTouch(event) {
   const target = /** @type {Node} */ (event.target);
+  if (findList()?.contains(target)) isListInHand = true;
   if (held && findList()?.contains(target)) {
     dayStripLog.noteStep(`the list's touch takes it over on its way to ${held.day}`);
     held = null;
