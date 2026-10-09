@@ -21,10 +21,16 @@ import { endStripSlide, slideStripTo } from "./strip-slide.js";
 // there pulses the date. While a finger moves the strip, the month names the day in its middle.
 // The list opens on its start day, today or the day the app names, and goes back there once
 // someone has been away two minutes. A league hands it each game day's markup, as it draws a day
-// elsewhere, and a date without games' markup.
+// elsewhere, and a date without games' markup. A league with many games a day can also hand over
+// a stand-in for each day, as tall as its games, which the list draws in place of a day far from
+// its top, so it holds only the games near the screen.
 
 /** @typedef {import("./html.js").Markup} Markup */
-/** @typedef {{ day: string, markup: Markup }} ListedDay a "YYYY-MM-DD" day and its games */
+/**
+ * A "YYYY-MM-DD" day and its games, and the stand-in for them while the day is far from the list's
+ * top, when the league has one.
+ * @typedef {{ day: string, markup: Markup, farMarkup?: Markup }} ListedDay
+ */
 /**
  * @typedef {object} DayStripFill
  * @property {ListedDay[]} days each game day, in order
@@ -39,6 +45,12 @@ const CALENDAR_DOT = html`<svg viewBox="0 0 256 256" fill="currentColor" aria-hi
 
 // Farther than this many screens, a jump is made at once rather than flown.
 const FLOWN_SCREENS = 3;
+// Days within this many screens of what the list shows, and of a day a tap or Today sends it to,
+// are drawn whole, which is more than a fling reaches before the list's next frame draws its own.
+// Before the list is laid out, as on another tab, the days this many either side of the day it
+// opens on are.
+const NEAR_SCREENS = 3;
+const NEAR_DAY_COUNT = 4;
 // A tap on Today while the list is already there grows the date this much and back, this fast.
 const PULSE_SCALE = 1.04;
 const PULSE_MS = 290;
@@ -68,6 +80,9 @@ let isStripSwiped = false;
 let isListInHand = false;
 /** @type {Map<string, string>} */
 const drawnDays = new Map();
+// The days drawn whole, rather than as a stand-in.
+/** @type {Set<string>} */
+let nearDays = new Set();
 
 const findBar = () => /** @type {HTMLElement | null} */ (view?.querySelector(".day-bar") ?? null);
 const findStrip = () =>
@@ -143,10 +158,58 @@ function listShownDays(fill) {
   return [...fill.days, quiet].sort((first, second) => (first.day < second.day ? -1 : 1));
 }
 
+/**
+ * The days either side of `center` in the list, before it's laid out.
+ * @param {ListedDay[]} days
+ * @param {string} center
+ */
+function listDaysAround(days, center) {
+  const index = days.findIndex(({ day }) => day === center);
+  const around =
+    index < 0 ? [] : days.slice(Math.max(0, index - NEAR_DAY_COUNT), index + NEAR_DAY_COUNT + 1);
+  return new Set(around.map(({ day }) => day));
+}
+
+/**
+ * The days drawn whole: those within a few screens of what the list shows and of the day a tap or
+ * Today sends it to.
+ * @param {DayStripFill} fill
+ * @param {ListedDay[]} days
+ */
+function listNearDays(fill, days) {
+  const list = findList();
+  const target = held?.day ?? chosenDay ?? fill.startDay;
+  const targetDay = findListedDay(target);
+  if (!list || !targetDay || !isListShown()) return listDaysAround(days, target);
+  const reach = NEAR_SCREENS * list.clientHeight;
+  const spans = [list.scrollTop, targetDay.offsetTop].map((top) => [
+    top - reach,
+    top + list.clientHeight + reach,
+  ]);
+  /** @param {string} day */
+  const isNear = (day) => {
+    const listed = findListedDay(day);
+    if (!listed) return false;
+    const bottom = listed.offsetTop + listed.offsetHeight;
+    return spans.some(([from, to]) => bottom > from && listed.offsetTop < to);
+  };
+  return new Set(days.filter(({ day }) => isNear(day)).map(({ day }) => day));
+}
+
+/**
+ * What the list draws for a day: its games, or its stand-in while it's far from what shows.
+ * @param {ListedDay} listed
+ */
+const chooseDrawnMarkup = ({ day, markup, farMarkup }) =>
+  farMarkup && !nearDays.has(day) ? farMarkup : markup;
+
 // Keyed by its date, a day keeps its own node as days come and go around it, rather than being
 // rewritten with its neighbor's games.
-/** @param {ListedDay} listed */
-const renderListedDay = ({ day, markup }) =>
+/**
+ * @param {string} day
+ * @param {Markup} markup
+ */
+const renderListedDay = (day, markup) =>
   html`<div class="listed-day" data-day="${day}" data-key="${day}">${markup}</div>`;
 
 /**
@@ -155,7 +218,7 @@ const renderListedDay = ({ day, markup }) =>
  */
 const renderView = (fill, days) =>
   html`<div class="day-bar">${renderBar(fill)}</div>
-    <div class="day-list">${days.map(renderListedDay)}</div>`;
+    <div class="day-list">${days.map((listed) => renderListedDay(listed.day, chooseDrawnMarkup(listed)))}</div>`;
 
 /** @param {string} day */
 const findListedDay = (day) =>
@@ -198,6 +261,7 @@ function markChosen(day) {
   chosenDay = day;
   findCell(day)?.classList.add("is-chosen");
   showMonth(day);
+  drawNearDays();
 }
 
 /**
@@ -364,6 +428,7 @@ function followList() {
   requestAnimationFrame(() => {
     isFramePending = false;
     markStuck();
+    drawNearDays();
     const top = findTopDay();
     if (top && !isStillHeld()) followTopDay(top);
     if (isStripSwiped && chosenDay) showMonth(chosenDay);
@@ -409,6 +474,7 @@ export function startOverDayStrip() {
   endStripSlide();
   isPlaced = false;
   chosenDay = null;
+  nearDays = new Set();
   held = null;
   anchor = null;
   quietDay = null;
@@ -429,17 +495,33 @@ function hasSameDays(days) {
   );
 }
 
+/** @param {ListedDay} listed */
+function drawListedDay(listed) {
+  const drawn = chooseDrawnMarkup(listed);
+  const markup = String(drawn);
+  if (drawnDays.get(listed.day) === markup) return;
+  const element = findListedDay(listed.day);
+  if (element) setHtml(element, drawn);
+  drawnDays.set(listed.day, markup);
+}
+
 // Only the days whose games changed are drawn again, so a live game's update doesn't redraw the
 // season.
 /** @param {ListedDay[]} days */
 function redrawChangedDays(days) {
-  for (const listed of days) {
-    const markup = String(listed.markup);
-    if (drawnDays.get(listed.day) === markup) continue;
-    const element = findListedDay(listed.day);
-    if (element) setHtml(element, listed.markup);
-    drawnDays.set(listed.day, markup);
-  }
+  for (const listed of days) drawListedDay(listed);
+}
+
+// As the list moves, only the days that came near what it shows, or left, are drawn again. A
+// stand-in is as tall as the games it stands for, so drawing a day whole or not moves nothing.
+function drawNearDays() {
+  if (!shown) return;
+  const days = listShownDays(shown);
+  if (!hasSameDays(days)) return;
+  const before = nearDays;
+  nearDays = listNearDays(shown, days);
+  for (const listed of days)
+    if (before.has(listed.day) !== nearDays.has(listed.day)) drawListedDay(listed);
 }
 
 /** @param {DayStripFill} fill */
@@ -447,6 +529,7 @@ function drawFill(fill) {
   endStripSlide();
   const bar = findBar();
   const days = listShownDays(fill);
+  nearDays = listNearDays(fill, days);
   if (hasSameDays(days) && bar) {
     setHtml(bar, renderBar(fill));
     redrawChangedDays(days);
@@ -454,7 +537,7 @@ function drawFill(fill) {
   }
   setHtml(/** @type {HTMLElement} */ (view), renderView(fill, days));
   drawnDays.clear();
-  for (const listed of days) drawnDays.set(listed.day, String(listed.markup));
+  for (const listed of days) drawnDays.set(listed.day, String(chooseDrawnMarkup(listed)));
   fitEndRoom();
 }
 

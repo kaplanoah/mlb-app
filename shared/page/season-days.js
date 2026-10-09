@@ -81,6 +81,19 @@ const renderGameDay = ({ day, count, games }, today, renderLabel) =>
   </section>`;
 
 /**
+ * A day's stand-in while it's far from the top of the list: its label over an empty box as tall
+ * as its games.
+ * @param {{ day: string, count: number }} gameDay
+ * @param {string} today
+ * @param {RenderLabel} renderLabel
+ */
+const renderStandIn = ({ day, count }, today, renderLabel) =>
+  html`<section class="game-day${day === today ? " is-today" : ""}" style="--games: ${count}">
+    ${renderLabel(day, today)}
+    <ul class="game-list is-stand-in" aria-hidden="true"></ul>
+  </section>`;
+
+/**
  * @param {string} today
  * @param {RenderLabel} renderLabel
  */
@@ -112,6 +125,8 @@ const renderQuietDay = (day, today, renderLabel) =>
  * @param {string | null} [options.openDay]
  * @param {string} options.emptyNote
  * @param {RenderLabel} [options.renderLabel]
+ * @param {boolean} [options.standsIn] whether a day far from the top of the list stands in for its
+ *   games, as a season of many games a day does
  * @returns {import("./day-strip.js").DayStripFill}
  */
 export function listSeasonDays({
@@ -120,10 +135,13 @@ export function listSeasonDays({
   openDay = null,
   emptyNote,
   renderLabel = renderCalendarLabel,
+  standsIn = false,
 }) {
+  /** @type {import("./day-strip.js").ListedDay[]} */
   const days = gameDays.map((gameDay) => ({
     day: gameDay.day,
     markup: renderGameDay(gameDay, today, renderLabel),
+    ...(standsIn && { farMarkup: renderStandIn(gameDay, today, renderLabel) }),
   }));
   const isTodayInSeason = !!days.length && days[0].day < today && today < days.at(-1).day;
   if (isTodayInSeason && !days.some(({ day }) => day === today)) {

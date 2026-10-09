@@ -154,17 +154,46 @@ test("each day's heading is a band of the page's color, ending in a line, its ca
   ).toHaveCSS("color", "rgb(244, 193, 92)");
 });
 
-test("a day far from the screen holds the height its games take once they're drawn", async ({
+test("a day far from the list's top stands in for its games at the height they take once drawn, so the page holds only the games near the screen", async ({
   page,
 }) => {
   await openSeasonGames(page);
   const games = page.locator('#seasonGames .listed-day[data-day="2026-06-10"] .game-list');
+  await expect(games).toHaveClass(/is-stand-in/);
+  await expect(games.locator(".game-row")).toHaveCount(0);
   const heightAway = await games.evaluate((list) => list.getBoundingClientRect().height);
+  const drawnRows = await page.locator("#seasonGames .game-row").count();
+  expect(drawnRows).toBeLessThan(200);
 
   await page.locator('#seasonGames .day-cell[data-day="2026-06-10"]').click();
-  await expect(games).toBeInViewport();
-  await expect(games.locator(".game-row").first()).toBeVisible();
+  await expect(games.locator(".game-row").first()).toBeInViewport();
+  await expect(games).not.toHaveClass(/is-stand-in/);
   expect(await games.evaluate((list) => list.getBoundingClientRect().height)).toBe(heightAway);
+  await expect(
+    page.locator('#seasonGames .listed-day[data-day="2026-09-24"] .game-list'),
+  ).toHaveClass(/is-stand-in/);
+});
+
+test("scrolling the list draws each day whole as it nears the top, before it shows", async ({
+  page,
+}) => {
+  await openSeasonGames(page);
+  const list = page.locator("#seasonGames .day-list");
+  for (let step = 0; step < 20; step += 1) {
+    await list.evaluate((element) => element.scrollBy(0, element.clientHeight));
+    await expect
+      .poll(() =>
+        list.evaluate((element) => {
+          const top = element.getBoundingClientRect().top;
+          const bottom = top + element.clientHeight;
+          return [...element.querySelectorAll(".game-list.is-stand-in")].filter((standIn) => {
+            const box = standIn.getBoundingClientRect();
+            return box.bottom > top && box.top < bottom;
+          }).length;
+        }),
+      )
+      .toBe(0);
+  }
 });
 
 test("tapping the Games tab while it shows goes back to today", async ({ page }) => {

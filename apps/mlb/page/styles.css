@@ -476,12 +476,7 @@ table.st .seed-cell {
 
 /* Games: the season's days under a strip of them, each day's games under a heading that holds
    under the strip while they pass, as a list's section headers do on iPhone, until the next day's
-   takes its place. Each day's games draw only near the screen, at the height they take. Today's
-   heading is gold, as today is in the strip. */
-.day-list .game-day .game-list {
-  content-visibility: auto;
-  contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height));
-}
+   takes its place. Today's heading is gold, as today is in the strip. */
 /* Chivo Mono reads heavier, so the strip's month and dates sit a weight under the shared 600. */
 .strip-month,
 .cell-number {

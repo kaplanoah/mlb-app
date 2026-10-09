@@ -28,7 +28,18 @@ const CLINCH_TITLES = {
 const SEED_LOCK = html`<svg class="seed-lock" viewBox="1.5 1.3 9 12.4" role="img" aria-label="seed final"><path d="M3.5 7V4.5a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="2.2" y="7.2" width="7.6" height="5.8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`;
 const ARMS = { L: "Throws left-handed", R: "Throws right-handed" };
 
-export const formatGameDay = (date) => formatWeekdayAndDate(readCalendarDate(date));
+// A whole season's rows name their day thousands of times, and formatting a date is slow, so
+// each day is formatted once. Its words don't depend on the time zone, since its date is read
+// as a calendar day where the viewer is.
+/** @type {Map<string, string>} */
+const formattedDays = new Map();
+
+/** @param {string} date "YYYY-MM-DD" */
+export function formatGameDay(date) {
+  if (!formattedDays.has(date))
+    formattedDays.set(date, formatWeekdayAndDate(readCalendarDate(date)));
+  return /** @type {string} */ (formattedDays.get(date));
+}
 
 export function describeStart(game) {
   if (game.tbd) return game.doubleheader === 2 ? "After 1st game" : "Time TBD";
@@ -105,10 +116,23 @@ export const renderArm = (hand) =>
 const renderStarter = (starter, side) =>
   html`<span class="starter ${side}" title="Starting pitcher"><span class="starter-name">${starter.name}</span>${renderArm(starter.hand)}</span>`;
 
-function isOut(id) {
+// Each club is checked against the bracket once for each season's state the page draws, rather
+// than once for every row it shows on.
+/** @type {WeakMap<object, Map<string, boolean>>} */
+const eliminatedByState = new WeakMap();
+
+/** @param {string} id */
+function isOutOfPostseason(id) {
   const { state } = session;
-  const isOutOfPostseason = Boolean(state && state.teams) && isEliminated(state, id);
-  return isOutOfPostseason || describeRace(findStandingsRow(id))?.standing === "out";
+  if (!state || !state.teams) return false;
+  if (!eliminatedByState.has(state)) eliminatedByState.set(state, new Map());
+  const eliminated = /** @type {Map<string, boolean>} */ (eliminatedByState.get(state));
+  if (!eliminated.has(id)) eliminated.set(id, isEliminated(state, id));
+  return /** @type {boolean} */ (eliminated.get(id));
+}
+
+function isOut(id) {
+  return isOutOfPostseason(id) || describeRace(findStandingsRow(id))?.standing === "out";
 }
 
 const renderPendingStarter = (side) =>
@@ -371,6 +395,7 @@ export function listSeasonDays(slate, schedule, now) {
     openDay: findLiveDay(games),
     emptyNote: describeEmptySeason(slate),
     renderLabel: renderHeadingLabel,
+    standsIn: true,
   });
 }
 
