@@ -474,61 +474,38 @@ table.st .seed-cell {
   max-width: 60ch;
 }
 
-/* Games: the season's days under a strip of them, each day's games beside its date as a wall
-   calendar shows it, level with its first game. Each day's games draw only near the screen, at the
-   height they take. Today's date is gold, as it is in the strip. */
+/* Games: the season's days under a strip of them, each day's games under a heading that holds
+   under the strip while they pass, as a list's section headers do on iPhone, until the next day's
+   takes its place. Each day's games draw only near the screen, at the height they take. Today's
+   heading is gold, as today is in the strip. */
 .day-list .game-day .game-list {
   content-visibility: auto;
   contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height) + 1px);
 }
-.game-day {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  column-gap: 10px;
-  align-items: start;
-}
-.day-label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: var(--game-row-height);
-  font-weight: 400;
-}
-.day-month,
-.day-name {
+.day-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
+  padding: 10px var(--reach-right) 8px var(--reach-left);
+  background: var(--bg);
+  box-shadow: 0 1px 0 var(--divider);
   font-size: var(--size-small);
-  font-weight: 500;
-  line-height: 1;
+  font-weight: 450;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.day-month {
-  color: var(--gold);
-}
-.day-number {
-  margin-top: 4px;
-  font-size: 1.375rem;
-  font-weight: 550;
-  line-height: 1;
-}
-.day-name {
-  margin-top: 5px;
+  letter-spacing: 0.09em;
   color: var(--ink-dim);
 }
-.game-day.is-today .day-number {
-  color: var(--strip-today);
+.game-day.is-today .day-heading {
+  color: var(--gold);
 }
 .empty-note {
   margin: 0;
   color: var(--ink-dim);
   font-size: var(--size-glance);
 }
-.no-games {
-  align-items: center;
-}
-.quiet-day .day-label {
-  height: 64px;
+.no-games .empty-note {
+  padding-block: 16px;
 }
 .day-view > .empty-note {
   margin-top: 32px;

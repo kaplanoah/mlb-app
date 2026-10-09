@@ -11,7 +11,7 @@ import {
 import { html } from "#shared/html.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
-import { listSeasonDays as listDayStripDays } from "#shared/season-days.js";
+import { listSeasonDays as listDayStripDays, renderHeadingLabel } from "#shared/season-days.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
 import { session } from "./session.js";
 import { listSlateGames } from "./slate.js";
@@ -334,6 +334,7 @@ export function listSeasonDays(slate, schedule, now) {
     today,
     openDay: findLiveDay(games),
     emptyNote: describeEmptySeason(),
+    renderLabel: renderHeadingLabel,
   });
 }
 
