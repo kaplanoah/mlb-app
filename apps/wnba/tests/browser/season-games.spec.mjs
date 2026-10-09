@@ -272,6 +272,25 @@ test.describe("with reduced motion", () => {
     await expectDayAtTop(page, "2026-09-30");
   });
 
+  test("a game on a new day keeps each day after it in its own place, rather than writing each one over with the day before's games", async ({
+    page,
+  }) => {
+    const app = await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    await findDay(page, "2026-09-30").evaluate((day) => Reflect.set(day, "isKept", true));
+
+    await app.changeSeason((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      season.games.push({ ...game, id: "added", start: "2026-09-28T23:30:00Z", state: "pre" });
+      return season;
+    });
+
+    await expect(findDay(page, "2026-09-28").locator('[data-game="added"]')).toHaveCount(1);
+    expect(await findDay(page, "2026-09-30").evaluate((day) => Reflect.get(day, "isKept"))).toBe(
+      true,
+    );
+  });
+
   test("a tab left while on another day shows the same day when it's shown again", async ({
     page,
   }) => {
@@ -339,22 +358,24 @@ test("a tap on Today where the list already is pulses today's date, 4% bigger an
   await page.clock.runFor(1000);
   await expectDayAtTop(page, "2026-09-30");
 
+  // Each animation is noted as it starts, since a slow machine can finish one before it's read.
+  await page.evaluate(() => {
+    const pulses = [];
+    Object.assign(window, { pulses });
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      if (this instanceof HTMLElement && this.matches(".day-cell"))
+        pulses.push({
+          day: this.dataset.day,
+          duration: /** @type {KeyframeAnimationOptions} */ (options).duration,
+          transforms: /** @type {Keyframe[]} */ (keyframes).map((keyframe) => keyframe.transform),
+        });
+      return animate.call(this, keyframes, options);
+    };
+  });
   await page.locator("#seasonGames .go-today").click();
 
-  const pulses = await page.evaluate(() =>
-    document.getAnimations().flatMap((animation) => {
-      const effect = /** @type {KeyframeEffect} */ (animation.effect);
-      const target = /** @type {HTMLElement | null} */ (effect.target);
-      if (!target?.matches(".day-cell")) return [];
-      return [
-        {
-          day: target.dataset.day,
-          duration: effect.getTiming().duration,
-          transforms: effect.getKeyframes().map((keyframe) => keyframe.transform),
-        },
-      ];
-    }),
-  );
+  const pulses = await page.evaluate(() => Reflect.get(window, "pulses"));
   expect(pulses).toEqual([
     { day: "2026-09-30", duration: 290, transforms: ["scale(1)", "scale(1.04)", "scale(1)"] },
   ]);

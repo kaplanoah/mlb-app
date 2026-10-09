@@ -140,9 +140,11 @@ function listShownDays(fill) {
   return [...fill.days, quiet].sort((first, second) => (first.day < second.day ? -1 : 1));
 }
 
+// Keyed by its date, a day keeps its own node as days come and go around it, rather than being
+// rewritten with its neighbor's games.
 /** @param {ListedDay} listed */
 const renderListedDay = ({ day, markup }) =>
-  html`<div class="listed-day" data-day="${day}">${markup}</div>`;
+  html`<div class="listed-day" data-day="${day}" data-key="${day}">${markup}</div>`;
 
 /**
  * @param {DayStripFill} fill

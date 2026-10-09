@@ -228,7 +228,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
   });
 }
 
-test("the Games list's month starts 15px under the header's line, level with Today and its icon, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
+test("the Games list's month starts 16px under the header's line, level with Today and its icon, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -245,8 +245,10 @@ test("the Games list's month starts 15px under the header's line, level with Tod
       const context = /** @type {CanvasRenderingContext2D} */ (
         document.createElement("canvas").getContext("2d")
       );
-      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const capHeight = context.measureText("H").actualBoundingBoxAscent;
+      // Measured large and scaled down, since a canvas rounds its text's bounds to whole pixels.
+      context.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+      const capHeight =
+        (context.measureText("H").actualBoundingBoxAscent * parseFloat(style.fontSize)) / 1000;
       const probe = document.createElement("span");
       probe.style.cssText = "display: inline-block; width: 0; height: 0";
       text.append(probe);
@@ -272,7 +274,7 @@ test("the Games list's month starts 15px under the header's line, level with Tod
     };
   });
   const { above, todayFromMonth, iconFromMonth, ...steps } = sizes;
-  expect(above).toBeCloseTo(15, 0);
+  expect(above).toBeCloseTo(16, 0);
   expect(todayFromMonth).toBeCloseTo(0, 0);
   expect(iconFromMonth).toBeCloseTo(0, 0);
   expect(steps).toEqual({ width: 46, gap: 2, nameToNumber: 2 });
