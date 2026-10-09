@@ -1631,9 +1631,10 @@ body.kbd .player-open:focus {
   color: var(--ink-dim);
 }
 /* Each measure's two numbers sit under their starters, each over his rank with a dot in his club's
-   color, the better one bolder and the worse one's dot dimmed, and each starter's mark on the curve
-   under them takes the same color, which js/matchup.js hands the tape. The numbers sit a little
-   lower than the measure's name without moving it or the curve. */
+   color: the one that ranks higher bolder, the one that ranks lower dimmed with its dot, and an
+   unranked one's dot dimmed. Each starter's mark on the curve under them takes the same color,
+   which js/matchup.js hands the tape. The numbers sit a little lower than the measure's name
+   without moving it or the curve. */
 .matchup-body .tape {
   gap: 10.5px;
   padding-block: 12px;
@@ -1661,6 +1662,9 @@ body.kbd .player-open:focus {
   justify-items: start;
   gap: 1px;
   font-size: var(--size-glance);
+  color: var(--ink);
+}
+.tape-number.worse {
   color: var(--ink-dim);
 }
 .tape-number.home {
@@ -1684,19 +1688,18 @@ body.kbd .player-open:focus {
   border-radius: 50%;
   background: var(--side);
 }
-.tape-number.worse .tape-dot {
+.tape-number:is(.worse, .unranked) .tape-dot {
   background: color-mix(in oklch, var(--side) 48%, oklch(from var(--sheet) l 0 none));
 }
 .tape-rank {
   font-size: var(--size-small);
+  color: var(--ink-dim);
 }
 .tape-number.better {
   font-weight: 550;
-  color: var(--ink);
 }
 .tape-number.better .tape-rank {
   font-weight: 400;
-  color: var(--ink-dim);
 }
 .matchup-body .tape .player-curve {
   height: 24px;
