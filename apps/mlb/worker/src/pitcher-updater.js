@@ -83,8 +83,14 @@ function noteFailure(context, what, error) {
 /** @param {number} season */
 const nameFilledKey = (season) => `filled:${season}`;
 
-/** @param {number} season */
-const nameReadsKey = (season) => `reads:${season}`;
+// Raised whenever a pitcher's saved side gains a field, so every kept side is read once more.
+export const SIDE_VERSION = 2;
+
+/**
+ * @param {number} season
+ * @param {number} [version] the saved sides' version
+ */
+export const nameReadsKey = (season, version = SIDE_VERSION) => `reads:${season}:v${version}`;
 
 /**
  * How many of the games on the page's last night and today have ended, which grows as each ends.

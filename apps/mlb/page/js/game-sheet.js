@@ -20,6 +20,7 @@ import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { isLoadingSide, listSides, loadSide, renderMatchupBody } from "./matchup.js";
 import { renderNetworks } from "#shared/network-logos.js";
 import { watchRetries } from "#shared/retry.js";
+import { countClubGames } from "./qualifying.js";
 import { session } from "./session.js";
 import { listSlateGames } from "./slate.js";
 import { wireSheetSections } from "#shared/sheet-sections.js";
@@ -144,7 +145,8 @@ function renderSheet() {
   setHtml(findElement("gameWhen"), renderWhen(game));
   setHtml(findElement("gameBody"), renderGameBody(game, shown.sides, shown.boxScore));
   const matchup = findElement("matchupBody");
-  setHtml(matchup, renderMatchupBody(game, shown.sides));
+  const countGames = (/** @type {string} */ club) => countClubGames(club, session.activeYear);
+  setHtml(matchup, renderMatchupBody(game, shown.sides, countGames));
   matchup.setAttribute("aria-busy", String(shown.sides.some((side) => isLoadingSide(side, game))));
 }
 

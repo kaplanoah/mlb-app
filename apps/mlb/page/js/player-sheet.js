@@ -18,6 +18,7 @@ import {
   renderPlayerFacts,
   renderPlayerHeading,
 } from "./player-view.js";
+import { countClubGames } from "./qualifying.js";
 import { session } from "./session.js";
 
 /** @typedef {import("./player-view.js").Player} Player */
@@ -136,7 +137,8 @@ function renderSheet() {
   setHtml(findElement("playerNote"), describePlayerNote(person));
   setHtml(findElement("playerPlace"), shown.player?.facts?.birthplace ?? "");
   setHtml(findElement("playerFacts"), renderPlayerFacts(shown.player, shown.isLoading) || "");
-  setHtml(findElement("playerBody"), renderPlayerBody(shown));
+  const clubGames = countClubGames(person.club, session.currentSeason);
+  setHtml(findElement("playerBody"), renderPlayerBody({ ...shown, clubGames }));
 }
 
 // A read that failed is dropped, so the sheet shows its placeholders while it reads again.

@@ -1710,6 +1710,10 @@ body.kbd .player-open:focus {
 .matchup-body .tape .player-curve {
   height: 24px;
 }
+/* The notes stand apart from the curves, 19.5px under the last one with the tape's gap. */
+.matchup-body .tape .tape-measure + .tape-note {
+  margin-top: 9px;
+}
 .matchup-body .tape .player-curve :is(i, b) {
   background: var(--side);
 }

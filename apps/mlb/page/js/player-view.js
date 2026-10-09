@@ -12,6 +12,7 @@ import { renderRetryBlock } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { nameTeam, renderTeamDot } from "./clubs.js";
 import { renderPitchMix } from "./pitch-mix.js";
+import { describeQualifying } from "./qualifying.js";
 import { formatInnings } from "./stat-table.js";
 
 /**
@@ -22,8 +23,9 @@ import { formatInnings } from "./stat-table.js";
 /**
  * What the sheet shows of him, and what it ranks him among: the hitters MLB ranks, and for a
  * starter, the qualified starters and his side of a pitching matchup. `isUnkept` says the store
- * keeps no sheet for him, as for a player on no club's roster.
- * @typedef {{ player: Player | null, hitters: any, starters: any, side: any, isUnkept: boolean, isLoading: boolean }} ShownPlayer
+ * keeps no sheet for him, as for a player on no club's roster. `clubGames` counts his club's games,
+ * which a starter needs as many innings as to qualify.
+ * @typedef {{ player: Player | null, hitters: any, starters: any, side: any, isUnkept: boolean, isLoading: boolean, clubGames?: number | null }} ShownPlayer
  */
 
 /**
@@ -228,8 +230,9 @@ function renderHitting(player, hitters) {
  * @param {Player} player
  * @param {any} starters the store's qualified starters
  * @param {any} side his matchup side
+ * @param {number | null} clubGames
  */
-function renderStarterRanks(player, starters, side) {
+function renderStarterRanks(player, starters, side, clubGames) {
   const pool = starters?.starters ?? [];
   const isRanked = pool.some((/** @type {any} */ starter) => starter.id === player.id);
   const rows = STARTER_RANKS.flatMap(({ label, key, write, isFewestFirst }) => {
@@ -250,7 +253,7 @@ function renderStarterRanks(player, starters, side) {
   if (!rows.length) return html``;
   const note = isRanked
     ? "Rank among qualified starters (1 inning per team game)"
-    : "Ranked once he has pitched 1 inning per team game";
+    : describeQualifying("He", player.pitching.inningsPitched, clubGames);
   return html`<div class="player-ranks">
     ${rows}
     <div class="player-rank-notes">
@@ -315,7 +318,7 @@ function renderLastGames(title, games, describe) {
  * @param {ShownPlayer} shown
  * @param {string} title
  */
-function renderPitching(player, { starters, side }, title) {
+function renderPitching(player, { starters, side, clubGames = null }, title) {
   const { pitching } = player;
   const games = player.lastGames?.pitching;
   if (!isStarter(pitching))
@@ -341,7 +344,7 @@ function renderPitching(player, { starters, side }, title) {
       ["ERA", pitching.era],
       ["K", pitching.strikeOuts],
       ["BB", pitching.baseOnBalls],
-    ])}${renderStarterRanks(player, starters, side)}`,
+    ])}${renderStarterRanks(player, starters, side, clubGames)}`,
     countWord(pitching.gamesStarted, "start"),
   )}${pitches}${renderLastGames("Last starts", games, describePitchingGame)}`;
 }
