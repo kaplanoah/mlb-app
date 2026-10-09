@@ -144,10 +144,31 @@ export async function waitForLoadToSettle(page) {
  * @param {import("@playwright/test").Page} page
  */
 export async function expectAtRest(page) {
-  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await expect.poll(() => listAnimations(page)).toEqual([]);
   expect(await listFrameRequestsAcross(page, 1000)).toEqual([]);
-  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  expect(await listAnimations(page)).toEqual([]);
 }
+
+/**
+ * Each animation on the page, by what it animates and the element it moves, so a page that
+ * never comes to rest names what kept moving.
+ * @param {import("@playwright/test").Page} page
+ */
+const listAnimations = (page) =>
+  page.evaluate(() =>
+    document.getAnimations().map((animation) => {
+      const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
+      const target = effect?.target;
+      const element = target ? [target.localName, ...target.classList].join(".") : "nothing";
+      const name =
+        Reflect.get(animation, "animationName") ||
+        Reflect.get(animation, "transitionProperty") ||
+        [...new Set(effect?.getKeyframes().flatMap((frame) => Object.keys(frame)))]
+          .filter((key) => !["offset", "easing", "composite", "computedOffset"].includes(key))
+          .join(" ");
+      return `${name} on ${element}${target?.id ? `#${target.id}` : ""}`;
+    }),
+  );
 
 /**
  * Swipes the lists under `from` on to the next one: with a finger in Chromium, and in WebKit,

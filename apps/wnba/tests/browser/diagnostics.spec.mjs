@@ -288,6 +288,43 @@ test("with Diagnostics on, a tap that opens a team's sheet from a game's, the ro
   );
 });
 
+test("with Diagnostics on, each tap on the Games list's strip and Today is logged, with where it takes the list", async ({
+  page,
+}) => {
+  await openApp(page, { isWholeSeason: true });
+  await expect(page.locator("#seasonGames .listed-day").first()).toHaveAttribute(
+    "data-day",
+    /^2026-05-/,
+  );
+  await turnOnDiagnostics(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.locator('#seasonGames .day-cell[data-day="2026-09-29"]').tap();
+  await page.locator("#seasonGames .go-today").tap();
+  await page.locator("#seasonGames .go-today").tap();
+  await openSettings(page);
+
+  const log = findRecords(page).locator(".diagnostics-record", { hasText: "Games list" });
+  await expect(log).toHaveCount(1);
+  await log.locator("summary").click();
+  const lines = await log.locator("li").allInnerTexts();
+  const steps = lines.toReversed().map((line) => line.replace(/^\S+\s[AP]M\s+/, ""));
+  expect(steps).toEqual([
+    expect.stringMatching(/^jump to 2026-09-30, list 0 to \d+$/),
+    expect.stringMatching(/^touchstart at \d+,\d+ on Tuesday, September 29$/),
+    expect.stringMatching(/^touchend at \d+,\d+ on Tuesday, September 29$/),
+    expect.stringMatching(/^click at \d+,\d+ on Tuesday, September 29$/),
+    expect.stringMatching(/^jump to 2026-09-29, list \d+ to \d+$/),
+    expect.stringMatching(/^touchstart at \d+,\d+ on Today$/),
+    expect.stringMatching(/^touchend at \d+,\d+ on Today$/),
+    expect.stringMatching(/^click at \d+,\d+ on Today$/),
+    expect.stringMatching(/^jump to 2026-09-30, list \d+ to \d+$/),
+    expect.stringMatching(/^touchstart at \d+,\d+ on Today$/),
+    expect.stringMatching(/^touchend at \d+,\d+ on Today$/),
+    expect.stringMatching(/^click at \d+,\d+ on Today$/),
+    "already on 2026-09-30, less motion, no pulse",
+  ]);
+});
+
 test("turning Diagnostics off forgets what it recorded", async ({ page }) => {
   await openApp(page);
   await turnOnDiagnostics(page);

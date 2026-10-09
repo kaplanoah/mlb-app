@@ -6,6 +6,7 @@ import {
   formatShortWeekday,
   readCalendarDate,
 } from "./days.js";
+import { dayStripLog } from "./day-strip-log.js";
 import { html, setHtml } from "./html.js";
 import { isAwayLong } from "./last-game-list.js";
 import { watchTimeAway } from "./resume.js";
@@ -65,6 +66,9 @@ let anchor = null;
 let quietDay = null;
 // A finger or wheel moving the strip has the month name the day in its middle, until the list moves.
 let isStripSwiped = false;
+// The strip's dates slide only while a finger or wheel has moved the list, since the list's own
+// moves, as it's placed, redrawn, or sent to a day, already choose their day.
+let isListInHand = false;
 /** @type {Map<string, string>} */
 const drawnDays = new Map();
 
@@ -208,7 +212,7 @@ function followTopDay(day) {
   const strip = findStrip();
   const from = chosenDay && findCell(chosenDay);
   const to = findCell(day);
-  if (!strip || !from || !to || isReducedMotion()) {
+  if (!strip || !from || !to || !isListInHand || isReducedMotion()) {
     chooseDay(day, "instant");
     return;
   }
@@ -287,10 +291,18 @@ function findDayTop(day) {
 function showDay(day, motion) {
   const list = findList();
   const top = findDayTop(day);
-  if (!list || top === null) return;
+  if (!list || top === null) {
+    dayStripLog.noteStep(`${day} isn't in the list`);
+    return;
+  }
   held = { day, hasArrived: false };
+  isListInHand = false;
   const isFar = Math.abs(top - list.scrollTop) > FLOWN_SCREENS * list.clientHeight;
-  if (motion === "instant" || isFar) list.scrollTo({ top, behavior: "instant" });
+  const isJump = motion === "instant" || isFar || isReducedMotion();
+  dayStripLog.noteStep(
+    `${isJump ? "jump" : "fly"} to ${day}, list ${Math.round(list.scrollTop)} to ${Math.round(top)}`,
+  );
+  if (isJump) list.scrollTo({ top, behavior: "instant" });
   else scrollWithSpring(list, top);
   chooseDay(day, motion === "instant" ? "instant" : chooseMotion());
 }
@@ -367,6 +379,7 @@ export function startOverDayStrip() {
   anchor = null;
   quietDay = null;
   isStripSwiped = false;
+  isListInHand = false;
 }
 
 /**
@@ -493,7 +506,11 @@ export function fillDayStrip(fill) {
 /** @param {Event} event */
 function noteTouch(event) {
   const target = /** @type {Node} */ (event.target);
-  if (findList()?.contains(target)) held = null;
+  if (findList()?.contains(target)) isListInHand = true;
+  if (held && findList()?.contains(target)) {
+    dayStripLog.noteStep(`the list's touch takes it over on its way to ${held.day}`);
+    held = null;
+  }
   if (findStrip()?.contains(target)) {
     endStripSlide();
     isStripSwiped = true;
@@ -515,6 +532,9 @@ function isOnStartDay() {
 // A tap on Today where the list already is has nowhere to go, so the date says it's there.
 function pulseStartDay() {
   const cell = shown && findCell(shown.startDay);
+  dayStripLog.noteStep(
+    `already on ${shown?.startDay}, ${isReducedMotion() ? "less motion, no pulse" : "pulse"}`,
+  );
   if (!cell || isReducedMotion()) return;
   cell.animate(
     [
