@@ -4,8 +4,9 @@
 // are what the pitching matchup marks the club's starter in, first choice then other, as
 // shared/team-colors.js picks them: each of the club's own two colors made just light enough to
 // read as text on the sheet, keeping its hue, and black the light gray #e4e4e4. The first choice is
-// the dot's first half, but for the White Sox, Pirates, and Padres, whose first half is black or
-// near it and whose other color tells them apart.
+// the color of the dot's first half, unless that comes out muted once it's lightened, as black,
+// brown, navy, and dark green do, and the club's other color has more color, as the White Sox's,
+// Pirates', Padres', Guardians', Tigers', Brewers', and Athletics' do.
 export const TEAMS = {
   ARI: {
     name: "Diamondbacks",
@@ -69,7 +70,7 @@ export const TEAMS = {
     titles: [1920, 1948],
     color: "#0C2340",
     color2: "#E31937",
-    chartColors: ["#738eb1", "#ff4551"],
+    chartColors: ["#ff4551", "#738eb1"],
   },
   COL: {
     name: "Rockies",
@@ -86,7 +87,7 @@ export const TEAMS = {
     titles: [1935, 1945, 1968, 1984],
     color: "#0C2340",
     color2: "#FA4616",
-    chartColors: ["#738eb1", "#fe4a1b"],
+    chartColors: ["#fe4a1b", "#738eb1"],
   },
   HOU: {
     name: "Astros",
@@ -135,7 +136,7 @@ export const TEAMS = {
     firstSeason: 1969,
     color: "#12284B",
     color2: "#FFC52F",
-    chartColors: ["#728db7", "#ffc52f"],
+    chartColors: ["#ffc52f", "#728db7"],
   },
   MIN: {
     name: "Twins",
@@ -170,7 +171,7 @@ export const TEAMS = {
     titles: [1910, 1911, 1913, 1929, 1930, 1972, 1973, 1974, 1989],
     color: "#003831",
     color2: "#EFB21E",
-    chartColors: ["#63958c", "#efb21e"],
+    chartColors: ["#efb21e", "#63958c"],
   },
   PHI: {
     name: "Phillies",

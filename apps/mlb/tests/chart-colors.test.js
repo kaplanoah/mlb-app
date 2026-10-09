@@ -12,7 +12,8 @@ const CONTRAST_ROOM = 0.1;
 // How far apart two hues may be and still read as the same color.
 const SAME_HUE_DEGREES = 3;
 const BLACK_STAND_IN = "#e4e4e4";
-const LEADS_WITH_OTHER = ["CWS", "PIT", "SD"];
+// A lightened color with less chroma than this, in OKLCH, reads as gray more than as the club's.
+const MUTED_CHROMA = 0.075;
 
 /** @param {string} token */
 const readRootToken = (token) => STYLES.match(new RegExp(`${token}: (#[0-9a-f]{6});`))[1];
@@ -92,20 +93,28 @@ test("each chart color is one of the club's own colors, or its hue made only as 
   }
 });
 
-test("each club leads with its dot's first color, but for those whose first is black or near it", () => {
+test("each club leads with its dot's first color, unless that comes out muted and its other color has more color", () => {
+  /** @param {string} hex */
+  const measureChroma = (hex) => {
+    const [, greenRed, blueYellow] = readOklab(hex);
+    return Math.hypot(greenRed, blueYellow);
+  };
   /** @param {string} own @param {string} chart */
   const isFrom = (own, chart) =>
-    own.toLowerCase() === chart || measureHueGap(own, chart) <= SAME_HUE_DEGREES;
+    own.toLowerCase() === chart ||
+    (chart === BLACK_STAND_IN ? isNearBlack(own) : measureHueGap(own, chart) <= SAME_HUE_DEGREES);
+  const leadingWithOther = [];
   for (const [code, club] of Object.entries(TEAMS)) {
     const [first, other] = club.chartColors;
-    if (LEADS_WITH_OTHER.includes(code)) {
-      assert.ok(isNearBlack(club.color), `${code}'s first color isn't black`);
-      assert.ok(isFrom(club.color2, first), `${code} doesn't lead with ${club.color2}`);
-    } else
-      assert.ok(
-        isFrom(club.color, first) || (isNearBlack(club.color) && first === BLACK_STAND_IN),
-        `${code} doesn't lead with ${club.color}`,
-      );
     assert.notEqual(first, other, `${code}'s two chart colors are the same`);
+    const fromFirst = isFrom(club.color, first) ? first : other;
+    const fromOther = fromFirst === first ? other : first;
+    assert.ok(isFrom(club.color2, fromOther), `${code}'s ${fromOther} isn't from ${club.color2}`);
+    const isMuted =
+      measureChroma(fromFirst) < MUTED_CHROMA &&
+      measureChroma(fromOther) > measureChroma(fromFirst);
+    assert.equal(first, isMuted ? fromOther : fromFirst, `${code} leads with the wrong color`);
+    if (isMuted) leadingWithOther.push(code);
   }
+  assert.deepEqual(leadingWithOther, ["CWS", "CLE", "DET", "MIL", "ATH", "PIT", "SD"]);
 });

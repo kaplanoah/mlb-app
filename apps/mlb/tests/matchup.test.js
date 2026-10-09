@@ -199,7 +199,7 @@ test("each starter's marks take his club's color, the away club taking its other
       { pitcher: SPRINGS },
     ]).match(/<div class="tape" style="([^"]*)">/)[1];
   assert.equal(readColors("HOU", "CIN"), "--away: #608eca; --home: #fb4c4c");
-  assert.equal(readColors("CLE", "KC"), "--away: #ff4551; --home: #528fd6");
+  assert.equal(readColors("DET", "SF"), "--away: #738eb1; --home: #fd5a1e");
 });
 
 test("two numbers that read the same mark neither starter as ahead", () => {
