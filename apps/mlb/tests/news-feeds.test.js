@@ -35,7 +35,7 @@ test("a story only the Mets' own outlets carry is marked as theirs, and one a le
 test("reading the news asks each outlet once, and names the ones that didn't answer", async () => {
   const urls = [];
   const readFeed = createFeedFetch(["mlbtr"]);
-  const { missing } = await readMlbNews(async (url, init) => {
+  const { missing } = await readMlbNews(async (url) => {
     urls.push(String(url));
     return readFeed(url);
   });
