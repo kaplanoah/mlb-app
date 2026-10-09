@@ -99,6 +99,43 @@ test.describe("with reduced motion", () => {
     await expect(findCell(page, august)).toBeInViewport();
   });
 
+  test("the strip's chosen day passes to the next day once none of a day's text shows under the bar, whether or not its last game has a line under its teams", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    const chosen = page.locator("#seasonGames .day-cell.is-chosen");
+    const scrollList = (top) =>
+      findList(page).evaluate((list, to) => list.scrollTo({ top: to, behavior: "instant" }), top);
+
+    for (const passed of ["2026-08-10", "2026-10-04"]) {
+      const { textBottom, next } = await findList(page).evaluate((list, shown) => {
+        const listed = /** @type {HTMLElement} */ (list.querySelector(`[data-day="${shown}"]`));
+        list.scrollTo({ top: listed.offsetTop, behavior: "instant" });
+        const listTop = list.getBoundingClientRect().top;
+        const walker = document.createTreeWalker(listed, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        let bottom = 0;
+        for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+          if (!text.nodeValue?.trim()) continue;
+          range.selectNodeContents(text);
+          bottom = Math.max(
+            bottom,
+            range.getBoundingClientRect().bottom - listTop + list.scrollTop,
+          );
+        }
+        return { textBottom: bottom, next: listed.nextElementSibling?.getAttribute("data-day") };
+      }, passed);
+
+      await scrollList(Math.floor(textBottom) - 1);
+      await expect(chosen).toHaveAttribute("data-day", passed);
+      await scrollList(Math.ceil(textBottom));
+      await expect(chosen).toHaveAttribute("data-day", next);
+      await scrollList(Math.floor(textBottom) - 1);
+      await expect(chosen).toHaveAttribute("data-day", passed);
+    }
+  });
+
   test("scrolling the games to their end brings the season's last day to the top, chosen in the strip, as a tap on it does", async ({
     page,
   }) => {
