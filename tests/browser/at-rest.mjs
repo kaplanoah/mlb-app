@@ -101,25 +101,30 @@ export async function countFramesAcross(page, durationMs) {
 }
 
 /**
- * Waits for a second of the page's clock without a frame asked for. A wait that times out names
- * what last kept asking, which a poll's own timeout leaves out.
- * @param {import("@playwright/test").Page} page
+ * Waits until `read` gives an empty list. A wait that times out says what the page last gave, or
+ * that it never answered, as when its main thread is busy, which a poll's own timeout leaves as
+ * only a timeout.
+ * @param {() => Promise<string[]>} read
+ * @param {string} kept what each item in the list says the page kept doing
+ * @param {number} [timeout]
  */
-async function waitForNoFrameRequests(page) {
-  /** @type {string[]} */
-  let lastRequests = [];
+async function waitForNone(read, kept, timeout) {
+  /** @type {string[] | null} */
+  let last = null;
   try {
-    await expect
-      .poll(async () => (lastRequests = await listFrameRequestsAcross(page, 1000)), {
-        timeout: LOAD_TIMEOUT_MS,
-      })
-      .toEqual([]);
+    await expect.poll(async () => (last = await read()), { timeout }).toEqual([]);
   } catch (error) {
-    throw new Error(`The page kept asking for frames: ${lastRequests.join("; ")}`, {
-      cause: error,
-    });
+    const said = last ? `The page kept ${kept}: ${last.join("; ")}` : "The page never answered";
+    throw new Error(said, { cause: error });
   }
 }
+
+/**
+ * Waits for a second of the page's clock without a frame asked for.
+ * @param {import("@playwright/test").Page} page
+ */
+const waitForNoFrameRequests = (page) =>
+  waitForNone(() => listFrameRequestsAcross(page, 1000), "asking for frames", LOAD_TIMEOUT_MS);
 
 /**
  * Waits for the page to finish drawing what it loaded. Its first drawing ends the load note, its
@@ -144,13 +149,7 @@ export async function waitForLoadToSettle(page) {
  * @param {import("@playwright/test").Page} page
  */
 export async function expectAtRest(page) {
-  /** @type {string[]} */
-  let lastAnimations = [];
-  try {
-    await expect.poll(async () => (lastAnimations = await listAnimations(page))).toEqual([]);
-  } catch (error) {
-    throw new Error(`The page kept animating: ${lastAnimations.join("; ")}`, { cause: error });
-  }
+  await waitForNone(() => listAnimations(page), "animating");
   expect(await listFrameRequestsAcross(page, 1000)).toEqual([]);
   expect(await listAnimations(page)).toEqual([]);
 }

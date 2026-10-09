@@ -18,14 +18,18 @@ const hasWebKit = existsSync(webkit.executablePath());
 export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
-  retries: 0,
+  // CI retries a failed test once, so a test that fails only now and then doesn't fail a pull
+  // request it has nothing to do with. GitHub's reporter marks each one that passed only on its
+  // retry as flaky on the pull request's checks, and a nightly run finds them on main
+  // (.github/workflows/flaky.yml).
+  retries: process.env.CI ? 1 : 0,
   // Each test stands alone, so CI's shards split the tests evenly rather than file by file.
   fullyParallel: true,
   // The tests are bound by the CPU, and a browser per core keeps CI's busier than Playwright's
   // default of one per two.
   workers: process.env.CI ? "100%" : undefined,
   forbidOnly: !!process.env.CI,
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  reporter: process.env.CI ? [["list"], ["github"], ["html", { open: "never" }]] : "list",
   use: {
     // Tests expect Eastern times unless they pick another zone with test.use({ timezoneId }).
     timezoneId: "America/New_York",
