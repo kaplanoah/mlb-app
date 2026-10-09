@@ -78,7 +78,9 @@ test.describe("on a phone", () => {
       "2026-09-20",
     );
     release();
-    await expect(page.locator("#stamp")).toBeVisible();
+    // The stamp shows before the page's code runs, put back from the copy, so the code's own first
+    // drawing says it's there to note when the page leaves the screen.
+    await expect(page.locator("#loadNote")).toHaveCount(0);
     await page.evaluate(() => {
       Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
       document.dispatchEvent(new Event("visibilitychange"));
