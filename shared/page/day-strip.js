@@ -512,10 +512,13 @@ function openTappedDay(event) {
 }
 
 // Safari loses a scroll made as the page comes back, before it draws again, so the list moves in
-// the first frame it draws.
+// the first frame it draws. A list on another tab can't move, so it opens on the start day once
+// it's shown, as on a page's first load.
 /** @param {number} awayMs */
 function showStartAfterLongAway(awayMs) {
-  if (isAwayLong(awayMs)) requestAnimationFrame(() => showStartDay("instant"));
+  if (!isAwayLong(awayMs)) return;
+  if (isListShown()) requestAnimationFrame(() => showStartDay("instant"));
+  else startOverDayStrip();
 }
 
 /**

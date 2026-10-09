@@ -254,6 +254,30 @@ test.describe("with reduced motion", () => {
     await expectDayAtTop(page, "2026-09-30");
   });
 
+  test("after two minutes away on another tab, the Games list opens on today once it's shown", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await findCell(page, "2026-09-20").click();
+    await expectDayAtTop(page, "2026-09-20");
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await expect(page.locator("#standings-league")).toBeInViewport();
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.clock.runFor(2 * 60 * 1000);
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.clock.runFor(100);
+    await page.getByRole("tab", { name: "Games" }).click();
+
+    await expectDayAtTop(page, "2026-09-30");
+  });
+
   test("a game the Worker saves redraws its day, and a game added to an earlier day leaves the day at the top where it is", async ({
     page,
   }) => {
