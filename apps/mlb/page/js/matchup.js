@@ -20,7 +20,7 @@ import {
 import { measureSpeedRange, renderPendingPitchMix, renderPitchMix } from "./pitch-mix.js";
 import { fetchPitcher, fetchRotation } from "./pitcher-fetch.js";
 import { renderPlayerButton } from "./player-button.js";
-import { describeQualifying } from "./qualifying.js";
+import { describeInningsToQualify } from "./qualifying.js";
 import { formatInnings } from "./stat-table.js";
 import { TEAMS } from "./teams.js";
 import { formatOrdinal } from "#shared/ordinal.js";
@@ -199,7 +199,7 @@ function renderTapeNotes(sides, countClubGames) {
     .filter(isUnranked)
     .map(
       ({ pitcher, club }) =>
-        html`<p class="tape-note">${describeQualifying(pitcher.lastName, pitcher.line.ip, countClubGames(club))}</p>`,
+        html`<p class="tape-note">${describeInningsToQualify(pitcher.lastName, pitcher.line.ip, countClubGames(club))}</p>`,
     );
   return html`${rankNote}${unrankedNotes}`;
 }

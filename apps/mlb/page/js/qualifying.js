@@ -1,8 +1,10 @@
-// How near a starter is to MLB's qualified starters, who have pitched an inning for each of their
-// club's games.
+// How near a player is to qualifying for MLB's ranks: a starter with an inning for each of his
+// club's games, and a hitter with 3.1 plate appearances for each.
 
 import { session } from "./session.js";
 import { formatInnings } from "./stat-table.js";
+
+const PLATE_APPEARANCES_PER_GAME = 3.1;
 
 /**
  * A club's games in the season the page shows, from its standings, or null for another season.
@@ -23,8 +25,20 @@ export function countClubGames(club, season) {
  * @param {string | null | undefined} innings as MLB writes them, like 28.1
  * @param {number | null} clubGames
  */
-export function describeQualifying(subject, innings, clubGames) {
+export function describeInningsToQualify(subject, innings, clubGames) {
   if (innings == null || clubGames == null)
     return `${subject} hasn't pitched the innings needed to qualify`;
   return `${subject} has pitched ${formatInnings(innings)} of the ${clubGames} innings needed to qualify`;
+}
+
+/**
+ * The plate appearances a hitter has had against those he needs, or that he needs more when his
+ * club's games aren't known.
+ * @param {number} plateAppearances
+ * @param {number | null} clubGames
+ */
+export function describePlateAppearancesToQualify(plateAppearances, clubGames) {
+  if (clubGames == null) return "He hasn't had the plate appearances needed to qualify";
+  const needed = Math.round(clubGames * PLATE_APPEARANCES_PER_GAME);
+  return `He has ${plateAppearances} of the ${needed} plate appearances needed to qualify`;
 }

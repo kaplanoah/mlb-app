@@ -12,7 +12,7 @@ import { renderRetryBlock } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { nameTeam, renderTeamDot } from "./clubs.js";
 import { renderPitchMix } from "./pitch-mix.js";
-import { describeQualifying } from "./qualifying.js";
+import { describeInningsToQualify, describePlateAppearancesToQualify } from "./qualifying.js";
 import { formatInnings } from "./stat-table.js";
 
 /**
@@ -184,8 +184,9 @@ const renderFewestNote = (labels) =>
  * A hitter's season: his totals, then each number the ranked hitters are ranked in.
  * @param {Player} player
  * @param {any} hitters the store's ranked hitters, or null while they load
+ * @param {number | null} clubGames
  */
-function renderHitting(player, hitters) {
+function renderHitting(player, hitters, clubGames) {
   const { hitting } = player;
   const ranked = hitters?.hitters ?? [];
   const isRanked = ranked.some((/** @type {any} */ hitter) => hitter.id === player.id);
@@ -204,7 +205,7 @@ function renderHitting(player, hitters) {
   );
   const note = isRanked
     ? "Rank among qualified hitters (3.1 plate appearances per team game)"
-    : "Ranked once he has 3.1 plate appearances per team game";
+    : describePlateAppearancesToQualify(hitting.plateAppearances, clubGames);
   return renderSheetPart(
     "Season",
     html`${renderTotals([
@@ -253,7 +254,7 @@ function renderStarterRanks(player, starters, side, clubGames) {
   if (!rows.length) return html``;
   const note = isRanked
     ? "Rank among qualified starters (1 inning per team game)"
-    : describeQualifying("He", player.pitching.inningsPitched, clubGames);
+    : describeInningsToQualify("He", player.pitching.inningsPitched, clubGames);
   return html`<div class="player-ranks">
     ${rows}
     <div class="player-rank-notes">
@@ -368,7 +369,7 @@ export function renderPlayerBody(shown) {
   const isTwoWay = Boolean(player.hitting && player.pitching && player.position !== "P");
   const hitting =
     player.hitting && player.position !== "P"
-      ? html`${renderHitting(player, shown.hitters)}${renderLastGames("Last games", player.lastGames?.hitting, describeBattingGame)}`
+      ? html`${renderHitting(player, shown.hitters, shown.clubGames ?? null)}${renderLastGames("Last games", player.lastGames?.hitting, describeBattingGame)}`
       : html``;
   const pitching = player.pitching
     ? renderPitching(player, shown, isTwoWay ? "Pitching" : "Season")
