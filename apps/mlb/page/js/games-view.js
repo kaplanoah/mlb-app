@@ -1,14 +1,20 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
 import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
 import { renderAllStarMark } from "#shared/all-star.js";
-import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
-import { chooseStartList, fillGameLists } from "#shared/game-pager.js";
+import { fillDayStrip } from "#shared/day-strip.js";
+import {
+  formatClockTime,
+  formatWeekdayAndDate,
+  readCalendarDate,
+  readEasternDay,
+} from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
+import { listSeasonDays as listDayStripDays } from "#shared/season-days.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
 import { session } from "./session.js";
-import { listSlateList } from "./slate.js";
+import { listSlateGames } from "./slate.js";
 
 const HALF_INNING_LABELS = { top: "Top", middle: "Mid", bottom: "Bot", end: "End" };
 const OUT_LIGHTS = 2;
@@ -20,11 +26,6 @@ const CLINCH_TITLES = {
 };
 // Trimmed to the drawing, so sized in em its base sits on the text's baseline like a letter.
 const SEED_LOCK = html`<svg class="seed-lock" viewBox="1.5 1.3 9 12.4" role="img" aria-label="seed final"><path d="M3.5 7V4.5a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="2.2" y="7.2" width="7.6" height="5.8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`;
-const EMPTY_LIST_TEXT = {
-  previous: "No earlier games this season",
-  today: "No games today",
-  next: "No games scheduled yet",
-};
 const ARMS = { L: "Throws left-handed", R: "Throws right-handed" };
 
 export const formatGameDay = (date) => formatWeekdayAndDate(readCalendarDate(date));
@@ -240,9 +241,12 @@ function renderAllStarGame(game) {
   });
 }
 
-function renderListedGame(game, list) {
+/**
+ * @param {any} game
+ * @param {boolean} isToday
+ */
+function renderListedGame(game, isToday) {
   if (game.allStar) return renderAllStarGame(game);
-  const isToday = list === "today";
   return renderGame(game, isToday ? findGameSeries(game) : null, isToday);
 }
 
@@ -272,38 +276,67 @@ function orderDay(games) {
     .map(({ game }) => game);
 }
 
-function groupByDay(games, isNewestFirst) {
+/** @param {{ id: string, date: string }} game */
+const nameListing = (game) => `${game.id} ${game.date}`;
+
+/**
+ * Every game of the season, from the store's schedule, with the slate's copies, which carry a game
+ * while it's played, over it.
+ * @param {any} slate
+ * @param {any[] | null} schedule
+ */
+export function listSeasonGames(slate, schedule) {
+  const games = new Map((schedule ?? []).map((game) => [nameListing(game), game]));
+  const slateGames = slate ? [...listSlateGames(slate), slate.allStar].filter(Boolean) : [];
+  for (const game of slateGames) games.set(nameListing(game), game);
+  return [...games.values()];
+}
+
+/** @param {any[]} games */
+function groupByDay(games) {
   const dates = [...new Set(games.map((game) => game.date))].sort();
-  if (isNewestFirst) dates.reverse();
   return dates.map((date) => ({
     date,
     games: orderDay(games.filter((game) => game.date === date)),
   }));
 }
 
-function describeMissingSlate() {
-  if (session.activeYear !== session.currentSeason) return "Games show for the current season only";
+/**
+ * The day a game still under way began, which the list opens on when it began before today, as
+ * one does past midnight.
+ * @param {any[]} games
+ */
+const findLiveDay = (games) => games.find((game) => game.state === "live")?.date ?? null;
+
+function describeEmptySeason() {
+  if (session.activeYear !== session.currentSeason) return "No games saved for this season yet";
   return "Games appear here as soon as the page can reach MLB";
 }
 
-export function renderGameList(slate, list) {
-  if (!slate) return html`<p class="stand-empty">${describeMissingSlate()}</p>`;
-  const games = listSlateList(slate, list);
-  if (!games.length) return html`<p class="stand-empty">${EMPTY_LIST_TEXT[list]}</p>`;
-  return html`${groupByDay(games, list === "previous").map(
-    (day) => html`<h3 class="game-day">${formatGameDay(day.date)}</h3>
-      <ul class="game-list">${day.games.map((game) => renderListedGame(game, list))}</ul>`,
-  )}`;
+/**
+ * Each game day of the season as the Games view lists it, from its first to its last, opening on
+ * MLB's day: today, or last night until its games are over.
+ * @param {any} slate
+ * @param {any[] | null} schedule
+ * @param {number} now
+ */
+export function listSeasonDays(slate, schedule, now) {
+  const games = listSeasonGames(slate, schedule);
+  const today = slate?.today.date ?? readEasternDay(now).date;
+  return listDayStripDays({
+    gameDays: groupByDay(games).map((day) => ({
+      day: day.date,
+      count: day.games.length,
+      games: html`<ul class="game-list">
+        ${day.games.map((game) => renderListedGame(game, day.date === today))}
+      </ul>`,
+    })),
+    today,
+    openDay: findLiveDay(games),
+    emptyNote: describeEmptySeason(),
+  });
 }
 
-/** @param {any} slate */
-const chooseGamesStart = (slate) =>
-  chooseStartList({
-    hasGamesToday: !!slate && listSlateList(slate, "today").length > 0,
-    hasGamesAhead: !!slate && listSlateList(slate, "next").length > 0,
-  });
-
 export function renderGames() {
-  const slate = session.state && session.state.slate;
-  fillGameLists((list) => renderGameList(slate, list), chooseGamesStart(slate));
+  fillDayStrip(listSeasonDays(session.state?.slate, session.schedule, Date.now()));
 }

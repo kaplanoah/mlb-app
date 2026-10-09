@@ -1,7 +1,7 @@
-import { createSeasonReader } from "#shared/season-reader.js";
+import { createSeasonReader, isReadableSeason } from "#shared/season-reader.js";
 import { listSeasonYears } from "#shared/season-picker.js";
 import { buildBracket } from "./bracket.js";
-import { SNAPSHOT_VERSION } from "./snapshot.js";
+import { SNAPSHOT_VERSION, nameScheduleCollection } from "./snapshot.js";
 import { composeState, guessSeasonYear, session } from "./session.js";
 import { TEAMS } from "./teams.js";
 
@@ -14,6 +14,47 @@ const UNREACHABLE = "Can't reach the page's server right now";
 let reader = null;
 /** @type {{ year: number, record: any } | null} */
 let deferredSeason = null;
+/** @type {number | null} */
+let scheduleYear = null;
+let unwatchSchedule = () => {};
+// A season's games run from March to November, a month to a document.
+const SCHEDULE_MONTHS = 12;
+
+/**
+ * Every game of a season, from its months the store keeps, or null when it keeps none the page
+ * reads. A month in a version the page doesn't read is left out.
+ * @param {{ data: () => any }[]} docs
+ */
+function readSchedule(docs) {
+  const months = docs
+    .map((doc) => doc.data())
+    .filter((month) => isReadableSeason(month, SNAPSHOT_VERSION) && Array.isArray(month.games));
+  return months.length ? months.flatMap((month) => month.games) : null;
+}
+
+/**
+ * Follows every game of the season shown, which the store keeps apart from its record, and redraws
+ * with `showChange` for each change.
+ * @param {number} year
+ * @param {() => void} showChange
+ */
+function followSchedule(year, showChange) {
+  if (year === scheduleYear) return;
+  scheduleYear = year;
+  session.schedule = null;
+  unwatchSchedule();
+  unwatchSchedule = session.db
+    .collection(nameScheduleCollection(year))
+    .limit(SCHEDULE_MONTHS)
+    .onSnapshot(
+      (/** @type {{ docs: { data: () => any }[] }} */ result) => {
+        if (year !== scheduleYear) return;
+        session.schedule = readSchedule(result.docs);
+        if (!session.isReordering) showChange();
+      },
+      () => {},
+    );
+}
 
 const keepKnownClubs = (teams) =>
   Object.fromEntries(Object.entries(teams || {}).filter(([id]) => TEAMS[id]));
@@ -78,7 +119,10 @@ export function startSeasonData({ showChange, showStamp, showCurrentYear, showUn
     version: SNAPSHOT_VERSION,
     guessYear: guessSeasonYear,
     showUnreadable,
-    keepSeason,
+    keepSeason: (year, record) => {
+      keepSeason(year, record);
+      followSchedule(year, showChange);
+    },
     showChange: () => {
       if (!session.isReordering) showChange();
     },

@@ -10,6 +10,7 @@ import { renderTeamDot } from "./clubs.js";
 import {
   describeStart,
   formatGameDay,
+  listSeasonGames,
   nameGame,
   nameGameKey,
   renderArm,
@@ -22,7 +23,6 @@ import { renderNetworks } from "#shared/network-logos.js";
 import { watchRetries } from "#shared/retry.js";
 import { countClubGames } from "./qualifying.js";
 import { session } from "./session.js";
-import { listSlateGames } from "./slate.js";
 import { wireSheetSections } from "#shared/sheet-sections.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 
@@ -50,15 +50,16 @@ const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gam
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 /**
- * The game as the slate has it now, with whether it's today's, when a club yet to name its starter
- * shows who it might be.
+ * The game as the slate or the season's schedule has it now, with whether it's today's, when a
+ * club yet to name its starter shows who it might be.
  * @param {string} key
  * @returns {MatchupGame | null}
  */
 function findGame(key) {
   const slate = session.state?.slate;
-  const game = slate && listSlateGames(slate).find((each) => nameGameKey(each) === key);
-  return game ? { ...game, today: game.date === slate.today.date } : null;
+  const games = listSeasonGames(slate, session.schedule);
+  const game = games.find((each) => !each.allStar && nameGameKey(each) === key);
+  return game ? { ...game, today: game.date === slate?.today.date } : null;
 }
 
 // Once the slate has moved past a game's day, the sheet shows it as it was when it opened.
@@ -302,7 +303,7 @@ function showMatchupOnTap(event) {
 export function startGameSheet() {
   const sheet = findSheet();
   sections = wireSheetSections(sheet);
-  for (const holder of ["games-pages", "updates", "teamBody"])
+  for (const holder of ["seasonGames", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromButton, prepare: prepareFromButton });
   findElement("gameBody").addEventListener("click", showMatchupOnTap);
   watchRetries(sheet, retryFailedSides);

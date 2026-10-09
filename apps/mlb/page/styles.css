@@ -89,6 +89,13 @@
   --game-card-won: var(--gold);
   --game-card-team-font: inherit;
   --game-row-height: 82.5px;
+  --strip-month: var(--gold);
+  --strip-today: var(--gold);
+  --strip-chosen: var(--gold);
+  --strip-chosen-ink: var(--gold-ink);
+  --strip-chosen-edge: transparent;
+  --strip-action: var(--gold);
+  --day-gap: 18px;
   --game-side-offset: 0px;
   --game-label-offset: -21px;
   --game-headline-offset: -1px;
@@ -467,16 +474,65 @@ table.st .seed-cell {
   max-width: 60ch;
 }
 
-.game-day {
-  font-size: var(--size-small);
-  font-weight: 450;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--ink-dim);
-  margin: 30px 0 8px;
+/* Games: the season's days under a strip of them, each day's games beside its date as a wall
+   calendar shows it, level with its first game. Each day's games draw only near the screen, at the
+   height they take. Today's date is gold, as it is in the strip. */
+.day-list .game-day .game-list {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height) + 1px);
 }
-.game-day:first-child {
-  margin-top: 0;
+.game-day {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+.day-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: var(--game-row-height);
+  font-weight: 400;
+}
+.day-month,
+.day-name {
+  font-size: var(--size-small);
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.day-month {
+  color: var(--gold);
+}
+.day-number {
+  margin-top: 4px;
+  font-size: 1.375rem;
+  font-weight: 550;
+  line-height: 1;
+}
+.day-name {
+  margin-top: 5px;
+  color: var(--ink-dim);
+}
+.game-day.is-today .day-number {
+  color: var(--strip-today);
+}
+.empty-note {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--size-glance);
+}
+.no-games {
+  align-items: center;
+}
+.quiet-day .day-label {
+  height: 64px;
+}
+.day-view > .empty-note {
+  margin-top: 32px;
+  text-align: center;
 }
 .game-side {
   gap: 5.5px;
