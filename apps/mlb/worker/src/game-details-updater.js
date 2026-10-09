@@ -1,13 +1,14 @@
 import { isSameJson } from "#shared/compare.js";
+import { nameScheduleCollection } from "../../page/js/snapshot.js";
 import { listSlateGames } from "../../page/js/slate.js";
 import { fetchBoxScore, nameGameDetailsKey } from "./box-score.js";
 
-// Keeps each finished game's box score, so a sheet opened on a final reads only the store. The
-// games are the ones the page lists, from the current season's slate. A game is read as the store
-// finds it final, and again once a read comes long enough after its end for MLB to have caught up
-// on its last plays, and then never again, since a finished game doesn't change. Each run reads a
-// few games, the latest to end first. A game still to start or being played is left to the pages
-// watching it (watched-games.js).
+// Keeps each finished game's box score, so a sheet opened on a final reads only the store. A game
+// is read as the store finds it final, and again once a read comes long enough after its end for
+// MLB to have caught up on its last plays, and then never again, since a finished game doesn't
+// change. Each run reads a few games: the current season's slate first, the latest to end first,
+// then the rest of its games, newest first, then each season's the store keeps from before. A
+// game still to start or being played is left to the pages watching it (watched-games.js).
 
 const MINUTE_MS = 60 * 1000;
 const RUN_DELAY_MS = 2 * MINUTE_MS;
@@ -23,11 +24,38 @@ const GIVE_UP_MS = 2 * 60 * MINUTE_MS;
 /** @param {number} season */
 const nameReadsKey = (season) => `final-reads:${season}`;
 
+// A season before the current one whose every final is read is never looked through again.
+/** @param {number} season */
+const nameKeptKey = (season) => `finals-kept:${season}`;
+
+// The All-Star Game's teams aren't clubs, so it has no sheet.
+/** @param {any} game */
+const isFinal = (game) => game.state === "final" && !game.allStar;
+
 /** @param {any} slate */
-const listFinalsLatestFirst = (slate) =>
+const listSlateFinals = (slate) =>
   listSlateGames(slate)
-    .filter((game) => game.state === "final")
+    .filter(isFinal)
     .sort((first, second) => Date.parse(second.end) - Date.parse(first.end));
+
+/**
+ * A season's finals from the store's schedule, newest first.
+ * @param {JobContext["docs"]} docs
+ * @param {number} season
+ */
+async function listScheduledFinals(docs, season) {
+  const months = await docs.list(nameScheduleCollection(season));
+  return months
+    .flatMap((/** @type {any} */ month) => month.games ?? [])
+    .filter(isFinal)
+    .sort((first, second) => Date.parse(second.start) - Date.parse(first.start));
+}
+
+/**
+ * Each of a season's finals once, in the order given.
+ * @param {any[]} games
+ */
+const keepFirstOfEach = (games) => [...new Map(games.map((game) => [game.id, game])).values()];
 
 /**
  * @param {GameRead | undefined} read
@@ -60,29 +88,61 @@ async function keepGame(context, game, read) {
 }
 
 /**
- * The reads of the games still on the slate, so the list never outgrows it.
- * @param {Record<string, GameRead>} reads
+ * Reads up to `limit` of a season's finals that are due, in the order given, and says how many it
+ * read and whether every final's reads are done. Only the finals' reads are kept, so the list
+ * never outgrows the season.
+ * @param {JobContext} context
+ * @param {number} season
  * @param {any[]} finals
+ * @param {number} limit
  */
-const keepSlateReads = (reads, finals) =>
-  Object.fromEntries(
-    finals.filter((game) => reads[game.id]).map((game) => [game.id, reads[game.id]]),
+async function keepSeasonGames(context, season, finals, limit) {
+  const readsKey = nameReadsKey(season);
+  /** @type {Record<string, GameRead>} */
+  const stored = (await context.storage.get(readsKey)) ?? {};
+  const reads = Object.fromEntries(
+    finals.filter((game) => stored[game.id]).map((game) => [game.id, stored[game.id]]),
   );
+  const now = context.now();
+  const due = finals.filter((game) => isDue(reads[game.id], now)).slice(0, limit);
+  for (const game of due) reads[game.id] = await keepGame(context, game, reads[game.id]);
+  if (!isSameJson(stored, reads)) await context.storage.put(readsKey, reads);
+  return { readCount: due.length, isDone: finals.every((game) => reads[game.id]?.isDone) };
+}
+
+/**
+ * The seasons before the current one that the store keeps, newest first, but those whose every
+ * final is already read.
+ * @param {JobContext} context
+ * @param {number} current
+ */
+async function listPastSeasons(context, current) {
+  const years = (await context.docs.list("seasons"))
+    .map((/** @type {any} */ season) => season.year)
+    .filter((year) => year < current)
+    .sort((first, second) => second - first);
+  const kept = await Promise.all(years.map((year) => context.storage.get(nameKeptKey(year))));
+  return years.filter((_, index) => !kept[index]);
+}
 
 /** @param {JobContext} context */
 async function keepFinishedGames(context) {
   const season = (await context.docs.read("live/current"))?.season;
-  const slate = season && (await context.docs.read(`seasons/${season}`))?.slate;
-  if (!slate) return;
-  const readsKey = nameReadsKey(season);
-  /** @type {Record<string, GameRead>} */
-  const stored = (await context.storage.get(readsKey)) ?? {};
-  const finals = listFinalsLatestFirst(slate);
-  const reads = keepSlateReads(stored, finals);
-  const now = context.now();
-  const due = finals.filter((game) => isDue(reads[game.id], now)).slice(0, GAMES_PER_RUN);
-  for (const game of due) reads[game.id] = await keepGame(context, game, reads[game.id]);
-  if (!isSameJson(stored, reads)) await context.storage.put(readsKey, reads);
+  if (!season) return;
+  const slate = (await context.docs.read(`seasons/${season}`))?.slate;
+  const currentFinals = keepFirstOfEach([
+    ...(slate ? listSlateFinals(slate) : []),
+    ...(await listScheduledFinals(context.docs, season)),
+  ]);
+  const current = await keepSeasonGames(context, season, currentFinals, GAMES_PER_RUN);
+  let left = GAMES_PER_RUN - current.readCount;
+  for (const year of await listPastSeasons(context, season)) {
+    if (!left) return;
+    const finals = await listScheduledFinals(context.docs, year);
+    const { readCount, isDone } = await keepSeasonGames(context, year, finals, left);
+    if (isDone && finals.length) await context.storage.put(nameKeptKey(year), true);
+    left -= readCount;
+  }
 }
 
 export function createGameDetailsJob() {

@@ -5,8 +5,8 @@
 // tablet, or copies it on a computer, after a header that names the release, the device, the
 // page's state, and how each of the store's background jobs last ran, and before the logs of
 // the viewport's changes (viewport-log.js), of what each dialog's row of sheets does
-// (sheet-log.js), and of what a season's list of days does (day-strip-log.js). It records nothing
-// while it's off, which it starts as.
+// (sheet-log.js), of what a season's list of days does (day-strip-log.js), and of each error the
+// page's code doesn't catch (error-log.js). It records nothing while it's off, which it starts as.
 
 import {
   formatClockTime,
@@ -21,6 +21,7 @@ import { loadRelease } from "./release.js";
 import { watchTimeAway } from "./resume.js";
 import { listSheetsInOpenDialogs } from "./sheet-reopen.js";
 import { dayStripLog } from "./day-strip-log.js";
+import { errorLog, watchErrors } from "./error-log.js";
 import { sheetLog } from "./sheet-log.js";
 import {
   forgetViewportLines,
@@ -39,7 +40,7 @@ const MINUTE_MS = 60 * 1000;
 // The report button says it copied or shared the report for this long, then offers it again.
 const SENT_MS = 2000;
 const ON_REQUEST = "On request";
-const STEP_LOGS = [sheetLog, dayStripLog];
+const STEP_LOGS = [errorLog, sheetLog, dayStripLog];
 
 /** @typedef {{ ms: number, text: string, isDip?: boolean }} RecordLine */
 /** @typedef {"copied" | "shared"} ReportStep */
@@ -742,4 +743,5 @@ export function startDiagnostics() {
   addEventListener("pagehide", finishRecord);
   watchViewport(isRecording, drawRecords);
   for (const log of STEP_LOGS) log.watchSteps(isRecording, drawRecords);
+  watchErrors();
 }

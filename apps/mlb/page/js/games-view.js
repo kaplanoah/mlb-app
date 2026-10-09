@@ -1,14 +1,20 @@
 import { findSeriesBetween, isEliminated } from "./bracket.js";
 import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
 import { renderAllStarMark } from "#shared/all-star.js";
-import { formatClockTime, formatWeekdayAndDate, readCalendarDate } from "#shared/days.js";
-import { chooseStartList, fillGameLists } from "#shared/game-pager.js";
+import { fillDayStrip } from "#shared/day-strip.js";
+import {
+  formatClockTime,
+  formatWeekdayAndDate,
+  readCalendarDate,
+  readEasternDay,
+} from "#shared/days.js";
 import { html } from "#shared/html.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
+import { listSeasonDays as listDayStripDays, renderHeadingLabel } from "#shared/season-days.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
 import { session } from "./session.js";
-import { listSlateList } from "./slate.js";
+import { listSlateGames } from "./slate.js";
 
 const HALF_INNING_LABELS = { top: "Top", middle: "Mid", bottom: "Bot", end: "End" };
 const OUT_LIGHTS = 2;
@@ -20,14 +26,20 @@ const CLINCH_TITLES = {
 };
 // Trimmed to the drawing, so sized in em its base sits on the text's baseline like a letter.
 const SEED_LOCK = html`<svg class="seed-lock" viewBox="1.5 1.3 9 12.4" role="img" aria-label="seed final"><path d="M3.5 7V4.5a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="2.2" y="7.2" width="7.6" height="5.8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`;
-const EMPTY_LIST_TEXT = {
-  previous: "No earlier games this season",
-  today: "No games today",
-  next: "No games scheduled yet",
-};
 const ARMS = { L: "Throws left-handed", R: "Throws right-handed" };
 
-export const formatGameDay = (date) => formatWeekdayAndDate(readCalendarDate(date));
+// A whole season's rows name their day thousands of times, and formatting a date is slow, so
+// each day is formatted once. Its words don't depend on the time zone, since its date is read
+// as a calendar day where the viewer is.
+/** @type {Map<string, string>} */
+const formattedDays = new Map();
+
+/** @param {string} date "YYYY-MM-DD" */
+export function formatGameDay(date) {
+  if (!formattedDays.has(date))
+    formattedDays.set(date, formatWeekdayAndDate(readCalendarDate(date)));
+  return /** @type {string} */ (formattedDays.get(date));
+}
 
 export function describeStart(game) {
   if (game.tbd) return game.doubleheader === 2 ? "After 1st game" : "Time TBD";
@@ -82,6 +94,20 @@ function renderFacts(id) {
   return html`<span class="game-facts">${renderSeed(id)}${row && html`<span class="tabular">${row.w}-${row.l}</span>`}${renderRace(row)}</span>`;
 }
 
+// Away from today, a club's standing then isn't its standing now, so a regular season game shows
+// only each club's record as of the game, and a postseason game its seed, which never changes.
+/**
+ * @param {any} game
+ * @param {number} index 0 for the away club, 1 for the home club
+ */
+function renderFactsThen(game, index) {
+  const id = index ? game.home : game.away;
+  if (!id) return html``;
+  if (game.postseason) return html`<span class="game-facts">${renderSeed(id)}</span>`;
+  const record = game.records?.[index];
+  return html`<span class="game-facts">${record && html`<span class="tabular">${record}</span>`}</span>`;
+}
+
 const isNamed = (starter) => Boolean(starter?.name);
 
 export const renderArm = (hand) =>
@@ -90,10 +116,23 @@ export const renderArm = (hand) =>
 const renderStarter = (starter, side) =>
   html`<span class="starter ${side}" title="Starting pitcher"><span class="starter-name">${starter.name}</span>${renderArm(starter.hand)}</span>`;
 
-function isOut(id) {
+// Each club is checked against the bracket once for each season's state the page draws, rather
+// than once for every row it shows on.
+/** @type {WeakMap<object, Map<string, boolean>>} */
+const eliminatedByState = new WeakMap();
+
+/** @param {string} id */
+function isOutOfPostseason(id) {
   const { state } = session;
-  const isOutOfPostseason = Boolean(state && state.teams) && isEliminated(state, id);
-  return isOutOfPostseason || describeRace(findStandingsRow(id))?.standing === "out";
+  if (!state || !state.teams) return false;
+  if (!eliminatedByState.has(state)) eliminatedByState.set(state, new Map());
+  const eliminated = /** @type {Map<string, boolean>} */ (eliminatedByState.get(state));
+  if (!eliminated.has(id)) eliminated.set(id, isEliminated(state, id));
+  return /** @type {boolean} */ (eliminated.get(id));
+}
+
+function isOut(id) {
+  return isOutOfPostseason(id) || describeRace(findStandingsRow(id))?.standing === "out";
 }
 
 const renderPendingStarter = (side) =>
@@ -104,9 +143,9 @@ function renderStarterLine(starter, place, isPending) {
   return isPending && renderPendingStarter(place);
 }
 
-function describeSide(id, place, starter, hasWon, isPending, renderClubLine) {
+function describeSide(id, place, starter, hasWon, isPending, renderClubLine, facts) {
   return {
-    lines: html`${id ? renderClubLine(id) : renderSideClub(id)}${renderFacts(id)}`,
+    lines: html`${id ? renderClubLine(id) : renderSideClub(id)}${facts}`,
     classes: [hasWon && "won", isOut(id) && "out"],
     extra: renderStarterLine(starter, place, isPending),
   };
@@ -168,26 +207,46 @@ export const describeGameLabel = (game) =>
 export const renderGameButton = (game) =>
   html`<button type="button" class="game-open" aria-label="Game details: ${describeGameLabel(game)}" data-game="${nameGameKey(game)}"></button>`;
 
-const isAwaitingStarter = (game, id, starter, isToday) =>
-  isToday && game.state === "pre" && Boolean(id) && !starter;
+const isAwaitingStarter = (game, id, starter) => game.state === "pre" && Boolean(id) && !starter;
 
 /**
+ * @param {any} game
  * @param {object | null} series the postseason series the game belongs to, when it's labeled
- * @param {boolean} isToday
+ * @param {{ isToday: boolean, isAwaitingStarters: boolean }} when whether the game is today's, and
+ *   whether a club yet to name its starter says so
  * @param {(id: string) => any} renderClubLine
  */
-function describeGameRow(game, series, isToday, renderClubLine) {
+function describeGameRow(game, series, { isToday, isAwaitingStarters }, renderClubLine) {
   const [awayScore, homeScore] = game.score || [];
   const isFinal = game.state === "final";
   const awayLost = isFinal && awayScore < homeScore;
   const homeLost = isFinal && homeScore < awayScore;
   const [awayStarter, homeStarter] = game.starters || [];
-  const isAwayPending = isAwaitingStarter(game, game.away, awayStarter, isToday);
-  const isHomePending = isAwaitingStarter(game, game.home, homeStarter, isToday);
+  const isAwayPending = isAwaitingStarters && isAwaitingStarter(game, game.away, awayStarter);
+  const isHomePending = isAwaitingStarters && isAwaitingStarter(game, game.home, homeStarter);
+  const [awayFacts, homeFacts] = isToday
+    ? [renderFacts(game.away), renderFacts(game.home)]
+    : [renderFactsThen(game, 0), renderFactsThen(game, 1)];
   return {
     classes: [game.state, game.delay && "delayed"],
-    away: describeSide(game.away, "away", awayStarter, homeLost, isAwayPending, renderClubLine),
-    home: describeSide(game.home, "home", homeStarter, awayLost, isHomePending, renderClubLine),
+    away: describeSide(
+      game.away,
+      "away",
+      awayStarter,
+      homeLost,
+      isAwayPending,
+      renderClubLine,
+      awayFacts,
+    ),
+    home: describeSide(
+      game.home,
+      "home",
+      homeStarter,
+      awayLost,
+      isHomePending,
+      renderClubLine,
+      homeFacts,
+    ),
     label: Boolean(series) && renderSeriesLabel(game, series),
     headline: renderHeadline(game, awayLost, homeLost),
     status: renderStatus(game),
@@ -196,7 +255,7 @@ function describeGameRow(game, series, isToday, renderClubLine) {
 
 function renderGame(game, series, isToday) {
   return renderGameRow({
-    ...describeGameRow(game, series, isToday, renderSideClub),
+    ...describeGameRow(game, series, { isToday, isAwaitingStarters: isToday }, renderSideClub),
     action: renderGameButton(game),
   });
 }
@@ -240,16 +299,20 @@ function renderAllStarGame(game) {
   });
 }
 
-function renderListedGame(game, list) {
+/**
+ * @param {any} game
+ * @param {boolean} isToday
+ */
+function renderListedGame(game, isToday) {
   if (game.allStar) return renderAllStarGame(game);
-  const isToday = list === "today";
   return renderGame(game, isToday ? findGameSeries(game) : null, isToday);
 }
 
 // A game's sheet heads its Game section with the game's row, whose clubs each open their own
 // sheet, and leaves its starters to the line under it.
 export function renderGameFaceOff(game) {
-  const row = describeGameRow({ ...game, starters: [] }, findGameSeries(game), false, renderClub);
+  const when = { isToday: !!game.today, isAwaitingStarters: false };
+  const row = describeGameRow({ ...game, starters: [] }, findGameSeries(game), when, renderClub);
   return html`<ul class="game-list game-faceoff">${renderGameRow(row)}</ul>`;
 }
 
@@ -272,38 +335,70 @@ function orderDay(games) {
     .map(({ game }) => game);
 }
 
-function groupByDay(games, isNewestFirst) {
+/**
+ * Every game of the season, from the store's schedule, with the slate's copies, which carry a game
+ * while it's played, over it, keeping each club's record with the game, which only the schedule
+ * has.
+ * @param {any} slate
+ * @param {any[] | null} schedule
+ */
+export function listSeasonGames(slate, schedule) {
+  const games = new Map((schedule ?? []).map((game) => [nameGameKey(game), game]));
+  const slateGames = slate ? [...listSlateGames(slate), slate.allStar].filter(Boolean) : [];
+  for (const game of slateGames)
+    games.set(nameGameKey(game), { ...games.get(nameGameKey(game)), ...game });
+  return [...games.values()];
+}
+
+/** @param {any[]} games */
+function groupByDay(games) {
   const dates = [...new Set(games.map((game) => game.date))].sort();
-  if (isNewestFirst) dates.reverse();
   return dates.map((date) => ({
     date,
     games: orderDay(games.filter((game) => game.date === date)),
   }));
 }
 
-function describeMissingSlate() {
-  if (session.activeYear !== session.currentSeason) return "Games show for the current season only";
-  return "Games appear here as soon as the page can reach MLB";
-}
-
-export function renderGameList(slate, list) {
-  if (!slate) return html`<p class="stand-empty">${describeMissingSlate()}</p>`;
-  const games = listSlateList(slate, list);
-  if (!games.length) return html`<p class="stand-empty">${EMPTY_LIST_TEXT[list]}</p>`;
-  return html`${groupByDay(games, list === "previous").map(
-    (day) => html`<h3 class="game-day">${formatGameDay(day.date)}</h3>
-      <ul class="game-list">${day.games.map((game) => renderListedGame(game, list))}</ul>`,
-  )}`;
-}
+/**
+ * The day a game still under way began, which the list opens on when it began before today, as
+ * one does past midnight.
+ * @param {any[]} games
+ */
+const findLiveDay = (games) => games.find((game) => game.state === "live")?.date ?? null;
 
 /** @param {any} slate */
-const chooseGamesStart = (slate) =>
-  chooseStartList({
-    hasGamesToday: !!slate && listSlateList(slate, "today").length > 0,
-    hasGamesAhead: !!slate && listSlateList(slate, "next").length > 0,
+function describeEmptySeason(slate) {
+  if (session.activeYear !== session.currentSeason) return "No games saved for this season yet";
+  if (!slate) return "Games appear here as soon as the page can reach MLB";
+  return "No games scheduled yet";
+}
+
+/**
+ * Each game day of the season as the Games view lists it, from its first to its last, opening on
+ * MLB's day: today, or last night until its games are over.
+ * @param {any} slate
+ * @param {any[] | null} schedule
+ * @param {number} now
+ */
+export function listSeasonDays(slate, schedule, now) {
+  const games = listSeasonGames(slate, schedule);
+  const today = slate?.today.date ?? readEasternDay(now).date;
+  return listDayStripDays({
+    gameDays: groupByDay(games).map((day) => ({
+      day: day.date,
+      count: day.games.length,
+      games: html`<ul class="game-list">
+        ${day.games.map((game) => renderListedGame(game, day.date === today))}
+      </ul>`,
+    })),
+    today,
+    openDay: findLiveDay(games),
+    emptyNote: describeEmptySeason(slate),
+    renderLabel: renderHeadingLabel,
+    standsIn: true,
   });
+}
 
 export function renderGames() {
-  const slate = session.state && session.state.slate;
-  fillGameLists((list) => renderGameList(slate, list), chooseGamesStart(slate));
+  fillDayStrip(listSeasonDays(session.state?.slate, session.schedule, Date.now()));
 }

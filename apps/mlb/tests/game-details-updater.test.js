@@ -100,12 +100,13 @@ function createDocs(initial) {
 /**
  * A store whose current season has `slate`, and the job that keeps its finals' box scores, run as
  * the store runs it, `minutesAfter` the evening's last update.
- * @param {{ slate?: any, minutesAfter?: number }} [options]
+ * @param {{ slate?: any, minutesAfter?: number, stored?: Record<string, any> }} [options]
  */
-function createRun({ slate = SLATE, minutesAfter = 0 } = {}) {
+function createRun({ slate = SLATE, minutesAfter = 0, stored = {} } = {}) {
   const docs = createDocs({
     "live/current": { season: EVENING.season },
     [`seasons/${EVENING.season}`]: { year: EVENING.season, slate },
+    ...stored,
   });
   const outage = { isDown: false };
   const mlb = createMlbFetch({ isDown: () => outage.isDown });
@@ -225,4 +226,104 @@ test("a store with no season's slate reads nothing", async () => {
   const { runJob, takeReads } = createRun({ slate: null });
   await runJob();
   assert.deepEqual(takeReads(), []);
+});
+
+/**
+ * A month of a season's schedule as the store keeps it, each game final on its own day unless
+ * it says otherwise.
+ * @param {number} year
+ * @param {string} month
+ * @param {{ id: string, day: number, state?: string, allStar?: boolean }[]} games
+ */
+const createScheduleMonth = (year, month, games) => ({
+  [`schedules-${year}/${month}`]: {
+    version: 1,
+    year,
+    month,
+    games: games.map(({ id, day, state = "final", allStar }) => ({
+      date: `${month}-${String(day).padStart(2, "0")}`,
+      id,
+      away: allStar ? "AL" : "LAD",
+      home: allStar ? "NL" : "ATL",
+      state,
+      start: `${month}-${String(day).padStart(2, "0")}T23:00:00Z`,
+      ...(allStar && { allStar }),
+    })),
+  },
+});
+
+/**
+ * Runs the job `count` times, two minutes apart, and lists the games each run read.
+ * @param {ReturnType<typeof createRun>} run
+ * @param {number} count
+ */
+async function listRunReads({ runJob, wait, takeReads }, count) {
+  /** @type {string[][]} */
+  const runs = [];
+  for (let index = 0; index < count; index += 1) {
+    await runJob();
+    runs.push(takeReads());
+    wait(2);
+  }
+  return runs;
+}
+
+test("after the slate's finals, the rest of the season's finals fill in, newest first, and then each past season's, newest first", async () => {
+  const run = createRun({
+    slate: keepSlateGames([DODGERS_AT_BRAVES]),
+    stored: {
+      "seasons/2024": { year: 2024 },
+      "seasons/2025": { year: 2025 },
+      ...createScheduleMonth(2026, "2026-05", [
+        { id: "1001", day: 1 },
+        { id: "1003", day: 3 },
+        { id: "1002", day: 2, state: "off" },
+      ]),
+      ...createScheduleMonth(2026, "2026-07", [
+        { id: "1004", day: 14, allStar: true },
+        { id: "1005", day: 20, state: "pre" },
+      ]),
+      ...createScheduleMonth(2025, "2025-09", [
+        { id: "2001", day: 1 },
+        { id: "2002", day: 2 },
+      ]),
+      ...createScheduleMonth(2024, "2024-09", [{ id: "3001", day: 1 }]),
+    },
+  });
+
+  const runs = await listRunReads(run, 3);
+  assert.deepEqual(runs, [[DODGERS_AT_BRAVES, "1003", "1001", "2002"], ["2001", "3001"], []]);
+});
+
+test("a past season whose every final is read isn't looked through again", async () => {
+  const run = createRun({
+    slate: keepSlateGames([]),
+    stored: {
+      "seasons/2025": { year: 2025 },
+      ...createScheduleMonth(2025, "2025-09", [{ id: "2001", day: 1 }]),
+    },
+  });
+  assert.deepEqual(await listRunReads(run, 2), [["2001"], []]);
+
+  await run.docs.write(
+    "schedules-2025/2025-10",
+    createScheduleMonth(2025, "2025-10", [{ id: "2002", day: 1 }])["schedules-2025/2025-10"],
+  );
+  assert.deepEqual(await listRunReads(run, 1), [[]]);
+});
+
+test("a past season isn't done while a read that failed waits to be tried again", async () => {
+  const run = createRun({
+    slate: keepSlateGames([]),
+    stored: {
+      "seasons/2025": { year: 2025 },
+      ...createScheduleMonth(2025, "2025-09", [{ id: "2001", day: 1 }]),
+    },
+  });
+  run.outage.isDown = true;
+  assert.deepEqual(await listRunReads(run, 2), [["2001"], []]);
+
+  run.outage.isDown = false;
+  run.wait(10);
+  assert.deepEqual(await listRunReads(run, 1), [["2001"]]);
 });

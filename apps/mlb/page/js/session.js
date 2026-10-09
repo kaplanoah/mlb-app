@@ -19,6 +19,9 @@ export const session = {
   activeYear: guessSeasonYear(),
   // The shown season's record, as the Worker saves it.
   season: null,
+  // Every game of the shown season, which the Games view lists, null when the store has none.
+  /** @type {any[] | null} */
+  schedule: null,
   // How the store's last update went.
   status: null,
   problem: "",

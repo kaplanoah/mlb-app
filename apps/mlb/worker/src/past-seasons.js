@@ -1,12 +1,17 @@
-import { savePastSeason } from "./season-updater.js";
+import { hasSchedule, savePastSeason } from "./season-updater.js";
 
-// Fills in the record of each season before the current one that was saved without its standings,
-// as one followed only until it ended was, so the page reads every season from its record. Once a
-// past season's record is whole, it isn't read again.
+// Fills in each season before the current one that the store keeps without its standings, as one
+// followed only until it ended was, or without its games, as one saved before the store kept them
+// was, so the page reads every season whole from the store. One season a run, newest first, and
+// once a past season is whole, it isn't read again. A season MLB answers only in part is left for
+// the next run, and the run goes on to the next season.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const isWhole = (season) => !!season.standings;
+const hasStandings = (season) => !!season.standings;
+
+/** @param {any} snapshot */
+const isWholeSnapshot = (snapshot) => !snapshot.missing.length && !!snapshot.schedule;
 
 /** @returns {import("../../../../shared/worker/season-store.js").BackgroundJob} */
 export function createPastSeasonsJob() {
@@ -15,12 +20,15 @@ export function createPastSeasonsJob() {
     async run({ docs, loadSnapshot }) {
       const current = await docs.read("live/current");
       if (!current) return;
-      const unfinished = (await docs.list("seasons")).filter(
-        (season) => season.year < current.season && !isWhole(season),
-      );
-      for (const { year } of unfinished) {
-        const snapshot = await loadSnapshot(year);
-        if (!snapshot.missing.length) await savePastSeason(docs, snapshot);
+      const past = (await docs.list("seasons"))
+        .filter((season) => season.year < current.season)
+        .sort((first, second) => second.year - first.year);
+      for (const season of past) {
+        if (hasStandings(season) && (await hasSchedule(docs, season.year))) continue;
+        const snapshot = await loadSnapshot(season.year);
+        if (!isWholeSnapshot(snapshot)) continue;
+        await savePastSeason(docs, snapshot);
+        return;
       }
     },
   };

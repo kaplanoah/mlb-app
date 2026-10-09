@@ -41,8 +41,8 @@ function findByPath(part, path) {
   return element;
 }
 
-// After two minutes away, a list goes back to where it starts, as the Games view's lists do
-// (last-game-list.js).
+// After two minutes away, a list goes back to where it starts, as the Games view's list does
+// (long-away.js).
 const START_AFTER_AWAY_MS = 2 * 60 * 1000;
 
 /**
