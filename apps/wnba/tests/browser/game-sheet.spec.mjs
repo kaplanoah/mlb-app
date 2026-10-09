@@ -17,7 +17,7 @@ import { expectShown, expectSteppedAway } from "../../../../tests/browser/sheet-
 import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
-import { readOklab } from "../../page/js/sheet-colors.js";
+import { readOklab } from "../../../../shared/page/team-colors.js";
 import { TEAMS } from "../../page/js/teams.js";
 import { describeBoxScore } from "../../worker/src/box-score.js";
 

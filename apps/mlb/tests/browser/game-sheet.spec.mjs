@@ -4,6 +4,7 @@ import {
   openApp,
   BOX_SCORES,
   PLAYER_DOCS,
+  PITCHER_SIDES,
   BROADCASTS_FIXTURE,
   buildFixtureSnapshot,
   buildSnapshotWithStarters,
@@ -21,6 +22,9 @@ import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
+// Every qualified starter's number in each measure, as the Worker sends it with a starter's side.
+const QUALIFIED_SPREAD = /** @type {any} */ (Object.values(PITCHER_SIDES)[0]).starters.values;
+
 // What the Worker answers for Astros at Athletics' starters, Blubaugh and Springs.
 const describePitcher = (id, [firstName, lastName], hand, line, ranks, pitches) => ({
   id,
@@ -30,7 +34,7 @@ const describePitcher = (id, [firstName, lastName], hand, line, ranks, pitches) 
   age: 27,
   line,
   ranks,
-  starters: { count: 46 },
+  starters: { count: 46, values: QUALIFIED_SPREAD },
   pitches,
   starts: [
     { date: "2026-09-19", opp: "SEA", home: true, ip: "5.2", runs: 2, k: 6 },

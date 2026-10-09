@@ -54,7 +54,7 @@ export function renderTapeRow({ label, away, home, leader }) {
  * A side whose number is still loading: a stand-in for it over an empty bar.
  * @type {TapeSide}
  */
-export const PENDING_TAPE_SIDE = { value: renderPlaceholder("00.0"), bar: 0 };
+const PENDING_TAPE_SIDE = { value: renderPlaceholder("00.0"), bar: 0 };
 
 /**
  * A measure whose numbers are both still loading.

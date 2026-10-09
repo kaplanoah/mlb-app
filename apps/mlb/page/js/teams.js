@@ -1,14 +1,27 @@
 // `titles` are the seasons the franchise won the World Series, under any name or city, which a
 // tracked season's champion adds to (see listTitles in clubs.js). `firstSeason` is only needed
-// while a club has never won.
+// while a club has never won. `color` and `color2` are the halves of the club's dot. `chartColors`
+// are what the pitching matchup marks the club's starter in, first choice then other, as
+// shared/team-colors.js picks them: each of the club's own two colors made just light enough to
+// read as text on the sheet, keeping its hue, and black the light gray #e4e4e4. The first choice is
+// the dot's first half, but for the White Sox, Pirates, and Padres, whose first half is black or
+// near it and whose other color tells them apart.
 export const TEAMS = {
-  ARI: { name: "Diamondbacks", league: "NL", titles: [2001], color: "#A71930", color2: "#E3D4AD" },
+  ARI: {
+    name: "Diamondbacks",
+    league: "NL",
+    titles: [2001],
+    color: "#A71930",
+    color2: "#E3D4AD",
+    chartColors: ["#e95d65", "#e3d4ad"],
+  },
   ATL: {
     name: "Braves",
     league: "NL",
     titles: [1914, 1957, 1995, 2021],
     color: "#CE1141",
     color2: "#13274F",
+    chartColors: ["#fa4a63", "#738cbc"],
   },
   BAL: {
     name: "Orioles",
@@ -16,6 +29,7 @@ export const TEAMS = {
     titles: [1966, 1970, 1983],
     color: "#DF4601",
     color2: "#000000",
+    chartColors: ["#f25923", "#e4e4e4"],
   },
   BOS: {
     name: "Red Sox",
@@ -23,6 +37,7 @@ export const TEAMS = {
     titles: [1903, 1912, 1915, 1916, 1918, 2004, 2007, 2013, 2018],
     color: "#BD3039",
     color2: "#0C2340",
+    chartColors: ["#eb5c5e", "#738eb1"],
   },
   CHC: {
     name: "Cubs",
@@ -30,6 +45,7 @@ export const TEAMS = {
     titles: [1907, 1908, 2016],
     color: "#0E3386",
     color2: "#CC3433",
+    chartColors: ["#5c8ae4", "#f05851"],
   },
   CWS: {
     name: "White Sox",
@@ -37,6 +53,7 @@ export const TEAMS = {
     titles: [1906, 1917, 2005],
     color: "#27251F",
     color2: "#C4CED4",
+    chartColors: ["#c4ced4", "#e4e4e4"],
   },
   CIN: {
     name: "Reds",
@@ -44,6 +61,7 @@ export const TEAMS = {
     titles: [1919, 1940, 1975, 1976, 1990],
     color: "#C6011F",
     color2: "#000000",
+    chartColors: ["#fb4c4c", "#e4e4e4"],
   },
   CLE: {
     name: "Guardians",
@@ -51,6 +69,7 @@ export const TEAMS = {
     titles: [1920, 1948],
     color: "#0C2340",
     color2: "#E31937",
+    chartColors: ["#738eb1", "#ff4551"],
   },
   COL: {
     name: "Rockies",
@@ -59,6 +78,7 @@ export const TEAMS = {
     firstSeason: 1993,
     color: "#33006F",
     color2: "#C4CED4",
+    chartColors: ["#957ae6", "#c4ced4"],
   },
   DET: {
     name: "Tigers",
@@ -66,18 +86,48 @@ export const TEAMS = {
     titles: [1935, 1945, 1968, 1984],
     color: "#0C2340",
     color2: "#FA4616",
+    chartColors: ["#738eb1", "#fe4a1b"],
   },
-  HOU: { name: "Astros", league: "AL", titles: [2017, 2022], color: "#002D62", color2: "#EB6E1F" },
-  KC: { name: "Royals", league: "AL", titles: [1985, 2015], color: "#004687", color2: "#BD9B60" },
-  LAA: { name: "Angels", league: "AL", titles: [2002], color: "#BA0021", color2: "#003263" },
+  HOU: {
+    name: "Astros",
+    league: "AL",
+    titles: [2017, 2022],
+    color: "#002D62",
+    color2: "#EB6E1F",
+    chartColors: ["#608eca", "#eb6e1f"],
+  },
+  KC: {
+    name: "Royals",
+    league: "AL",
+    titles: [1985, 2015],
+    color: "#004687",
+    color2: "#BD9B60",
+    chartColors: ["#528fd6", "#bd9b60"],
+  },
+  LAA: {
+    name: "Angels",
+    league: "AL",
+    titles: [2002],
+    color: "#BA0021",
+    color2: "#003263",
+    chartColors: ["#f65152", "#5f8fc7"],
+  },
   LAD: {
     name: "Dodgers",
     league: "NL",
     titles: [1955, 1959, 1963, 1965, 1981, 1988, 2020, 2024, 2025],
     color: "#005A9C",
     color2: "#FFFFFF",
+    chartColors: ["#4690d6", "#ffffff"],
   },
-  MIA: { name: "Marlins", league: "NL", titles: [1997, 2003], color: "#00A3E0", color2: "#EF3340" },
+  MIA: {
+    name: "Marlins",
+    league: "NL",
+    titles: [1997, 2003],
+    color: "#00A3E0",
+    color2: "#EF3340",
+    chartColors: ["#00a3e0", "#ff454d"],
+  },
   MIL: {
     name: "Brewers",
     league: "NL",
@@ -85,6 +135,7 @@ export const TEAMS = {
     firstSeason: 1969,
     color: "#12284B",
     color2: "#FFC52F",
+    chartColors: ["#728db7", "#ffc52f"],
   },
   MIN: {
     name: "Twins",
@@ -92,8 +143,16 @@ export const TEAMS = {
     titles: [1924, 1987, 1991],
     color: "#002B5C",
     color2: "#D31145",
+    chartColors: ["#628ec6", "#fc4765"],
   },
-  NYM: { name: "Mets", league: "NL", titles: [1969, 1986], color: "#002D72", color2: "#FF5910" },
+  NYM: {
+    name: "Mets",
+    league: "NL",
+    titles: [1969, 1986],
+    color: "#002D72",
+    color2: "#FF5910",
+    chartColors: ["#5c8cd9", "#ff5910"],
+  },
   NYY: {
     name: "Yankees",
     league: "AL",
@@ -103,6 +162,7 @@ export const TEAMS = {
     ],
     color: "#003087",
     color2: "#FFFFFF",
+    chartColors: ["#568ae9", "#ffffff"],
   },
   ATH: {
     name: "Athletics",
@@ -110,6 +170,7 @@ export const TEAMS = {
     titles: [1910, 1911, 1913, 1929, 1930, 1972, 1973, 1974, 1989],
     color: "#003831",
     color2: "#EFB21E",
+    chartColors: ["#63958c", "#efb21e"],
   },
   PHI: {
     name: "Phillies",
@@ -117,6 +178,7 @@ export const TEAMS = {
     titles: [1980, 2008],
     color: "#E81828",
     color2: "#FFFFFF",
+    chartColors: ["#ff4645", "#ffffff"],
   },
   PIT: {
     name: "Pirates",
@@ -124,6 +186,7 @@ export const TEAMS = {
     titles: [1909, 1925, 1960, 1971, 1979],
     color: "#27251F",
     color2: "#FDB827",
+    chartColors: ["#fdb827", "#e4e4e4"],
   },
   SD: {
     name: "Padres",
@@ -132,6 +195,7 @@ export const TEAMS = {
     firstSeason: 1969,
     color: "#2F241D",
     color2: "#FFC425",
+    chartColors: ["#ffc425", "#978980"],
   },
   SF: {
     name: "Giants",
@@ -139,6 +203,7 @@ export const TEAMS = {
     titles: [1905, 1921, 1922, 1933, 1954, 2010, 2012, 2014],
     color: "#FD5A1E",
     color2: "#27251F",
+    chartColors: ["#fd5a1e", "#e4e4e4"],
   },
   SEA: {
     name: "Mariners",
@@ -147,6 +212,7 @@ export const TEAMS = {
     firstSeason: 1977,
     color: "#0C2C56",
     color2: "#005C5C",
+    chartColors: ["#6a8ebf", "#4e9897"],
   },
   STL: {
     name: "Cardinals",
@@ -154,6 +220,7 @@ export const TEAMS = {
     titles: [1926, 1931, 1934, 1942, 1944, 1946, 1964, 1967, 1982, 2006, 2011],
     color: "#C41E3A",
     color2: "#0C2340",
+    chartColors: ["#f45260", "#738eb1"],
   },
   TB: {
     name: "Rays",
@@ -162,14 +229,30 @@ export const TEAMS = {
     firstSeason: 1998,
     color: "#092C5C",
     color2: "#8FBCE6",
+    chartColors: ["#678ec5", "#8fbce6"],
   },
-  TEX: { name: "Rangers", league: "AL", titles: [2023], color: "#003278", color2: "#C0111F" },
+  TEX: {
+    name: "Rangers",
+    league: "AL",
+    titles: [2023],
+    color: "#003278",
+    color2: "#C0111F",
+    chartColors: ["#5a8dda", "#f6524d"],
+  },
   TOR: {
     name: "Blue Jays",
     league: "AL",
     titles: [1992, 1993],
     color: "#134A8E",
     color2: "#E8291C",
+    chartColors: ["#578ed7", "#ff4736"],
   },
-  WSH: { name: "Nationals", league: "NL", titles: [2019], color: "#AB0003", color2: "#14225A" },
+  WSH: {
+    name: "Nationals",
+    league: "NL",
+    titles: [2019],
+    color: "#AB0003",
+    color2: "#14225A",
+    chartColors: ["#f15849", "#728acb"],
+  },
 };
