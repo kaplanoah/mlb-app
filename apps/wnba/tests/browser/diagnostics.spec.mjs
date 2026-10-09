@@ -386,6 +386,25 @@ async function recordOnRequest(page) {
   await page.clock.runFor(100);
 }
 
+test("a record names the list the pager's lists went back from after a move no one made", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  await turnOnDiagnostics(page);
+  const pages = page.locator("#games-pages");
+  await pages.evaluate((element) => element.scrollTo({ left: 0, behavior: "instant" }));
+  await expect(pages).toHaveAttribute("data-put-back-from", "previous");
+
+  await openSettings(page);
+  await recordOnRequest(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(
+    /games-pages scrolled \d+ of \d+, \d+ wide, last settled by scrollend, last put back from previous, a move no one made;/,
+  );
+});
+
 test("on a phone, Record counts down, then Share report, filled, shares the report, and goes back to Record", async ({
   page,
 }) => {

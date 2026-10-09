@@ -27,6 +27,7 @@ import {
   listTouchHoverRules,
 } from "../../../../tests/browser/tap-states.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
+import { swipeScrollerTo } from "../../../../tests/browser/touch.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -115,9 +116,7 @@ test("on a phone, swiping the games sideways moves between the lists and fills t
   await page.getByRole("tab", { name: "Games" }).click();
   await expect.poll(() => readPagesPosition(page)).toBe(1);
 
-  await page
-    .locator("#games-pages")
-    .evaluate((pages) => (pages.scrollLeft = pages.clientWidth / 4));
+  await swipeScrollerTo(page.locator("#games-pages"), 1 / 4);
   await expect.poll(() => readPagesPosition(page)).toBe(0);
   await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
     "aria-selected",
@@ -225,11 +224,9 @@ test("on a phone, a list swiped in from far down another starts just under the p
   );
 
   await expect.poll(readFirstDateY).toBeCloseTo(pillBottom, 0);
-  await page
-    .locator("#games-pages")
-    .evaluate((pages) => (pages.scrollLeft = pages.clientWidth * 0.5));
+  await swipeScrollerTo(page.locator("#games-pages"), 0.5);
   expect(await readFirstDateY()).toBeCloseTo(pillBottom, 0);
-  await page.locator("#games-pages").evaluate((pages) => (pages.scrollLeft = pages.clientWidth));
+  await swipeScrollerTo(page.locator("#games-pages"), 1);
 
   await expect(page.locator("#games-today")).not.toHaveAttribute("inert");
   expect(await readFirstDateY()).toBeCloseTo(pillBottom, 0);
@@ -248,7 +245,7 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
   const pages = page.locator("#games-pages");
   await pages.evaluate((element) => (element.style.scrollSnapType = "none"));
 
-  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.3));
+  await swipeScrollerTo(pages, 0.3);
 
   await expect.poll(() => readPagesPosition(page)).toBe(0);
   await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
@@ -258,7 +255,7 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
   await expect(page.locator("#games-today")).toHaveAttribute("inert");
   await expect(pages).toHaveAttribute("data-settled-by", "scrollend");
 
-  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.96));
+  await swipeScrollerTo(pages, 0.96);
   await expect.poll(() => readPagesPosition(page)).toBe(1);
   await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
 });
@@ -283,7 +280,9 @@ test("on a phone, where the browser fires no scrollend, the lists settle once th
     (element) =>
       new Promise((resolve) => {
         element.addEventListener("scroll", resolve, { once: true });
+        element.dispatchEvent(new Event("touchstart"));
         element.scrollLeft = element.clientWidth * 0.3;
+        element.dispatchEvent(new Event("touchend"));
       }),
   );
   await page.clock.runFor(200);

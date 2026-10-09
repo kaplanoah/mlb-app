@@ -15,7 +15,7 @@ import {
   noteNameFades,
   readFilledNames,
 } from "../../../../tests/browser/pill-names.mjs";
-import { drag } from "../../../../tests/browser/touch.mjs";
+import { drag, swipeScrollerTo } from "../../../../tests/browser/touch.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -182,9 +182,7 @@ test.describe("on a phone, the standings", () => {
     const pages = page.locator("#standings-pages");
     await expect(page.locator("#standings-league")).toContainText("Lynx");
 
-    await pages.evaluate((element) =>
-      element.scrollTo({ left: element.clientWidth, behavior: "instant" }),
-    );
+    await swipeScrollerTo(pages, 1);
 
     await expect(page.getByRole("tab", { name: "East" })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#standings-east")).toBeInViewport();
@@ -203,7 +201,7 @@ test.describe("on a phone, the Games lists", () => {
     const pages = page.locator("#games-pages");
     await expect(page.locator("#games-today")).toContainText("Dream");
 
-    await pages.evaluate((element) => element.scrollTo({ left: 0, behavior: "instant" }));
+    await swipeScrollerTo(pages, 0);
 
     await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
       "aria-selected",
@@ -730,6 +728,36 @@ test("on a day without games, the Games view starts on Next, and a list someone 
   await expect(shownGames).toHaveId("games-today");
   await page.reload();
   await expect(shownGames).toHaveId("games-today");
+});
+
+// Safari moves the lists itself at times, as a page loads after a deploy, with no finger on them.
+test("the Games lists go back to the one shown after a move no one made, after a reload too", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  const pages = page.locator("#games-pages");
+  await app.changeSeason(dropTodaysGames);
+  await expect(shownGames).toHaveId("games-next");
+  const moveListsToToday = () =>
+    pages.evaluate((element) =>
+      element.scrollTo({ left: element.clientWidth, behavior: "instant" }),
+    );
+  const readPosition = () => pages.evaluate((element) => element.scrollLeft / element.clientWidth);
+
+  await moveListsToToday();
+  await expect.poll(readPosition).toBe(2);
+  await expect(shownGames).toHaveId("games-next");
+  await expect(pages).toHaveAttribute("data-put-back-from", "today");
+  await expect(page.getByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
+
+  await page.reload();
+  await expect(page.locator("#games-next .game-row").first()).toBeVisible();
+  await moveListsToToday();
+  await expect.poll(readPosition).toBe(2);
+  await expect(shownGames).toHaveId("games-next");
+  await expect(pages).toHaveAttribute("data-put-back-from", "today");
 });
 
 test("a Games list with nothing in it centers its note under the pill, a touch above the middle of the date's number beside a list's first game", async ({

@@ -58,6 +58,9 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
   /** @type {string | null} */
   let scrollTarget = null;
   let isTouching = false;
+  // Safari moves the lists itself at times, as the page loads or comes back, so only a move a
+  // person started, or a tapped tab's, changes the shown list.
+  let isMovedByPerson = false;
   // Where the lists were as a finger lifted, until their next move says which list they snap to.
   /** @type {number | null} */
   let liftPosition = null;
@@ -192,6 +195,23 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     settleTimer = setTimeout(() => settleSwipe("timer"), SETTLE_DELAY_MS);
   }
 
+  /** @param {HTMLElement} pages */
+  function chooseRestingList(pages) {
+    if (scrollTarget) return scrollTarget;
+    return isMovedByPerson ? keys[Math.round(readSwipePosition(pages))] : shownList;
+  }
+
+  // A move no one made goes straight back, and Diagnostics names the list it had gone to.
+  /**
+   * @param {HTMLElement} pages
+   * @param {string} key
+   */
+  function returnToList(pages, key) {
+    const isOwnMove = !scrollTarget && !isMovedByPerson;
+    if (isOwnMove) pages.dataset.putBackFrom = keys[Math.round(readSwipePosition(pages))];
+    scrollToList(key, isOwnMove ? "instant" : chooseScrollBehavior());
+  }
+
   // Changing the lists' height or inertness mid-swipe can stop Safari's swipe short of a list, so
   // the shown list changes only once the lists come to rest on it, and a rest between lists goes
   // on to the nearest one. Diagnostics lists what last settled them.
@@ -200,13 +220,14 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     const pages = findPages();
     if (!pages.clientWidth) return;
     pages.dataset.settledBy = settledBy;
-    const key = scrollTarget || keys[Math.round(readSwipePosition(pages))];
+    const key = chooseRestingList(pages);
     if (!isAtList(pages, key)) {
-      scrollToList(key, chooseScrollBehavior());
+      returnToList(pages, key);
       return;
     }
     scrollTarget = null;
     liftPosition = null;
+    isMovedByPerson = false;
     if (key === shownList) return;
     showPillName(findTabList(), key, { isHandoff: true });
     markShownList(key);
@@ -228,7 +249,7 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
     const pages = findPages();
     if (!pages.clientWidth) return;
     if (!hasScrollend()) scheduleSettle();
-    if (scrollTarget || isTouching) return;
+    if (scrollTarget || isTouching || !isMovedByPerson) return;
     const target = chooseSwipeTarget(pages);
     if (target !== null) showPillName(findTabList(), keys[target], { isHandoff: true });
   }
@@ -272,21 +293,32 @@ export function createPager(root, { label, idPrefix, lists, openOn }) {
 
   function wireSwipe() {
     const pages = findPages();
-    const releaseScrollTarget = () => (scrollTarget = null);
+    const startPersonMove = () => {
+      scrollTarget = null;
+      isMovedByPerson = true;
+    };
     /** @param {WheelEvent} event */
-    const releaseOnSidewaysWheel = (event) => event.deltaX && releaseScrollTarget();
+    const startSidewaysWheel = (event) => event.deltaX && startPersonMove();
     const startTouch = () => {
       isTouching = true;
+      isMovedByPerson = true;
       liftPosition = null;
+    };
+    // A tap, or a finger that scrolls the page up or down, leaves the lists where they were.
+    const endPersonMove = () => {
+      if (isAtList(pages, shownList)) isMovedByPerson = false;
     };
     const endTouch = () => {
       isTouching = false;
       liftPosition = readSwipePosition(pages);
+      endPersonMove();
     };
     pages.addEventListener("scroll", followSwipe, { passive: true });
     pages.addEventListener("scrollend", () => settleSwipe("scrollend"));
-    pages.addEventListener("pointerdown", releaseScrollTarget);
-    pages.addEventListener("wheel", releaseOnSidewaysWheel, { passive: true });
+    pages.addEventListener("pointerdown", startPersonMove);
+    pages.addEventListener("pointerup", endPersonMove);
+    pages.addEventListener("keydown", startPersonMove);
+    pages.addEventListener("wheel", startSidewaysWheel, { passive: true });
     pages.addEventListener("touchstart", startTouch, { passive: true });
     pages.addEventListener("touchend", endTouch, { passive: true });
     pages.addEventListener("touchcancel", endTouch, { passive: true });
