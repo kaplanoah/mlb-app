@@ -7,10 +7,34 @@ import { createPastSeasonsJob } from "../worker/src/past-seasons.js";
 const FINAL_2025 = JSON.parse(
   readFileSync(`${import.meta.dirname}/fixtures/2025-final.json`, "utf8"),
 );
-const SNAPSHOT_2025 = buildSnapshot(FINAL_2025.responses, {
-  season: FINAL_2025.season,
-  now: Date.parse(FINAL_2025.now),
-});
+const SNAPSHOT_2025 = {
+  ...buildSnapshot(FINAL_2025.responses, {
+    season: FINAL_2025.season,
+    now: Date.parse(FINAL_2025.now),
+  }),
+  // The 2025 recording predates the season's whole schedule, so it stands in with one game.
+  schedule: {
+    "2025-11": [
+      {
+        date: "2025-11-01",
+        id: "813024",
+        away: "LAD",
+        home: "TOR",
+        state: "final",
+        start: "2025-11-02T00:00:00Z",
+        score: [5, 4],
+        postseason: true,
+      },
+    ],
+  },
+};
+const SCHEDULE_2025 = {
+  version: SNAPSHOT_2025.version,
+  year: 2025,
+  month: "2025-11",
+  games: SNAPSHOT_2025.schedule["2025-11"],
+  updatedAt: SNAPSHOT_2025.asOf,
+};
 
 // A past season as the store kept it while it was current: its field and updates, no standings.
 const FOLLOWED_2025 = {
@@ -67,6 +91,7 @@ test("a past season saved without its standings is read from MLB and saved whole
   });
 
   assert.deepEqual(loads, [2025]);
+  assert.deepEqual(documents.get("schedules-2025/2025-11"), SCHEDULE_2025);
   const record = documents.get("seasons/2025");
   assert.deepEqual(record.standings, SNAPSHOT_2025.standings);
   assert.deepEqual(record.series, SNAPSHOT_2025.series);
@@ -78,6 +103,7 @@ test("a whole past season, and the current one, aren't read again", async () => 
   const { documents, loads } = await runJob({
     "live/current": { season: 2026 },
     "seasons/2025": whole,
+    "schedules-2025/2025-11": SCHEDULE_2025,
     "seasons/2026": { year: 2026 },
   });
 
@@ -98,4 +124,25 @@ test("until the store names the current season, no season counts as past", async
   const { loads } = await runJob({ "seasons/2025": FOLLOWED_2025 });
 
   assert.deepEqual(loads, []);
+});
+
+test("a past season saved before the store kept its games is read again for its games", async () => {
+  const whole = { ...FOLLOWED_2025, standings: SNAPSHOT_2025.standings };
+  const { documents, loads } = await runJob({
+    "live/current": { season: 2026 },
+    "seasons/2025": whole,
+  });
+
+  assert.deepEqual(loads, [2025]);
+  assert.deepEqual(documents.get("schedules-2025/2025-11"), SCHEDULE_2025);
+});
+
+test("past seasons are filled one a run, newest first", async () => {
+  const { loads } = await runJob({
+    "live/current": { season: 2026 },
+    "seasons/2024": { ...FOLLOWED_2025, year: 2024 },
+    "seasons/2025": FOLLOWED_2025,
+  });
+
+  assert.deepEqual(loads, [2025]);
 });

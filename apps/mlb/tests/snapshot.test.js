@@ -706,8 +706,9 @@ test("fetchSnapshot asks for exactly the requests it builds", async () => {
     2026,
     Date.parse(fixture.now),
   );
-  assert.equal(asked.length, 4);
+  assert.equal(asked.length, 5);
   assert.equal(asked[0], requests.season);
+  assert.ok(asked.includes(requests.seasonGames));
   assert.deepEqual(snapshot, buildSnapshot(fixture));
 });
 
@@ -1104,4 +1105,142 @@ test("a live All-Star Game is followed as closely as any live game", () => {
     MLBSnapshot.POLL_LIVE_MS,
   );
   assert.notEqual(MLBSnapshot.choosePollDelay({ slate }, now), MLBSnapshot.POLL_LIVE_MS);
+});
+
+const SEASON_GAMES = readFixture("2026-10-09-season");
+const listScheduled = (snapshot) => Object.values(snapshot.schedule).flat();
+/** @param {any} schedule MLB's schedule */
+const findListing = (schedule, gamePk) =>
+  schedule.dates.flatMap((day) => day.games).find((game) => game.gamePk === gamePk);
+
+test("the season's whole schedule lists every game by month, from Opening Day to the World Series", () => {
+  const snapshot = buildSnapshot(SEASON_GAMES);
+  assert.deepEqual(Object.keys(snapshot.schedule), [
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10",
+  ]);
+  const games = listScheduled(snapshot);
+  assert.equal(games.filter((game) => !game.postseason && !game.allStar).length, 2459);
+  assert.deepEqual(games[0], {
+    date: "2026-03-25",
+    id: games[0].id,
+    away: games[0].away,
+    home: games[0].home,
+    state: "final",
+    start: games[0].start,
+    score: games[0].score,
+  });
+  assert.deepEqual(
+    games.filter((game) => game.allStar),
+    [
+      {
+        date: "2026-07-14",
+        id: "823443",
+        away: "AL",
+        home: "NL",
+        state: "final",
+        start: "2026-07-15T00:00:00Z",
+        score: [4, 0],
+        allStar: true,
+      },
+    ],
+  );
+  const worldSeries = games.filter((game) => game.date >= "2026-10-23");
+  assert.equal(worldSeries.length, 7);
+  assert.ok(worldSeries.every((game) => game.postseason && game.away === null));
+  assert.equal(new Set(games.map((game) => `${game.id} ${game.date}`)).size, games.length);
+});
+
+test("a postponed game is listed on the day it was to be played and on the day it's made up", () => {
+  const games = listScheduled(buildSnapshot(SEASON_GAMES));
+  assert.deepEqual(
+    games.filter((game) => game.id === "823042"),
+    [
+      {
+        date: "2026-06-25",
+        id: "823042",
+        away: "ARI",
+        home: "STL",
+        state: "off",
+        start: "2026-06-25T23:45:00Z",
+        detail: "Postponed",
+      },
+      {
+        date: "2026-07-23",
+        id: "823042",
+        away: "ARI",
+        home: "STL",
+        state: "final",
+        start: "2026-07-23T21:15:00Z",
+        score: [10, 6],
+      },
+    ],
+  );
+});
+
+test("the days around today count over the season's schedule, and a game under way is listed as before it started", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  const { responses } = fixture;
+  const playing = findListing(responses.schedule, 849832);
+  const behind = findListing(responses.seasonGames, 849832);
+  behind.status = { ...behind.status, abstractGameState: "Preview", codedGameState: "S" };
+  delete behind.teams.away.score;
+  delete behind.teams.home.score;
+  assert.equal(
+    listScheduled(buildSnapshot(fixture)).find((game) => game.id === "849832").state,
+    "final",
+  );
+
+  playing.status = {
+    ...playing.status,
+    abstractGameState: "Live",
+    codedGameState: "I",
+    detailedState: "In Progress",
+  };
+  const live = listScheduled(buildSnapshot(fixture)).find((game) => game.id === "849832");
+  assert.equal(live.state, "pre");
+  assert.equal(live.score, undefined);
+});
+
+test("a decided series' games still to play aren't listed, and its games played are", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  const decided = findListing(fixture.responses.postseason, 849838);
+  const unneeded = {
+    ...structuredClone(decided),
+    gamePk: 849899,
+    gameDate: "2026-10-10T22:00:00Z",
+    officialDate: "2026-10-10",
+    seriesGameNumber: 5,
+    status: {
+      abstractGameState: "Preview",
+      codedGameState: "S",
+      detailedState: "Scheduled",
+      startTimeTBD: false,
+    },
+  };
+  delete unneeded.teams.away.score;
+  delete unneeded.teams.home.score;
+  fixture.responses.postseason.dates.push({ date: "2026-10-10", games: [unneeded] });
+  const snapshot = buildSnapshot(fixture);
+  assert.ok(snapshot.log.some((entry) => entry.kind === "clinch" && entry.series === "AL_DS1"));
+  const ids = listScheduled(snapshot).map((game) => game.id);
+  assert.ok(ids.includes("849838"));
+  assert.ok(!ids.includes("849899"));
+});
+
+test("without the season's whole schedule, there's no schedule to save", () => {
+  assert.equal(buildSnapshot(EVENING).schedule, null);
+  const responses = { ...SEASON_GAMES.responses, seasonGames: null };
+  const snapshot = MLBSnapshot.buildSnapshot(responses, {
+    season: 2026,
+    now: Date.parse(SEASON_GAMES.now),
+  });
+  assert.equal(snapshot.schedule, null);
+  assert.deepEqual(snapshot.missing, []);
 });
