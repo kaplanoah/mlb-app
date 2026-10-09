@@ -1129,12 +1129,17 @@ test("the season's whole schedule lists every game by month, from Opening Day to
   assert.equal(games.filter((game) => !game.postseason && !game.allStar).length, 2459);
   assert.deepEqual(games[0], {
     date: "2026-03-25",
-    id: games[0].id,
-    away: games[0].away,
-    home: games[0].home,
+    id: "823244",
+    away: "NYY",
+    home: "SF",
     state: "final",
-    start: games[0].start,
-    score: games[0].score,
+    start: "2026-03-26T00:05:00Z",
+    score: [7, 0],
+    records: ["1-0", "0-1"],
+    starters: [
+      { id: 608331, name: "Fried", hand: "L" },
+      { id: 657277, name: "Webb", hand: "R" },
+    ],
   });
   assert.deepEqual(
     games.filter((game) => game.allStar),
@@ -1179,6 +1184,11 @@ test("a postponed game is listed on the day it was to be played and on the day i
         state: "final",
         start: "2026-07-23T21:15:00Z",
         score: [10, 6],
+        records: ["54-49", "52-50"],
+        starters: [
+          { id: 694297, name: "Pfaadt", hand: "R" },
+          { id: 700241, name: "McGreevy", hand: "R" },
+        ],
       },
     ],
   );
@@ -1243,4 +1253,55 @@ test("without the season's whole schedule, there's no schedule to save", () => {
   });
   assert.equal(snapshot.schedule, null);
   assert.deepEqual(snapshot.missing, []);
+});
+
+test("a postseason final shows its starters but not its series record, which MLB lists as the clubs' records", () => {
+  const games = listScheduled(buildSnapshot(SEASON_GAMES));
+  assert.deepEqual(
+    games.find((game) => game.id === "849845"),
+    {
+      date: "2026-09-29",
+      id: "849845",
+      away: "PHI",
+      home: "ATL",
+      state: "final",
+      start: "2026-09-29T18:00:00Z",
+      score: [3, 5],
+      postseason: true,
+      starters: [
+        { id: 666200, name: "Luzardo", hand: "L" },
+        { id: 519242, name: "Sale", hand: "L" },
+      ],
+    },
+  );
+});
+
+test("a game still to play lists each club's probable starter once MLB names him, with his arm, named by whichever read describes him", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  const { seasonGames, schedule } = fixture.responses;
+  for (const listing of [findListing(seasonGames, 849831), findListing(schedule, 849831)]) {
+    delete listing.teams.away.probablePitcher;
+    delete listing.teams.home.probablePitcher;
+  }
+  const findGame = () => listScheduled(buildSnapshot(fixture)).find((each) => each.id === "849831");
+  assert.equal(findGame().state, "pre");
+  assert.equal(findGame().starters, undefined);
+
+  findListing(schedule, 849831).teams.away.probablePitcher = { id: 1 };
+  findListing(seasonGames, 849831).teams.away.probablePitcher = {
+    id: 1,
+    useLastName: "Pitcher",
+    pitchHand: { code: "L" },
+  };
+  assert.deepEqual(findGame().starters, [{ id: 1, name: "Pitcher", hand: "L" }, null]);
+});
+
+test("a regular season game's records are each club's as MLB lists them with it, and a game called off has none", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  const listing = findListing(fixture.responses.seasonGames, 823244);
+  listing.teams.away.leagueRecord = { wins: 2, losses: 0 };
+  const games = listScheduled(buildSnapshot(fixture));
+  assert.deepEqual(games.find((game) => game.id === "823244").records, ["2-0", "0-1"]);
+  const postponed = games.find((game) => game.id === "823042" && game.state === "off");
+  assert.equal(postponed.records, undefined);
 });

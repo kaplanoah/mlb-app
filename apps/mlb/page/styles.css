@@ -480,11 +480,18 @@ table.st .seed-cell {
    heading is gold, as today is in the strip. */
 .day-list .game-day .game-list {
   content-visibility: auto;
-  contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height) + 1px);
+  contain-intrinsic-size: auto calc(var(--games) * var(--game-row-height));
 }
+/* Chivo Mono reads heavier, so the strip's month and dates sit a weight under the shared 600. */
+.strip-month,
+.cell-number {
+  font-weight: 550;
+}
+/* The list keeps a day's gap above its first day, so a held heading reaches up over it to the
+   strip's line, leaving no gap for the games passing under it to show through. */
 .day-heading {
   position: sticky;
-  top: 0;
+  top: calc(-1 * var(--day-gap));
   z-index: 2;
   margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
   padding: 10px var(--reach-right) 8px var(--reach-left);

@@ -7,7 +7,7 @@ import {
   readCalendarDate,
 } from "./days.js";
 import { html, setHtml } from "./html.js";
-import { isAwayLong } from "./last-game-list.js";
+import { isAwayLong } from "./long-away.js";
 import { watchTimeAway } from "./resume.js";
 import { scrollWithSpring } from "./spring-scroll.js";
 import { endStripSlide, slideStripTo } from "./strip-slide.js";

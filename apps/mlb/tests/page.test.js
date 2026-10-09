@@ -8,7 +8,7 @@ import { renderCardNote, renderMatchupRow } from "../page/js/bracket-view.js";
 import { describeDrought, listRankedOrder } from "../page/js/clubs.js";
 import { keepRanking, keepSeenAt } from "../page/js/kept-on-device.js";
 import { describeRace, isSeedFinal } from "../page/js/race.js";
-import { renderGameFaceOff, renderGameList } from "../page/js/games-view.js";
+import { listSeasonDays, renderGameFaceOff } from "../page/js/games-view.js";
 import { listSlateGames } from "../page/js/slate.js";
 import { html } from "../../../shared/page/html.js";
 import { renderUpdates as renderUpdateBox } from "../../../shared/page/updates.js";
@@ -834,12 +834,28 @@ test("a club is out whichever round it lost in, and alive until then", () => {
   assert.equal(describeTeamStatus(state, "BOS"), "alive");
 });
 
-// One line of text per game, with a space wherever a tag was.
-const describeGameList = (slate, list) =>
-  String(renderGameList(slate, list))
+const SEASON_NOW = Date.parse("2026-09-24T16:00:00Z");
+
+/**
+ * One day of the Games view's whole season, from the slate and the season's schedule, or what the
+ * view says while it has no days. Today is the slate's.
+ * @param {any} slate
+ * @param {string} [day]
+ * @param {any[] | null} [schedule]
+ */
+function renderGameDay(slate, day = slate?.today.date, schedule = null) {
+  const { days, emptyNote } = listSeasonDays(slate, schedule, SEASON_NOW);
+  if (!days.length) return html`<p class="empty-note">${emptyNote}</p>`;
+  return days.find((listed) => listed.day === day)?.markup ?? html``;
+}
+
+// One line of text per game, after the day's heading, with a space wherever a tag was.
+const describeGameList = (slate, day, schedule) =>
+  String(renderGameDay(slate, day, schedule))
     .split(/<li|<h3/)
     .map((part) =>
       normalizeSpaces(part.replace(/<[^>]*>|^[^>]*>/g, " "))
+        .replace(/&bull;/g, "•")
         .replace(/\s+/g, " ")
         .trim(),
     )
@@ -886,11 +902,11 @@ const buildBreakSlate = (today, lastPlayed, nextPlayed) => ({
 test("games list: the All-Star Game shows on its day, its leagues' stars beside their names, and opens nothing", () =>
   checkInTimeZone(EASTERN, () => {
     const slate = buildBreakSlate("2026-07-14", "2026-07-12", "2026-07-17");
-    assert.deepEqual(describeGameList(slate, "today"), [
-      "Tue, Jul 14",
+    assert.deepEqual(describeGameList(slate), [
+      "Today • Tue, Jul 14",
       "American League All-Star Game 4 - 0 Final National League",
     ]);
-    const rendered = String(renderGameList(slate, "today"));
+    const rendered = String(renderGameDay(slate));
     assert.match(
       rendered,
       /class="game-side away won"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: var\(--al\)/,
@@ -902,19 +918,19 @@ test("games list: the All-Star Game shows on its day, its leagues' stars beside 
     assert.doesNotMatch(rendered, /game-open|class="dot/);
   }));
 
-test("games list: the All-Star Game is in Next and Previous only over the break, as the nearest game that way", () =>
+test("games list: the All-Star Game shows on its day over the break, among the clubs' games, but the store reads box scores for the clubs' games only", () =>
   checkInTimeZone(EASTERN, () => {
-    const isListed = (slate, list) => describeGameList(slate, list).includes("Tue, Jul 14");
-    assert.ok(isListed(buildBreakSlate("2026-07-13", "2026-07-12", "2026-07-17"), "next"));
-    assert.ok(isListed(buildBreakSlate("2026-07-16", "2026-07-12", "2026-07-17"), "previous"));
-    assert.ok(!isListed(buildBreakSlate("2026-07-18", "2026-07-17", "2026-07-19"), "previous"));
-    assert.ok(!isListed(buildBreakSlate("2026-07-10", "2026-07-09", "2026-07-11"), "next"));
-    assert.ok(!isListed(buildBreakSlate("2026-07-16", "2026-07-12", "2026-07-17"), "today"));
+    const slate = buildBreakSlate("2026-07-16", "2026-07-12", "2026-07-17");
+    const days = listSeasonDays(slate, null, SEASON_NOW).days.map(({ day }) => day);
+    assert.deepEqual(days, ["2026-07-12", "2026-07-14", "2026-07-16", "2026-07-17"]);
+    assert.deepEqual(describeGameList(slate, "2026-07-14"), [
+      "Tue, Jul 14",
+      "American League All-Star Game 4 - 0 Final National League",
+    ]);
     const onItsDay = buildBreakSlate("2026-07-14", "2026-07-12", "2026-07-17");
     assert.deepEqual(
       listSlateGames(onItsDay).map((game) => game.id),
       ["2026-07-12", "2026-07-17"],
-      "the store reads box scores for the clubs' games only",
     );
   }));
 
@@ -963,15 +979,14 @@ test("games list: live halves, a doubleheader in game order, a postponement, an 
       { date: "2026-10-03", away: null, home: "TB", state: "pre", start: "2026-10-03T17:08:00Z" },
     ],
   };
-  assert.deepEqual(describeGameList(slate, "today"), [
-    "Fri, Sep 25",
+  assert.deepEqual(describeGameList(slate), [
+    "Today • Fri, Sep 25",
     "Orioles 4 - 2 Final Yankees",
     "Orioles After 1st game Yankees Still TBD Still TBD",
     "Blue Jays Postponed Orioles",
     "Guardians 1 - 0 Bot 7th Red Sox",
   ]);
-  assert.deepEqual(describeGameList(slate, "next"), ["Sat, Oct 3", "TBD 1:08 PM Rays"]);
-  assert.deepEqual(describeGameList(slate, "previous"), ["No earlier games this season"]);
+  assert.deepEqual(describeGameList(slate, "2026-10-03"), ["Sat, Oct 3", "TBD 1:08 PM Rays"]);
 });
 
 const eveningFixture = JSON.parse(
@@ -991,15 +1006,15 @@ const WILD_CARDS_WON_BY_HIGHER_SEEDS = {
 /**
  * Each series label in one of the Games lists, with the evening's field and these series counts.
  * @param {Record<string, { winsA: number, winsB: number }>} series
- * @param {object} slate
- * @param {string} list
+ * @param {any} slate
+ * @param {string} [day]
  */
-function readSeriesLabels(series, slate, list) {
+function readSeriesLabels(series, slate, day) {
   session.state = {
     teams: eveningSnapshot.teams,
     series: { ...eveningSnapshot.series, ...series },
   };
-  const labels = String(renderGameList(slate, list)).match(
+  const labels = String(renderGameDay(slate, day)).match(
     /<span class="series-label.*?<\/span><\/span>/g,
   );
   return (labels || []).map((label) => normalizeSpaces(stripTags(label)));
@@ -1033,7 +1048,6 @@ test("games list: a later round's label names it DS, CS, or WS, away wins first"
         NL_CS: { winsA: 2, winsB: 1 },
       },
       leagueSeries,
-      "today",
     ),
     ["ALDS 0-1", "NLCS 1-2"],
   );
@@ -1052,7 +1066,6 @@ test("games list: a later round's label names it DS, CS, or WS, away wins first"
         WS: { winsA: 2, winsB: 2 },
       },
       worldSeries,
-      "today",
     ),
     ["WS 2-2"],
   );
@@ -1066,9 +1079,9 @@ test("games list: only today's postseason games carry a series label", () => {
     previous: [{ ...game, date: "2026-09-23", start: "2026-09-23T18:08:00Z" }],
     next: [{ ...game, date: "2026-09-25", start: "2026-09-25T18:08:00Z", state: "pre" }],
   };
-  assert.deepEqual(readSeriesLabels(wildCards, slate, "today"), ["NL WC 0-1"]);
-  assert.deepEqual(readSeriesLabels(wildCards, slate, "previous"), []);
-  assert.deepEqual(readSeriesLabels(wildCards, slate, "next"), []);
+  assert.deepEqual(readSeriesLabels(wildCards, slate), ["NL WC 0-1"]);
+  assert.deepEqual(readSeriesLabels(wildCards, slate, "2026-09-23"), []);
+  assert.deepEqual(readSeriesLabels(wildCards, slate, "2026-09-25"), []);
 });
 
 test("games list: a game still to play names its starters with their arm, leaving the ERA to the matchup", () => {
@@ -1096,12 +1109,12 @@ test("games list: a game still to play names its starters with their arm, leavin
       ],
     },
   };
-  assert.deepEqual(describeGameList(slate, "today"), [
-    "Tue, Sep 29",
+  assert.deepEqual(describeGameList(slate), [
+    "Today • Tue, Sep 29",
     "Red Sox 8:08 PM Yankees Tolle L Schlittler R",
     "Cubs 10:08 PM Padres King R",
   ]);
-  const rendered = String(renderGameList(slate, "today"));
+  const rendered = String(renderGameDay(slate));
   assert.match(rendered, /title="Throws left-handed">L</);
   assert.match(rendered, /<span class="starter home" title="Starting pitcher">/);
   assert.deepEqual(
@@ -1158,7 +1171,7 @@ test("games list: a starter MLB can't name yet leaves his line out, rather than 
       ],
     },
   };
-  const rendered = String(renderGameList(slate, "today"));
+  const rendered = String(renderGameDay(slate));
   assert.match(rendered, /class="game-row pre"/);
   assert.doesNotMatch(rendered, /class="starter/);
   assert.doesNotMatch(rendered, /class="game-extra/);
@@ -1174,15 +1187,15 @@ test("games list: a club yet to name today's starter says Still TBD, and every g
     today: { date: "2026-10-01", games: [game] },
     next: [{ date: "2026-10-02", ...game }],
   };
-  assert.deepEqual(describeGameList(slate, "today"), [
-    "Thu, Oct 1",
+  assert.deepEqual(describeGameList(slate), [
+    "Today • Thu, Oct 1",
     "Phillies 8:08 PM Braves Still TBD Still TBD",
   ]);
   assert.match(
-    String(renderGameList(slate, "today")),
+    String(renderGameDay(slate)),
     /class="game-open" aria-label="Game details: Phillies at Braves, Thu, Oct 1"/,
   );
-  const later = String(renderGameList(slate, "next"));
+  const later = String(renderGameDay(slate, "2026-10-02"));
   assert.doesNotMatch(later, /Still TBD/);
   assert.match(
     later,
@@ -1190,11 +1203,30 @@ test("games list: a club yet to name today's starter says Still TBD, and every g
   );
 });
 
-test("games list: an empty list says so without a closing period", () => {
-  const slate = { today: { date: "2026-09-29", games: [] }, previous: [], next: [] };
-  assert.deepEqual(describeGameList(slate, "previous"), ["No earlier games this season"]);
-  assert.deepEqual(describeGameList(slate, "today"), ["No games today"]);
-  assert.deepEqual(describeGameList(slate, "next"), ["No games scheduled yet"]);
+test("games list: a season without games says so without a closing period", () => {
+  const { activeYear, currentSeason } = session;
+  try {
+    Object.assign(session, { activeYear: 2026, currentSeason: 2026 });
+    const slate = { today: { date: "2026-09-29", games: [] }, previous: [], next: [] };
+    assert.deepEqual(describeGameList(slate), ["No games scheduled yet"]);
+  } finally {
+    Object.assign(session, { activeYear, currentSeason });
+  }
+});
+
+test("games list: a day without games inside the season says so at today's place", () => {
+  const slate = {
+    today: { date: "2026-09-29", games: [] },
+    previous: [{ ...listClubGame("2026-09-27", "final") }],
+    next: [{ ...listClubGame("2026-10-01", "pre") }],
+  };
+  const { days, startDay } = listSeasonDays(slate, null, SEASON_NOW);
+  assert.deepEqual(
+    days.map(({ day }) => day),
+    ["2026-09-27", "2026-09-29", "2026-10-01"],
+  );
+  assert.equal(startDay, "2026-09-29");
+  assert.deepEqual(describeGameList(slate), ["Today • Tue, Sep 29 No games today"]);
 });
 
 test("games list: a delay shows under the start time or the score", () => {
@@ -1222,12 +1254,12 @@ test("games list: a delay shows under the start time or the score", () => {
       ],
     },
   };
-  assert.deepEqual(describeGameList(slate, "today"), [
-    "Sun, Sep 27",
+  assert.deepEqual(describeGameList(slate), [
+    "Today • Sun, Sep 27",
     "Orioles 1:05 PM Delayed: Rain Yankees Still TBD Still TBD",
     "Rays 0 - 4 Delayed Phillies",
   ]);
-  assert.match(String(renderGameList(slate, "today")), /class="game-row pre delayed"/);
+  assert.match(String(renderGameDay(slate)), /class="game-row pre delayed"/);
 });
 
 test("games list: each club's seed, record, and race, without its rank", () => {
@@ -1258,11 +1290,11 @@ test("games list: each club's seed, record, and race, without its rank", () => {
       ],
     },
   };
-  assert.deepEqual(describeGameList(slate, "today"), [
-    "Sat, Sep 26",
+  assert.deepEqual(describeGameList(slate), [
+    "Today • Sat, Sep 26",
     "Orioles 79-82 3 - 7 Final Yankees 4 seed 93-68 w",
   ]);
-  const rendered = String(renderGameList(slate, "today"));
+  const rendered = String(renderGameDay(slate));
   assert.doesNotMatch(rendered, /rank-tag/);
   assert.equal(rendered.match(/class="seed-lock"/g)?.length, 1);
   assert.match(rendered, /title="Clinched a wild card spot">w</);
@@ -1291,7 +1323,7 @@ test("games list: a finished game marks its winner and dims only the losing scor
       ],
     },
   };
-  const rendered = renderGameList(slate, "today");
+  const rendered = renderGameDay(slate);
   assert.deepEqual(listSideClasses(rendered), [["away"], ["home", "won"], ["away"], ["home"]]);
   assert.match(String(rendered), /<span class="lost">3<\/span>/);
 });
@@ -1314,7 +1346,7 @@ test("games list: a club out of the race or knocked out of the postseason shows 
       ],
     },
   };
-  assert.deepEqual(listSideClasses(renderGameList(slate, "today")), [
+  assert.deepEqual(listSideClasses(renderGameDay(slate)), [
     ["away", "out"],
     ["home", "won"],
     ["away", "out"],
@@ -1401,9 +1433,9 @@ test("games list: a season with no live data says why", () => {
   try {
     session.currentSeason = 2026;
     session.activeYear = 2025;
-    assert.deepEqual(describeGameList(null, "today"), ["Games show for the current season only"]);
+    assert.deepEqual(describeGameList(null), ["No games saved for this season yet"]);
     session.activeYear = 2026;
-    assert.deepEqual(describeGameList(null, "today"), [
+    assert.deepEqual(describeGameList(null), [
       "Games appear here as soon as the page can reach MLB",
     ]);
   } finally {
@@ -1433,7 +1465,7 @@ test("a club's name in the standings and the updates opens its sheet, and in a g
   const standings = String(renderDivisionBlock("AL East", [yankees, orioles]));
   const update = renderEntryText({ kind: "elim", team: "BAL" });
 
-  const games = String(renderGameList(slate, "today"));
+  const games = String(renderGameDay(slate));
   assert.deepEqual(listTeamButtons(games), []);
   assert.equal([...games.matchAll(/<span class="club">/g)].length, 2);
   assert.deepEqual(listTeamButtons(standings), ["NYY Yankees", "BAL Orioles"]);
@@ -1510,7 +1542,7 @@ test("games list: a game under way shows its outs as two lights beside the innin
     today: { date: "2026-09-24", games: [live("BOS", 1), live("TB", 2), live("TOR", 0)] },
   };
   const lights = [
-    ...String(renderGameList(slate, "today")).matchAll(
+    ...String(renderGameDay(slate)).matchAll(
       /<span class="out-lights" role="img" aria-label="([^"]+)">([\s\S]*?)<\/span><\/span>/g,
     ),
   ].map(([, label, spans]) => ({
@@ -1748,4 +1780,142 @@ test("Updates box: a clinch and the elimination it brought are one update, at th
     "Astros clinch the AL West — Rangers eliminated with a 6-4 loss to the Twins",
   ]);
   assert.deepEqual(whens, ["8:10 PM"]);
+});
+
+const SEASON_SLATE = {
+  today: {
+    date: "2026-09-24",
+    games: [{ away: "BAL", home: "NYY", state: "pre", start: "2026-09-24T23:05:00Z", id: "3" }],
+  },
+  previous: [],
+  next: [],
+};
+
+/**
+ * A game of the season's schedule, as the store keeps it.
+ * @param {object} game
+ */
+const listScheduledGame = (game) => ({
+  id: "1",
+  away: "BAL",
+  home: "NYY",
+  state: "final",
+  start: "2026-09-23T23:05:00Z",
+  ...game,
+});
+
+test("games list: away from today, each club shows its record as of the game, and each starter with his arm, but no seed or race", () =>
+  checkInTimeZone(EASTERN, () => {
+    session.state = { teams: { NYY: { league: "AL", seed: 4 } } };
+    session.standings = {
+      divisions: {
+        "AL East": [
+          { id: "NYY", w: 93, l: 68, gb: "-", wcgb: "-", elim: "-", wce: "-", clinch: "y" },
+        ],
+      },
+    };
+    const schedule = [
+      listScheduledGame({
+        date: "2026-09-23",
+        score: [2, 5],
+        records: ["79-81", "93-67"],
+        starters: [
+          { id: 1, name: "Rogers", hand: "L" },
+          { id: 2, name: "Fried", hand: "L" },
+        ],
+      }),
+      listScheduledGame({
+        id: "2",
+        date: "2026-09-26",
+        state: "pre",
+        start: "2026-09-26T17:05:00Z",
+        records: ["79-82", "93-68"],
+        starters: [null, { id: 3, name: "Rodón", hand: "L" }],
+      }),
+    ];
+    assert.deepEqual(describeGameList(SEASON_SLATE, "2026-09-23", schedule), [
+      "Yesterday • Wed, Sep 23",
+      "Orioles 79-81 2 - 5 Final Yankees 93-67 Rogers L Fried L",
+    ]);
+    assert.deepEqual(describeGameList(SEASON_SLATE, "2026-09-26", schedule), [
+      "Sat, Sep 26",
+      "Orioles 79-82 1:05 PM Yankees 93-68 Rodón L",
+    ]);
+    assert.deepEqual(describeGameList(SEASON_SLATE, "2026-09-24", schedule), [
+      "Today • Thu, Sep 24",
+      "Orioles 7:05 PM Yankees 4 seed 93-68 y Still TBD Still TBD",
+    ]);
+  }));
+
+test("games list: away from today, a postseason game shows each club's seed, which never changes", () =>
+  checkInTimeZone(EASTERN, () => {
+    session.state = {
+      teams: { NYY: { league: "AL", seed: 4 }, BOS: { league: "AL", seed: 5 } },
+      series: {},
+    };
+    session.standings = { divisions: {} };
+    const schedule = [
+      listScheduledGame({
+        date: "2026-09-30",
+        away: "BOS",
+        start: "2026-09-30T23:08:00Z",
+        score: [1, 3],
+        postseason: true,
+      }),
+    ];
+    assert.deepEqual(describeGameList(SEASON_SLATE, "2026-09-30", schedule), [
+      "Wed, Sep 30",
+      "Red Sox 5 seed 1 - 3 Final Yankees 4 seed",
+    ]);
+  }));
+
+test("games list: a game the slate carries keeps the schedule's records under the slate's own copy", () =>
+  checkInTimeZone(EASTERN, () => {
+    session.state = { teams: {} };
+    session.standings = { divisions: {} };
+    const slate = {
+      ...SEASON_SLATE,
+      previous: [
+        {
+          date: "2026-09-23",
+          id: "1",
+          away: "BAL",
+          home: "NYY",
+          state: "final",
+          start: "2026-09-23T23:05:00Z",
+          score: [2, 6],
+        },
+      ],
+    };
+    const schedule = [
+      listScheduledGame({ date: "2026-09-23", score: [2, 5], records: ["79-81", "93-67"] }),
+    ];
+    assert.deepEqual(describeGameList(slate, "2026-09-23", schedule), [
+      "Yesterday • Wed, Sep 23",
+      "Orioles 79-81 2 - 6 Final Yankees 93-67",
+    ]);
+  }));
+
+test("a past game's sheet heads its Game section with each club's record as of the game", () => {
+  session.state = { teams: {} };
+  session.standings = {
+    divisions: {
+      "AL East": [{ id: "NYY", w: 93, l: 68, gb: "-", wcgb: "-", elim: "-", wce: "-" }],
+    },
+  };
+  const game = listScheduledGame({
+    date: "2026-09-23",
+    score: [2, 5],
+    records: ["79-81", "93-67"],
+  });
+  assert.equal(
+    stripTags(String(renderGameFaceOff(game)))
+      .replace(/\s+/g, " ")
+      .trim(),
+    "Orioles79-81 2-5Final Yankees93-67",
+  );
+  assert.match(
+    stripTags(String(renderGameFaceOff({ ...game, today: true }))).replace(/\s+/g, " "),
+    /Yankees93-68/,
+  );
 });

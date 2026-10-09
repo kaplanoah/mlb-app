@@ -43,7 +43,7 @@ const abbreviateDay = (day, today) =>
  * A day's date as a wall calendar shows it, for a narrow column beside its games.
  * @type {RenderLabel}
  */
-export function renderCalendarLabel(day, today) {
+function renderCalendarLabel(day, today) {
   const date = readCalendarDate(day);
   const todayDate = readCalendarDate(today);
   const month = formatShortMonth(date);

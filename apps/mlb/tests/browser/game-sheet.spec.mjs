@@ -20,6 +20,9 @@ import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
+// The games of the first day after today, which the Games view lists under today's.
+const NEXT_DAY_GAMES = "#seasonGames .listed-day:has(.is-today) + .listed-day .game-open";
+
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
 // Every qualified starter's number in each measure, as the Worker sends it with a starter's side.
@@ -158,9 +161,8 @@ test("a game still to come shows where it's on between its row and its starters,
     snapshots: { 2026: buildFixtureSnapshot(BROADCASTS_FIXTURE) },
   });
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: "Today" }).click();
   await page
-    .getByRole("tabpanel", { name: "Today" })
+    .locator("#seasonGames .game-day.is-today")
     .getByRole("button", { name: /^Game details: Brewers at Padres/ })
     .click();
   const sheet = page.locator("#gameSheet");
@@ -221,7 +223,7 @@ test("a game's sheet opens on Game each time, even after it was left on Matchup"
 
 test("a game with no starter named yet has no starters line", async ({ page }) => {
   await showGames(page);
-  await page.locator("#games-next .game-open").first().click();
+  await page.locator(NEXT_DAY_GAMES).first().click();
   const sheet = page.locator("#gameSheet");
   await expect(sheet.locator("#gameBody .game-row")).toBeVisible();
   await expect(sheet.locator(".starters-open")).toHaveCount(0);
@@ -556,7 +558,7 @@ test("a game on a later day without its starters says to check back for them, un
 }) => {
   const reads = countPitcherReads(page);
   await showGames(page);
-  await page.locator("#games-next .game-open").first().click();
+  await page.locator(NEXT_DAY_GAMES).first().click();
   const sheet = page.locator("#gameSheet");
   await showSection(sheet, "Matchup");
   await expect(sheet.locator(".pitcher-last")).toHaveText(["Still TBD", "Still TBD"]);
@@ -576,7 +578,9 @@ test("on a desktop, a game lights up under the pointer, past the row's sides, an
       const { backgroundColor, boxShadow } = getComputedStyle(element);
       return { backgroundColor, boxShadow };
     });
-  const [first, second] = [0, 1].map((index) => page.locator("#games-today .game-row").nth(index));
+  const [first, second] = [0, 1].map((index) =>
+    page.locator("#seasonGames .game-day.is-today .game-row").nth(index),
+  );
   const resting = await readHighlight(first);
 
   // The highlight's color fills the row and both 12px reaches beyond its sides.
@@ -617,7 +621,9 @@ const ANGELS_ROTATION = {
 async function openStillTbd(page, rotations) {
   await openApp(page, { rotations });
   await page.getByRole("tab", { name: "Games" }).click();
-  const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
+  const row = page
+    .locator("#seasonGames .game-day.is-today .game-row")
+    .filter({ hasText: "Angels" });
   await expect(row.locator(".starter.pending")).toHaveText(["Still TBD", "Still TBD"]);
   await row.locator(".game-open").click();
   const sheet = page.locator("#gameSheet");
@@ -817,7 +823,9 @@ test("while a club's last starters load, its side holds a list's shape, then fil
   await openApp(page, { rotations: { LAA: ANGELS_ROTATION } });
   await page.getByRole("tab", { name: "Games" }).click();
   const release = await holdRequests(page, matchPath("/rotation"));
-  const row = page.locator("#games-today .game-row").filter({ hasText: "Angels" });
+  const row = page
+    .locator("#seasonGames .game-day.is-today .game-row")
+    .filter({ hasText: "Angels" });
   await row.locator(".game-open").click();
   const sheet = page.locator("#gameSheet");
   await showSection(sheet, "Matchup");
@@ -965,13 +973,12 @@ for (const { screen, viewport, smallest } of [
 }
 
 /**
- * Opens the evening of Oct 7 at one of its games, from the Games view's list it's on.
+ * Opens the evening of Oct 7 at one of its games, from the day it's on in the Games view.
  * @param {import("@playwright/test").Page} page
- * @param {"Previous" | "Today"} list
  * @param {string} game the start of its button's name
  * @param {{ boxScores?: Record<string, object>, store?: Record<string, object> }} [options]
  */
-async function openOctoberGame(page, list, game, { boxScores = BOX_SCORES, store = {} } = {}) {
+async function openOctoberGame(page, game, { boxScores = BOX_SCORES, store = {} } = {}) {
   const app = await openApp(page, {
     now: BROADCASTS_FIXTURE.now,
     snapshots: { 2026: buildFixtureSnapshot(BROADCASTS_FIXTURE) },
@@ -979,9 +986,8 @@ async function openOctoberGame(page, list, game, { boxScores = BOX_SCORES, store
     store,
   });
   await page.getByRole("tab", { name: "Games" }).click();
-  await page.getByRole("tab", { name: list }).click();
   await page
-    .getByRole("tabpanel", { name: list })
+    .locator("#seasonGames")
     .getByRole("button", { name: new RegExp(`^Game details: ${game}`) })
     .click();
   return { app, sheet: page.locator("#gameSheet") };
@@ -990,7 +996,7 @@ async function openOctoberGame(page, list, game, { boxScores = BOX_SCORES, store
 test("a final's Game section shows its innings, then each club's batters and pitchers, below its row", async ({
   page,
 }) => {
-  const { sheet } = await openOctoberGame(page, "Previous", "Brewers at Padres");
+  const { sheet } = await openOctoberGame(page, "Brewers at Padres, Tue, Oct 6");
   const parts = sheet.locator("#gameBody .sheet-part-head h3");
   await expect(parts).toHaveText(["Innings", "Brewers", "Padres"]);
   const innings = sheet.locator(".line-score tbody tr");
@@ -1046,7 +1052,7 @@ test("a final's Game section shows its innings, then each club's batters and pit
 test("today's game still to start shows each club's lineup once it's posted, and a later day's shows none", async ({
   page,
 }) => {
-  const { sheet } = await openOctoberGame(page, "Today", "Rays at Yankees");
+  const { sheet } = await openOctoberGame(page, "Rays at Yankees, Wed, Oct 7");
   await expect(sheet.locator("#gameBody .sheet-part-head h3")).toHaveText(["Rays", "Yankees"]);
   await expect(sheet.locator("#gameBody .sheet-part-head > span")).toHaveText(["Lineup", "Lineup"]);
   await expect(sheet.locator(".box-table").first().locator("thead th")).toHaveText([
@@ -1063,10 +1069,9 @@ test("today's game still to start shows each club's lineup once it's posted, and
   page.on("request", (request) => {
     if (request.url().includes("/box-score")) reads.push(request.url());
   });
-  await page.getByRole("tab", { name: "Next" }).click();
   await page
-    .getByRole("tabpanel", { name: "Next" })
-    .getByRole("button", { name: /^Game details: Guardians at White Sox/ })
+    .locator("#seasonGames")
+    .getByRole("button", { name: /^Game details: Guardians at White Sox, Thu, Oct 8/ })
     .click();
   await expect(sheet.getByRole("button", { name: /^Pitching matchup/ })).toBeVisible();
   await expect(sheet.locator("#gameBody .sheet-part")).toHaveCount(0);
@@ -1085,7 +1090,7 @@ const readNameOffset = (sheet) =>
 test("in a sheet, a channel without a logo sits half a pixel below the logos' middle", async ({
   page,
 }) => {
-  const { sheet } = await openOctoberGame(page, "Today", "Guardians at White Sox");
+  const { sheet } = await openOctoberGame(page, "Guardians at White Sox, Wed, Oct 7");
   await expect(sheet.locator(".network-name")).toHaveText("TruTV");
 
   expect(await readNameOffset(sheet)).toBe(0.5);
@@ -1094,7 +1099,7 @@ test("in a sheet, a channel without a logo sits half a pixel below the logos' mi
 test("a live game's box score follows each one the store pushes, and passes over one from before it", async ({
   page,
 }) => {
-  const { app, sheet } = await openOctoberGame(page, "Today", "Guardians at White Sox");
+  const { app, sheet } = await openOctoberGame(page, "Guardians at White Sox, Wed, Oct 7");
   const lastInning = sheet.locator(".line-score tbody tr").nth(1).locator("td").nth(8);
   await expect(lastInning).toHaveText("");
   const live = BOX_SCORES["849833"];
@@ -1116,7 +1121,7 @@ test("a live game's box score follows each one the store pushes, and passes over
 test("a reload shows the open box score before the page's code arrives, and the code reads it again", async ({
   page,
 }) => {
-  const { sheet } = await openOctoberGame(page, "Previous", "Brewers at Padres");
+  const { sheet } = await openOctoberGame(page, "Brewers at Padres, Tue, Oct 6");
   await expect(sheet.locator(".line-score")).toBeVisible();
   const release = await holdRequests(page, matchPath("/js/app.js"));
   const heldBoxScore = await holdRequests(page, matchPath("/box-score"));
@@ -1142,7 +1147,7 @@ test("a reload shows the open box score before the page's code arrives, and the 
 test("a tap anywhere on a box score's row opens its player's sheet over the game's, which a back arrow returns to", async ({
   page,
 }) => {
-  const { sheet } = await openOctoberGame(page, "Previous", "Dodgers at Braves", {
+  const { sheet } = await openOctoberGame(page, "Dodgers at Braves, Tue, Oct 6", {
     store: PLAYER_DOCS,
   });
   const row = sheet.locator(".box-table tbody tr").filter({ hasText: "Betts" }).first();
@@ -1169,7 +1174,7 @@ test("a tap anywhere on a box score's row opens its player's sheet over the game
 });
 
 test("a starter's name in the matchup opens his sheet", async ({ page }) => {
-  const { sheet } = await openOctoberGame(page, "Today", "Guardians at White Sox", {
+  const { sheet } = await openOctoberGame(page, "Guardians at White Sox, Wed, Oct 7", {
     store: PLAYER_DOCS,
   });
   await sheet.getByRole("tab", { name: "Matchup" }).click();

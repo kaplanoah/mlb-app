@@ -159,6 +159,61 @@ export const buildSeasonRecord = (snapshot) => ({
   log: snapshot.log,
 });
 
+// MLB's whole 2026 schedule, recorded on Oct 9, as it stood on the evening of Sep 24: each game
+// from that evening on still to play, with neither its record nor its starters named yet, and the
+// postseason left to the evening's own recording. The evening's days around today, recorded
+// before the page asked for each club's record, stand aside, as the slate carries their games.
+const SEASON_GAMES_FIXTURE = loadFixture("2026-10-09-season");
+
+/** @param {any} game */
+function rewindGame(game) {
+  game.status = {
+    abstractGameState: "Preview",
+    codedGameState: "S",
+    detailedState: "Scheduled",
+    startTimeTBD: game.status.startTimeTBD,
+  };
+  for (const side of [game.teams.away, game.teams.home]) {
+    delete side.score;
+    delete side.leagueRecord;
+    delete side.probablePitcher;
+  }
+}
+
+/**
+ * @param {any} seasonGames MLB's whole schedule
+ * @param {string} now
+ */
+function rewindSeasonGames(seasonGames, now) {
+  const rewound = structuredClone(seasonGames);
+  for (const day of rewound.dates) {
+    day.games = day.games.filter((game) => game.gameType === "R" || game.gameType === "A");
+    const isCalledOff = (game) => ["C", "D"].includes(game.status.codedGameState);
+    for (const game of day.games)
+      if (Date.parse(game.gameDate) >= Date.parse(now) && !isCalledOff(game)) rewindGame(game);
+  }
+  return rewound;
+}
+
+/**
+ * The season's games, a month to a document, as the Worker saves them from the evening's snapshot.
+ * @type {Record<string, object>}
+ */
+const SCHEDULE_DOCS = (() => {
+  const responses = {
+    ...EVENING_FIXTURE.responses,
+    schedule: null,
+    seasonGames: rewindSeasonGames(SEASON_GAMES_FIXTURE.responses.seasonGames, EVENING_FIXTURE.now),
+  };
+  const snapshot = buildFixtureSnapshot({ ...EVENING_FIXTURE, responses });
+  return Object.fromEntries(
+    Object.entries(snapshot.schedule).map(([month, games]) => [
+      MLBSnapshot.nameScheduleKey(snapshot.season, month),
+      { version: snapshot.version, year: snapshot.season, month, games, updatedAt: snapshot.asOf },
+    ]),
+  );
+})();
+
 // The 2025 season's record, filled in whole once it was over.
 export const SEASON_2025 = buildSeasonRecord(buildFixtureSnapshot(FINAL_2025_FIXTURE));
 
@@ -204,6 +259,8 @@ const isWriteRequest = (request) => request.method() !== "GET";
  * @param {Record<string, object>} [options.rotations] what the Worker answers for each club's last
  *   starters
  * @param {Record<string, object>} [options.boxScores] what the Worker answers for each game id
+ * @param {boolean} [options.isWholeSeason] whether the store keeps the season's whole schedule,
+ *   which most tests can do without
  */
 export async function openApp(
   page,
@@ -216,6 +273,7 @@ export async function openApp(
     pitchers = {},
     rotations = {},
     boxScores = {},
+    isWholeSeason = false,
   } = {},
 ) {
   const snapshotsBySeason = {
@@ -242,7 +300,7 @@ export async function openApp(
   const testStore = createTestStore(SeasonStore, {
     loadSnapshot,
     now,
-    stored: { ...store, ...savedDocs },
+    stored: { ...(isWholeSeason && SCHEDULE_DOCS), ...store, ...savedDocs },
   });
   const { context, store: seasonStore } = testStore;
 

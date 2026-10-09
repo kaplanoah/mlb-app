@@ -83,6 +83,20 @@ function renderFacts(id) {
   return html`<span class="game-facts">${renderSeed(id)}${row && html`<span class="tabular">${row.w}-${row.l}</span>`}${renderRace(row)}</span>`;
 }
 
+// Away from today, a club's standing then isn't its standing now, so a regular season game shows
+// only each club's record as of the game, and a postseason game its seed, which never changes.
+/**
+ * @param {any} game
+ * @param {number} index 0 for the away club, 1 for the home club
+ */
+function renderFactsThen(game, index) {
+  const id = index ? game.home : game.away;
+  if (!id) return html``;
+  if (game.postseason) return html`<span class="game-facts">${renderSeed(id)}</span>`;
+  const record = game.records?.[index];
+  return html`<span class="game-facts">${record && html`<span class="tabular">${record}</span>`}</span>`;
+}
+
 const isNamed = (starter) => Boolean(starter?.name);
 
 export const renderArm = (hand) =>
@@ -105,9 +119,9 @@ function renderStarterLine(starter, place, isPending) {
   return isPending && renderPendingStarter(place);
 }
 
-function describeSide(id, place, starter, hasWon, isPending, renderClubLine) {
+function describeSide(id, place, starter, hasWon, isPending, renderClubLine, facts) {
   return {
-    lines: html`${id ? renderClubLine(id) : renderSideClub(id)}${renderFacts(id)}`,
+    lines: html`${id ? renderClubLine(id) : renderSideClub(id)}${facts}`,
     classes: [hasWon && "won", isOut(id) && "out"],
     extra: renderStarterLine(starter, place, isPending),
   };
@@ -169,26 +183,46 @@ export const describeGameLabel = (game) =>
 export const renderGameButton = (game) =>
   html`<button type="button" class="game-open" aria-label="Game details: ${describeGameLabel(game)}" data-game="${nameGameKey(game)}"></button>`;
 
-const isAwaitingStarter = (game, id, starter, isToday) =>
-  isToday && game.state === "pre" && Boolean(id) && !starter;
+const isAwaitingStarter = (game, id, starter) => game.state === "pre" && Boolean(id) && !starter;
 
 /**
+ * @param {any} game
  * @param {object | null} series the postseason series the game belongs to, when it's labeled
- * @param {boolean} isToday
+ * @param {{ isToday: boolean, isAwaitingStarters: boolean }} when whether the game is today's, and
+ *   whether a club yet to name its starter says so
  * @param {(id: string) => any} renderClubLine
  */
-function describeGameRow(game, series, isToday, renderClubLine) {
+function describeGameRow(game, series, { isToday, isAwaitingStarters }, renderClubLine) {
   const [awayScore, homeScore] = game.score || [];
   const isFinal = game.state === "final";
   const awayLost = isFinal && awayScore < homeScore;
   const homeLost = isFinal && homeScore < awayScore;
   const [awayStarter, homeStarter] = game.starters || [];
-  const isAwayPending = isAwaitingStarter(game, game.away, awayStarter, isToday);
-  const isHomePending = isAwaitingStarter(game, game.home, homeStarter, isToday);
+  const isAwayPending = isAwaitingStarters && isAwaitingStarter(game, game.away, awayStarter);
+  const isHomePending = isAwaitingStarters && isAwaitingStarter(game, game.home, homeStarter);
+  const [awayFacts, homeFacts] = isToday
+    ? [renderFacts(game.away), renderFacts(game.home)]
+    : [renderFactsThen(game, 0), renderFactsThen(game, 1)];
   return {
     classes: [game.state, game.delay && "delayed"],
-    away: describeSide(game.away, "away", awayStarter, homeLost, isAwayPending, renderClubLine),
-    home: describeSide(game.home, "home", homeStarter, awayLost, isHomePending, renderClubLine),
+    away: describeSide(
+      game.away,
+      "away",
+      awayStarter,
+      homeLost,
+      isAwayPending,
+      renderClubLine,
+      awayFacts,
+    ),
+    home: describeSide(
+      game.home,
+      "home",
+      homeStarter,
+      awayLost,
+      isHomePending,
+      renderClubLine,
+      homeFacts,
+    ),
     label: Boolean(series) && renderSeriesLabel(game, series),
     headline: renderHeadline(game, awayLost, homeLost),
     status: renderStatus(game),
@@ -197,7 +231,7 @@ function describeGameRow(game, series, isToday, renderClubLine) {
 
 function renderGame(game, series, isToday) {
   return renderGameRow({
-    ...describeGameRow(game, series, isToday, renderSideClub),
+    ...describeGameRow(game, series, { isToday, isAwaitingStarters: isToday }, renderSideClub),
     action: renderGameButton(game),
   });
 }
@@ -253,7 +287,8 @@ function renderListedGame(game, isToday) {
 // A game's sheet heads its Game section with the game's row, whose clubs each open their own
 // sheet, and leaves its starters to the line under it.
 export function renderGameFaceOff(game) {
-  const row = describeGameRow({ ...game, starters: [] }, findGameSeries(game), false, renderClub);
+  const when = { isToday: !!game.today, isAwaitingStarters: false };
+  const row = describeGameRow({ ...game, starters: [] }, findGameSeries(game), when, renderClub);
   return html`<ul class="game-list game-faceoff">${renderGameRow(row)}</ul>`;
 }
 
@@ -276,19 +311,18 @@ function orderDay(games) {
     .map(({ game }) => game);
 }
 
-/** @param {{ id: string, date: string }} game */
-const nameListing = (game) => `${game.id} ${game.date}`;
-
 /**
  * Every game of the season, from the store's schedule, with the slate's copies, which carry a game
- * while it's played, over it.
+ * while it's played, over it, keeping each club's record with the game, which only the schedule
+ * has.
  * @param {any} slate
  * @param {any[] | null} schedule
  */
 export function listSeasonGames(slate, schedule) {
-  const games = new Map((schedule ?? []).map((game) => [nameListing(game), game]));
+  const games = new Map((schedule ?? []).map((game) => [nameGameKey(game), game]));
   const slateGames = slate ? [...listSlateGames(slate), slate.allStar].filter(Boolean) : [];
-  for (const game of slateGames) games.set(nameListing(game), game);
+  for (const game of slateGames)
+    games.set(nameGameKey(game), { ...games.get(nameGameKey(game)), ...game });
   return [...games.values()];
 }
 
@@ -308,9 +342,11 @@ function groupByDay(games) {
  */
 const findLiveDay = (games) => games.find((game) => game.state === "live")?.date ?? null;
 
-function describeEmptySeason() {
+/** @param {any} slate */
+function describeEmptySeason(slate) {
   if (session.activeYear !== session.currentSeason) return "No games saved for this season yet";
-  return "Games appear here as soon as the page can reach MLB";
+  if (!slate) return "Games appear here as soon as the page can reach MLB";
+  return "No games scheduled yet";
 }
 
 /**
@@ -333,7 +369,7 @@ export function listSeasonDays(slate, schedule, now) {
     })),
     today,
     openDay: findLiveDay(games),
-    emptyNote: describeEmptySeason(),
+    emptyNote: describeEmptySeason(slate),
     renderLabel: renderHeadingLabel,
   });
 }

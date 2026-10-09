@@ -80,6 +80,9 @@ const GAME_FIELDS = [
   "id",
   "name",
   "score",
+  "leagueRecord",
+  "wins",
+  "losses",
   "seriesGameNumber",
   "seriesDescription",
   "linescore",
@@ -101,8 +104,8 @@ const GAME_FIELDS = [
   "isNational",
   "homeAway",
 ].join(",");
-// The season's whole schedule, which only the Games view lists, needs only who plays when and how
-// each game ended.
+// The season's whole schedule, which only the Games view lists, needs only who plays when, each
+// club's record and starter with the game, and how it ended.
 const SEASON_GAME_FIELDS = [
   "dates",
   "date",
@@ -124,6 +127,13 @@ const SEASON_GAME_FIELDS = [
   "score",
   "doubleHeader",
   "gameNumber",
+  "leagueRecord",
+  "wins",
+  "losses",
+  "probablePitcher",
+  "useLastName",
+  "pitchHand",
+  "code",
 ].join(",");
 const SEASON_FIELDS = ["seasons", "springStartDate", "regularSeasonEndDate"].join(",");
 const PITCHER_FIELDS = [
@@ -290,6 +300,8 @@ export const CHECKED_FIELDS = [
   "pitcher",
   // A club names its starter a day or two ahead, so a game without one is never flagged.
   "probablePitcher",
+  // A row without each club's record with the game still shows the game.
+  "leagueRecord",
   // A game MLB lists no channels for yet says to check back, and a broadcast that doesn't say it's
   // on English TV is left out.
   "broadcasts",
@@ -444,7 +456,8 @@ export function listMlbRequests(season, now, regularSeasonEnd = null) {
     schedule: null,
     seasonGames:
       `/api/v1/schedule?sportId=1&season=${season}` +
-      `&gameType=${[...LISTED_GAME_TYPES].join(",")}&fields=${SEASON_GAME_FIELDS}`,
+      `&gameType=${[...LISTED_GAME_TYPES].join(",")}&hydrate=probablePitcher,person` +
+      `&fields=${SEASON_GAME_FIELDS}`,
   };
   if (season === today.year) {
     // Four days ahead reaches every club's next regular season game.
@@ -606,6 +619,7 @@ function normalizeGame(game) {
       score: side.score,
       starter: side.probablePitcher?.id ?? null,
       pitcherIn: readPitcherIn(game.linescore, team.id),
+      record: side.leagueRecord,
     };
   };
   const status = game.status || {};
@@ -706,14 +720,40 @@ function listSeasonListings(...responses) {
   return [...listings.values()];
 }
 
+/** @param {{ wins?: number, losses?: number } | undefined} record */
+const formatRecord = (record) =>
+  isNumber(record?.wins) && isNumber(record?.losses) ? `${record.wins}-${record.losses}` : null;
+
+// A regular season game shows each club's record as it stood with the game, which MLB gives
+// after a final and before a game still to play. A postseason game's record is its series',
+// which the page doesn't show, and a game called off gives the record of the day it's made up.
+function listRecords(game) {
+  if (game.type !== "R" || game.state === "off") return null;
+  const records = [formatRecord(game.away.record), formatRecord(game.home.record)];
+  return records.some(Boolean) ? records : null;
+}
+
+// Only what the row shows of each starter: his name and his arm.
+function listListedStarters(game, people) {
+  const starters = listStarters(game, people)?.map((starter) =>
+    starter?.name ? { id: starter.id, name: starter.name, hand: starter.hand } : null,
+  );
+  return starters?.some(Boolean) ? starters : null;
+}
+
 // A game under way is listed as it was before it started, since the slate carries it while it's
 // played, and only a final keeps its score.
-/** @param {any} listing MLB's listing of a game */
-function describeListedGame(listing) {
+/**
+ * @param {any} listing MLB's listing of a game
+ * @param {Map<number, any>} people each starter MLB describes, by id
+ */
+function describeListedGame(listing, people) {
   const isAllStar = listing.gameType === "A";
   const game = isAllStar ? normalizeAllStarGame(listing) : normalizeGame(listing);
   const { starters, networks, inning, half, outs, end, delay, postseason, score, ...summary } =
     summarizeGame(game, new Map());
+  const records = listRecords(game);
+  const listedStarters = isAllStar ? null : listListedStarters(game, people);
   return {
     date: game.date,
     ...summary,
@@ -721,7 +761,22 @@ function describeListedGame(listing) {
     ...(game.state === "final" && { score }),
     ...(postseason && !isAllStar && { postseason }),
     ...(isAllStar && { allStar: true }),
+    ...(records && { records }),
+    ...(listedStarters && { starters: listedStarters }),
   };
+}
+
+// The season's schedule names each starter it lists, and the starters' own read, the slate's.
+function listScheduledPeople(responses, listings) {
+  const people = new Map();
+  for (const listing of listings) {
+    for (const side of ["away", "home"]) {
+      const person = listing.teams?.[side]?.probablePitcher;
+      if (person?.useLastName) people.set(person.id, person);
+    }
+  }
+  for (const [id, person] of listPitchers(responses)) people.set(id, person);
+  return people;
 }
 
 // Once a series is decided, the games it no longer needs never happen.
@@ -747,8 +802,9 @@ function groupByMonth(games) {
 // and the postseason count over it.
 function buildSchedule(responses, calledOff) {
   if (!responses.seasonGames) return null;
+  const people = listScheduledPeople(responses, listSeasonListings(responses.seasonGames));
   const games = listSeasonListings(responses.seasonGames, responses.postseason, responses.schedule)
-    .map(describeListedGame)
+    .map((listing) => describeListedGame(listing, people))
     .filter((game) => !calledOff.has(game.id))
     .sort(compareScheduleOrder);
   return groupByMonth(games);

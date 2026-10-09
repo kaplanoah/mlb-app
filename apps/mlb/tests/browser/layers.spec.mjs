@@ -8,10 +8,10 @@ import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
 // phone has drawn it on beta.
 const BUDGETS = {
   Bracket: 21,
-  Games: 11,
+  Games: 14,
   Standings: 24,
-  "Game sheet": 14,
-  "Club's sheet over a game's": 14,
+  "Game sheet": 16,
+  "Club's sheet over a game's": 16,
 };
 
 test.use({ ...ON_A_PHONE, contextOptions: { reducedMotion: "reduce" } });

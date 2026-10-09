@@ -119,14 +119,14 @@ test("a reload shows what the page last showed while the store is still answerin
 }) => {
   const app = await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator("#games-today .game-row")).toHaveCount(12);
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row")).toHaveCount(12);
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
   const release = await app.holdStore();
 
   await page.reload();
 
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
-  await expect(page.locator("#games-today .game-row")).toHaveCount(12);
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row")).toHaveCount(12);
   release();
 });
 
@@ -134,7 +134,7 @@ test("a reload leaves out a season it last showed that it can no longer read", a
   const app = await openApp(page);
   await app.updateFromWorker();
   await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator("#games-today .game-row")).toHaveCount(12);
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row")).toHaveCount(12);
   await page.addInitScript(() => {
     const lastSeen = JSON.parse(localStorage.getItem("lastSeen") ?? "null");
     if (!lastSeen?.season) return;
@@ -146,9 +146,9 @@ test("a reload leaves out a season it last showed that it can no longer read", a
   await page.reload();
 
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
-  await expect(page.locator("#games-today .game-row")).toHaveCount(0);
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row")).toHaveCount(12);
   release();
-  await expect(page.locator("#games-today .game-row")).toHaveCount(12);
+  await expect(page.locator("#seasonGames .game-day.is-today .game-row")).toHaveCount(12);
 });
 
 test("a page asleep a few minutes checks for a deploy instead of reloading", async ({ page }) => {
