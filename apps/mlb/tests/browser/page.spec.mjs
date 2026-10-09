@@ -27,6 +27,7 @@ import {
   listTouchHoverRules,
 } from "../../../../tests/browser/tap-states.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
+import { swipeScrollerTo } from "../../../../tests/browser/touch.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -115,9 +116,7 @@ test("on a phone, swiping the games sideways moves between the lists and fills t
   await page.getByRole("tab", { name: "Games" }).click();
   await expect.poll(() => readPagesPosition(page)).toBe(1);
 
-  await page
-    .locator("#games-pages")
-    .evaluate((pages) => (pages.scrollLeft = pages.clientWidth / 4));
+  await swipeScrollerTo(page.locator("#games-pages"), 1 / 4);
   await expect.poll(() => readPagesPosition(page)).toBe(0);
   await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
     "aria-selected",
@@ -225,11 +224,9 @@ test("on a phone, a list swiped in from far down another starts just under the p
   );
 
   await expect.poll(readFirstDateY).toBeCloseTo(pillBottom, 0);
-  await page
-    .locator("#games-pages")
-    .evaluate((pages) => (pages.scrollLeft = pages.clientWidth * 0.5));
+  await swipeScrollerTo(page.locator("#games-pages"), 0.5);
   expect(await readFirstDateY()).toBeCloseTo(pillBottom, 0);
-  await page.locator("#games-pages").evaluate((pages) => (pages.scrollLeft = pages.clientWidth));
+  await swipeScrollerTo(page.locator("#games-pages"), 1);
 
   await expect(page.locator("#games-today")).not.toHaveAttribute("inert");
   expect(await readFirstDateY()).toBeCloseTo(pillBottom, 0);
@@ -248,7 +245,7 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
   const pages = page.locator("#games-pages");
   await pages.evaluate((element) => (element.style.scrollSnapType = "none"));
 
-  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.3));
+  await swipeScrollerTo(pages, 0.3);
 
   await expect.poll(() => readPagesPosition(page)).toBe(0);
   await expect(page.getByRole("tab", { name: "Previous" })).toHaveAttribute(
@@ -258,9 +255,71 @@ test("on a phone, a swipe that comes to rest between two lists goes on to the ne
   await expect(page.locator("#games-today")).toHaveAttribute("inert");
   await expect(pages).toHaveAttribute("data-settled-by", "scrollend");
 
-  await pages.evaluate((element) => (element.scrollLeft = element.clientWidth * 0.96));
+  await swipeScrollerTo(pages, 0.96);
   await expect.poll(() => readPagesPosition(page)).toBe(1);
   await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
+});
+
+// Safari moves the lists itself at times, as a page loads after a deploy, with no finger on them.
+test("the Games lists go back to the one shown after a move no one made, after a reload too", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  const pages = page.locator("#games-pages");
+  const moveListsToPrevious = () =>
+    pages.evaluate((element) => element.scrollTo({ left: 0, behavior: "instant" }));
+  await expect(shownGames).toHaveId("games-today");
+
+  await moveListsToPrevious();
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+  await expect(pages).toHaveAttribute("data-put-back-from", "previous");
+  await expect(page.getByRole("tab", { name: "Today" })).toHaveAttribute("aria-selected", "true");
+
+  await page.reload();
+  await expect(page.locator("#games-today .game-row").first()).toBeVisible();
+  await moveListsToPrevious();
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+  await expect(pages).toHaveAttribute("data-put-back-from", "previous");
+});
+
+test("a key pressed in the Games lists, or a sideways wheel at their end, leaves the next move no one made going back", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page);
+  await page.getByRole("tab", { name: "Games" }).click();
+  const shownGames = page.locator("#gamePager .pager-page:not([inert])");
+  const pages = page.locator("#games-pages");
+  /** @param {number} widths */
+  const moveListsTo = (widths) =>
+    pages.evaluate(
+      (element, to) => element.scrollTo({ left: element.clientWidth * to, behavior: "instant" }),
+      widths,
+    );
+  await expect(shownGames).toHaveId("games-today");
+
+  await page.locator("#games-today .game-open").first().focus();
+  await page.keyboard.press("Shift");
+  await moveListsTo(0);
+  await expect.poll(() => readPagesPosition(page)).toBe(1);
+  await expect(shownGames).toHaveId("games-today");
+
+  await page.getByRole("tab", { name: "Previous" }).click();
+  await expect(shownGames).toHaveId("games-previous");
+  await expect.poll(() => pages.evaluate((element) => element.scrollLeft)).toBe(0);
+  const box = await pages.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + 40);
+  await page.mouse.wheel(-200, 0);
+  await moveListsTo(1);
+  await expect.poll(() => readPagesPosition(page)).toBe(0);
+  await expect(shownGames).toHaveId("games-previous");
 });
 
 test("on a phone, where the browser fires no scrollend, the lists settle once they stop scrolling", async ({
@@ -283,7 +342,9 @@ test("on a phone, where the browser fires no scrollend, the lists settle once th
     (element) =>
       new Promise((resolve) => {
         element.addEventListener("scroll", resolve, { once: true });
+        element.dispatchEvent(new Event("touchstart"));
         element.scrollLeft = element.clientWidth * 0.3;
+        element.dispatchEvent(new Event("touchend"));
       }),
   );
   await page.clock.runFor(200);

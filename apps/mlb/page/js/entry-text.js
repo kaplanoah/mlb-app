@@ -2,6 +2,12 @@ import { nameSeries } from "./bracket.js";
 import { nameTeam } from "./clubs.js";
 import { html } from "#shared/html.js";
 import { formatOrdinal } from "#shared/ordinal.js";
+import {
+  describeSeriesGame,
+  describeSeriesStanding,
+  describeSeriesWin,
+  renderSeriesWins,
+} from "#shared/series-text.js";
 import { TEAMS } from "./teams.js";
 import { describeGame, findCommonGames, isResult, listResults } from "./update-groups.js";
 
@@ -18,9 +24,7 @@ const BERTHS = {
 const findLeague = (id) => (TEAMS[id] ? TEAMS[id].league : "");
 
 const isPair = (value) => Array.isArray(value) && value.length === 2;
-function renderSeriesScore(score) {
-  return html`${score[0]}&ndash;${score[1]}`;
-}
+const renderSeriesScore = (score) => renderSeriesWins(score[0], score[1]);
 function formatGameScore(score) {
   return isPair(score) ? `${score[0]}-${score[1]}` : "";
 }
@@ -109,32 +113,42 @@ function describeSeedEntry(entry, { renderClub }) {
   return appendVia(sentence, entry, entry.team, null);
 }
 
-function describeSeriesStanding(score) {
-  if (!isPair(score)) return "";
-  if (score[0] > score[1]) return "lead";
-  if (score[0] === score[1]) return "tie";
-  return "trail";
-}
-
 // Updates saved before games kept their score say only who took the game.
-function describeGameEntry(entry, { renderClub }) {
-  const game = entry.game ? `Game ${entry.game}` : "a game";
-  const standing = describeSeriesStanding(entry.score);
+function describeSavedGameEntry(entry, { renderClub }) {
+  const game = entry.game ? html`Game&nbsp;${entry.game}` : "a game";
   const series = nameSeries(entry.series);
-  const tail = standing
-    ? html` &mdash; ${standing} the ${series} ${renderSeriesScore(entry.score)}`
+  const tail = isPair(entry.score)
+    ? html`, ${describeSeriesStanding(entry.score[0], entry.score[1])} the ${series} ${renderSeriesScore(entry.score)}`
     : ` of the ${series}`;
   const result =
     entry.lost && isPair(entry.runs)
       ? html`beat the ${renderClub(entry.lost)} ${formatGameScore(entry.runs)} in ${game}`
-      : `took ${game}`;
+      : html`took ${game}`;
   return html`${renderClub(entry.won)} ${result}${tail}`;
+}
+
+function describeGameEntry(entry, context) {
+  const { renderClub } = context;
+  const isScored = entry.game && entry.lost && isPair(entry.runs) && isPair(entry.score);
+  if (!isScored) return describeSavedGameEntry(entry, context);
+  return describeSeriesGame({
+    result: html`${renderClub(entry.won)} beat the ${renderClub(entry.lost)} ${formatGameScore(entry.runs)}`,
+    number: entry.game,
+    series: nameSeries(entry.series),
+    own: entry.score[0],
+    theirs: entry.score[1],
+  });
 }
 
 function describeClinchEntry(entry, { renderClub }) {
   const series = nameSeries(entry.series);
   if (entry.over && isPair(entry.runs) && isPair(entry.score))
-    return html`${renderClub(entry.team)} beat the ${renderClub(entry.over)} ${formatGameScore(entry.runs)} to win the ${series} ${renderSeriesScore(entry.score)}`;
+    return describeSeriesWin({
+      result: html`${renderClub(entry.team)} beat the ${renderClub(entry.over)} ${formatGameScore(entry.runs)}`,
+      series,
+      own: entry.score[0],
+      theirs: entry.score[1],
+    });
   const over = entry.over && html` over the ${renderClub(entry.over)}`;
   const score = isPair(entry.score) && html`, ${renderSeriesScore(entry.score)}`;
   return html`${renderClub(entry.team)} win the ${series}${score}${over}`;

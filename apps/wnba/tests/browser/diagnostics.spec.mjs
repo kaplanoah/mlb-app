@@ -434,6 +434,27 @@ async function recordOnRequest(page) {
   await page.clock.runFor(100);
 }
 
+test("a record names the list the pager's lists went back from after a move no one made", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await turnOnDiagnostics(page);
+  const pages = page.locator("#standings-pages");
+  await pages.evaluate((element) =>
+    element.scrollTo({ left: element.clientWidth, behavior: "instant" }),
+  );
+  await expect(pages).toHaveAttribute("data-put-back-from", "east");
+
+  await openSettings(page);
+  await recordOnRequest(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).toContainText(
+    /standings-pages scrolled 0 of \d+, \d+ wide, last settled by scrollend, last put back from east, a move no one made;/,
+  );
+});
+
 test("on a phone, Record counts down, then Share report, filled, shares the report, and goes back to Record", async ({
   page,
 }) => {

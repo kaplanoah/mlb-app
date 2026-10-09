@@ -92,6 +92,9 @@
   min-width: 0;
   line-height: 1.45;
 }
+.updates-list .series-score {
+  white-space: nowrap;
+}
 /* Release notes sit under the updates, apart from them by space alone, and close under their
    heading. */
 .updates-section {
