@@ -1,9 +1,9 @@
 // While Diagnostics is on in settings, each open of the page and each return to it records what
 // the page draws in its first seconds: what the store sends, and how much each part it draws whole
 // (each `data-last-drawn` element) shows, frame by frame. The last few records stay on this
-// device. Its button notes the page as it is right then, then shares the records as a report on a
-// phone or tablet, or copies it on a computer, after a header that names the release, the device,
-// the page's state, and how each of the store's background jobs last ran, and before the logs of
+// device. Its button shares them, after the page as it is right then, as a report on a phone or
+// tablet, or copies it on a computer, after a header that names the release, the device, the
+// page's state, and how each of the store's background jobs last ran, and before the logs of
 // the viewport's changes (viewport-log.js), of what each dialog's row of sheets does
 // (sheet-log.js), and of what a season's list of days does (day-strip-log.js). It records nothing
 // while it's off, which it starts as.
@@ -225,10 +225,7 @@ function finishRecord() {
  * The records kept, and the one under way, newest first.
  * @returns {OpenRecord[]}
  */
-const listRecords = () =>
-  [...readRecords(), ...(record ? [sortLines(record)] : [])].toSorted(
-    (first, second) => second.at - first.at,
-  );
+const listRecords = () => [...readRecords(), ...(record ? [sortLines(record)] : [])].toReversed();
 
 const describeShownLists = () => [
   ...describeShownPagers(),
@@ -302,22 +299,22 @@ function startRecord(how) {
 }
 
 /**
- * The page as it is right now, with the sheets open, kept beside the records any record under way
- * goes on with.
+ * The page as it is right now, with the sheets open, for the report being sent. It's never kept,
+ * so sending reports never pushes out the records of opens and returns.
+ * @returns {OpenRecord}
  */
-function notePageNow() {
+function describePageNow() {
   const lines = [
     ...describeOpenSheets(listSheetsInOpenDialogs()),
     `Shows ${describeSizes(readPartSizes())}`,
     ...describeShownLists(),
   ];
-  const snapshot = {
+  return {
     at: Date.now(),
     how: ON_REQUEST,
     tab: readShownTab(),
     lines: lines.map((text) => ({ ms: 0, text })),
   };
-  saveRecords([...readRecords(), snapshot]);
 }
 
 /**
@@ -640,9 +637,10 @@ function toggleRecording() {
   drawRecords();
 }
 
-function writeReport() {
+/** @param {OpenRecord} pageNow */
+function writeReport(pageNow) {
   const header = writeHeader(readPageFacts());
-  const records = writeRecordsAsText(listRecords(), new Date());
+  const records = writeRecordsAsText([pageNow, ...listRecords()], new Date());
   const viewport = writeViewportAsText(readViewportLines().toReversed());
   const steps = STEP_LOGS.map((log) => log.writeLinesAsText(log.readLines().toReversed()));
   return [header, records, viewport, ...steps].filter(Boolean).join("\n\n");
@@ -686,12 +684,10 @@ async function copyReport(text) {
 }
 
 async function sendReport() {
-  notePageNow();
-  const text = writeReport();
+  const text = writeReport(describePageNow());
   const shared = await shareReport(text);
   if (shared === "shared") showReportStep("shared");
   else if (shared === "failed" && (await copyReport(text))) showReportStep("copied");
-  else drawRecords();
 }
 
 /** @param {Event} event */

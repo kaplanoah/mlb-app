@@ -401,7 +401,32 @@ test("Share report notes the page as it is, with the sheets open, and shares it 
   expect(copied).toMatch(/^\+0 Sheet settingsDialog, shown$/m);
   expect(copied).toMatch(/^\+0 Shows .*bracketWrap \d+\/\d+px/m);
   expect(copied).toMatch(/^\+0 Animations: /m);
-  await expect(findRecords(page).locator("summary").first()).toContainText("On request");
+});
+
+test("each report notes the page as it is only for itself, and keeps every record of an open", async ({
+  page,
+}) => {
+  await stubShare(page);
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  for (let reload = 0; reload < 4; reload += 1) await reloadAndRecord(page);
+  await openSettings(page);
+  const records = findRecords(page).locator(".diagnostics-record summary", {
+    hasText: /Opened|Reloaded/,
+  });
+  await expect(records).toHaveCount(4);
+
+  for (let sent = 1; sent <= 3; sent += 1) {
+    await findReportButton(page).click();
+    await expect(findReportButton(page)).toHaveText("Shared");
+    await page.clock.runFor(2000);
+  }
+
+  await expect(records).toHaveCount(4);
+  await expect(findRecords(page).locator("summary", { hasText: "On request" })).toHaveCount(0);
+  const report = (await readShares(page)).at(-1)?.text ?? "";
+  expect(report.match(/, On request, /g)).toHaveLength(1);
+  expect(report.match(/, (Opened|Reloaded), /g)).toHaveLength(4);
 });
 
 test("opening settings reads how the store's jobs last ran, for the report sent from there", async ({
@@ -440,9 +465,10 @@ const stubShare = (page) =>
 const readShares = (page) =>
   page.evaluate(() => /** @type {ShareData[]} */ (Reflect.get(window, "diagnosticsShares")));
 
-test("a record names the list the pager's lists went back from after a move no one made", async ({
+test("a report names the list the pager's lists went back from after a move no one made", async ({
   page,
 }) => {
+  await stubShare(page);
   await openApp(page);
   await page.getByRole("tab", { name: "Standings" }).click();
   await turnOnDiagnostics(page);
@@ -455,8 +481,9 @@ test("a record names the list the pager's lists went back from after a move no o
   await openSettings(page);
   await findReportButton(page).click();
 
-  const record = findRecords(page).locator(".diagnostics-record").first();
-  await expect(record).toContainText(
+  await expect(findReportButton(page)).toHaveText("Shared");
+  const [{ text: report }] = await readShares(page);
+  expect(report).toMatch(
     /standings-pages scrolled 0 of \d+, \d+ wide, last settled by scrollend, last put back from east, a move no one made;/,
   );
 });
