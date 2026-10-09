@@ -418,6 +418,8 @@ function showDay(day, motion) {
   }
   setHeld({ day, hasArrived: false, top });
   isListInHand = false;
+  // A list already there doesn't scroll, so nothing else would see it arrive.
+  if (Math.abs(top - list.scrollTop) < 2) markHeldArrived();
   const isFar = Math.abs(top - list.scrollTop) > FLOWN_SCREENS * list.clientHeight;
   const isJump = motion === "instant" || isFar || isReducedMotion();
   dayStripLog.noteStep(
@@ -435,15 +437,19 @@ function isStillHeld() {
   if (!held || !list || top === null) return false;
   noteHeldPlace(held, top);
   const isAtTarget = Math.abs(list.scrollTop - top) < 2;
-  if (isAtTarget && !held.hasArrived) {
-    dayStripLog.noteStep(`arrived at ${held.day}`);
-    held.hasArrived = true;
-    if (view) view.dataset.heldArrived = "true";
-  } else if (!isAtTarget && held.hasArrived) {
+  if (isAtTarget) markHeldArrived();
+  else if (held.hasArrived) {
     dayStripLog.noteStep(`left ${held.day}, list at ${Math.round(list.scrollTop)}`);
     setHeld(null);
   }
   return !!held;
+}
+
+function markHeldArrived() {
+  if (!held || held.hasArrived) return;
+  dayStripLog.noteStep(`arrived at ${held.day}`);
+  held.hasArrived = true;
+  if (view) view.dataset.heldArrived = "true";
 }
 
 /**
