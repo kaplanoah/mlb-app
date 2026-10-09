@@ -6,5 +6,5 @@ import { TEAMS } from "./teams.js";
 /** @type {import("#shared/news-view.js").NewsLeague} */
 export const NEWS_LEAGUE = {
   renderTeam: (team) => (team in TEAMS ? renderClub(team) : null),
-  paywalledSources: ["athletic"],
+  outletSwitches: { paywalled: ["athletic"] },
 };

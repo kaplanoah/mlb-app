@@ -1,8 +1,10 @@
-// Picking the stories this device reads from each card: every story the Worker keeps, but the
-// paywalled outlets' and a team's own beat writers' when the device leaves them out. When it leaves
-// out a card's lead, the first story under it that it reads leads in its place.
+// Picking the stories this device reads from each card: every story the Worker keeps, but a team's
+// own beat writers' and the outlets each of the league's switches names, when the device switches
+// them off. When it leaves out a card's lead, the first story under it that it reads leads in its
+// place.
 
 const MAX_MORE = 3;
+export const TEAM_OUTLETS = "teamOutlets";
 
 /**
  * A story as `news/cards` keeps it.
@@ -26,9 +28,21 @@ const MAX_MORE = 3;
  */
 
 /**
- * Which of the optional outlets a device reads: a team's own beat writers, and the paywalled ones.
- * @typedef {{ teamOutlets: boolean, paywalled: boolean }} NewsChoices
+ * Which of the optional outlets a device reads, by switch: a team's own beat writers, and each of
+ * the league's switches for its outlets. A switch the device hasn't touched is on.
+ * @typedef {Record<string, boolean>} NewsChoices
  */
+
+/**
+ * The outlets each of a league's switches leaves out when it's off, by the switch's name.
+ * @typedef {Record<string, string[]>} OutletSwitches
+ */
+
+/**
+ * @param {NewsChoices} choices
+ * @param {string} name
+ */
+export const isChoiceOn = (choices, name) => choices[name] !== false;
 
 // Stored text is never trusted as a link, so only a web address is.
 /** @param {string} url */
@@ -37,22 +51,31 @@ export const isWebAddress = (url) => /^https?:\/\//i.test(url ?? "");
 /**
  * @param {NewsStory} story
  * @param {NewsChoices} choices
- * @param {string[]} paywalledSources
+ * @param {OutletSwitches} outletSwitches
  */
-const isReadStory = (story, choices, paywalledSources) =>
-  isWebAddress(story.url) &&
-  (choices.paywalled || !paywalledSources.includes(story.source)) &&
-  (choices.teamOutlets || !story.teamFeed);
+const isSwitchedOff = (story, choices, outletSwitches) =>
+  (story.teamFeed && !isChoiceOn(choices, TEAM_OUTLETS)) ||
+  Object.entries(outletSwitches).some(
+    ([name, sources]) => sources.includes(story.source) && !isChoiceOn(choices, name),
+  );
+
+/**
+ * @param {NewsStory} story
+ * @param {NewsChoices} choices
+ * @param {OutletSwitches} outletSwitches
+ */
+const isReadStory = (story, choices, outletSwitches) =>
+  isWebAddress(story.url) && !isSwitchedOff(story, choices, outletSwitches);
 
 /**
  * @param {NewsCard} card
  * @param {NewsChoices} choices
- * @param {string[]} paywalledSources
+ * @param {OutletSwitches} outletSwitches
  * @returns {NewsCard | null}
  */
-function pickReadCard(card, choices, paywalledSources) {
+function pickReadCard(card, choices, outletSwitches) {
   const [lead, ...more] = [card.lead, ...card.more].filter((story) =>
-    isReadStory(story, choices, paywalledSources),
+    isReadStory(story, choices, outletSwitches),
   );
   return lead ? { lead, more: more.slice(0, MAX_MORE) } : null;
 }
@@ -61,11 +84,11 @@ function pickReadCard(card, choices, paywalledSources) {
  * The cards with a story this device reads, newest lead first.
  * @param {NewsCard[]} cards
  * @param {NewsChoices} choices
- * @param {string[]} paywalledSources the outlets whose stories mostly need a subscription
+ * @param {OutletSwitches} outletSwitches
  */
-export const pickReadCards = (cards, choices, paywalledSources) =>
+export const pickReadCards = (cards, choices, outletSwitches) =>
   cards
-    .map((card) => pickReadCard(card, choices, paywalledSources))
+    .map((card) => pickReadCard(card, choices, outletSwitches))
     .filter((card) => card !== null)
     .sort(
       (first, second) => Date.parse(second.lead.publishedAt) - Date.parse(first.lead.publishedAt),

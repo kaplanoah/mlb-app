@@ -55,7 +55,7 @@ test("the cards read newest lead first, each with its lead and up to three stori
     { lead: createStory({ id: "newer", publishedAt: "2026-10-05T12:00:00.000Z" }), more: [] },
   ];
 
-  assert.deepEqual(listShown(pickReadCards(cards, ALL_ON, NEWS_LEAGUE.paywalledSources)), [
+  assert.deepEqual(listShown(pickReadCards(cards, ALL_ON, NEWS_LEAGUE.outletSwitches)), [
     ["newer"],
     ["older", "a", "b", "c"],
   ]);
@@ -72,13 +72,13 @@ test("without The Athletic or the team's own outlets, their stories are left out
 
   assert.deepEqual(
     listShown(
-      pickReadCards(cards, { teamOutlets: true, paywalled: false }, NEWS_LEAGUE.paywalledSources),
+      pickReadCards(cards, { teamOutlets: true, paywalled: false }, NEWS_LEAGUE.outletSwitches),
     ),
     [["espn", "post"]],
   );
   assert.deepEqual(
     listShown(
-      pickReadCards(cards, { teamOutlets: false, paywalled: true }, NEWS_LEAGUE.paywalledSources),
+      pickReadCards(cards, { teamOutlets: false, paywalled: true }, NEWS_LEAGUE.outletSwitches),
     ),
     [["athletic", "espn"], ["athletic-only"]],
   );

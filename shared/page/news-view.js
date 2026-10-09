@@ -17,7 +17,8 @@ import { isWebAddress, pickReadCards } from "./news-picks.js";
  * @typedef {object} NewsLeague
  * @property {(team: string) => import("./html.js").Markup | null} renderTeam a team's dot and name,
  *   or null for a code that isn't the league's
- * @property {string[]} paywalledSources the outlets whose stories mostly need a subscription
+ * @property {import("./news-picks.js").OutletSwitches} outletSwitches the league's switches for
+ *   outlets a device can leave out, like ones whose stories mostly need a subscription
  */
 
 const WEEK_DAYS = 7;
@@ -232,9 +233,9 @@ export function renderNews(
   cards,
   choices,
   now,
-  { renderTeam, paywalledSources, columnCount = 1, opened = {} },
+  { renderTeam, outletSwitches, columnCount = 1, opened = {} },
 ) {
-  const read = pickReadCards(cards, choices, paywalledSources);
+  const read = pickReadCards(cards, choices, outletSwitches);
   if (!read.length) return html`<p class="empty-note">No news yet</p>`;
   return html`<div class="news-cards">
       ${placeInColumns(read, columnCount).map(

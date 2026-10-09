@@ -31,9 +31,10 @@ export function drawNews(list, news, league) {
  * Calls `redraw` after a News switch changes, a story is opened, or the screen widens or narrows.
  * @param {HTMLElement} list
  * @param {() => void} redraw
+ * @param {import("./news-view.js").NewsLeague} league
  */
-export function startNewsRedraws(list, redraw) {
-  startNewsChoices(redraw);
+export function startNewsRedraws(list, redraw, league) {
+  startNewsChoices(redraw, Object.keys(league.outletSwitches));
   startOpenedStories(list, redraw);
   matchMedia(WIDE_SCREEN).addEventListener("change", redraw);
 }

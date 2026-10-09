@@ -106,7 +106,7 @@ function wireControls() {
   startRosterSection();
   startPlayerSheet();
   startSettings();
-  startNewsRedraws(findNewsList(), drawNews);
+  startNewsRedraws(findNewsList(), drawNews, NEWS_LEAGUE);
   startHomeScreen();
   const picker = findYearPicker();
   picker.addEventListener("change", () => switchYear(Number(picker.value)));

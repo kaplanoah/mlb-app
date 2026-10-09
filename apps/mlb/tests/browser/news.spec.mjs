@@ -143,3 +143,34 @@ test("after a reload, the news the page last showed answers the News switches wh
   expect(await readHeadlines(page)).toEqual(["MLB proposes a 154-game season"]);
   release();
 });
+
+test("switching off Baseball Prospectus leaves its stories out, and the choice stays after a reload", async ({
+  page,
+}) => {
+  const app = await openNews(page);
+  const photoUrl = new URL("icon-180.png", page.url()).href;
+  const prospectus = createStory(photoUrl, {
+    id: "prospectus",
+    title: "That lucky fourth run",
+    outlet: "Baseball Prospectus",
+    source: "bbprospectus",
+    teams: [],
+  });
+  await app.writeFromWorker("news/cards", {
+    cards: [...createCards(photoUrl), { lead: prospectus, more: [] }],
+  });
+  await expect(page.locator(".news-card")).toHaveCount(3);
+
+  await switchOff(page, "Include content from Baseball Prospectus");
+
+  expect(await readHeadlines(page)).toEqual([
+    "Mets fire hitting coach in staff shake-up",
+    "MLB proposes a 154-game season",
+  ]);
+  await page.reload();
+  await expect(page.locator(".news-card")).toHaveCount(2);
+  await openSettings(page);
+  await expect(
+    page.getByRole("switch", { name: "Include content from Baseball Prospectus" }),
+  ).toHaveAttribute("aria-checked", "false");
+});

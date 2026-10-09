@@ -21,7 +21,10 @@ const createStory = (fields) => ({
   ...fields,
 });
 
-/** @param {Record<string, any>[]} stories */
+/**
+ * @param {Record<string, any>[]} stories
+ * @param {Record<string, boolean>} [choices]
+ */
 const renderStories = (stories, choices = ALL_ON) =>
   renderNews(
     stories.map((lead) => ({ lead: createStory(lead), more: [] })),
@@ -38,10 +41,11 @@ test("a story names its clubs with their dots, and leaves out a code that isn't 
   assert.doesNotMatch(markup, /NYL/);
 });
 
-test("without the Mets' own outlets or The Athletic, their stories are left out", () => {
+test("without the Mets' own outlets, The Athletic, or Baseball Prospectus, their stories are left out", () => {
   const stories = [
     { id: "post", source: "nypost", outlet: "NY Post", teamFeed: "NYM" },
     { id: "athletic", source: "athletic", outlet: "The Athletic" },
+    { id: "prospectus", source: "bbprospectus", outlet: "Baseball Prospectus" },
     { id: "espn" },
   ];
 
@@ -51,5 +55,10 @@ test("without the Mets' own outlets or The Athletic, their stories are left out"
   const withoutAthletic = renderStories(stories, { teamOutlets: true, paywalled: false });
   assert.match(withoutAthletic, /Story post/);
   assert.doesNotMatch(withoutAthletic, /Story athletic/);
+  assert.match(withoutAthletic, /Story prospectus/);
   assert.match(withoutAthletic, /Story espn/);
+  const withoutProspectus = renderStories(stories, { prospectus: false });
+  assert.doesNotMatch(withoutProspectus, /Story prospectus/);
+  assert.match(withoutProspectus, /Story athletic/);
+  assert.match(withoutProspectus, /Story post/);
 });

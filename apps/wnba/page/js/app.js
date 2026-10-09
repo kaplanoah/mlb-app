@@ -199,7 +199,7 @@ async function boot() {
   startRosterSection();
   startPlayerSheet();
   startSettingsSheet();
-  startNewsRedraws(findElement("newsList"), drawNews);
+  startNewsRedraws(findElement("newsList"), drawNews, NEWS_LEAGUE);
   startHomeScreen();
   findSeasonPicker().addEventListener("change", () =>
     switchSeason(Number(findSeasonPicker().value)),
