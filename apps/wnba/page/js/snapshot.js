@@ -617,6 +617,27 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
 }
 
 const POLL_LIVE_MS = 15 * 1000;
+// The last minutes of the 4th quarter and all of overtime are followed as fast as the Worker's
+// copy of the scoreboard turns over.
+const POLL_CLOSING_MS = 5 * 1000;
+const FOURTH_QUARTER = 4;
+const CLOSING_SECONDS = 5 * 60;
+
+// A clock reads like 4:32, or 45.2 under a minute.
+function readClockSeconds(clock) {
+  const [minutes, seconds] = clock.includes(":") ? clock.split(":") : ["0", clock];
+  return Number(minutes) * 60 + Number(seconds);
+}
+
+function isClosingStretch(game) {
+  if (game.state !== "live") return false;
+  if (game.period > FOURTH_QUARTER) return true;
+  return (
+    game.period === FOURTH_QUARTER &&
+    typeof game.clock === "string" &&
+    readClockSeconds(game.clock) <= CLOSING_SECONDS
+  );
+}
 
 // A live game on a team's sheet is followed as closely as a playoff game.
 export function choosePollDelay(snapshot, now = Date.now()) {
@@ -626,7 +647,7 @@ export function choosePollDelay(snapshot, now = Date.now()) {
     starts: games
       .filter((game) => game.state === "pre" && game.isTimeSet)
       .map((game) => Date.parse(game.start)),
-    liveMs: POLL_LIVE_MS,
+    liveMs: games.some(isClosingStretch) ? POLL_CLOSING_MS : POLL_LIVE_MS,
     now,
   });
 }
