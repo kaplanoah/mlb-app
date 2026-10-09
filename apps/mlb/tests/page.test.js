@@ -274,6 +274,18 @@ test("update log: an elimination the club's own win didn't prevent says so", () 
   );
 });
 
+test("update log: a series game's result and where the series stands join with a comma", () => {
+  const describeGame = (entry) => describeEntry({ kind: "game", series: "AL_DS1", ...entry });
+  assert.equal(
+    describeGame({ won: "NYY", lost: "TOR", runs: [5, 3], game: 2, score: [2, 0] }),
+    "Yankees beat the Blue Jays 5-3 in Game 2, lead the ALDS 2&ndash;0",
+  );
+  assert.equal(
+    describeGame({ won: "TOR", lost: "NYY", runs: [4, 1], game: 3, score: [1, 2] }),
+    "Blue Jays beat the Yankees 4-1 in Game 3, trail the ALDS 1&ndash;2",
+  );
+});
+
 test("update log: clinches", () => {
   const describeBerth = (entry) => describeEntry({ kind: "berth", ...entry });
   assert.equal(

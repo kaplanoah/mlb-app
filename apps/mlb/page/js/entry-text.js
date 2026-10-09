@@ -122,7 +122,7 @@ function describeGameEntry(entry, { renderClub }) {
   const standing = describeSeriesStanding(entry.score);
   const series = nameSeries(entry.series);
   const tail = standing
-    ? html` &mdash; ${standing} the ${series} ${renderSeriesScore(entry.score)}`
+    ? html`, ${standing} the ${series} ${renderSeriesScore(entry.score)}`
     : ` of the ${series}`;
   const result =
     entry.lost && isPair(entry.runs)

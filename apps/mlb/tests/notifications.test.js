@@ -23,8 +23,8 @@ const CLINCH = findLogEntry("clinch", undefined);
 
 test("a notification's title is the update's main clause, and its body the rest", () => {
   assert.deepEqual(describeNotification([GAME_5], CONTEXT), {
-    title: "Blue Jays beat the Dodgers 6-1 in Game 5",
-    body: "Lead the World Series 3\u20132",
+    title: "Blue Jays beat the Dodgers 6-1 in Game 5, lead the World Series 3\u20132",
+    body: "",
     tag: "game:WS:5",
   });
   assert.deepEqual(describeNotification([CLINCH], CONTEXT), {
@@ -40,15 +40,18 @@ test("a game that ties its series says tie, with the game's score", () => {
     (entry) => entry.kind === "game" && entry.score[0] === entry.score[1],
   );
   assert.deepEqual(describeNotification([tie], CONTEXT), {
-    title: "Guardians beat the Tigers 6-1 in Game 2",
-    body: "Tie the AL Wild Card Series 1\u20131",
+    title: "Guardians beat the Tigers 6-1 in Game 2, tie the AL Wild Card Series 1\u20131",
+    body: "",
     tag: "game:AL_WC1:2",
   });
 });
 
 test("an update saved before games kept their score still says who won", () => {
   const { lost, runs, ...savedGame } = GAME_5;
-  assert.equal(describeNotification([savedGame], CONTEXT).title, "Blue Jays took Game 5");
+  assert.equal(
+    describeNotification([savedGame], CONTEXT).title,
+    "Blue Jays took Game 5, lead the World Series 3\u20132",
+  );
   const { runs: clinchRuns, ...savedClinch } = CLINCH;
   assert.equal(
     describeNotification([savedClinch], CONTEXT).title,
@@ -90,7 +93,10 @@ test("past a few updates at once, the rest are summed up in one", () => {
     CONTEXT,
   );
   assert.equal(messages.length, 4);
-  assert.equal(messages[0].title, "Blue Jays beat the Dodgers 11-4 in Game 1");
+  assert.equal(
+    messages[0].title,
+    "Blue Jays beat the Dodgers 11-4 in Game 1, lead the World Series 1\u20130",
+  );
   assert.deepEqual(messages[3], {
     title: `${entries.length - 3} more updates`,
     body: "Open the page to see them all.",
