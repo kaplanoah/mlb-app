@@ -1166,20 +1166,33 @@ test("a score shows in scoreboard digits, and still reads as its number", () => 
   const markup = renderScoreboard(89).text;
   assert.match(markup, /<span class="scoreboard-text">89<\/span>/);
   assert.equal(markup.match(/<svg/g).length, 3);
-  assert.equal(
-    markup.match(/class="on"/g).length,
-    7 + 6,
+  assert.deepEqual(
+    readLitPlaces({ text: markup }),
+    [0, 7, 6],
     "an 8 lights every segment, a 9 all but one",
   );
   assert.match(renderScoreboard(68, { isLoser: true }).text, /class="scoreboard lost"/);
 });
 
-/** @param {{ text: string }} markup */
+// A season's list shows hundreds of scores, so each place draws its lit segments in one shape and
+// its dark ones in another.
+test("each place of a score draws its segments in at most two shapes, lit and dark", () => {
+  const places = renderScoreboard(106).text.split("<svg").slice(1);
+  assert.deepEqual(
+    places.map((place) => (place.match(/<(path|rect)\b/g) ?? []).length),
+    [1, 2, 2],
+  );
+});
+
+/**
+ * How many segments each place of a score lights, one outline each in its lit shape.
+ * @param {{ text: string }} markup
+ */
 const readLitPlaces = (markup) =>
   markup.text
     .split("<svg")
     .slice(1)
-    .map((place) => (place.match(/class="on"/g) ?? []).length);
+    .map((place) => (place.match(/class="on" d="([^"]*)"/)?.[1].match(/M/g) ?? []).length);
 
 test("every score fills a narrow hundreds place and two digits, with the places it doesn't reach dark", () => {
   assert.match(renderScoreboard(7).text, /<svg class="hundreds"/);

@@ -78,9 +78,9 @@ test("a losing score is dimmed, without the winner's glow", async ({ page }) => 
   await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
   const loser = page.locator("#seasonGames .scoreboard.lost");
   const winner = page.locator("#seasonGames .scoreboard:not(.lost)");
-  await expect(loser.locator("rect.on").first()).toHaveCSS("opacity", "0.72");
+  await expect(loser.locator("path.on").first()).toHaveCSS("opacity", "0.72");
   await expect(loser.locator("svg").first()).toHaveCSS("filter", "none");
-  await expect(winner.locator("rect.on").first()).toHaveCSS("opacity", "1");
+  await expect(winner.locator("path.on").first()).toHaveCSS("opacity", "1");
   await expect(winner.locator("svg").first()).not.toHaveCSS("filter", "none");
 });
 
@@ -90,9 +90,9 @@ test("a score's glow is on its digits' svgs, since Safari draws no filter on an 
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await page.locator("#seasonGames .day-list").evaluate((list) => list.scrollTo({ top: 0 }));
-  await expect(page.locator("#seasonGames .scoreboard rect.on").first()).toBeVisible();
+  await expect(page.locator("#seasonGames .scoreboard path.on").first()).toBeVisible();
   const shapeFilters = await page
-    .locator(".scoreboard rect")
+    .locator(".scoreboard path")
     .evaluateAll((shapes) => [...new Set(shapes.map((shape) => getComputedStyle(shape).filter))]);
   expect(shapeFilters).toEqual(["none"]);
 });

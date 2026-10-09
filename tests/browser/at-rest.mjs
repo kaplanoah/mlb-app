@@ -55,6 +55,10 @@ export const forgetResizeLoops = (page) =>
     /** @type {any} */ (window).resizeLoops.length = 0;
   });
 
+// A whole season's page can take longer than an expectation's usual wait to load in CI's WebKit,
+// which draws without the phone's GPU; once loaded, the page must be at rest as quickly as any.
+const LOAD_TIMEOUT_MS = 15_000;
+
 /**
  * Lists where the page asked for each frame across `durationMs` of its clock, by the first line
  * of the page's own code that asked, with how many times, so a failure says what kept asking.
@@ -106,7 +110,9 @@ async function waitForNoFrameRequests(page) {
   let lastRequests = [];
   try {
     await expect
-      .poll(async () => (lastRequests = await listFrameRequestsAcross(page, 1000)))
+      .poll(async () => (lastRequests = await listFrameRequestsAcross(page, 1000)), {
+        timeout: LOAD_TIMEOUT_MS,
+      })
       .toEqual([]);
   } catch (error) {
     throw new Error(`The page kept asking for frames: ${lastRequests.join("; ")}`, {
@@ -123,8 +129,12 @@ async function waitForNoFrameRequests(page) {
  * @param {import("@playwright/test").Page} page
  */
 export async function waitForLoadToSettle(page) {
-  await expect(page.locator("#loadNote")).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("syncedAt"))).not.toBeNull();
+  await expect(page.locator("#loadNote")).toHaveCount(0, { timeout: LOAD_TIMEOUT_MS });
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("syncedAt")), {
+      timeout: LOAD_TIMEOUT_MS,
+    })
+    .not.toBeNull();
   await waitForNoFrameRequests(page);
 }
 

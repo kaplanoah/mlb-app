@@ -633,20 +633,20 @@ header.top h1 {
 .scoreboard svg.hundreds {
   margin-right: -1px;
 }
-.scoreboard rect {
+.scoreboard path {
   fill: var(--led);
   opacity: 0.1;
 }
-.scoreboard rect.on {
+.scoreboard path.on {
   opacity: 1;
 }
 .scoreboard.lost svg {
   filter: none;
 }
-.scoreboard.lost rect {
+.scoreboard.lost path {
   opacity: 0.07;
 }
-.scoreboard.lost rect.on {
+.scoreboard.lost path.on {
   fill: var(--led-dim);
   opacity: 0.72;
 }
