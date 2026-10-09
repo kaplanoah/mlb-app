@@ -1,4 +1,4 @@
-import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { test, expect, expectDayAtTop, openApp, matchPath } from "./harness.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import {
   listTapFlashes,
@@ -653,12 +653,7 @@ test("on a day without games, the Games list has a day saying so at today's plac
 
   await page.reload();
   await expect(today).toBeInViewport();
-  const list = await page.locator("#seasonGames .day-list").boundingBox();
-  expect((await today.boundingBox()).y).toBe(list.y);
-  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute(
-    "data-day",
-    "2026-09-30",
-  );
+  await expectDayAtTop(page, "2026-09-30");
 });
 
 test("No games today is 15.5px, centered beside today's date, its capitals a touch above the middle of the date's number", async ({

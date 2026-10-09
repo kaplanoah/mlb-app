@@ -370,3 +370,44 @@ export async function openGameSheet(page, name) {
   await (await findGameButton(page, name)).click();
   return page.locator("#gameSheet");
 }
+
+// The gap between the Games list's days, which a day brought to the top keeps under the bar.
+const DAY_GAP_PX = 8;
+
+/**
+ * Where a day of the Games list sits: how far its top is under the list's, and whether any of the
+ * day before it shows.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} day
+ */
+const readDayPlace = (page, day) =>
+  page.evaluate((shownDay) => {
+    const list = /** @type {Element} */ (document.querySelector("#seasonGames .day-list"));
+    const listed = /** @type {Element} */ (list.querySelector(`[data-day="${shownDay}"]`));
+    const listTop = list.getBoundingClientRect().top;
+    const previous = listed.previousElementSibling;
+    return {
+      gap: Math.round(listed.getBoundingClientRect().top - listTop),
+      isDayBeforeShown: !!previous && previous.getBoundingClientRect().bottom > listTop + 0.5,
+    };
+  }, day);
+
+/**
+ * Expects `day` chosen in the strip and at the top of the Games list, a day's gap under the bar
+ * with nothing of the day before it showing, and a finger just under the gap landing on it.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} day
+ */
+export async function expectDayAtTop(page, day) {
+  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute("data-day", day);
+  await expect
+    .poll(() => readDayPlace(page, day))
+    .toEqual({ gap: DAY_GAP_PX, isDayBeforeShown: false });
+  const landing = await page.evaluate(() => {
+    const list = /** @type {Element} */ (document.querySelector("#seasonGames .day-list"));
+    const { top, left, width } = list.getBoundingClientRect();
+    const found = document.elementFromPoint(left + width / 2, top + 20);
+    return found?.closest(".listed-day")?.getAttribute("data-day") ?? null;
+  });
+  expect(landing).toBe(day);
+}

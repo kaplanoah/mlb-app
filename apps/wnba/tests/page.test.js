@@ -224,6 +224,14 @@ test("a final dims the loser, and a game not yet played shows its start in the v
     assert.match(western, /^Sep 30 Wed 4 Dream 1st Rd 1-0 4:00 PM 5 Mystics/);
   }));
 
+test("a date without games a tap brings into the list says so beside its date, named as the list names a day", () =>
+  inEastern(() => {
+    const { renderQuietDay } = listDays(SEASON);
+    assert.equal(readText(renderQuietDay("2026-09-28")), "Sep 28 Mon No games");
+    assert.equal(readText(renderQuietDay("2026-10-01")), "Oct 1 Tmrw No games");
+    assert.match(renderQuietDay("2026-09-28").text, /class="game-day no-games quiet-day"/);
+  }));
+
 test("on a day without games inside the season, the list says so at today's place and opens on it", () =>
   inEastern(() => {
     const TODAYS = ["1042600132", "1042600112"];

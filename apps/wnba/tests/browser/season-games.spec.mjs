@@ -1,4 +1,4 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, expectDayAtTop, openApp } from "./harness.mjs";
 
 // The Games view as one season: a strip of its days over every game day, opening on today.
 
@@ -43,30 +43,6 @@ async function openSeasonGames(page) {
   return app;
 }
 
-/**
- * Expects `day` at the top of the list, chosen in the strip, and a finger just under the bar
- * landing on it.
- * @param {import("@playwright/test").Page} page
- * @param {string} day
- */
-async function expectDayAtTop(page, day) {
-  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute("data-day", day);
-  await expect
-    .poll(async () => {
-      const list = await findList(page).boundingBox();
-      const shown = await findDay(page, day).boundingBox();
-      return Math.round(shown.y - list.y);
-    })
-    .toBe(0);
-  const landing = await page.evaluate(() => {
-    const list = /** @type {Element} */ (document.querySelector("#seasonGames .day-list"));
-    const { top, left, width } = list.getBoundingClientRect();
-    const found = document.elementFromPoint(left + width / 2, top + 20);
-    return found?.closest(".listed-day")?.getAttribute("data-day") ?? null;
-  });
-  expect(landing).toBe(day);
-}
-
 test.describe("with reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -91,8 +67,11 @@ test.describe("with reduced motion", () => {
     expect(cells.at(-1)).toBe(listed.at(-1));
     expect(cells.length).toBeGreaterThan(listed.length);
     const quietDays = cells.filter((day) => !listed.includes(day));
-    for (const day of quietDays.slice(0, 3)) await expect(findCell(page, day)).toBeDisabled();
-    await expect(findCell(page, listed[0])).toBeEnabled();
+    for (const day of quietDays.slice(0, 3)) {
+      await expect(findCell(page, day)).toHaveClass(/is-quiet/);
+      await expect(findCell(page, day)).toBeEnabled();
+    }
+    await expect(findCell(page, listed[0])).not.toHaveClass(/is-quiet/);
     await expect(findCell(page, listed[0]).locator(".cell-month")).toHaveCount(
       listed[0].endsWith("-01") ? 1 : 0,
     );
@@ -111,7 +90,8 @@ test.describe("with reduced motion", () => {
 
     await findList(page).evaluate((list, day) => {
       const shown = /** @type {HTMLElement} */ (list.querySelector(`[data-day="${day}"]`));
-      list.scrollTo({ top: shown.offsetTop, behavior: "instant" });
+      const gap = Number.parseFloat(getComputedStyle(list).paddingTop);
+      list.scrollTo({ top: shown.offsetTop - gap, behavior: "instant" });
     }, august);
 
     await expectDayAtTop(page, august);
@@ -162,20 +142,54 @@ test.describe("with reduced motion", () => {
     expect(icon.width).toBe(14);
   });
 
-  test("a day without games can't be chosen, and a tap on it moves nothing", async ({ page }) => {
+  test("a tap on a date without games brings in its No games row, which leaves once it's out of sight, without moving the list", async ({
+    page,
+  }) => {
     await openSeasonGames(page);
     await expectDayAtTop(page, "2026-09-30");
-    const quiet = page.locator("#seasonGames .day-cell:disabled").last();
-    await quiet.scrollIntoViewIfNeeded();
-    const top = await findList(page).evaluate((list) => list.scrollTop);
+    await expect(findDay(page, "2026-09-28")).toHaveCount(0);
 
-    await quiet.click({ force: true });
+    await findCell(page, "2026-09-28").click();
 
-    expect(await findList(page).evaluate((list) => list.scrollTop)).toBe(top);
+    await expectDayAtTop(page, "2026-09-28");
+    await expect(findDay(page, "2026-09-28").locator(".empty-note")).toHaveText("No games");
+    await expect(findDay(page, "2026-09-28").locator(".day-number")).toHaveText("28");
+
+    await page.locator("#seasonGames .go-today").click();
+
+    await expect(findDay(page, "2026-09-28")).toHaveCount(0);
+    await expectDayAtTop(page, "2026-09-30");
+  });
+
+  test("swiping the strip names the month in its middle, and the list's next move names its top day's again", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    const month = page.locator("#seasonGames .strip-month");
+    const strip = await page.locator("#seasonGames .day-strip").boundingBox();
+
+    await page.mouse.move(strip.x + strip.width / 2, strip.y + strip.height / 2);
+    await page.mouse.wheel(-2400, 0);
+
+    await expect(month).toHaveText("August");
     await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute(
       "data-day",
       "2026-09-30",
     );
+    await findList(page).evaluate((list) => list.scrollBy({ top: 40, behavior: "instant" }));
+    await expect(month).toHaveText("September");
+  });
+
+  test("a tap on Today where the list already is moves nothing", async ({ page }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    const top = await findList(page).evaluate((list) => list.scrollTop);
+
+    await page.locator("#seasonGames .go-today").click();
+
+    expect(await findList(page).evaluate((list) => list.scrollTop)).toBe(top);
+    expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 
   test("the header holds still while the games scroll under the bar, which ends in a line once a day is under it", async ({
@@ -297,5 +311,36 @@ test("a tap on Today flies the list there on a spring, never stepping back, and 
   expect(moved.length).toBeGreaterThan(4);
   for (let index = 1; index < moved.length; index += 1)
     expect(moved[index]).toBeGreaterThan(moved[index - 1]);
+  await expectDayAtTop(page, "2026-09-30");
+});
+
+test("a tap on Today where the list already is pulses today's date, 4% bigger and back over 290ms", async ({
+  page,
+}) => {
+  await openSeasonGames(page);
+  await page.clock.runFor(1000);
+  await expectDayAtTop(page, "2026-09-30");
+
+  await page.locator("#seasonGames .go-today").click();
+
+  const pulses = await page.evaluate(() =>
+    document.getAnimations().flatMap((animation) => {
+      const effect = /** @type {KeyframeEffect} */ (animation.effect);
+      const target = /** @type {HTMLElement | null} */ (effect.target);
+      if (!target?.matches(".day-cell")) return [];
+      return [
+        {
+          day: target.dataset.day,
+          duration: effect.getTiming().duration,
+          transforms: effect.getKeyframes().map((keyframe) => keyframe.transform),
+        },
+      ];
+    }),
+  );
+  expect(pulses).toEqual([
+    { day: "2026-09-30", duration: 290, transforms: ["scale(1)", "scale(1.04)", "scale(1)"] },
+  ]);
+  await page.clock.runFor(400);
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   await expectDayAtTop(page, "2026-09-30");
 });

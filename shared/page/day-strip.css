@@ -11,6 +11,7 @@
  *   --strip-chosen-ink     what's written on it
  *   --strip-chosen-edge    the outline inside its fill, or transparent for none
  *   --strip-action         Today, the way back to the start day
+ *   --day-gap              the gap between days, kept above a day brought to the top
  */
 
 /* The page and the view fill the screen, and the list takes what's left under the bar. A phone on
@@ -149,9 +150,13 @@
   font-weight: 600;
   line-height: 1;
 }
-/* A day without games is quieter, and isn't a button. */
-.day-cell:disabled :is(.cell-name, .cell-month, .cell-number) {
-  color: color-mix(in srgb, var(--ink-dim) 70%, var(--bg));
+/* A day without games is quieter: as dim as a weekday, the dimmest a date can be and still read,
+   and a step lighter. */
+.day-cell.is-quiet:not(.is-chosen) :is(.cell-name, .cell-month, .cell-number) {
+  color: var(--ink-dim);
+}
+.day-cell.is-quiet .cell-number {
+  font-weight: 500;
 }
 .day-cell.is-today .cell-number {
   color: var(--strip-today);
@@ -171,7 +176,7 @@
   flex: 1 1 auto;
   min-height: 0;
   margin-inline: calc(-1 * var(--reach-left)) calc(-1 * var(--reach-right));
-  padding: 0 var(--reach-right) 48px var(--reach-left);
+  padding: var(--day-gap) var(--reach-right) 48px var(--reach-left);
   overflow-y: auto;
   overflow-anchor: none;
   overscroll-behavior-y: contain;
@@ -180,4 +185,7 @@
   .day-list {
     padding-bottom: var(--tab-bar-clearance);
   }
+}
+.listed-day + .listed-day {
+  margin-top: var(--day-gap);
 }

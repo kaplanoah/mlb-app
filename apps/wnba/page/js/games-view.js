@@ -4,6 +4,7 @@ import {
   formatCalendarDate,
   formatClockTime,
   formatShortMonth,
+  readCalendarDate,
 } from "#shared/days.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { html } from "#shared/html.js";
@@ -231,6 +232,17 @@ const renderNoGamesToday = (now) =>
   </section>`;
 
 /**
+ * A date without games, which a tap on it in the strip brings into the list.
+ * @param {string} day "YYYY-MM-DD"
+ * @param {number} now
+ */
+const renderQuietDay = (day, now) =>
+  html`<section class="game-day no-games quiet-day">
+    ${renderDayLabel(readCalendarDate(day), now)}
+    <p class="empty-note">No games</p>
+  </section>`;
+
+/**
  * @param {Date} day
  * @param {number} now
  */
@@ -303,5 +315,11 @@ export function listSeasonDays(season, schedule, now) {
     days.splice(after, 0, { day: today, markup: renderNoGamesToday(now) });
   }
   const startDay = chooseListedDay(days, findLiveDayBefore(games, today) ?? today);
-  return { days, today, startDay, emptyNote: "No games scheduled yet" };
+  return {
+    days,
+    today,
+    startDay,
+    emptyNote: "No games scheduled yet",
+    renderQuietDay: (/** @type {string} */ day) => renderQuietDay(day, now),
+  };
 }

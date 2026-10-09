@@ -1,4 +1,4 @@
-import { test, expect, openApp, matchPath } from "./harness.mjs";
+import { test, expect, expectDayAtTop, openApp, matchPath } from "./harness.mjs";
 import { SNAPSHOT_VERSION } from "../../page/js/snapshot.js";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 
@@ -41,18 +41,6 @@ async function chooseSeason(page, year) {
   await page.getByRole("combobox", { name: "Season" }).selectOption(String(year));
   await page.keyboard.press("Escape");
   await expect(page.locator("#settingsDialog")).toBeHidden();
-}
-
-/**
- * Expects the Games list to have a day at its top, chosen in the strip.
- * @param {import("@playwright/test").Page} page
- * @param {string} day
- */
-async function expectDayAtTop(page, day) {
-  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute("data-day", day);
-  const list = await page.locator("#seasonGames .day-list").boundingBox();
-  const shown = await page.locator(`#seasonGames .listed-day[data-day="${day}"]`).boundingBox();
-  expect(Math.abs(shown.y - list.y)).toBeLessThanOrEqual(1);
 }
 
 test("with only the current season kept, settings show no Season picker", async ({ page }) => {

@@ -183,7 +183,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     );
   });
 
-  test(`the day at the top of the Games list is filled orange inside the darker edge, today's date is orange, the month teal, and Today orange, in ${colorScheme}`, async ({
+  test(`the day at the top of the Games list is filled orange inside the darker edge, today's date is orange, the month teal, a date without games as dim as a weekday and a step lighter, and Today orange, in ${colorScheme}`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme });
@@ -215,6 +215,11 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
     expect(await readChannels(page, await readColor(month, "color"))).toEqual(teal);
     const weekday = page.locator('#seasonGames .day-cell[data-day="2026-09-29"] .cell-name');
     expect(await readChannels(page, await readColor(weekday, "color"))).toEqual(inkDim);
+    const quietNumber = page.locator('#seasonGames .day-cell[data-day="2026-09-28"] .cell-number');
+    expect(await readChannels(page, await readColor(quietNumber, "color"))).toEqual(inkDim);
+    await expect(quietNumber).toHaveCSS("font-weight", "500");
+    const gameNumber = page.locator('#seasonGames .day-cell[data-day="2026-09-29"] .cell-number');
+    await expect(gameNumber).toHaveCSS("font-weight", "600");
     const goToday = page.locator("#seasonGames .go-today");
     await expect(goToday).toHaveText("Today");
     expect(await readChannels(page, await readColor(goToday, "color"))).toEqual(orange);
