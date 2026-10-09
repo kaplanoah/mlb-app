@@ -152,6 +152,43 @@ jobs:
             playwright-report/
             test-results/
 
+  # A browser spec a pull request adds or changes runs ten times over, with no retry, so a test
+  # that passes only some of the time fails on the pull request that brings it, rather than on
+  # later ones. The merge commit's first parent is the base branch.
+  burn-in:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+      - *setup-node
+      - *restore-modules
+      - *install-modules
+      - id: browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: *browsers-key
+      - *install-browsers
+      - name: Repeat each browser spec this pull request changes
+        shell: bash
+        run: |
+          mapfile -t specs < <(git diff --name-only --diff-filter=AM HEAD^1 HEAD -- 'apps/*/tests/browser/*.spec.mjs')
+          if [ "${#specs[@]}" -eq 0 ]; then
+            echo "No browser spec changed."
+            exit 0
+          fi
+          npm run test:browser -- --repeat-each=10 --retries=0 "${specs[@]}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: failure()
+        with:
+          name: playwright-report-burn-in
+          path: |
+            playwright-report/
+            test-results/
+
   # iPhones run the pages in WebKit, which runs only the at-rest specs, so one machine runs it, in
   # Playwright's own image, which holds WebKit and the system libraries it needs rather than
   # installing them from a mirror on every run. Its tag is the Playwright version package.json pins
@@ -327,7 +364,7 @@ jobs:
   # skipped required check as passing.
   check:
     if: always()
-    needs: [passed, gate, checks, browser, webkit, review]
+    needs: [passed, gate, checks, browser, burn-in, webkit, review]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -336,6 +373,7 @@ jobs:
         if: >-
           contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') ||
           (github.event_name == 'pull_request' && needs.gate.result != 'success') ||
+          (github.event_name == 'pull_request' && needs.burn-in.result != 'success') ||
           (!needs.passed.outputs.run && (needs.checks.result != 'success' ||
           needs.browser.result != 'success' || needs.webkit.result != 'success' ||
           needs.review.result != 'success'))

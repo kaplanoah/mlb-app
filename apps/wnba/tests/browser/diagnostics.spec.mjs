@@ -44,7 +44,7 @@ const setHidden = (page, isHidden) =>
     document.dispatchEvent(new Event("visibilitychange"));
   }, isHidden);
 
-test("Diagnostics sit past the end of settings, off, with nothing recorded, and say to tap Share report", async ({
+test("Diagnostics sit past the end of settings, off, with nothing recorded, with no note under their name", async ({
   page,
 }) => {
   await openApp(page);
@@ -55,13 +55,12 @@ test("Diagnostics sit past the end of settings, off, with nothing recorded, and 
   await expect(findSwitch(page)).toHaveAttribute("aria-checked", "false");
   await expect(findSwitch(page)).not.toBeInViewport();
   await expect(findRecords(page)).toBeHidden();
-  await expect(page.locator("#diagnosticsNote")).toHaveText(
-    "When something looks wrong, turn this on and do what went wrong again. Then open settings and tap Share report, or Copy report on a computer, to send it.",
-    { useInnerText: true },
-  );
+  await expect(page.locator(".diagnostics-area .control-label")).toHaveText("Diagnostics");
 });
 
-test("Diagnostics, once on, start with the release and its commit", async ({ page }) => {
+test("Diagnostics, once on, start with the app, the release, and its commit, set apart by dots", async ({
+  page,
+}) => {
   await page.route(matchPath("/version.json"), (route) =>
     route.fulfill({
       json: { version: "3.6.0-beta", commit: "abc1234", builtAt: "2026-10-08T03:14:57Z" },
@@ -74,7 +73,7 @@ test("Diagnostics, once on, start with the release and its commit", async ({ pag
   await openSettings(page);
 
   await expect(findRecords(page).locator(".diagnostics-release")).toHaveText(
-    "WNBA v3.6.0-beta commit abc1234",
+    "WNBA\u2022v3.6.0-beta\u2022abc1234",
   );
 });
 

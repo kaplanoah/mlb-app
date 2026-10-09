@@ -365,6 +365,14 @@ function describeRelease({ appName, release: shown }) {
     .join(" ");
 }
 
+/** @param {{ appName: string, release: import("./release.js").Release | null }} facts */
+const renderRelease = ({ appName, release: shown }) =>
+  joinWithSeparator(
+    shown
+      ? [appName, shown.version && `v${shown.version}`, shown.commit].filter(Boolean)
+      : [appName, "Release unknown"],
+  );
+
 /** @param {Date} date */
 const formatMoment = (date) => `${formatWeekdayAndDate(date)} ${formatClockTimeWithSeconds(date)}`;
 
@@ -607,7 +615,7 @@ const renderReportButton = () =>
 function renderRecords() {
   const records = listRecords();
   const viewportLines = readViewportLines().toReversed();
-  return html`<p class="diagnostics-release">${describeRelease(readPageFacts())}</p>
+  return html`<p class="diagnostics-release">${renderRelease(readPageFacts())}</p>
     <div class="diagnostics-head">
       <h3>Recent opens</h3>
       <div class="diagnostics-actions">${renderReportButton()}</div>

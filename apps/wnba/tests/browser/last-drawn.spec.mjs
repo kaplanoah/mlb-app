@@ -78,9 +78,9 @@ test.describe("on a phone", () => {
       "2026-09-20",
     );
     release();
-    // The stamp shows before the page's code runs, put back from the copy, so the code's own first
-    // drawing says it's there to note when the page leaves the screen.
-    await expect(page.locator("#loadNote")).toHaveCount(0);
+    // The copy the page put back has already taken the load note away, so only the page's loading
+    // says its code has run and is there to note when the page leaves the screen.
+    await page.waitForLoadState("domcontentloaded");
     await page.evaluate(() => {
       Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
       document.dispatchEvent(new Event("visibilitychange"));

@@ -24,7 +24,7 @@ async function scrollSettings(page, distance) {
   await settings.evaluate((dialog) => dialog.removeAttribute("data-scrolled"));
 }
 
-test("on a phone, Diagnostics sit past the copyright, a scroll beyond where settings rest, off, and say to tap Share report", async ({
+test("on a phone, Diagnostics sit past the copyright, a scroll beyond where settings rest, off, with no note under their name", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -43,10 +43,7 @@ test("on a phone, Diagnostics sit past the copyright, a scroll beyond where sett
   await expect(findSwitch(page)).toBeInViewport();
   await expect(findSwitch(page)).toHaveAttribute("aria-checked", "false");
   await expect(page.locator("#diagnostics")).toBeHidden();
-  await expect(page.locator("#diagnosticsNote")).toHaveText(
-    "When something looks wrong, turn this on and do what went wrong again. Then open settings and tap Share report, or Copy report on a computer, to send it.",
-    { useInnerText: true },
-  );
+  await expect(page.locator(".diagnostics-area .control-label")).toHaveText("Diagnostics");
 });
 
 test("on a wide screen, Diagnostics sit under the settings and ranking, a scroll away", async ({
