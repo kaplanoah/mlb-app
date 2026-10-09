@@ -97,11 +97,16 @@
   color: var(--strip-action);
   cursor: pointer;
 }
+/* Today's capitals and its icon sit level with the month's capitals, whose smaller size sets them
+   higher in the same line. */
+.go-today > span {
+  translate: 0 -1px;
+}
 .go-today svg {
   flex: none;
   width: 14px;
   height: 14px;
-  translate: 0 0.5px;
+  translate: 0 -0.5px;
 }
 
 /* The days run to the screen's edges, each a weekday over its date, the month on its first. */

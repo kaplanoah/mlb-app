@@ -228,7 +228,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
   });
 }
 
-test("the Games list's bar sits 10px under the header, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
+test("the Games list's month starts 15px under the header's line, level with Today and its icon, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -238,20 +238,44 @@ test("the Games list's bar sits 10px under the header, its days 46px wide and 2p
   const sizes = await page.evaluate(() => {
     const readBox = (/** @type {string} */ selector) =>
       /** @type {Element} */ (document.querySelector(selector)).getBoundingClientRect();
+    // A zero-height box set inline after a text has its top on the text's baseline.
+    const readCapitals = (/** @type {string} */ selector) => {
+      const text = /** @type {HTMLElement} */ (document.querySelector(selector));
+      const style = getComputedStyle(text);
+      const context = /** @type {CanvasRenderingContext2D} */ (
+        document.createElement("canvas").getContext("2d")
+      );
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const capHeight = context.measureText("H").actualBoundingBoxAscent;
+      const probe = document.createElement("span");
+      probe.style.cssText = "display: inline-block; width: 0; height: 0";
+      text.append(probe);
+      const baseline = probe.getBoundingClientRect().top;
+      probe.remove();
+      return { top: baseline - capHeight, middle: baseline - capHeight / 2 };
+    };
     const header = readBox("header.top");
-    const head = readBox("#seasonGames .day-bar-head");
+    const month = readCapitals("#seasonGames .strip-month");
+    const today = readCapitals("#seasonGames .go-today span");
+    const icon = readBox("#seasonGames .go-today svg");
     const cells = [...document.querySelectorAll("#seasonGames .day-cell")].slice(0, 2);
     const [first, second] = cells.map((cell) => cell.getBoundingClientRect());
     const name = readBox('#seasonGames .day-cell[data-day="2026-09-29"] .cell-name');
     const number = readBox('#seasonGames .day-cell[data-day="2026-09-29"] .cell-number');
     return {
-      above: head.top - header.bottom,
+      above: month.top - header.bottom,
+      todayFromMonth: today.middle - month.middle,
+      iconFromMonth: (icon.top + icon.bottom) / 2 - month.middle,
       width: first.width,
       gap: second.left - first.right,
       nameToNumber: number.top - name.bottom,
     };
   });
-  expect(sizes).toEqual({ above: 10, width: 46, gap: 2, nameToNumber: 2 });
+  const { above, todayFromMonth, iconFromMonth, ...steps } = sizes;
+  expect(above).toBeCloseTo(15, 0);
+  expect(todayFromMonth).toBeCloseTo(0, 0);
+  expect(iconFromMonth).toBeCloseTo(0, 0);
+  expect(steps).toEqual({ width: 46, gap: 2, nameToNumber: 2 });
   const bar = page.locator("#seasonGames .day-bar");
   await expect(bar).toHaveClass(/stuck/);
   const divider = await readTokenColor(page, "--divider");
