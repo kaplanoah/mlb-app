@@ -221,6 +221,7 @@ test("a game's sheet opens on Game each time, even after it was left on Matchup"
 
 test("a game with no starter named yet has no starters line", async ({ page }) => {
   await showGames(page);
+  await page.getByRole("tab", { name: "Next" }).click();
   await page.locator("#games-next .game-open").first().click();
   const sheet = page.locator("#gameSheet");
   await expect(sheet.locator("#gameBody .game-row")).toBeVisible();
@@ -556,6 +557,7 @@ test("a game on a later day without its starters says to check back for them, un
 }) => {
   const reads = countPitcherReads(page);
   await showGames(page);
+  await page.getByRole("tab", { name: "Next" }).click();
   await page.locator("#games-next .game-open").first().click();
   const sheet = page.locator("#gameSheet");
   await showSection(sheet, "Matchup");

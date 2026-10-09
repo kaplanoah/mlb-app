@@ -1,9 +1,10 @@
 // While Diagnostics is on, each record ends with where each pager's lists are: how far their row
-// is scrolled and whether scrollend or the fallback timer last settled it, and for each list where
-// it sits on the screen, how it's styled, and its first item's opacity and what a tap on it would
-// land on, and with every animation on the page that hasn't finished. A list the phone laid out but didn't draw still names its item.
-// A season's list of days (day-strip.js) says the same of the day at its top, and which day its
-// strip has chosen.
+// is scrolled, whether scrollend or the fallback timer last settled it, the list they last went
+// back from after a move no one made, and for each list where it sits on the screen, how it's
+// styled, and its first item's opacity and what a tap on it would land on, and with every
+// animation on the page that hasn't finished. A list the phone laid out but didn't draw still
+// names its item. A season's list of days (day-strip.js) says the same of the day at its top, and
+// which day its strip has chosen.
 
 /** @param {DOMRect} rect */
 const describeRect = ({ left, top, width, height }) =>
@@ -47,8 +48,12 @@ function describeList(list) {
 }
 
 /** @param {HTMLElement} pages */
-const describeSettle = (pages) =>
-  pages.dataset.settledBy ? `last settled by ${pages.dataset.settledBy}` : "not yet settled";
+function describeSettle(pages) {
+  const { settledBy, putBackFrom } = pages.dataset;
+  if (!settledBy) return "not yet settled";
+  const putBack = putBackFrom ? `, last put back from ${putBackFrom}, a move no one made` : "";
+  return `last settled by ${settledBy}${putBack}`;
+}
 
 /** @param {HTMLElement} pages */
 const describePages = (pages) =>
