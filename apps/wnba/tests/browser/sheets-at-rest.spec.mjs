@@ -30,15 +30,14 @@ async function showPreviousGames(page) {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
-  const list = page.locator("#seasonGames .day-list");
-  const scrolled = list.evaluate(
-    (element) =>
-      new Promise((resolve) => element.addEventListener("scroll", resolve, { once: true })),
+  await findAcesAtFever(page).evaluate(
+    (button) =>
+      new Promise((resolve) => {
+        const list = /** @type {HTMLElement} */ (button.closest(".day-list"));
+        list.addEventListener("scroll", resolve, { once: true });
+        button.scrollIntoView({ block: "nearest" });
+      }),
   );
-  await findAcesAtFever(page).scrollIntoViewIfNeeded();
-  // The strip starts sliding to the list's new top day on the list's scroll, which can come after
-  // a frame's worth of the page's clock.
-  await scrolled;
   await page.clock.runFor(1000);
   await forgetResizeLoops(page);
 }

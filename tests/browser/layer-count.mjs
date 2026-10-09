@@ -4,22 +4,27 @@
 import { expect } from "@playwright/test";
 
 /**
- * Counts the layers in the page's next layer tree, once a frame has drawn it.
+ * Counts the layers in the page's next layer tree, once a frame has drawn it. A change to the page
+ * that draws nothing new doesn't always bring a frame, so it changes the page again until one comes.
  * @param {import("@playwright/test").Page} page
  * @returns {Promise<number>}
  */
 async function countLayers(page) {
   const session = await page.context().newCDPSession(page);
-  const counted = new Promise((resolve) =>
-    session.on("LayerTree.layerTreeDidChange", ({ layers }) => {
-      if (layers) resolve(layers.length);
-    }),
-  );
+  /** @type {number | null} */
+  let count = null;
+  session.on("LayerTree.layerTreeDidChange", ({ layers }) => {
+    if (layers && count === null) count = layers.length;
+  });
   await session.send("LayerTree.enable");
-  await page.evaluate(() =>
-    document.body.style.setProperty("--layer-count", String(Math.random())),
-  );
-  const count = await counted;
+  await expect
+    .poll(async () => {
+      await page.evaluate(() =>
+        document.body.style.setProperty("--layer-count", String(Math.random())),
+      );
+      return count;
+    })
+    .not.toBeNull();
   await session.detach();
   return /** @type {number} */ (count);
 }
