@@ -101,7 +101,8 @@ export async function expectAtRest(page) {
 
 /**
  * Swipes the lists under `from` on to the next one: with a finger in Chromium, and in WebKit,
- * which Playwright gives no touches or wheel to move on a phone, as a smooth scroll of the lists.
+ * which Playwright gives no touches or wheel to move on a phone, as a smooth scroll of the lists
+ * between a touch's start and its end once they move, as a finger's flick.
  * @param {import("@playwright/test").Page} page
  * @param {string} browserName
  * @param {{ x: number, y: number }} from
@@ -114,6 +115,10 @@ export async function swipeToNextList(page, browserName, from) {
   }
   await page.evaluate(({ x, y }) => {
     const pages = document.elementFromPoint(x, y)?.closest(".pager-pages");
-    pages?.scrollBy({ left: pages.clientWidth, behavior: "smooth" });
+    if (!pages) return;
+    pages.dispatchEvent(new Event("touchstart"));
+    const lift = () => pages.dispatchEvent(new Event("touchend"));
+    pages.addEventListener("scroll", lift, { once: true });
+    pages.scrollBy({ left: pages.clientWidth, behavior: "smooth" });
   }, from);
 }
