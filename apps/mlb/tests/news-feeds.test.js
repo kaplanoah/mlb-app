@@ -44,7 +44,7 @@ test("reading the news asks each outlet once, and names the ones that didn't ans
   assert.ok(missing.includes("dailynews-mets"));
 });
 
-test("MLB's rules drop fantasy pages, Spanish copies, link roundups, and chats, as well as what every league's drop", async () => {
+test("MLB's rules drop fantasy pages, Spanish copies, link roundups, chats, and podcasts, as well as what every league's drop", async () => {
   const { entries } = await readMlbNews(createFeedFetch());
   const dropped = entries
     .map((entry) => [readMlbRuleDrop(entry), entry.title])
@@ -55,6 +55,7 @@ test("MLB's rules drop fantasy pages, Spanish copies, link roundups, and chats, 
     "chat: Front Office Subscriber Chat With Anthony Franco: TODAY At 4:00pm Central",
     "fantasy: What They’re Saying ’26: David Stearns End-Of-Year Edition",
     "newsletter: A tale of two robberies, plus grilled cheese poll results",
+    "podcast: PosCasting Just in Time for the ALDS & NLDS (kind of)",
     "quiz: Solve today's Mets trivia puzzle",
     "quiz: This Week in Sports Trivia: Oct. 8, 2026",
     "recap: Jose Ramirez homers as the Guardians beat the White Sox 9-5 to force a decisive Game 5 in ALDS",

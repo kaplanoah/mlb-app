@@ -90,7 +90,7 @@ test("a run reads each outlet once and asks Claude about only the stories the ru
   assert.ok(!asked.some((story) => story.title.startsWith("Mets Morning News")));
   const { cards } = docs.stored.get("news/cards");
   assert.equal(cards.length, asked.length);
-  assert.deepEqual(docs.stored.get("news/status").missing, ["posnanski", "dailynews-mets"]);
+  assert.deepEqual(docs.stored.get("news/status").missing, ["dailynews-mets"]);
 });
 
 test("a story keeps only the codes of MLB's clubs that Claude tags it with", async () => {
