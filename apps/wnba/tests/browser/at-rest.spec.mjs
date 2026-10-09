@@ -13,34 +13,36 @@ import {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-test("a tab tap, a tap on a day, and a tap on Today each leave the page at rest, with no ResizeObserver loop", async ({
-  page,
-}) => {
-  const readResizeLoops = await listResizeLoops(page);
-  await openApp(page, { isWholeSeason: true });
-  await waitForLoadToSettle(page);
-  await expectAtRest(page);
-  await forgetResizeLoops(page);
+for (let attempt = 1; attempt <= 15; attempt++) {
+  test(`a tab tap, a tap on a day, and a tap on Today each leave the page at rest, with no ResizeObserver loop ${attempt}`, async ({
+    page,
+  }) => {
+    const readResizeLoops = await listResizeLoops(page);
+    await openApp(page, { isWholeSeason: true });
+    await waitForLoadToSettle(page);
+    await expectAtRest(page);
+    await forgetResizeLoops(page);
 
-  await page.getByRole("tab", { name: "Games" }).click();
-  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
-  await expectAtRest(page);
+    await page.getByRole("tab", { name: "Games" }).click();
+    await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+    await expectAtRest(page);
 
-  await page.locator('#seasonGames .day-cell[data-day="2026-09-27"]').click();
-  await expect(page.locator('#seasonGames .day-cell[data-day="2026-09-27"]')).toHaveClass(
-    /is-chosen/,
-  );
-  await page.clock.runFor(2000);
-  await expect(page.locator('#seasonGames .listed-day[data-day="2026-09-27"]')).toBeInViewport();
-  await expectAtRest(page);
+    await page.locator('#seasonGames .day-cell[data-day="2026-09-27"]').click();
+    await expect(page.locator('#seasonGames .day-cell[data-day="2026-09-27"]')).toHaveClass(
+      /is-chosen/,
+    );
+    await page.clock.runFor(2000);
+    await expect(page.locator('#seasonGames .listed-day[data-day="2026-09-27"]')).toBeInViewport();
+    await expectAtRest(page);
 
-  await page.locator("#seasonGames .go-today").click();
-  await page.clock.runFor(2000);
-  await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
-  await expectAtRest(page);
+    await page.locator("#seasonGames .go-today").click();
+    await page.clock.runFor(2000);
+    await expect(page.locator("#seasonGames .game-day.is-today")).toBeInViewport();
+    await expectAtRest(page);
 
-  expect(await readResizeLoops()).toEqual([]);
-});
+    expect(await readResizeLoops()).toEqual([]);
+  });
+}
 
 test("a pill tap and a swipe between the standings' lists each leave the page at rest", async ({
   page,
