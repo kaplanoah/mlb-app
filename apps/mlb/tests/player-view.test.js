@@ -122,14 +122,18 @@ test("his postseason shows over his season, as one line", () => {
   assert.match(text, /^Postseason 3 games 2-13 • \.154 AVG • 2 R • 1 RBI • 1 BB • 1 K Season/);
 });
 
-test("a hitter MLB doesn't rank shows his numbers without ranks, and says when he'll be ranked", () => {
-  const text = renderText(describeRostered(114, "CLE", "Angel Genao"));
+test("a hitter MLB doesn't rank shows his numbers without ranks, and his plate appearances against the ones he needs", () => {
+  const genao = describeRostered(114, "CLE", "Angel Genao");
+  const text = renderText(genao, { clubGames: 162 });
   assert.match(text, /AVG \.213 OBP/);
   assert.doesNotMatch(text, / of 135|ranked by fewest/);
   assert.match(
     text,
-    /Ranked once he has 3\.1 plate appearances per team game Last games Oct 7 @ White Sox 1-1, 2B, RBI /,
+    new RegExp(
+      `He has ${genao.hitting.plateAppearances} of the 502 plate appearances needed to qualify Last games Oct 7 @ White Sox 1-1, 2B, RBI `,
+    ),
   );
+  assert.match(renderText(genao), /He hasn't had the plate appearances needed to qualify/);
 });
 
 test("a starter's season ranks his numbers among the qualified starters, and shows what he throws", () => {
