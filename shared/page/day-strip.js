@@ -10,6 +10,7 @@ import { html, setHtml } from "./html.js";
 import { isAwayLong } from "./last-game-list.js";
 import { watchTimeAway } from "./resume.js";
 import { scrollWithSpring } from "./spring-scroll.js";
+import { endStripSlide, slideStripTo } from "./strip-slide.js";
 
 // A season's games as one list of its game days, from its first to its last, under a bar holding
 // a strip of every day between them. The strip's chosen day is the one at the top of the list, and
@@ -90,8 +91,9 @@ function listStripDays(days) {
  */
 function renderCell(day, { isListed, isToday, isChosen }) {
   const date = readCalendarDate(day);
-  const label =
-    date.getDate() === 1
+  const label = isToday
+    ? html`<span class="cell-name">Today</span>`
+    : date.getDate() === 1
       ? html`<span class="cell-month">${formatShortMonth(date)}</span>`
       : html`<span class="cell-name">${formatShortWeekday(date)}</span>`;
   const classes = [
@@ -184,11 +186,34 @@ function showMonth(day) {
  */
 function chooseDay(day, behavior) {
   if (day === chosenDay) return;
+  endStripSlide();
+  markChosen(day);
+  centerChosenCell(behavior);
+}
+
+/** @param {string} day */
+function markChosen(day) {
   if (chosenDay) findCell(chosenDay)?.classList.remove("is-chosen");
   chosenDay = day;
   findCell(day)?.classList.add("is-chosen");
   showMonth(day);
-  centerChosenCell(behavior);
+}
+
+/**
+ * The list's top day becomes the chosen one, its date sliding under the box as the list scrolls.
+ * @param {string} day
+ */
+function followTopDay(day) {
+  if (day === chosenDay) return;
+  const strip = findStrip();
+  const from = chosenDay && findCell(chosenDay);
+  const to = findCell(day);
+  if (!strip || !from || !to || isReducedMotion()) {
+    chooseDay(day, "instant");
+    return;
+  }
+  slideStripTo(strip, from, to);
+  markChosen(day);
 }
 
 /** The strip's day under the middle of its width. */
@@ -294,7 +319,7 @@ function followList() {
     isFramePending = false;
     markStuck();
     const top = findTopDay();
-    if (top && !isStillHeld()) chooseDay(top, chooseMotion());
+    if (top && !isStillHeld()) followTopDay(top);
     if (isStripSwiped && chosenDay) showMonth(chosenDay);
     isStripSwiped = false;
     noteAnchor();
@@ -335,6 +360,7 @@ export function showStartDay(motion = "flown") {
 
 /** Has the next fill open the list on its start day, as for another season. */
 export function startOverDayStrip() {
+  endStripSlide();
   isPlaced = false;
   chosenDay = null;
   held = null;
@@ -371,6 +397,7 @@ function redrawChangedDays(days) {
 
 /** @param {DayStripFill} fill */
 function drawFill(fill) {
+  endStripSlide();
   const bar = findBar();
   const days = listShownDays(fill);
   if (hasSameDays(days) && bar) {
@@ -467,7 +494,10 @@ export function fillDayStrip(fill) {
 function noteTouch(event) {
   const target = /** @type {Node} */ (event.target);
   if (findList()?.contains(target)) held = null;
-  if (findStrip()?.contains(target)) isStripSwiped = true;
+  if (findStrip()?.contains(target)) {
+    endStripSlide();
+    isStripSwiped = true;
+  }
 }
 
 function isOnStartDay() {
@@ -538,6 +568,9 @@ export function startDayStrip(element) {
   );
   for (const type of ["touchstart", "wheel"])
     element.addEventListener(type, noteTouch, { capture: true, passive: true });
+  // The page saves what it shows as it leaves (last-seen.js), so the strip comes to rest first.
+  for (const type of ["visibilitychange", "pagehide"])
+    addEventListener(type, endStripSlide, { capture: true });
   watchTimeAway(showStartAfterLongAway);
   let wasShown = false;
   new ResizeObserver(() => {

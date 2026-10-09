@@ -228,7 +228,7 @@ for (const colorScheme of /** @type {const} */ (["light", "dark"])) {
   });
 }
 
-test("the Games list's month starts 16px under the header's line, level with Today and its icon, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
+test("the Games list's month starts 16px under the header's line, level with Today and its icon, the weekdays' capitals 16.5px under its, its days 46px wide and 2px apart, a weekday 2px over its date, and the bar ends in a line once a day scrolls under it", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -254,11 +254,12 @@ test("the Games list's month starts 16px under the header's line, level with Tod
       text.append(probe);
       const baseline = probe.getBoundingClientRect().top;
       probe.remove();
-      return { top: baseline - capHeight, middle: baseline - capHeight / 2 };
+      return { top: baseline - capHeight, middle: baseline - capHeight / 2, bottom: baseline };
     };
     const header = readBox("header.top");
     const month = readCapitals("#seasonGames .strip-month");
     const today = readCapitals("#seasonGames .go-today span");
+    const weekday = readCapitals('#seasonGames .day-cell[data-day="2026-09-29"] .cell-name');
     const icon = readBox("#seasonGames .go-today svg");
     const cells = [...document.querySelectorAll("#seasonGames .day-cell")].slice(0, 2);
     const [first, second] = cells.map((cell) => cell.getBoundingClientRect());
@@ -266,6 +267,7 @@ test("the Games list's month starts 16px under the header's line, level with Tod
     const number = readBox('#seasonGames .day-cell[data-day="2026-09-29"] .cell-number');
     return {
       above: month.top - header.bottom,
+      monthToWeekdays: weekday.top - month.bottom,
       todayFromMonth: today.middle - month.middle,
       iconFromMonth: (icon.top + icon.bottom) / 2 - month.middle,
       width: first.width,
@@ -273,8 +275,9 @@ test("the Games list's month starts 16px under the header's line, level with Tod
       nameToNumber: number.top - name.bottom,
     };
   });
-  const { above, todayFromMonth, iconFromMonth, ...steps } = sizes;
+  const { above, monthToWeekdays, todayFromMonth, iconFromMonth, ...steps } = sizes;
   expect(above).toBeCloseTo(16, 0);
+  expect(monthToWeekdays).toBeCloseTo(16.5, 0);
   expect(todayFromMonth).toBeCloseTo(0, 0);
   expect(iconFromMonth).toBeCloseTo(0, 0);
   expect(steps).toEqual({ width: 46, gap: 2, nameToNumber: 2 });

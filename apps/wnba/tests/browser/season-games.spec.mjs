@@ -160,6 +160,20 @@ test.describe("with reduced motion", () => {
     expect(icon.width).toBe(14);
   });
 
+  test("today's date says Today over it in the strip, chosen or not, where every other date says its weekday", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    await expect(findCell(page, "2026-09-30")).toHaveText(/^Today\s*30$/);
+    await expect(findCell(page, "2026-09-29")).toHaveText(/^Tue\s*29$/);
+
+    await findCell(page, "2026-09-20").click();
+    await expectDayAtTop(page, "2026-09-20");
+
+    await expect(findCell(page, "2026-09-30")).toHaveText(/^Today\s*30$/);
+  });
+
   test("a tap on a date without games brings in its No games row, which leaves once it's out of sight, without moving the list", async ({
     page,
   }) => {
@@ -373,6 +387,71 @@ test("a tap on Today flies the list there on a spring, never stepping back, and 
   for (let index = 1; index < moved.length; index += 1)
     expect(moved[index]).toBeGreaterThan(moved[index - 1]);
   await expectDayAtTop(page, "2026-09-30");
+});
+
+test("scrolling the games slides the dates behind the chosen day's box, which holds still, on a spring that never steps back, and settles with the top day in the box", async ({
+  page,
+}) => {
+  await openSeasonGames(page);
+  await page.clock.runFor(1000);
+  await expectDayAtTop(page, "2026-09-30");
+  const [dayBefore, twoBefore] = await findDay(page, "2026-09-30").evaluate((today) => {
+    const before = /** @type {HTMLElement} */ (today.previousElementSibling);
+    const earlier = /** @type {HTMLElement} */ (before.previousElementSibling);
+    return [before.dataset.day, earlier.dataset.day];
+  });
+  // Each frame comes only as the test moves the clock, however slow the machine draws.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+  await page.evaluate(() => {
+    const frames = /** @type {{ box: number[] | null, left: number }[]} */ ([]);
+    const strip = /** @type {HTMLElement} */ (document.querySelector("#seasonGames .day-strip"));
+    const note = () => {
+      const boxes = [
+        ...document.querySelectorAll("#seasonGames .strip-lens"),
+        ...document.querySelectorAll("#seasonGames .day-strip:not(.is-sliding) > .is-chosen"),
+      ].map((box) => {
+        const { left, width } = box.getBoundingClientRect();
+        return [left, width];
+      });
+      frames.push({ box: boxes.length === 1 ? boxes[0] : null, left: strip.scrollLeft });
+      if (frames.length < 90) requestAnimationFrame(note);
+    };
+    requestAnimationFrame(note);
+    Object.assign(window, { stripFrames: frames });
+  });
+  /** @param {string} day */
+  const bringToTop = (day) =>
+    findList(page).evaluate((list, shown) => {
+      const listed = /** @type {HTMLElement} */ (list.querySelector(`[data-day="${shown}"]`));
+      list.scrollTop = listed.offsetTop - Number.parseFloat(getComputedStyle(list).paddingTop);
+    }, day);
+
+  await bringToTop(dayBefore);
+  await page.clock.runFor(100);
+  await bringToTop(twoBefore);
+  await page.clock.runFor(1400);
+
+  const frames = /** @type {{ box: number[] | null, left: number }[]} */ (
+    await page.evaluate(() => Reflect.get(window, "stripFrames"))
+  );
+  expect(frames.every((frame) => frame.box)).toBe(true);
+  for (const frame of frames) {
+    expect(frame.box?.[0]).toBeCloseTo(/** @type {number[]} */ (frames[0].box)[0], 1);
+    expect(frame.box?.[1]).toBeCloseTo(/** @type {number[]} */ (frames[0].box)[1], 1);
+  }
+  const lefts = frames.map((frame) => frame.left);
+  expect(new Set(lefts).size).toBeGreaterThan(4);
+  for (let index = 1; index < lefts.length; index += 1)
+    expect(lefts[index]).toBeLessThanOrEqual(lefts[index - 1]);
+  await expect(page.locator("#seasonGames .strip-lens")).toHaveCount(0);
+  await expect(findCell(page, twoBefore)).toHaveClass(/is-chosen/);
+  const offCenter = await findCell(page, twoBefore).evaluate((cell) => {
+    const strip = /** @type {HTMLElement} */ (cell.parentElement);
+    const { left, width } = cell.getBoundingClientRect();
+    const box = strip.getBoundingClientRect();
+    return left + width / 2 - (box.left + box.width / 2);
+  });
+  expect(Math.abs(offCenter)).toBeLessThan(1);
 });
 
 test("a tap on Today where the list already is pulses today's date, 4% bigger and back over 290ms", async ({
