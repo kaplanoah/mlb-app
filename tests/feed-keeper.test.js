@@ -57,6 +57,38 @@ test("a game's end has a feed that changes with games read at once, and again te
   assert.deepEqual(reads, { standings: 3, season: 1 });
 });
 
+test("an answer another feed shows is behind is read again every five minutes until it catches up", async () => {
+  const { clock, keeper } = createKeeper();
+  let reads = 0;
+  let isCaughtUp = false;
+  const read = () =>
+    keeper.readFeed(
+      "season",
+      "/season",
+      async () => {
+        reads += 1;
+        return { isCaughtUp };
+      },
+      { isBehind: (data) => !data.isCaughtUp },
+    );
+  await read();
+
+  clock.now = 4 * MINUTE_MS;
+  await read();
+  assert.equal(reads, 1);
+
+  clock.now = 5 * MINUTE_MS;
+  await read();
+  assert.equal(reads, 2);
+
+  isCaughtUp = true;
+  clock.now = 10 * MINUTE_MS;
+  await read();
+  clock.now = 60 * MINUTE_MS;
+  await read();
+  assert.equal(reads, 3);
+});
+
 test("a count that couldn't be read, or the first one, isn't a game ending", async () => {
   const { clock, keeper, reads, read } = createKeeper();
   keeper.noteFinalCount(null);
