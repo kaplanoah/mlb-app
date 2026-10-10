@@ -672,6 +672,11 @@ body:has(> .home-screen-bar:not([hidden])) {
 :root {
   --sheet-motion: 0.5s cubic-bezier(0.32, 0.72, 0, 1);
 }
+/* While a sheet or settings are open, a swipe that runs past what they show goes no further, so
+   the page behind never springs down with the sheet. */
+:root:has(dialog[open]) {
+  overscroll-behavior: none;
+}
 @keyframes sheet-rise {
   from {
     transform: translateY(100%);
