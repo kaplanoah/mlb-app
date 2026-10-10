@@ -10,13 +10,13 @@ const NAMED_ENTITIES = {
   quot: '"',
   apos: "'",
   nbsp: " ",
-  lsquo: "‘",
-  rsquo: "’",
-  ldquo: "“",
-  rdquo: "”",
-  ndash: "–",
-  mdash: "—",
-  hellip: "…",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  ndash: "\u2013",
+  mdash: "\u2014",
+  hellip: "\u2026",
 };
 
 /** @param {string} text */

@@ -12,7 +12,7 @@ test("a story's lead is its first sentences, past 200 characters, as plain text"
 
   assert.equal(
     readStoryLead(story),
-    "SAN DIEGO -- Didn’t matter how. The Padres only needed to find a way. They trailed two games to none and faced elimination on Tuesday night in this instant classic of a National League Division Series against Milwaukee.",
+    "SAN DIEGO -- Didn\u2019t matter how. The Padres only needed to find a way. They trailed two games to none and faced elimination on Tuesday night in this instant classic of a National League Division Series against Milwaukee.",
   );
 });
 

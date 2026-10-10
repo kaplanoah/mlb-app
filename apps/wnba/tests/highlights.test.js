@@ -50,7 +50,7 @@ test("a game's highlights lead with ESPN's recap video and story", () => {
   assert.equal(recap?.title, "Las Vegas Aces vs. Indiana Fever - Game Highlights");
   assert.equal(recap?.length, 69);
   assert.equal(story?.title, RECORDED.summary.article.headline);
-  assert.match(story?.lead ?? "", /^LAS VEGAS -- — A'ja Wilson made sure/);
+  assert.match(story?.lead ?? "", /^LAS VEGAS -- \u2014 A'ja Wilson made sure/);
   assert.equal(story?.url, `https://www.espn.com/wnba/recap?gameId=${RECORDED.eventId}`);
   assert.equal(story?.outlet, "ESPN");
 });

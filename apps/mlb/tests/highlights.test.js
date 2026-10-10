@@ -94,7 +94,7 @@ test("a game's recap video and MLB.com's story lead its highlights", () => {
   assert.match(recap?.blurb ?? "", /^Jake Cronenworth hits a solo home run/);
   assert.deepEqual(story, {
     title: "Led by King's all-in relief effort, Padres fight and force Game 4",
-    lead: "SAN DIEGO -- Didn’t matter how. The Padres only needed to find a way. They trailed two games to none and faced elimination on Tuesday night in this instant classic of a National League Division Series against Milwaukee.",
+    lead: "SAN DIEGO -- Didn\u2019t matter how. The Padres only needed to find a way. They trailed two games to none and faced elimination on Tuesday night in this instant classic of a National League Division Series against Milwaukee.",
     url: "https://www.mlb.com/news/padres-win-nlds-game-3-2026",
     outlet: "MLB.com",
   });
