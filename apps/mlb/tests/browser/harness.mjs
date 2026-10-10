@@ -3,6 +3,7 @@ import * as MLBSnapshot from "../../page/js/snapshot.js";
 import PAGE_FILES from "#page-files/mlb";
 import { createAppWorker } from "../../../../shared/worker/app-worker.js";
 import { describeBoxScore } from "../../worker/src/box-score.js";
+import { describeHighlights } from "../../worker/src/highlights.js";
 import {
   composePitcher,
   describePitcher,
@@ -52,6 +53,15 @@ export const BOX_SCORES = Object.fromEntries(
   Object.entries(loadFixture("2026-10-07-games").feeds).map(([id, feed]) => [
     id,
     describeBoxScore(id, feed),
+  ]),
+);
+const HIGHLIGHTS_FIXTURE = loadFixture("2026-10-07-highlights");
+// What the Worker answers for the highlights of two of those games, Brewers at Padres and Rays at
+// Yankees.
+export const RECORDED_HIGHLIGHTS = Object.fromEntries(
+  Object.keys(HIGHLIGHTS_FIXTURE.content).map((id) => [
+    id,
+    describeHighlights(id, HIGHLIGHTS_FIXTURE.content[id], HIGHLIGHTS_FIXTURE.plays[id]),
   ]),
 );
 
@@ -259,6 +269,8 @@ const isWriteRequest = (request) => request.method() !== "GET";
  * @param {Record<string, object>} [options.rotations] what the Worker answers for each club's last
  *   starters
  * @param {Record<string, object>} [options.boxScores] what the Worker answers for each game id
+ * @param {Record<string, object>} [options.highlights] the highlights the Worker answers for each
+ *   game id, MLB's recorded ones unless a test says otherwise, and for any other game none
  * @param {boolean} [options.isWholeSeason] whether the store keeps the season's whole schedule,
  *   which most tests can do without
  */
@@ -273,6 +285,7 @@ export async function openApp(
     pitchers = {},
     rotations = {},
     boxScores = {},
+    highlights = RECORDED_HIGHLIGHTS,
     isWholeSeason = false,
   } = {},
 ) {
@@ -329,6 +342,10 @@ export async function openApp(
     if (!boxScore)
       return route.fulfill({ status: 502, json: { error: "Couldn't read MLB: test" } });
     return route.fulfill({ json: boxScore });
+  });
+  await page.route(matchPath("/highlights"), (route) => {
+    const id = new URL(route.request().url()).searchParams.get("id") ?? "";
+    return route.fulfill({ json: highlights[id] ?? { id, recap: null, story: null, plays: [] } });
   });
   await page.route(matchPath("/store/"), (route) => {
     const url = new URL(route.request().url());

@@ -90,7 +90,7 @@ const renderStoryLink = (story, content) =>
  * @param {NewsStory} story
  * @param {OpenedStories} opened
  */
-function renderReadButton(story, opened) {
+export function renderReadButton(story, opened) {
   const isOpened = Object.hasOwn(opened, story.url);
   const label = `Read on ${story.outlet}`;
   return html`<div class="news-foot">

@@ -5,6 +5,7 @@ import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
 import { GAME_DETAILS_COLLECTION } from "./box-score.js";
 import { createGameDetailsJob } from "./game-details-updater.js";
+import { createHighlightsUpdater } from "./highlights-updater.js";
 import { createMlbNewsJob } from "./news-updater.js";
 import { findNotableUpdates, listNotifications } from "./notifications.js";
 import { createOldRecordsJob } from "./old-records.js";
@@ -38,6 +39,7 @@ export const SeasonStore = createSeasonStore({
   createLoadDetails: () => createWatchedGameLoader(),
   backgroundJobs: {
     games: createGameDetailsJob(),
+    highlights: createHighlightsUpdater(),
     pastSeasons: createPastSeasonsJob(),
     oldRecords: createOldRecordsJob(),
     [PITCHER_JOB]: createPitcherJob(),

@@ -1,6 +1,8 @@
 // The sheets a page shows, listed as it leaves the screen, and taken back on its next load: the
 // page puts them back open before its first paint (show-last-drawn.js), and once its modules
-// load, each sheet's code shows again what it showed, beside the one it was opened from.
+// load, each sheet's code shows again what it showed, beside the one it was opened from. A sheet
+// with sections, like a game's Game and Highlights, also lists which pills it offered and where
+// its shown section was scrolled, which the page puts back before its code loads.
 
 import {
   copySheet,
@@ -14,8 +16,13 @@ import {
 } from "./sheet.js";
 
 /**
+ * A sheet's shown section, by its id, the pills the sheet offered, by theirs, and where the
+ * section was scrolled.
+ * @typedef {{ id: string, tabs: string[], top: number }} ShownSection
+ */
+/**
  * A sheet showing, or a copy of one, by its sheet's id, and the key it was opened with.
- * @typedef {{ id: string, scrollTop: number, subject: unknown, showing: string | null, backLabel: string | null }} OpenSheet
+ * @typedef {{ id: string, scrollTop: number, section: ShownSection | null, subject: unknown, showing: string | null, backLabel: string | null }} OpenSheet
  */
 /** @typedef {{ sheet: HTMLElement, subject: unknown, showing: unknown, scrollTop: unknown }} SavedSheet */
 
@@ -28,11 +35,30 @@ function readBackLabel(sheet) {
 
 /**
  * @param {HTMLElement} sheet
+ * @returns {ShownSection | null}
+ */
+function describeShownSection(sheet) {
+  const section = sheet.querySelector(".sheet-sections > .sheet-section:not([inert])");
+  const tabList = /** @type {HTMLElement | null} */ (
+    sheet.querySelector(".sheet-top [role=tablist]")
+  );
+  if (!section || !tabList) return null;
+  const tabs = tabList.hidden
+    ? []
+    : [.../** @type {NodeListOf<HTMLElement>} */ (tabList.querySelectorAll("[role=tab]"))].filter(
+        (tab) => !tab.hidden,
+      );
+  return { id: section.id, tabs: tabs.map((tab) => tab.id), top: section.scrollTop };
+}
+
+/**
+ * @param {HTMLElement} sheet
  * @returns {OpenSheet}
  */
 const describeOpenSheet = (sheet) => ({
   id: findOriginal(sheet).id,
   scrollTop: sheet.scrollTop,
+  section: describeShownSection(sheet),
   subject: readSubject(sheet),
   showing: sheet.getAttribute("data-showing"),
   backLabel: readBackLabel(sheet),

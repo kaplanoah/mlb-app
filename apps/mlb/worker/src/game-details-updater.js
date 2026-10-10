@@ -125,15 +125,27 @@ async function listPastSeasons(context, current) {
   return years.filter((_, index) => !kept[index]);
 }
 
-/** @param {JobContext} context */
-async function keepFinishedGames(context) {
+/**
+ * The current season's finals, each once: the slate's first, the latest to end first, then the
+ * rest of its games, newest first.
+ * @param {JobContext} context
+ */
+export async function listCurrentFinals(context) {
   const season = (await context.docs.read("live/current"))?.season;
-  if (!season) return;
+  if (!season) return null;
   const slate = (await context.docs.read(`seasons/${season}`))?.slate;
-  const currentFinals = keepFirstOfEach([
+  const games = keepFirstOfEach([
     ...(slate ? listSlateFinals(slate) : []),
     ...(await listScheduledFinals(context.docs, season)),
   ]);
+  return { season, games };
+}
+
+/** @param {JobContext} context */
+async function keepFinishedGames(context) {
+  const finals = await listCurrentFinals(context);
+  if (!finals) return;
+  const { season, games: currentFinals } = finals;
   const current = await keepSeasonGames(context, season, currentFinals, GAMES_PER_RUN);
   let left = GAMES_PER_RUN - current.readCount;
   for (const year of await listPastSeasons(context, season)) {

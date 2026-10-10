@@ -1,19 +1,23 @@
 // The sheet a game's row opens: the two teams across the score in its top, then the game's box
-// score once it has started, or a preview before it does. Phones show it as a sheet from the bottom that a
-// swipe down closes, wider screens as a modal, like Settings. A team's sheet opens it beside itself
+// score once it has started, or a preview before it does. Once the game is over, pills in its top
+// slide between the box score and its Highlights, its recap and each play's clip
+// (highlights-section.js). Phones show it as a sheet from the bottom that a swipe down closes,
+// wider screens as a modal, like Settings. A team's sheet opens it beside itself
 // from the cards of the team's nearest games. Details that didn't load read again on a tap on Try
 // again, as the phone comes back online, or as the page comes back.
 
 import { describeDay } from "#shared/days.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { watchGameOpens } from "#shared/game-row.js";
+import { createHighlightsSection } from "#shared/highlights-section.js";
 import { renderNetworks } from "#shared/network-logos.js";
 import { renderRetryBlock, watchRetries } from "#shared/retry.js";
+import { wireSheetSections } from "#shared/sheet-sections.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { renderBoxScore, renderPendingBoxScore } from "./box-score-view.js";
 import { renderClub } from "./clubs.js";
 import { readGameDay } from "./days.js";
-import { fetchBoxScore, fetchLead, fetchPreview } from "./game-details-fetch.js";
+import { fetchBoxScore, fetchHighlights, fetchLead, fetchPreview } from "./game-details-fetch.js";
 import {
   describeFinalInSeries,
   findLoser,
@@ -37,6 +41,10 @@ import { renderSheetMessage } from "./sheet-parts.js";
 let shown = null;
 /** @type {(() => void) | null} */
 let unwatchDetails = null;
+/** @type {ReturnType<typeof wireSheetSections> | null} */
+let sections = null;
+/** @type {ReturnType<typeof createHighlightsSection> | null} */
+let highlights = null;
 
 const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gameSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -134,9 +142,34 @@ function renderDetails(opened, game) {
     : renderPendingBoxScore(teams, opened);
 }
 
+/** @param {Game} game */
+const loadHighlights = (game) => () =>
+  fetchHighlights({
+    id: game.id,
+    away: /** @type {string} */ (game.away.team),
+    home: /** @type {string} */ (game.home.team),
+    start: /** @type {string} */ (game.start),
+  });
+
+// ESPN's clips don't say when in the game they came.
+const describePlay = () => [];
+
+// A game that's over offers its highlights beside its box score under pills, and any other game
+// shows its box score or preview alone.
+/** @param {Game} game */
+function offerHighlights(game) {
+  const isOver = game.state === "final" && Boolean(game.start);
+  const tabs = /** @type {HTMLElement} */ (findSheet().querySelector(".sheet-top .pager-tabs"));
+  tabs.hidden = !isOver;
+  findElement("gameTabHighlights").hidden = !isOver;
+  if (isOver) highlights?.show(game.id, loadHighlights(game));
+  else if (sections?.readShown() === "highlights") sections.showSection("game", true);
+}
+
 function renderSheet() {
   const game = shown && findGame(shown.id);
   if (!game) return;
+  offerHighlights(game);
   const body = findElement("gameBody");
   findElement("gameTitle").textContent = nameGame(game);
   setHtml(findElement("gameWhen"), renderWhen(game));
@@ -258,19 +291,35 @@ const readShownGame = () =>
     details: shown.details,
     lead: shown.lead,
     isLeadLoading: shown.isLeadLoading,
+    section: sections?.readShown() ?? null,
+    highlights: highlights?.read() ?? null,
   };
 
+/**
+ * Shows the highlights and the section a reload kept, for the game the sheet shows.
+ * @param {any} saved
+ * @param {Game} game
+ */
+function reopenHighlights(saved, game) {
+  const kept = saved.highlights;
+  if (kept?.id === game.id && kept.highlights)
+    highlights?.show(game.id, loadHighlights(game), kept.highlights);
+}
+
 // A game that has started since the sheet showed its preview shows its box score instead.
-/** @param {Omit<ShownGame, "error"> | null} saved */
+/** @param {(Omit<ShownGame, "error"> & { section?: unknown, highlights?: any }) | null} saved */
 function reopenGameSheet(saved) {
   const game = saved && findGame(saved.id);
   if (!game) return false;
+  reopenHighlights(saved, game);
   if (chooseKind(game) !== saved.kind) {
     showGame(game.id);
     return true;
   }
-  shown = { ...saved, error: null };
+  const { id, kind, details, lead, isLeadLoading } = saved;
+  shown = { id, kind, details, lead, isLeadLoading, error: null };
   renderSheet();
+  if (typeof saved.section === "string") sections?.showSection(saved.section, true);
   refreshDetails();
   return true;
 }
@@ -289,7 +338,14 @@ function retryDetails() {
 /** @param {string} id */
 function openGameSheet(id) {
   if (!findGame(id)) return;
-  openSheet(findSheet(), { key: id, show: () => showGame(id) });
+  openSheet(findSheet(), {
+    key: id,
+    show: () => {
+      highlights?.forget();
+      showGame(id);
+      sections?.showFirstSection();
+    },
+  });
 }
 
 /**
@@ -318,16 +374,28 @@ function prepareFromRow(button) {
 
 function forgetGame() {
   shown = null;
+  highlights?.forget();
   stopWatchingDetails();
 }
 
+function retryHighlights() {
+  const game = shown && findGame(shown.id);
+  if (game) highlights?.retry(loadHighlights(game));
+}
+
 export function startGameSheet() {
-  watchRetries(findSheet(), retryDetails);
+  sections = wireSheetSections(findSheet());
+  highlights = createHighlightsSection(findElement("highlightsBody"), describePlay);
+  watchRetries(findSheet(), () => {
+    retryDetails();
+    retryHighlights();
+  });
   for (const holder of ["seasonGames", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
     closeButton: findElement("gameCloseBtn"),
     backButton: findElement("gameBackBtn"),
+    findScroller: sections.findShownSection,
     keeper: { read: readShownGame, reopen: reopenGameSheet },
     name: "Game",
     forget: forgetGame,

@@ -60,6 +60,7 @@
   <link rel="stylesheet" href="shared/updates.css" />
   <link rel="stylesheet" href="shared/retry.css" />
   <link rel="stylesheet" href="shared/news.css" />
+  <link rel="stylesheet" href="shared/highlights.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="js/pick-theme.js"></script>
   <script src="shared/open-last-tab.js"></script>
@@ -333,8 +334,45 @@
               </div>
             </div>
             <div class="faceoff-slot" id="gameFaceOff" data-last-drawn></div>
+            <div class="pager-tabs" role="tablist" aria-label="Game" hidden>
+              <button
+                type="button"
+                role="tab"
+                id="gameTabGame"
+                data-tab="game"
+                aria-controls="gameSection"
+                aria-selected="true"
+                class="active"
+              >
+                Game
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="gameTabHighlights"
+                data-tab="highlights"
+                aria-controls="highlightsSection"
+                aria-selected="false"
+                tabindex="-1"
+                hidden
+              >
+                Highlights
+              </button>
+            </div>
           </div>
-          <div class="game-sheet-body" id="gameBody" data-last-drawn></div>
+        </div>
+        <div class="sheet-sections">
+          <div class="sheet-section" id="gameSection" role="tabpanel" aria-labelledby="gameTabGame">
+            <div class="game-sheet-body" id="gameBody" data-last-drawn></div>
+          </div>
+          <div
+            class="sheet-section"
+            id="highlightsSection"
+            role="tabpanel"
+            aria-labelledby="gameTabHighlights"
+          >
+            <div class="game-sheet-body highlights-body" id="highlightsBody" data-last-drawn></div>
+          </div>
         </div>
       </section>
 

@@ -50,6 +50,11 @@
   gap: 4px;
   pointer-events: auto;
 }
+/* A sheet hides the pills it doesn't offer, like a game's Highlights before it ends. */
+.pager-tabs[hidden],
+.pager-tabs [hidden] {
+  display: none;
+}
 .pager-tabs button {
   font: inherit;
   font-size: var(--size-small);

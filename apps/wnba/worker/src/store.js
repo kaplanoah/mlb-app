@@ -4,6 +4,7 @@ import { readReleaseCommit } from "../../../../shared/worker/app-worker.js";
 import { createSeasonStore } from "../../../../shared/worker/season-store.js";
 import * as SeasonUpdater from "./season-updater.js";
 import { createGameDetailsJob } from "./game-details-updater.js";
+import { createHighlightsUpdater } from "./highlights-updater.js";
 import { createWnbaNewsJob } from "./news-updater.js";
 import { PLAYER_JOB, createPlayerJob } from "./player-updater.js";
 import { createSnapshotServer } from "./snapshot.js";
@@ -30,6 +31,7 @@ export const SeasonStore = createSeasonStore({
   createLoadDetails: () => createWatchedGameLoader(),
   backgroundJobs: {
     games: createGameDetailsJob(),
+    highlights: createHighlightsUpdater(),
     news: createWnbaNewsJob(),
     [PLAYER_JOB]: createPlayerJob(),
   },

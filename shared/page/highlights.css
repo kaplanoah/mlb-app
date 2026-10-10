@@ -1,0 +1,125 @@
+/* A finished game's Highlights section, as highlights-view.js fills it: the recap video's still
+   across the section with its title under it, the written recap, and each play's clip as a row,
+   its still on the left beside its title and where in the game it came. Each still holds a play
+   button and the clip's length, drawn as video players draw them, in the same colors on any page.
+   Apps link it after sheet.css and news.css, and theme it with their --ink, --ink-dim, --ink-mid,
+   --sheet, and --radius-card and --radius-chip. */
+.clip-open {
+  display: grid;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.clip-still {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--ink) 16%, var(--sheet));
+}
+.clip-still img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.clip-play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+.clip-play svg {
+  position: relative;
+  left: -0.5px;
+  width: 45%;
+  height: 45%;
+}
+.clip-length {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 5px;
+  border-radius: var(--radius-chip);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: var(--size-small);
+  font-weight: 500;
+  line-height: 1.2;
+}
+.clip-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.clip-title {
+  font-size: var(--size-glance);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.clip-blurb,
+.clip-meta {
+  font-size: var(--size-small);
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+.clip-meta b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.clip-feature {
+  display: grid;
+  gap: 9px;
+}
+.clip-feature .clip-play {
+  width: 48px;
+  height: 48px;
+}
+.clip-feature .clip-title {
+  font-size: var(--size-read);
+}
+.clip-rows {
+  display: grid;
+  gap: 13px;
+}
+.clip-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+.highlights-story {
+  display: grid;
+  gap: 8px;
+}
+.highlights-story-title {
+  margin: 0;
+  font-size: var(--size-read);
+  font-weight: 600;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.highlights-story-lead {
+  margin: 0;
+  font-size: var(--size-glance);
+  line-height: 1.45;
+  color: var(--ink-mid);
+}
+.clip-player {
+  display: block;
+  width: 0;
+  height: 0;
+}
