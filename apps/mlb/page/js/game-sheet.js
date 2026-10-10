@@ -8,20 +8,21 @@ import { fetchBoxScore } from "./box-score-fetch.js";
 import { renderBoxScore } from "./box-score-view.js";
 import { renderTeamDot } from "./clubs.js";
 import {
-  describeStart,
-  formatGameDay,
+  groupShownSeriesFinals,
   listSeasonGames,
   nameGame,
   nameGameKey,
   renderArm,
   renderGameFaceOff,
 } from "./games-view.js";
+import { describeDay, readCalendarDate } from "#shared/days.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { isLoadingSide, listSides, loadSide, renderMatchupBody, updateSides } from "./matchup.js";
 import { renderNetworks } from "#shared/network-logos.js";
 import { watchRetries } from "#shared/retry.js";
 import { countClubGames } from "./qualifying.js";
+import { describeSeriesAt, isSeriesGame, nameSeriesGame } from "./series-games.js";
 import { session } from "./session.js";
 import { wireSheetSections } from "#shared/sheet-sections.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
@@ -66,8 +67,19 @@ function findGame(key) {
 /** @param {MatchupGame} game */
 const readCurrentGame = (game) => findGame(nameGameKey(game)) ?? game;
 
+// A postseason game is titled with its round and game, and any other with its clubs.
 /** @param {MatchupGame} game */
-const renderWhen = (game) => joinWithSeparator([formatGameDay(game.date), describeStart(game)]);
+export const titleGame = (game) => (isSeriesGame(game) ? nameSeriesGame(game) : nameGame(game));
+
+// Where its series stood at the game, then its day; the game's row under it shows its time.
+/** @param {MatchupGame} game */
+export const renderWhen = (game) =>
+  joinWithSeparator(
+    [
+      describeSeriesAt(game, groupShownSeriesFinals()),
+      describeDay(readCalendarDate(game.date), Date.now()),
+    ].filter(Boolean),
+  );
 
 const nameStarter = (side) => side.pitcher?.lastName || side.starter?.name || "TBD";
 
@@ -140,7 +152,7 @@ const hasBoxScore = (game) =>
 function renderSheet() {
   if (!shown) return;
   const game = readCurrentGame(shown.game);
-  setHtml(findElement("gameTitle"), nameGame(game));
+  setHtml(findElement("gameTitle"), titleGame(game));
   setHtml(findElement("gameWhen"), renderWhen(game));
   setHtml(findElement("gameBody"), renderGameBody(game, shown.sides, shown.boxScore));
   const matchup = findElement("matchupBody");

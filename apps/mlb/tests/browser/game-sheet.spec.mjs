@@ -142,7 +142,7 @@ test("tapping a game opens its sheet on Game: its row, then its starters on one 
 }) => {
   const sheet = await openGame(page);
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("Astros @ Athletics");
-  await expect(sheet.locator("#gameWhen")).toHaveText("Thu, Sep 24•9:40 PM");
+  await expect(sheet.locator("#gameWhen")).toHaveText("Today");
   await expect(sheet.getByRole("tab", { name: "Game" })).toHaveAttribute("aria-selected", "true");
   const row = sheet.locator("#gameBody .game-row");
   await expect(row.locator(".game-side")).toHaveText(["Astros78-800.5 GB", "Athletics63-95"]);

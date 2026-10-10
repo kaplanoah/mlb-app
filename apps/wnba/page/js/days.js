@@ -12,14 +12,7 @@ export function readGameDay({ start, isTimeSet }) {
 }
 
 /**
- * @param {Date} day
- * @param {number} now
- */
-export const describeDay = (day, now) =>
-  nameDay(day, new Date(now), { nameOtherDay: formatWeekdayAndDate, isCapitalized: true });
-
-/**
- * describeDay's name for the middle of a sentence, as in "Next game tomorrow".
+ * A game's day for the middle of a sentence, as in "Next game tomorrow".
  * @param {Date} day
  * @param {number} now
  */

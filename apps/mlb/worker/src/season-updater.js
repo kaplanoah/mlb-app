@@ -85,6 +85,16 @@ async function removeExpiredReadings(docs, year, snapshot, parts) {
   for (const part of expired) await docs.remove(`${collection}/${part.id}`);
 }
 
+/**
+ * @param {any} doc a month of the season's games as the store keeps it
+ * @param {any} snapshot
+ * @param {any[]} games the month's games now
+ */
+const isSavedSchedule = (doc, snapshot, games) =>
+  doc?.version === snapshot.version &&
+  doc.edition === MLBSnapshot.SCHEDULE_EDITION &&
+  isSameJson(doc.games, games);
+
 // Each month of the season's games keeps a document of its own, saved only when its games change,
 // so a game's end sends open pages only its month.
 async function saveSchedule(docs, snapshot) {
@@ -94,9 +104,10 @@ async function saveSchedule(docs, snapshot) {
   const saved = new Map((await docs.list(collection)).map((doc) => [doc.month, doc]));
   for (const [month, games] of Object.entries(snapshot.schedule)) {
     const doc = saved.get(month);
-    if (doc?.version === snapshot.version && isSameJson(doc.games, games)) continue;
+    if (isSavedSchedule(doc, snapshot, games)) continue;
     await docs.write(MLBSnapshot.nameScheduleKey(year, month), {
       version: snapshot.version,
+      edition: MLBSnapshot.SCHEDULE_EDITION,
       year,
       month,
       games,
@@ -122,9 +133,14 @@ export async function savePastSeason(docs, snapshot) {
   await saveSchedule(docs, snapshot);
 }
 
-// Whether the store keeps a season's games, which a season saved before it kept them lacks.
-export const hasSchedule = async (docs, year) =>
-  (await docs.list(MLBSnapshot.nameScheduleCollection(year))).length > 0;
+// Whether the store keeps a season's games as the page reads them now, which a season saved before
+// it kept them, or before they held what they hold now, lacks.
+export async function hasCurrentSchedule(docs, year) {
+  const months = await docs.list(MLBSnapshot.nameScheduleCollection(year));
+  return (
+    months.length > 0 && months.every((month) => month.edition === MLBSnapshot.SCHEDULE_EDITION)
+  );
+}
 
 // The updates the page lists, which the season's record keeps rebuilt from the readings.
 export async function readUpdates(docs, year) {
