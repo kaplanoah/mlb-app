@@ -95,6 +95,8 @@
   --strip-chosen-ink: var(--gold-ink);
   --strip-chosen-edge: transparent;
   --strip-action: var(--gold);
+  --strip-month-inset: 12.5px;
+  --strip-action-inset: 13px;
   --day-gap: 18px;
   --game-side-offset: 0px;
   --game-label-offset: -26.5px;
@@ -498,6 +500,13 @@ table.st .seed-cell {
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--ink-dim);
+}
+/* On a wide screen, the strip's line stops at the column's edges, and so does a held heading's. */
+@media (min-width: 780px) {
+  .day-heading {
+    margin-inline: 0;
+    padding-inline: 0;
+  }
 }
 .game-day.is-today .day-heading {
   color: var(--gold);

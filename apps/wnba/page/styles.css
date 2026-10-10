@@ -192,6 +192,8 @@
   --strip-chosen-ink: var(--action-ink);
   --strip-chosen-edge: var(--pager-chosen-edge);
   --strip-action: var(--action);
+  --strip-month-inset: 14px;
+  --strip-action-inset: 11px;
   --day-gap: 8px;
   --held-bar-fade: 0px;
   --held-bar-line: var(--divider);

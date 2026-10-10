@@ -11,6 +11,10 @@
  *   --strip-chosen-ink     what's written on it
  *   --strip-chosen-edge    the outline inside its fill, or transparent for none
  *   --strip-action         Today, the way back to the start day
+ *   --strip-month-inset    on a wide screen, the month's way in from the column's left, level with
+ *                          the first day's weekday
+ *   --strip-action-inset   on a wide screen, Today's way in from the column's right, level with
+ *                          the last day's weekday
  *   --day-gap              the gap between days, kept above a day brought to the top
  */
 
@@ -190,6 +194,33 @@
 .strip-lens-track {
   display: flex;
   gap: 2px;
+}
+
+/* On a wide screen, nothing marks the screen's edge, so the strip and its line stop at the view's,
+   and eleven days of 50px, 1px apart, fill its 560px in the whole pixels the strip's code measures
+   them in, as do their copies in the box, coming to rest on whole days. The strip's code sets its
+   scroll while it slides the dates, so it rests on a day only once they settle. */
+@media (min-width: 780px) {
+  .day-bar {
+    margin-inline: 0;
+  }
+  .day-bar-head {
+    padding-inline: var(--strip-month-inset) var(--strip-action-inset);
+  }
+  .day-strip {
+    padding-inline: 0;
+  }
+  .day-strip:not(.is-sliding) {
+    scroll-snap-type: x mandatory;
+  }
+  .day-strip,
+  .strip-lens-track {
+    gap: 1px;
+  }
+  .day-cell {
+    flex-basis: 50px;
+    scroll-snap-align: center;
+  }
 }
 
 /* Only the list scrolls, from the screen's edges, past the tab bar at its end, with room after its
