@@ -21,7 +21,7 @@ on:
         description: Playwright project to run, like wnba-webkit; every project when empty
         default: ""
       repeat:
-        description: How many times to run each test, each time in fresh browsers when tests are given
+        description: How many times to run each test
         default: "3"
 
 permissions:
@@ -59,26 +59,9 @@ jobs:
           REPEAT: ${{ inputs.repeat || '3' }}
         run: |
           read -ra tests <<< "$TESTS"
-          options=(--retries=0)
+          options=(--repeat-each="$REPEAT" --retries=0)
           if [ -n "$PROJECT" ]; then options+=(--project="$PROJECT"); fi
-          if [ "${#tests[@]}" -eq 0 ]; then
-            npm run test:browser -- --repeat-each="$REPEAT" "${options[@]}"
-            exit
-          fi
-          # Each run starts its browsers afresh, as each CI job does: a browser that has already
-          # drawn the page draws it again faster, which hides a test that fails only in a fresh one.
-          # A failed run prints what the page showed, since the next run clears its results.
-          failed=0
-          for run in $(seq "$REPEAT"); do
-            echo "::group::Run $run of $REPEAT"
-            if ! npm run test:browser -- "${options[@]}" "${tests[@]}"; then
-              failed=$((failed + 1))
-              cat test-results/*/error-context.md 2>/dev/null || true
-            fi
-            echo "::endgroup::"
-          done
-          echo "::notice::$failed of $REPEAT runs failed"
-          [ "$failed" -eq 0 ]
+          npm run test:browser -- "${options[@]}" "${tests[@]}"
       # Only the nightly run of main reports, since a run by hand may test a branch.
       - name: Name each test that failed in the open issue
         if: ${{ !cancelled() && github.event_name == 'schedule' }}

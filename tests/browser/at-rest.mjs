@@ -61,15 +61,17 @@ const LOAD_TIMEOUT_MS = 15_000;
 
 /**
  * Where the page asked for each frame across `durationMs` of its clock, by the first line of the
- * page's own code that asked, with how many times, so a failure says what kept asking, and the
- * fonts that were loading or arrived meanwhile, which a failure names too, since a font arrives on
+ * page's own code that asked, with how many times, so a failure says what kept asking, and notes
+ * on what else happened meanwhile, which a failure names too: the page's clock, the body's height,
+ * the elements that changed, and the fonts that were loading or arrived, since a font arrives on
  * the network's time rather than the page's clock and lays its text out again.
  * @param {import("@playwright/test").Page} page
  * @param {number} durationMs
- * @returns {Promise<{ requests: [string, number][], fonts: string[] }>}
+ * @returns {Promise<{ requests: [string, number][], notes: string[] }>}
  */
 async function readFrameRequestsAcross(page, durationMs) {
   await page.evaluate(() => {
+    const MOST_CHANGES_NAMED = 6;
     const counted = /** @type {any} */ (window);
     counted.pageRequestFrame ??= window.requestAnimationFrame;
     /** @type {Map<string, number>} */
@@ -84,6 +86,26 @@ async function readFrameRequestsAcross(page, durationMs) {
         }
       });
     }
+    counted.countStart = { at: Date.now(), height: document.body.getBoundingClientRect().height };
+    /** @type {Set<string>} */
+    const changed = new Set();
+    counted.changedElements = changed;
+    counted.changeWatcher?.disconnect();
+    counted.changeWatcher = new MutationObserver((records) => {
+      for (const record of records) {
+        const node = record.target;
+        const element = node instanceof Element ? node : node.parentElement;
+        if (!element || changed.size >= MOST_CHANGES_NAMED) continue;
+        changed.add(
+          element.id ? `#${element.id}` : [element.localName, ...element.classList].join("."),
+        );
+      }
+    });
+    counted.changeWatcher.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
     window.requestAnimationFrame = (callback) => {
       const pageFrames = (new Error().stack ?? "")
         .split("\n")
@@ -96,21 +118,29 @@ async function readFrameRequestsAcross(page, durationMs) {
   await page.clock.runFor(durationMs);
   return page.evaluate(() => {
     const counted = /** @type {any} */ (window);
-    return { requests: [...counted.frameRequests], fonts: counted.fontsArrived };
+    counted.changeWatcher.disconnect();
+    const { at, height } = counted.countStart;
+    const notes = [
+      `page clock ${new Date(at).toISOString()} to ${new Date().toISOString()}`,
+      `body ${height}px to ${document.body.getBoundingClientRect().height}px`,
+      `changed: ${[...counted.changedElements].join(", ") || "nothing"}`,
+      ...counted.fontsArrived,
+    ];
+    return { requests: [...counted.frameRequests], notes };
   });
 }
 
 /**
  * Lists where the page asked for each frame across `durationMs` of its clock, with how many
- * times, and, when it asked for any, the fonts that were loading or arrived meanwhile.
+ * times, and, when it asked for any, what else happened meanwhile.
  * @param {import("@playwright/test").Page} page
  * @param {number} durationMs
  * @returns {Promise<string[]>}
  */
 async function listFrameRequestsAcross(page, durationMs) {
-  const { requests, fonts } = await readFrameRequestsAcross(page, durationMs);
+  const { requests, notes } = await readFrameRequestsAcross(page, durationMs);
   const asked = requests.map(([askedAt, count]) => `${count} from ${askedAt}`);
-  return asked.length ? [...asked, ...fonts] : [];
+  return asked.length ? [...asked, ...notes] : [];
 }
 
 /**
