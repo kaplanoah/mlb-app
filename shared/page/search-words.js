@@ -1,0 +1,146 @@
+// What a search's words mean. Each phrase a search knows, from the calendar, the page, or a league,
+// is matched longest first, and a word can mean more than one thing, like "New York", a team on its
+// own and a place after "in", which the search decides from the words around it. A possessive or a
+// plural reads as its word, and one wrong letter in a longer name is forgiven. Runs in the page and
+// in Node, so it uses no DOM.
+
+/**
+ * What a phrase means, and how a suggestion writes it.
+ * @typedef {{ kind: string, value?: any, display?: string }} Meaning
+ */
+/**
+ * A phrase of a search, its words as typed and as read, and what it can mean, or no meanings for a
+ * word the search doesn't know.
+ * @typedef {{ text: string, words: string[], meanings: Meaning[] }} Token
+ */
+/** @typedef {Map<string, Meaning[]>} Dictionary */
+
+const LONGEST_PHRASE = 4;
+// Names this long or longer forgive one wrong letter: a short one would match too much.
+const FORGIVING_LENGTH = 5;
+const FORGIVEN_KINDS = new Set(["team", "place", "month", "weekday", "round"]);
+
+/**
+ * A search's words in lowercase, without accents or punctuation but for what reads as part of a date
+ * or a time, with "@" apart from what's around it. A dash between numbers, or one with spaces around
+ * it, reads as "to", and one inside a word, as in "All-Star" or "mid-June", as a space.
+ * @param {string} text
+ */
+export function normalizeText(text) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/['\u2019]s\b/g, "")
+    .replace(/['\u2019]/g, "")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/(\d)\s*-\s*(\d)/g, "$1 - $2")
+    .replace(/([a-z])-([a-z])/g, "$1 $2")
+    .replace(/\s-\s|^-\s|\s-$/g, " - ")
+    .replace(/@/g, " @ ")
+    .replace(/[^a-z0-9@/:\- ]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/** @param {string} text */
+export const splitWords = (text) => normalizeText(text).split(" ").filter(Boolean);
+
+/**
+ * A dictionary of every phrase's meanings, a phrase that means several things keeping each.
+ * @param {{ phrase: string, meaning: Meaning }[]} entries
+ * @returns {Dictionary}
+ */
+export function createDictionary(entries) {
+  /** @type {Dictionary} */
+  const dictionary = new Map();
+  for (const { phrase, meaning } of entries) {
+    const key = splitWords(phrase).join(" ");
+    dictionary.set(key, [...(dictionary.get(key) ?? []), meaning]);
+  }
+  return dictionary;
+}
+
+/**
+ * Whether two words differ by one letter added, dropped, changed, or two side by side swapped.
+ * @param {string} first
+ * @param {string} second
+ */
+export function isOneEditApart(first, second) {
+  if (first === second || Math.abs(first.length - second.length) > 1) return false;
+  let start = 0;
+  while (start < first.length && first[start] === second[start]) start += 1;
+  const isSwap =
+    first.length === second.length &&
+    first[start] === second[start + 1] &&
+    first[start + 1] === second[start] &&
+    first.slice(start + 2) === second.slice(start + 2);
+  const rest = (/** @type {string} */ word, /** @type {number} */ skip) => word.slice(start + skip);
+  return (
+    isSwap ||
+    rest(first, 1) === rest(second, 1) ||
+    rest(first, 1) === rest(second, 0) ||
+    rest(first, 0) === rest(second, 1)
+  );
+}
+
+/**
+ * The meanings of a name one letter away from a word, when only one name is.
+ * @param {string} word
+ * @param {Dictionary} dictionary
+ */
+function findForgivenMeanings(word, dictionary) {
+  if (word.length < FORGIVING_LENGTH) return [];
+  const near = [...dictionary].filter(
+    ([phrase, meanings]) =>
+      !phrase.includes(" ") &&
+      meanings.some((meaning) => FORGIVEN_KINDS.has(meaning.kind)) &&
+      isOneEditApart(word, phrase),
+  );
+  return near.length === 1 ? near[0][1] : [];
+}
+
+/**
+ * What a single word means: as written, as a plural's single, or as a name one letter off.
+ * @param {string} word
+ * @param {Dictionary} dictionary
+ */
+function findWordMeanings(word, dictionary) {
+  const meanings = dictionary.get(word);
+  if (meanings) return meanings;
+  const single = word.endsWith("s") ? dictionary.get(word.slice(0, -1)) : undefined;
+  return single ?? findForgivenMeanings(word, dictionary);
+}
+
+/**
+ * The longest phrase the dictionary knows at a word, or the word alone.
+ * @param {string[]} words
+ * @param {number} start
+ * @param {Dictionary} dictionary
+ * @returns {{ length: number, meanings: Meaning[] }}
+ */
+function matchPhrase(words, start, dictionary) {
+  for (let length = Math.min(LONGEST_PHRASE, words.length - start); length > 1; length -= 1) {
+    const meanings = dictionary.get(words.slice(start, start + length).join(" "));
+    if (meanings) return { length, meanings };
+  }
+  return { length: 1, meanings: findWordMeanings(words[start], dictionary) };
+}
+
+/**
+ * A search's phrases, in order, each with what it can mean.
+ * @param {string} text
+ * @param {Dictionary} dictionary
+ * @returns {Token[]}
+ */
+export function readTokens(text, dictionary) {
+  const words = splitWords(text);
+  const tokens = [];
+  for (let start = 0; start < words.length;) {
+    const { length, meanings } = matchPhrase(words, start, dictionary);
+    const phrase = words.slice(start, start + length);
+    tokens.push({ text: phrase.join(" "), words: phrase, meanings });
+    start += length;
+  }
+  return tokens;
+}

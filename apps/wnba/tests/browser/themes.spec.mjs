@@ -55,6 +55,31 @@ const VIEWS = [
     shown: (page) => page.locator("#seasonGames .game-day.is-today .game-row").first(),
   },
   {
+    name: "the Games view's search",
+    open: (page) => page.locator("#seasonGames .go-search").click(),
+    shown: (page) => page.locator("#gameSearch .search-example").first(),
+    close: (page) => page.locator("#gameSearch").getByRole("button", { name: "Cancel" }).click(),
+  },
+  {
+    name: "the search's suggestions",
+    open: async (page) => {
+      await page.locator("#seasonGames .go-search").click();
+      await page.locator("#gameSearch .search-input").fill("Lib");
+    },
+    shown: (page) => page.locator("#gameSearch .search-suggestion").first(),
+    close: (page) => page.locator("#gameSearch").getByRole("button", { name: "Cancel" }).click(),
+  },
+  {
+    name: "a search's games",
+    open: async (page) => {
+      await page.locator("#seasonGames .go-search").click();
+      await page.locator("#gameSearch .search-input").fill("Liberty");
+      await page.locator("#gameSearch .search-input").press("Enter");
+    },
+    shown: (page) => page.locator("#gameSearch .search-list .game-row").first(),
+    close: (page) => page.locator("#gameSearch").getByRole("button", { name: "Cancel" }).click(),
+  },
+  {
     name: "Standings",
     open: (page) => page.getByRole("tab", { name: "Standings" }).click(),
     shown: (page) => page.locator("#standings-league tr").nth(2),

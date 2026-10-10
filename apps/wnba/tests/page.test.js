@@ -4,7 +4,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { renderBracket } from "../page/js/bracket-view.js";
 import { renderDot } from "../page/js/clubs.js";
 import { readGameDay } from "../page/js/days.js";
-import { describeFinalInSeries, listSeasonDays, renderHeadline } from "../page/js/games-view.js";
+import {
+  describeFinalInSeries,
+  listSeasonDays,
+  listSeasonGames,
+  renderHeadline,
+} from "../page/js/games-view.js";
 import { renderScoreboard } from "../page/js/scoreboard.js";
 import { describeSeriesStanding, isPlayoffsOver } from "../page/js/series.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
@@ -146,6 +151,12 @@ test("a final reads as how its winner left the series: ahead, level, behind, or 
   assert.equal(readFinal("1042600102"), "Liberty won the series 2-0");
 });
 
+test("a final's series reads the same from the Games list's copy of the game, merged over the schedule's", () => {
+  const { games } = WHOLE_SCHEDULE;
+  const copy = listSeasonGames(SEASON, { games }).find((game) => game.id === "1042600122");
+  assert.equal(describeFinalInSeries(copy, SEASON.games), "Fever won to tie 1-1");
+});
+
 test("the Games list runs day by day from the season's first game to its last, each day's games in order, and opens on today", () =>
   inEastern(() => {
     const { days, today, startDay } = listDays(SEASON);
@@ -243,6 +254,20 @@ test("the All-Star Game's row names it, and shows each team's name beside its st
       /class="game-side home lost"><span class="club"><svg class="all-star-mark"[^>]*--all-star-color: #ffffff/,
     );
     assert.doesNotMatch(markup.text, /class="game-open"|class="dot/);
+  }));
+
+test("a game the league plays away from its home team's arena names the city in its label, and one at home names nothing", () =>
+  inEastern(() => {
+    const arena = { name: "Rogers Arena", city: "Vancouver", state: "BC" };
+    const readJune11 = (/** @type {object} */ changes) => {
+      const games = WHOLE_SCHEDULE.games.map((game) =>
+        game.id === "1022600092" ? { ...game, arena, ...changes } : game,
+      );
+      const { days } = listDays(SEASON, { schedule: { games } });
+      return readText(days.find(({ day }) => day === "2026-06-11")?.markup);
+    };
+    assert.match(readJune11({ isNeutral: true }), /In Vancouver/);
+    assert.doesNotMatch(readJune11({}), /In Vancouver/);
   }));
 
 test("on a day without games inside the season, the list says so at today's place and opens on it", () =>

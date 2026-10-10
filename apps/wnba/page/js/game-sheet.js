@@ -323,7 +323,7 @@ function forgetGame() {
 
 export function startGameSheet() {
   watchRetries(findSheet(), retryDetails);
-  for (const holder of ["seasonGames", "updates", "teamBody"])
+  for (const holder of ["seasonGames", "gameSearch", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromRow, prepare: prepareFromRow });
   wireSheet(findSheet(), {
     closeButton: findElement("gameCloseBtn"),

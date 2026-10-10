@@ -165,6 +165,18 @@ const readSide = (team) => ({
   timeouts: team.timeoutsRemaining ?? null,
 });
 
+// Where a game is played, once the schedule names its arena, and whether the league counts it as at
+// a neutral site, away from its home team's own arena.
+/** @param {any} game */
+function readArena(game) {
+  const city = game.arenaCity?.trim();
+  if (!city || /^TBD$/i.test(city)) return {};
+  return {
+    arena: { name: game.arenaName?.trim() ?? "", city, state: game.arenaState?.trim() ?? "" },
+    ...(game.isNeutral === true && { isNeutral: true }),
+  };
+}
+
 // A game from the scoreboard or the schedule, which name their fields alike. Only a playoff game
 // has a round, a series, and a number in it.
 function normalizeGame(game) {
@@ -186,6 +198,7 @@ function normalizeGame(game) {
     away: readSide(game.awayTeam ?? {}),
     home: readSide(game.homeTeam ?? {}),
     ...readAllStarTeams(game),
+    ...readArena(game),
   };
 }
 
@@ -342,6 +355,8 @@ function readScheduledGame(game) {
     away: readScheduledSide(game.away, isFinal),
     home: readScheduledSide(game.home, isFinal),
     ...(game.allStar && { allStar: game.allStar }),
+    ...(game.arena && { arena: game.arena }),
+    ...(game.isNeutral && { isNeutral: true }),
   };
 }
 
@@ -354,12 +369,13 @@ const listScheduleGames = (schedule, season) =>
     season,
   );
 
-// The scoreboard is the freshest word on today's games, so it replaces the schedule's copy.
+// The scoreboard is the freshest word on today's games, so it replaces the schedule's copy, but for
+// the arena, which only the schedule names.
 function mergeGames(schedule, scoreboard, season) {
   const scheduled = listScheduleGames(schedule, season).map(normalizeGame);
   const today = listSeasonGames(scoreboard?.scoreboard?.games ?? [], season).map(normalizeGame);
   const byId = new Map(scheduled.map((game) => [game.id, game]));
-  for (const game of today) byId.set(game.id, game);
+  for (const game of today) byId.set(game.id, { ...byId.get(game.id), ...game });
   return sortByStart([...byId.values()]);
 }
 
