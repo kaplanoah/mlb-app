@@ -547,3 +547,25 @@ test("a tap on Today where the list already is pulses today's date, 4% bigger an
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   await expectDayAtTop(page, "2026-09-30");
 });
+
+test("a redraw that makes the list shorter as it adds a day leaves the day at the top where it is while the change eases in", async ({
+  page,
+}) => {
+  const app = await openSeasonGames(page);
+  await page.clock.runFor(1000);
+  await expectDayAtTop(page, "2026-09-30");
+  const readListHeight = () => findList(page).evaluate((list) => list.clientHeight);
+  const heightBefore = await readListHeight();
+
+  await app.changeSeason((season) => {
+    const game = season.games.find((each) => each.id === "1042600132");
+    Object.assign(game, { state: "live", status: "Q2 5:10", period: 2, clock: "5:10" });
+    season.games.push({ ...game, id: "added", start: "2026-09-28T23:30:00Z", state: "pre" });
+    return season;
+  });
+
+  await expect(findDay(page, "2026-09-28").locator('[data-game="added"]')).toHaveCount(1);
+  expect(await readListHeight()).not.toBe(heightBefore);
+  await page.clock.runFor(500);
+  await expectDayAtTop(page, "2026-09-30");
+});
