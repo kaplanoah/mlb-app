@@ -75,8 +75,8 @@ test("an update saves the whole season in its record, and a reading, and tells o
     sent.map((message) => message.path),
     [`readings-2026/${TODAY}-01`, "seasons/2026", "live/current", "live/status"],
   );
-  // A game is live, so the next update is thirty seconds out.
-  assert.equal(context.alarm.at, NOW + MLBSnapshot.POLL_LIVE_MS);
+  // A game is in the 9th inning, so the next update is fifteen seconds out.
+  assert.equal(context.alarm.at, NOW + MLBSnapshot.POLL_CLOSING_MS);
 });
 
 test("an update writes nothing when nothing changed", async () => {
@@ -215,7 +215,7 @@ test("when MLB can't be read, the status says why and the retries back off", asy
   harness.failure = null;
   await fireNextAlarm(store, context, clock);
   assert.equal(read("live/status").error, "");
-  assert.equal(context.alarm.at, clock.now + MLBSnapshot.POLL_LIVE_MS);
+  assert.equal(context.alarm.at, clock.now + MLBSnapshot.POLL_CLOSING_MS);
 });
 
 test("the status names the fields MLB stopped sending", async () => {

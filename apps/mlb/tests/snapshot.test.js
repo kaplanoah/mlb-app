@@ -651,6 +651,26 @@ test("when to ask again: closely during games, otherwise sleep until the next", 
   assert.equal(MLBSnapshot.choosePollDelay({ slate: null }), null);
 });
 
+test("from the 9th inning on, a live game is followed faster", () => {
+  const computePollDelay = (games) =>
+    MLBSnapshot.choosePollDelay(
+      { slate: { today: { games }, nextDay: null } },
+      Date.parse("2026-09-24T22:00:00Z"),
+    );
+  const live = (inning, half) => ({ state: "live", inning, half });
+  assert.equal(computePollDelay([live(8, "bottom")]), MLBSnapshot.POLL_LIVE_MS);
+  assert.equal(computePollDelay([live(8, "end")]), MLBSnapshot.POLL_LIVE_MS);
+  assert.equal(computePollDelay([live(9, "top")]), MLBSnapshot.POLL_CLOSING_MS);
+  assert.equal(computePollDelay([live(9, "bottom")]), MLBSnapshot.POLL_CLOSING_MS);
+  assert.equal(computePollDelay([live(12, "top")]), MLBSnapshot.POLL_CLOSING_MS);
+  assert.equal(computePollDelay([live(3, "top"), live(10, "bottom")]), MLBSnapshot.POLL_CLOSING_MS);
+  assert.equal(
+    computePollDelay([live(3, "top"), { state: "final", inning: 9 }]),
+    MLBSnapshot.POLL_LIVE_MS,
+  );
+  assert.ok(MLBSnapshot.POLL_CLOSING_MS < MLBSnapshot.POLL_LIVE_MS);
+});
+
 test("a game with no start time doesn't make the next ask come at once", () => {
   const games = [{ state: "pre" }, { state: "pre", start: "2026-09-25T17:05:00Z" }];
   assert.equal(

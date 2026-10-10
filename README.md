@@ -27,10 +27,11 @@ its starter says "Still TBD" and opens to who started for that club lately and h
 would be.
 
 A Cloudflare Worker serves the page, and each device keeps its own ranking. It also reads MLB
-on its own, every 30 seconds during games while the page is open and a little
-less often while it isn't, so the standings and updates stay current even with
-the page closed, and sends the page each new score. Saved to an iPhone's home
-screen, the page opens full screen like an app, and can send a notification
+on its own, every 30 seconds during games, and every 15 from the 9th inning on,
+while the page is open, and a little less often while it isn't, so the
+standings and updates stay current even with the page closed, and sends the
+page each new score. Saved to an iPhone's home screen, the page opens full
+screen like an app, and can send a notification
 when something happens to a team in your ranking.
 
 It also reads the news from ESPN, The Athletic, MLB Trade Rumors, Baseball
@@ -61,8 +62,9 @@ the one you pick in its settings. Added to the home screen, it keeps
 the icon of the look it had then.
 
 A Cloudflare Worker serves the page and reads the WNBA's own feeds on its own,
-every 15 seconds during games while the page is open and a little less often
-while it isn't, and ESPN's for where each game is on. If the WNBA
+every 15 seconds during games, and every 5 in the last 5 minutes of the 4th
+quarter and in overtime, while the page is open, and a little less often while
+it isn't, and ESPN's for where each game is on. If the WNBA
 stops sending scores, ESPN's stand in.
 It also reads the news from ESPN, The Athletic, The IX, Winsidr, and, for the Liberty,
 NY Post and NetsDaily, every 15 minutes by day and hourly overnight, and has

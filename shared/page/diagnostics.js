@@ -169,7 +169,9 @@ function readPartSizes() {
       part.id,
       {
         text: (part.textContent ?? "").replace(/\s+/g, "").length,
-        height: Math.round(part.getBoundingClientRect().height),
+        // Its height as laid out, which a sheet sliding it doesn't change, as its box on the screen,
+        // rounded to a pixel, would as it moves.
+        height: part.offsetHeight,
       },
     ]),
   );

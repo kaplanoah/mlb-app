@@ -217,5 +217,5 @@ test("a push service that fails doesn't stop the season update", async () => {
   await fireNextAlarm(store, context, clock);
   assert.equal(harness.pushes.length, 1);
   assert.ok("NYM" in context.stored.get("seasons/2026").teams);
-  assert.equal(context.alarm.at, clock.now + MLBSnapshot.POLL_LIVE_MS);
+  assert.equal(context.alarm.at, clock.now + MLBSnapshot.POLL_CLOSING_MS);
 });

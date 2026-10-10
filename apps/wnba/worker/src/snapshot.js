@@ -9,7 +9,8 @@ import { listUpcomingMeetings } from "./preview.js";
 import { ESPN_HEADERS, fetchWnbaJson, SEASON_PARAM } from "./wnba.js";
 
 const EDGE_CACHE_SECONDS = 5;
-const SNAPSHOT_REUSE_MS = 10000;
+// No longer than the wait between updates in a game's closing stretch, so each one reads the league.
+const SNAPSHOT_REUSE_MS = 5000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // The schedule, bracket, standings, and players' averages change as games end, and otherwise
 // hardly at all, and the stats site is slow and quick to turn away a busy caller.

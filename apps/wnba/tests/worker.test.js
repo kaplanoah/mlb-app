@@ -78,6 +78,20 @@ function createLeague({ refuse = {}, answers = {}, espn = {} } = {}) {
   };
 }
 
+test("a snapshot is reused only within the closing stretch's 5-second wait", async () => {
+  const league = createLeague();
+  let clock = NOW;
+  const server = createSnapshotServer({ fetchImpl: league.fetchImpl, now: () => clock });
+
+  await server.loadSnapshot(2026);
+  clock += 1000;
+  await server.loadSnapshot(2026);
+  assert.equal(league.countReads("scoreboard"), 1);
+  clock = NOW + 5000;
+  await server.loadSnapshot(2026);
+  assert.equal(league.countReads("scoreboard"), 2);
+});
+
 test("the Worker reads every feed as the league's own site would", async () => {
   const league = createLeague();
   const server = createSnapshotServer({ fetchImpl: league.fetchImpl, now: () => NOW });

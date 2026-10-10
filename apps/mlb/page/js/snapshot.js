@@ -435,8 +435,12 @@ const GAME_TYPES = new Set(["R", "F", "D", "L", "W"]);
 // The Games view lists the All-Star Game among the clubs' games.
 const LISTED_GAME_TYPES = new Set([...GAME_TYPES, "A"]);
 
-// MLB caches its responses for 20 seconds, so polling faster only refetches the same answer.
+// MLB caches its responses for 20 seconds, so polling much faster only refetches the same answer.
 export const POLL_LIVE_MS = 30 * 1000;
+// From the 9th inning on, any pitch can end a game, so it's followed a little faster than MLB's
+// cache turns over.
+export const POLL_CLOSING_MS = 15 * 1000;
+const CLOSING_INNING = 9;
 
 export function listMlbRequests(season, now, regularSeasonEnd = null) {
   const today = readEasternDay(now);
@@ -1336,6 +1340,8 @@ export function buildSnapshot(responses, { season, now = Date.now() }) {
   };
 }
 
+const isClosingInning = (game) => game.state === "live" && game.inning >= CLOSING_INNING;
+
 // A season with no slate, like a past one, has nothing to follow, so it's null.
 export function choosePollDelay(snapshot, now = Date.now()) {
   const slate = snapshot && snapshot.slate;
@@ -1349,7 +1355,7 @@ export function choosePollDelay(snapshot, now = Date.now()) {
     starts: games
       .filter((game) => game.state === "pre" && !game.tbd)
       .map((game) => Date.parse(game.start)),
-    liveMs: POLL_LIVE_MS,
+    liveMs: games.some(isClosingInning) ? POLL_CLOSING_MS : POLL_LIVE_MS,
     now,
   });
 }

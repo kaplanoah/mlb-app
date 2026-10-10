@@ -93,6 +93,38 @@ test("with Diagnostics on, a reload is recorded with its tab, what the store sen
   await expect(record).toContainText(/Shows .*bracketWrap \d+\/\d+px/);
 });
 
+test("a part a sheet slides, whose height falls on a half pixel, is recorded at the height it's laid out at, which the slide doesn't change", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await page.addInitScript(() =>
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = "#stamp { height: 40.5px; overflow: hidden; }";
+      document.head.append(style);
+    }),
+  );
+
+  await page.reload();
+  await expect(page.locator('[data-series="1-0"] .team-line.won')).toContainText("Liberty");
+  for (let step = 1; step <= 30; step += 1) {
+    await page
+      .locator("#stamp")
+      .evaluate(
+        (stamp, offset) => (stamp.style.transform = `translateY(${offset}px)`),
+        step * 0.37,
+      );
+    await page.clock.runFor(20);
+  }
+  await page.clock.runFor(RECORD_MS);
+  await openSettings(page);
+
+  const record = findRecords(page).locator(".diagnostics-record").first();
+  await expect(record).not.toContainText("stamp: height 41 to 40px");
+  await expect(record).not.toContainText("stamp: height 40 to 41px");
+});
+
 test("a reload's first reading is what the page put back from its last showing, before its code redraws it", async ({
   page,
 }) => {
