@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   describeViewport,
   describeViewportShape,
+  isBouncing,
   isViewportOff,
+  trimViewportLines,
   writeViewportAsText,
 } from "../shared/page/viewport-log.js";
 import { normalizeSpaces } from "./text.js";
@@ -25,6 +27,56 @@ test("a reading names each viewport, the page, and where the tab bar and an open
     describeViewport({ ...steady, sheetBottom: 812 }),
     "screen 874, layout 812, visual 812 from 0, page 2600, tab bar ends 790, sheet ends 812, scrolled 1400",
   );
+});
+
+test("a reading at a moment names it first", () => {
+  assert.match(describeViewport(steady, "Back"), /^Back: screen 874, layout 812, /);
+});
+
+test("a page scrolled past its top or bottom is bouncing", () => {
+  assert.equal(isBouncing(steady), false);
+  assert.equal(isBouncing({ ...steady, scroll: 0 }), false);
+  assert.equal(isBouncing({ ...steady, scroll: 2600 - 812 }), false);
+  assert.equal(isBouncing({ ...steady, scroll: -1 }), true);
+  assert.equal(isBouncing({ ...steady, scroll: 2600 - 812 + 1 }), true);
+});
+
+/**
+ * @param {number} count
+ * @param {Partial<import("../shared/page/viewport-log.js").ViewportLine>} [fields]
+ */
+const listLines = (count, fields = {}) =>
+  Array.from({ length: count }, (_, index) => ({
+    at: index,
+    text: `line ${index}`,
+    isOff: false,
+    ...fields,
+  }));
+
+test("trimmed lines keep the newest forty", () => {
+  const lines = listLines(45);
+  assert.deepEqual(trimViewportLines(lines), lines.slice(-40));
+  assert.deepEqual(trimViewportLines(lines.slice(0, 40)), lines.slice(0, 40));
+});
+
+test("trimmed lines keep the latest line where the viewport went off, ahead of the newest", () => {
+  const wentOff = { at: -1, text: "went off", isOff: true, wentOff: true };
+  const lines = [
+    { at: -2, text: "went off before", isOff: true, wentOff: true },
+    wentOff,
+    ...listLines(45, { isOff: true }),
+  ];
+  assert.deepEqual(trimViewportLines(lines), [wentOff, ...lines.slice(-40)]);
+});
+
+test("trimmed lines keep no older line once the newest hold where the viewport went off", () => {
+  const lines = [
+    { at: -1, text: "went off", isOff: true, wentOff: true },
+    ...listLines(20),
+    { at: 100, text: "went off again", isOff: true, wentOff: true },
+    ...listLines(25, { isOff: true }),
+  ];
+  assert.deepEqual(trimViewportLines(lines), lines.slice(-40));
 });
 
 test("a reading's shape leaves out how far the page is scrolled", () => {

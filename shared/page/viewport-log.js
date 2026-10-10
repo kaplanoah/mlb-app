@@ -2,7 +2,10 @@
 // scrolls and turns the phone: the screen, the layout viewport that the tab bar and sheets are held
 // to, the visual viewport the viewer sees, and where the tab bar and an open sheet end. A visual
 // viewport out of line with the layout one is flagged, since then whatever is held to the bottom of
-// the screen shows away from it. The last few changes stay on this device, for Diagnostics to list.
+// the screen shows away from it. The page's opening, each time it leaves the screen, and each time
+// it comes back are logged whether or not anything changed, and a bounce past either end of the
+// page isn't logged at all. The last few changes stay on this device, for Diagnostics to list,
+// with the latest line where the viewport went off even once newer lines have pushed it out.
 
 import { formatClockTimeWithSeconds } from "./days.js";
 
@@ -21,7 +24,8 @@ const KEPT_LINES = 40;
  *   sheetBottom: number | null,
  * }} ViewportReading
  */
-/** @typedef {{ at: number, text: string, isOff: boolean }} ViewportLine */
+/** @typedef {{ at: number, text: string, isOff: boolean, wentOff?: boolean }} ViewportLine */
+/** @typedef {"Opened" | "Left" | "Back"} ViewportMoment */
 
 let lastShape = "";
 let isReadingQueued = false;
@@ -36,10 +40,22 @@ export function readViewportLines() {
   }
 }
 
+/**
+ * The newest lines, and before them the latest line where the viewport went off, if it's older.
+ * @param {ViewportLine[]} lines oldest first
+ * @returns {ViewportLine[]}
+ */
+export function trimViewportLines(lines) {
+  if (lines.length <= KEPT_LINES) return lines;
+  const newest = lines.slice(-KEPT_LINES);
+  const latestWentOff = lines.findLast((line) => line.wentOff);
+  return latestWentOff && !newest.includes(latestWentOff) ? [latestWentOff, ...newest] : newest;
+}
+
 /** @param {ViewportLine[]} lines */
 function saveViewportLines(lines) {
   try {
-    localStorage.setItem(LINES_KEY, JSON.stringify(lines.slice(-KEPT_LINES)));
+    localStorage.setItem(LINES_KEY, JSON.stringify(trimViewportLines(lines)));
   } catch {
     /* the line is lost, and the next change tries again */
   }
@@ -94,10 +110,22 @@ export function describeViewportShape(reading) {
 
 /**
  * @param {ViewportReading} reading
+ * @param {ViewportMoment | null} [moment]
  * @returns {string}
  */
-export const describeViewport = (reading) =>
-  `${describeViewportShape(reading)}, scrolled ${reading.scroll}`;
+export function describeViewport(reading, moment = null) {
+  const text = `${describeViewportShape(reading)}, scrolled ${reading.scroll}`;
+  return moment ? `${moment}: ${text}` : text;
+}
+
+/**
+ * Whether the page is bouncing past its top or bottom, which moves the visual viewport and the
+ * tab bar with it on every frame of the bounce.
+ * @param {ViewportReading} reading
+ * @returns {boolean}
+ */
+export const isBouncing = (reading) =>
+  reading.scroll < 0 || reading.scroll > reading.page - reading.layout;
 
 /**
  * @param {ViewportReading} reading
@@ -121,20 +149,36 @@ export const writeViewportAsText = (lines) =>
       ].join("\n")
     : "";
 
-/** @param {() => void} onLogged */
-function logChangedViewport(onLogged) {
-  isReadingQueued = false;
+/**
+ * @param {ViewportReading} reading
+ * @param {ViewportMoment | null} moment
+ * @param {ViewportLine | undefined} lastLine
+ * @returns {ViewportLine}
+ */
+function writeViewportLine(reading, moment, lastLine) {
+  const isOff = isViewportOff(reading);
+  const line = { at: Date.now(), text: describeViewport(reading, moment), isOff };
+  return isOff && !lastLine?.isOff ? { ...line, wentOff: true } : line;
+}
+
+/**
+ * Logs the viewport as it is now, at a moment, or else only once its shape has changed.
+ * @param {ViewportMoment | null} moment
+ * @param {() => void} onLogged
+ */
+function logViewport(moment, onLogged) {
   const reading = readViewport();
   const shape = describeViewportShape(reading);
-  if (shape === lastShape) return;
+  if (!moment && (shape === lastShape || isBouncing(reading))) return;
   lastShape = shape;
-  const line = { at: Date.now(), text: describeViewport(reading), isOff: isViewportOff(reading) };
-  saveViewportLines([...readViewportLines(), line]);
+  const lines = readViewportLines();
+  saveViewportLines([...lines, writeViewportLine(reading, moment, lines.at(-1))]);
   onLogged();
 }
 
 /**
- * Logs the viewport now and on each change to it, at most once a frame, while isOn() says to.
+ * Logs the viewport as the page opens, leaves the screen, and comes back, and on each change to
+ * it, at most once a frame, while isOn() says to.
  * @param {() => boolean} isOn
  * @param {() => void} onLogged
  */
@@ -142,11 +186,18 @@ export function watchViewport(isOn, onLogged) {
   const queueReading = () => {
     if (isReadingQueued || !isOn()) return;
     isReadingQueued = true;
-    requestAnimationFrame(() => logChangedViewport(onLogged));
+    requestAnimationFrame(() => {
+      isReadingQueued = false;
+      logViewport(null, onLogged);
+    });
+  };
+  const logVisibility = () => {
+    if (isOn()) logViewport(document.hidden ? "Left" : "Back", onLogged);
   };
   addEventListener("scroll", queueReading, { passive: true });
   visualViewport?.addEventListener("scroll", queueReading);
   visualViewport?.addEventListener("resize", queueReading);
   document.addEventListener("toggle", queueReading, true);
-  queueReading();
+  document.addEventListener("visibilitychange", logVisibility);
+  if (isOn()) logViewport("Opened", onLogged);
 }
