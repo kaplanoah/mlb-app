@@ -70,6 +70,7 @@ const LOAD_TIMEOUT_MS = 15_000;
  * @returns {Promise<{ requests: [string, number][], notes: string[] }>}
  */
 async function readFrameRequestsAcross(page, durationMs) {
+  const probeStarted = Date.now();
   await page.evaluate(() => {
     const MOST_CHANGES_NAMED = 6;
     const counted = /** @type {any} */ (window);
@@ -127,6 +128,10 @@ async function readFrameRequestsAcross(page, durationMs) {
       ...counted.fontsArrived,
     ];
     return { requests: [...counted.frameRequests], notes };
+  }).then((read) => {
+    const took = Date.now() - probeStarted;
+    if (took > 500) console.log(`PROBE frame count took ${took}ms`);
+    return read;
   });
 }
 
@@ -212,7 +217,16 @@ export async function expectAtRest(page) {
  * never comes to rest names what kept moving.
  * @param {import("@playwright/test").Page} page
  */
-const listAnimations = (page) =>
+const listAnimations = async (page) => {
+  const started = Date.now();
+  const listed = await listAnimationsNow(page);
+  const took = Date.now() - started;
+  if (took > 500) console.log(`PROBE listAnimations took ${took}ms`);
+  return listed;
+};
+
+/** @param {import("@playwright/test").Page} page */
+const listAnimationsNow = (page) =>
   page.evaluate(() =>
     document.getAnimations().map((animation) => {
       const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
