@@ -3,6 +3,7 @@ import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { listTapsOffButtons } from "../../../../tests/browser/tap-states.mjs";
+import { countTextLines } from "../../../../tests/browser/text-lines.mjs";
 
 test.use({ ...ON_A_PHONE, contextOptions: { reducedMotion: "reduce" } });
 
@@ -173,4 +174,26 @@ test("switching off Baseball Prospectus leaves its stories out, and the choice s
   await expect(
     page.getByRole("switch", { name: "Include content from Baseball Prospectus" }),
   ).toHaveAttribute("aria-checked", "false");
+});
+
+test("a photo's credit too long to split before its agency wraps as one text, in two lines beside two clubs", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await page.getByRole("tab", { name: "News" }).click();
+  await expect(page.locator("#newsList")).toHaveText("No news yet");
+  const photoUrl = new URL("icon-180.png", page.url()).href;
+  const lead = createStory(photoUrl, {
+    id: "alcs",
+    title: "Guardians' Williams, White Sox's Burke to start for ALCS bid",
+    outlet: "ESPN",
+    source: "espn",
+    teams: ["CLE", "CWS"],
+    photo: { url: photoUrl, credit: "Frank Jansky/Icon Sportswire via Getty Images" },
+  });
+  await app.writeFromWorker("news/cards", { cards: [{ lead, more: [] }] });
+  const credit = page.locator(".news-photo-credit");
+
+  await expect(credit).toHaveClass(/credit-flow/);
+  expect(await countTextLines(credit)).toEqual([2]);
 });

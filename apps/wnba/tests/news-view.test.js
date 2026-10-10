@@ -160,7 +160,7 @@ test("a photo's credit sits beside its teams, and a card without one shows only 
   assert.match(renderNews(createCards([withoutCredit]), ALL_ON, NOW).text, /class="news-teams"/);
 });
 
-test("a photo's credit splits before the agency it came through, and one without an agency stays whole", () => {
+test("a photo's credit splits before the agency it came through, one without an agency stays whole, and each can wrap after a slash", () => {
   const readCredit = (credit) =>
     renderNews(
       createCards([createStory({ photo: { url: "https://example.com/photo.jpg", credit } })]),
@@ -170,13 +170,17 @@ test("a photo's credit splits before the agency it came through, and one without
 
   assert.match(
     readCredit("Sarah Stier/NBAE via Getty Images"),
-    /^<span class="credit-part">Photo: Sarah Stier\/NBAE<\/span>\s+<span class="credit-part">via Getty Images<\/span>$/,
+    /^<span class="credit-part">Photo: Sarah Stier\/<wbr \/>NBAE<\/span>\s+<span class="credit-part">via Getty Images<\/span>$/,
   );
   assert.match(
     readCredit("via Getty Images"),
     /^<span class="credit-part">Photo<\/span>\s+<span class="credit-part">via Getty Images<\/span>$/,
   );
-  assert.equal(readCredit("Brett Davis/Imagn Images"), "Photo: Brett Davis/Imagn Images");
+  assert.equal(readCredit("Brett Davis/Imagn Images"), "Photo: Brett Davis/<wbr />Imagn Images");
+  assert.equal(
+    readCredit("AP Photo/Frank Franklin II/File"),
+    "Photo: AP Photo/<wbr />Frank Franklin II/<wbr />File",
+  );
 });
 
 test("a story this device has opened shows a check in place of its arrow, and the others keep theirs", () => {

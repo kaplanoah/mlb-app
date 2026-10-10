@@ -33,7 +33,7 @@
   display: grid;
 }
 /* The photo's credit sits just under it at the right. The teams beside it wrap before they reach
-   it, and it wraps only once they're down to one a line. */
+   it, and it wraps only once they're down to one a line, into lines of even length. */
 .news-top {
   display: grid;
   grid-template-columns: minmax(min-content, 1fr) auto;
@@ -45,9 +45,13 @@
   text-align: right;
   font-size: var(--size-small);
   color: var(--ink-dim);
+  text-wrap: balance;
 }
 .news-photo-credit .credit-part {
   display: inline-block;
+}
+.news-photo-credit.credit-flow .credit-part {
+  display: inline;
 }
 .news-teams {
   display: flex;

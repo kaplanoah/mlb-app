@@ -55,16 +55,23 @@ const describeCredit = (credit) =>
   credit.startsWith("via ") ? `Photo ${credit}` : `Photo: ${credit}`;
 
 /**
- * The credit, in parts that wrap apart before either wraps inside: who took the photo, then the
- * agency it came through.
+ * Credit text that can also wrap after each slash, as between a photographer and their agency.
+ * @param {string} text
+ */
+const renderCreditText = (text) =>
+  text.split("/").map((piece, index) => (index === 0 ? piece : html`/<wbr />${piece}`));
+
+/**
+ * The credit, in parts that wrap apart when each fits on a line of its own: who took the photo,
+ * then the agency it came through. fitPhotoCredits lets it wrap as one text when either doesn't.
  * @param {string} credit
  */
 function renderCredit(credit) {
   const described = describeCredit(credit);
   const viaAt = described.indexOf(" via ");
-  if (viaAt < 0) return described;
-  return html`<span class="credit-part">${described.slice(0, viaAt)}</span>
-    <span class="credit-part">${described.slice(viaAt + 1)}</span>`;
+  if (viaAt < 0) return renderCreditText(described);
+  return html`<span class="credit-part">${renderCreditText(described.slice(0, viaAt))}</span>
+    <span class="credit-part">${renderCreditText(described.slice(viaAt + 1))}</span>`;
 }
 
 /** @param {NewsStory["photo"]} photo */
