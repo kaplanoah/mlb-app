@@ -5,7 +5,8 @@ import { expect } from "@playwright/test";
  * Keeps each "ResizeObserver loop" error the page reports from then on, which a browser raises
  * when an observer's callback resizes what an observer watches, and returns a way to read them.
  * Each names the observers that last ran before it, by where the page made them and what they
- * watch, so a failure says which one looped.
+ * watch, so a failure says which one looped. It also keeps each observer's run, with the sizes it
+ * heard, so a count of frames can say which observers ran while it counted.
  * @param {import("@playwright/test").Page} page
  * @returns {Promise<() => Promise<string[]>>}
  */
@@ -16,7 +17,9 @@ export async function listResizeLoops(page) {
     const resizeLoops = [];
     /** @type {string[]} */
     const recentCallbacks = [];
-    Object.assign(window, { resizeLoops });
+    /** @type {string[]} */
+    const observerRuns = [];
+    Object.assign(window, { resizeLoops, observerRuns });
     /** @param {Element} target */
     const nameTarget = (target) =>
       target.id ? `#${target.id}` : [target.localName, ...target.classList].join(".");
@@ -30,6 +33,12 @@ export async function listResizeLoops(page) {
         const madeAt = pageFrames[0]?.trim() ?? "somewhere";
         super((entries, observer) => {
           const targets = entries.map((entry) => nameTarget(entry.target)).join(", ");
+          const sizes = entries
+            .map(({ target, contentRect }) => {
+              return `${nameTarget(target)} ${contentRect.width}x${contentRect.height}`;
+            })
+            .join(", ");
+          observerRuns.push(`${madeAt} on ${sizes}`);
           recentCallbacks.push(`${madeAt} on ${targets}`);
           recentCallbacks.splice(0, recentCallbacks.length - RECENT_CALLBACKS);
           callback(entries, observer);
@@ -60,19 +69,64 @@ export const forgetResizeLoops = (page) =>
 const LOAD_TIMEOUT_MS = 15_000;
 
 /**
- * Lists where the page asked for each frame across `durationMs` of its clock, by the first line
- * of the page's own code that asked, with how many times, so a failure says what kept asking.
+ * Waits for the browser's next rendering update, in which each ResizeObserver hears what changed
+ * size since the last one, the page's own before this one, which it makes last. The tests' clock
+ * fakes the page's animation frames, so nothing else makes a busy browser run one: CI's WebKit
+ * can go seconds without, and a count of frames that starts then would count the page catching up
+ * on a change it made long before.
+ * @param {import("@playwright/test").Page} page
+ */
+const waitForRenderingUpdate = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const observer = new ResizeObserver(() => {
+          observer.disconnect();
+          resolve(undefined);
+        });
+        observer.observe(document.documentElement);
+      }),
+  );
+
+/**
+ * Where the page asked for each frame across `durationMs` of its clock, once it has caught up, by
+ * the first line of the page's own code that asked, with how many times, so a failure says what
+ * kept asking, and what else happened meanwhile, which a failure names too: how far the page's
+ * clock moved, which also moves as real time passes, what changed, and which observers ran.
  * @param {import("@playwright/test").Page} page
  * @param {number} durationMs
- * @returns {Promise<string[]>}
+ * @returns {Promise<{ requests: [string, number][], notes: string[] }>}
  */
-async function listFrameRequestsAcross(page, durationMs) {
+async function readFrameRequestsAcross(page, durationMs) {
+  await waitForRenderingUpdate(page);
   await page.evaluate(() => {
+    const MOST_CHANGES_NAMED = 6;
     const counted = /** @type {any} */ (window);
     counted.pageRequestFrame ??= window.requestAnimationFrame;
     /** @type {Map<string, number>} */
     const requests = new Map();
     counted.frameRequests = requests;
+    counted.countStartedAt = Date.now();
+    if (counted.observerRuns) counted.observerRuns.length = 0;
+    /** @type {Set<string>} */
+    const changed = new Set();
+    counted.changedElements = changed;
+    counted.changeWatcher?.disconnect();
+    counted.changeWatcher = new MutationObserver((records) => {
+      for (const { target } of records) {
+        const element = target instanceof Element ? target : target.parentElement;
+        if (!element || changed.size >= MOST_CHANGES_NAMED) continue;
+        changed.add(
+          element.id ? `#${element.id}` : [element.localName, ...element.classList].join("."),
+        );
+      }
+    });
+    counted.changeWatcher.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+    });
     window.requestAnimationFrame = (callback) => {
       const pageFrames = (new Error().stack ?? "")
         .split("\n")
@@ -83,11 +137,29 @@ async function listFrameRequestsAcross(page, durationMs) {
     };
   });
   await page.clock.runFor(durationMs);
-  return page.evaluate(() =>
-    [.../** @type {Map<string, number>} */ (/** @type {any} */ (window).frameRequests)].map(
-      ([askedAt, count]) => `${count} from ${askedAt}`,
-    ),
-  );
+  return page.evaluate(() => {
+    const counted = /** @type {any} */ (window);
+    counted.changeWatcher.disconnect();
+    const notes = [
+      `the page's clock moved ${Date.now() - counted.countStartedAt}ms`,
+      `changed: ${[...counted.changedElements].join(", ") || "nothing"}`,
+      ...(counted.observerRuns ?? []).map((/** @type {string} */ run) => `observer ${run}`),
+    ];
+    return { requests: [...counted.frameRequests], notes };
+  });
+}
+
+/**
+ * Lists where the page asked for each frame across `durationMs` of its clock, with how many
+ * times, and, when it asked for any, what else happened meanwhile.
+ * @param {import("@playwright/test").Page} page
+ * @param {number} durationMs
+ * @returns {Promise<string[]>}
+ */
+async function listFrameRequestsAcross(page, durationMs) {
+  const { requests, notes } = await readFrameRequestsAcross(page, durationMs);
+  const asked = requests.map(([askedAt, count]) => `${count} from ${askedAt}`);
+  return asked.length ? [...asked, ...notes] : [];
 }
 
 /**
@@ -96,8 +168,8 @@ async function listFrameRequestsAcross(page, durationMs) {
  * @param {number} durationMs
  */
 export async function countFramesAcross(page, durationMs) {
-  const requests = await listFrameRequestsAcross(page, durationMs);
-  return requests.reduce((total, request) => total + Number.parseInt(request, 10), 0);
+  const { requests } = await readFrameRequestsAcross(page, durationMs);
+  return requests.reduce((total, [, count]) => total + count, 0);
 }
 
 /**
