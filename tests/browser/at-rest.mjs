@@ -60,19 +60,30 @@ export const forgetResizeLoops = (page) =>
 const LOAD_TIMEOUT_MS = 15_000;
 
 /**
- * Lists where the page asked for each frame across `durationMs` of its clock, by the first line
- * of the page's own code that asked, with how many times, so a failure says what kept asking.
+ * Where the page asked for each frame across `durationMs` of its clock, by the first line of the
+ * page's own code that asked, with how many times, so a failure says what kept asking, and the
+ * fonts that were loading or arrived meanwhile, which a failure names too, since a font arrives on
+ * the network's time rather than the page's clock and lays its text out again.
  * @param {import("@playwright/test").Page} page
  * @param {number} durationMs
- * @returns {Promise<string[]>}
+ * @returns {Promise<{ requests: [string, number][], fonts: string[] }>}
  */
-async function listFrameRequestsAcross(page, durationMs) {
+async function readFrameRequestsAcross(page, durationMs) {
   await page.evaluate(() => {
     const counted = /** @type {any} */ (window);
     counted.pageRequestFrame ??= window.requestAnimationFrame;
     /** @type {Map<string, number>} */
     const requests = new Map();
     counted.frameRequests = requests;
+    counted.fontsArrived = document.fonts.status === "loading" ? ["fonts still loading"] : [];
+    if (!counted.isWatchingFonts) {
+      counted.isWatchingFonts = true;
+      document.fonts.addEventListener("loadingdone", (event) => {
+        for (const face of event.fontfaces) {
+          counted.fontsArrived.push(`${face.family} ${face.weight} ${face.style} arrived`);
+        }
+      });
+    }
     window.requestAnimationFrame = (callback) => {
       const pageFrames = (new Error().stack ?? "")
         .split("\n")
@@ -83,11 +94,23 @@ async function listFrameRequestsAcross(page, durationMs) {
     };
   });
   await page.clock.runFor(durationMs);
-  return page.evaluate(() =>
-    [.../** @type {Map<string, number>} */ (/** @type {any} */ (window).frameRequests)].map(
-      ([askedAt, count]) => `${count} from ${askedAt}`,
-    ),
-  );
+  return page.evaluate(() => {
+    const counted = /** @type {any} */ (window);
+    return { requests: [...counted.frameRequests], fonts: counted.fontsArrived };
+  });
+}
+
+/**
+ * Lists where the page asked for each frame across `durationMs` of its clock, with how many
+ * times, and, when it asked for any, the fonts that were loading or arrived meanwhile.
+ * @param {import("@playwright/test").Page} page
+ * @param {number} durationMs
+ * @returns {Promise<string[]>}
+ */
+async function listFrameRequestsAcross(page, durationMs) {
+  const { requests, fonts } = await readFrameRequestsAcross(page, durationMs);
+  const asked = requests.map(([askedAt, count]) => `${count} from ${askedAt}`);
+  return asked.length ? [...asked, ...fonts] : [];
 }
 
 /**
@@ -96,8 +119,8 @@ async function listFrameRequestsAcross(page, durationMs) {
  * @param {number} durationMs
  */
 export async function countFramesAcross(page, durationMs) {
-  const requests = await listFrameRequestsAcross(page, durationMs);
-  return requests.reduce((total, request) => total + Number.parseInt(request, 10), 0);
+  const { requests } = await readFrameRequestsAcross(page, durationMs);
+  return requests.reduce((total, [, count]) => total + count, 0);
 }
 
 /**
