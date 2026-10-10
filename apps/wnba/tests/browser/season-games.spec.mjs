@@ -305,6 +305,76 @@ test.describe("with reduced motion", () => {
     await expectDayAtTop(page, "2026-09-30");
   });
 
+  test("after a night away, the list follows its start day to today once the store says the game it opened on has ended", async ({
+    page,
+  }) => {
+    const app = await openSeasonGames(page);
+    await app.changeSeason((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "live", status: "Q4 0:40", period: 4, clock: "0:40" });
+      return season;
+    });
+    await expect(page.locator('[data-game="1042600132"] .clock')).toHaveText("Q4 0:40");
+    await expectDayAtTop(page, "2026-09-30");
+    const setHidden = (/** @type {boolean} */ hidden) =>
+      page.evaluate((isHidden) => {
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => isHidden });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, hidden);
+
+    await setHidden(true);
+    await page.clock.fastForward("12:00:00");
+    await app.changeSeasonWhileAway((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "final", status: "Final", period: 4, clock: "" });
+      return season;
+    });
+    await setHidden(false);
+    await page.clock.runFor(100);
+
+    await expect(page.locator('[data-game="1042600132"] .game-status')).toContainText("Final");
+    await expectDayAtTop(page, "2026-10-01");
+  });
+
+  test("after a night away, a swipe on the strip before the store catches up keeps the list where it is", async ({
+    page,
+  }) => {
+    const app = await openSeasonGames(page);
+    await app.changeSeason((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "live", status: "Q4 0:40", period: 4, clock: "0:40" });
+      return season;
+    });
+    await expect(page.locator('[data-game="1042600132"] .clock')).toHaveText("Q4 0:40");
+    await expectDayAtTop(page, "2026-09-30");
+    const setHidden = (/** @type {boolean} */ hidden) =>
+      page.evaluate((isHidden) => {
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => isHidden });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, hidden);
+    await setHidden(true);
+    await page.clock.fastForward("12:00:00");
+    await app.changeSeasonWhileAway((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "final", status: "Final", period: 4, clock: "" });
+      return season;
+    });
+    const release = await app.holdStore();
+    await setHidden(false);
+    await page.clock.runFor(100);
+    await expectDayAtTop(page, "2026-09-30");
+
+    await page.locator("#seasonGames .day-strip").evaluate((strip) => {
+      strip.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      strip.scrollLeft -= 200;
+    });
+    release();
+
+    await expect(page.locator('[data-game="1042600132"] .game-status')).toContainText("Final");
+    await page.clock.runFor(100);
+    await expectDayAtTop(page, "2026-09-30");
+  });
+
   test("after two minutes away on another tab, the Games list opens on today once it's shown", async ({
     page,
   }) => {
@@ -554,5 +624,27 @@ test("a tap on Today where the list already is pulses today's date, 4% bigger an
   ]);
   await page.clock.runFor(400);
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await expectDayAtTop(page, "2026-09-30");
+});
+
+test("a redraw that makes the list shorter as it adds a day leaves the day at the top where it is while the change eases in", async ({
+  page,
+}) => {
+  const app = await openSeasonGames(page);
+  await page.clock.runFor(1000);
+  await expectDayAtTop(page, "2026-09-30");
+  const readListHeight = () => findList(page).evaluate((list) => list.clientHeight);
+  const heightBefore = await readListHeight();
+
+  await app.changeSeason((season) => {
+    const game = season.games.find((each) => each.id === "1042600132");
+    Object.assign(game, { state: "live", status: "Q2 5:10", period: 2, clock: "5:10" });
+    season.games.push({ ...game, id: "added", start: "2026-09-28T23:30:00Z", state: "pre" });
+    return season;
+  });
+
+  await expect(findDay(page, "2026-09-28").locator('[data-game="added"]')).toHaveCount(1);
+  expect(await readListHeight()).not.toBe(heightBefore);
+  await page.clock.runFor(500);
   await expectDayAtTop(page, "2026-09-30");
 });
