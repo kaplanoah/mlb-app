@@ -231,6 +231,25 @@ test("tapping the Games tab while it shows goes back to today", async ({ page })
   );
 });
 
+test("after a tap on the Games tab while the list is already on today, the strip follows a scroll that no finger or wheel makes, as a keyboard's does", async ({
+  page,
+}) => {
+  await openSeasonGames(page);
+  await expect(page.locator("#seasonGames")).toHaveAttribute("data-held-arrived", "true");
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect(page.locator("#seasonGames")).toHaveAttribute("data-held-arrived", "true");
+
+  await page.locator("#seasonGames .day-list").evaluate((list) => {
+    const next = /** @type {HTMLElement} */ (list.querySelector('[data-day="2026-09-25"]'));
+    list.scrollTop = next.offsetTop;
+  });
+
+  await expect(page.locator("#seasonGames .day-cell.is-chosen")).toHaveAttribute(
+    "data-day",
+    "2026-09-25",
+  );
+});
+
 test("a doubleheader shows as two games on its date, with no game number", async ({ page }) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();

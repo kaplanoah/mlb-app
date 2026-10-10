@@ -369,6 +369,20 @@ test("on a desktop, the title centers over the sheet, with its close button at i
   expect(sides.map(Math.round)).toEqual([19, 19]);
 });
 
+test("while a sheet is open, the page behind it never springs past its ends, and springs again once it closes", async ({
+  page,
+}) => {
+  const root = page.locator("html");
+  await expect(root).toHaveCSS("overscroll-behavior-y", "auto");
+  const sheet = await openGame(page);
+  await expect(sheet).toBeVisible();
+  await expect(root).toHaveCSS("overscroll-behavior-y", "none");
+
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await expect(root).toHaveCSS("overscroll-behavior-y", "auto");
+});
+
 test("the sheet's title and pills hold still, keeping their band's line, while a section scrolls under them, which never scrolls past its ends", async ({
   page,
 }) => {
