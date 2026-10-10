@@ -3,6 +3,7 @@ import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
+import { countTextLines } from "../../../../tests/browser/text-lines.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -578,6 +579,36 @@ test.describe("on a phone, the news", () => {
     await expect(credit.locator(".credit-part").last()).toHaveText("via Getty Images");
     expect(agency.y).toBeCloseTo(taker.y + taker.height, 0);
     expect(agency.height).toBeCloseTo(taker.height, 0);
+  });
+
+  test("wraps a photo's credit as one text where a part wouldn't fit on a line of its own, and splits it again once the screen widens", async ({
+    page,
+  }) => {
+    // Chromium reports its fonts loaded again on a resize, which would fit the credits on its own.
+    await page.addInitScript(() =>
+      document.fonts.addEventListener("loadingdone", (event) => {
+        if ("ignoresFontLoads" in window) event.stopImmediatePropagation();
+      }),
+    );
+    await openNewsWithStories(page, (photoUrl) => [
+      createStory(photoUrl, {
+        id: "credit",
+        title: "The Liberty and the Dream meet again in the semifinals",
+        outlet: "ESPN",
+        source: "espn",
+        photo: { url: photoUrl, credit: "Andy Lyons/Getty Images North America via AFP" },
+      }),
+    ]);
+    const credit = page.locator(".news-photo-credit");
+    await page.evaluate(() => document.fonts.ready);
+
+    await expect(credit).toHaveClass(/credit-flow/);
+    expect(await countTextLines(credit)).toEqual([2]);
+
+    await page.evaluate(() => Object.assign(window, { ignoresFontLoads: true }));
+    await page.setViewportSize({ width: 600, height: 844 });
+    await expect(credit).not.toHaveClass(/credit-flow/);
+    expect(await countTextLines(credit.locator(".credit-part"))).toEqual([1, 1]);
   });
 
   test("keeps each card's photo when a story arrives above it", async ({ page }) => {
