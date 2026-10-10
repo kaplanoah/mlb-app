@@ -66,7 +66,8 @@ export default [
     files: ["apps/*/tests/browser/*.mjs", "tests/browser/*.mjs"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
     rules: {
-      // A fixed wait is too short on a slow machine and wasted time on a fast one.
+      // A fixed wait, or one for the network to go quiet, is too short on a slow machine and wasted
+      // time on a fast one.
       "no-restricted-syntax": [
         "error",
         {
@@ -78,6 +79,17 @@ export default [
           selector: "CallExpression[callee.name='setTimeout']",
           message:
             "Wait for what the page shows with expect, or move the page's clock with page.clock.",
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='waitForLoadState'][arguments.0.value='networkidle']",
+          message:
+            "Wait for what the page shows with expect, or for the reads it makes with expect.poll.",
+        },
+        {
+          selector: "Property[key.name='waitUntil'][value.value='networkidle']",
+          message:
+            "Wait for what the page shows with expect, or for the reads it makes with expect.poll.",
         },
         {
           // Playwright asks the test about every request a function might match.
