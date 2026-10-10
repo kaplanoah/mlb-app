@@ -1021,7 +1021,7 @@ test("on a wide screen, the Games strip and list sit in the middle of the page",
   }
 });
 
-test("on a wide screen, the strip, its line, and a held day's line stop at the column's edges, eleven whole days filling it, with the month 12.5px in from its left and Today 13px in from its right", async ({
+test("on a wide screen, the strip, its line, and a held day's line stop at the column's edges, eleven whole days filling it, with the month and Today 0.5px in from its edges", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1045,8 +1045,8 @@ test("on a wide screen, the strip, its line, and a held day's line stop at the c
   expect(edges.wholeDays).toBe(11);
   expect(edges.firstDayLeft).toBeCloseTo(edges.strip.left, 0);
   expect(edges.lastDayRight).toBeCloseTo(edges.strip.right, 0);
-  expect(edges.monthLeft - edges.column.left).toBeCloseTo(12.5, 1);
-  expect(edges.column.right - edges.todayRight).toBeCloseTo(13, 1);
+  expect(edges.monthLeft - edges.column.left).toBeCloseTo(0.5, 1);
+  expect(edges.column.right - edges.todayRight).toBeCloseTo(0.5, 1);
 });
 
 test("on a wide screen, the AL and NL face each other across the World Series", async ({

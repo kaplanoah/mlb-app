@@ -471,7 +471,7 @@ test.describe("on a wide screen, with reduced motion", () => {
     contextOptions: { reducedMotion: "reduce" },
   });
 
-  test("the strip and its line stop at the column's edges, eleven whole days filling it, with the month 14px in from its left and Today 11px in from its right", async ({
+  test("the strip and its line stop at the column's edges, eleven whole days filling it, with the month and Today 2px in from its edges, whatever days are at the strip's ends", async ({
     page,
   }) => {
     await openSeasonGames(page);
@@ -485,8 +485,14 @@ test.describe("on a wide screen, with reduced motion", () => {
     expect(edges.wholeDays).toBe(11);
     expect(edges.firstDayLeft).toBeCloseTo(edges.strip.left, 0);
     expect(edges.lastDayRight).toBeCloseTo(edges.strip.right, 0);
-    expect(edges.monthLeft - edges.column.left).toBeCloseTo(14, 1);
-    expect(edges.column.right - edges.todayRight).toBeCloseTo(11, 1);
+    expect(edges.monthLeft - edges.column.left).toBeCloseTo(2, 1);
+    expect(edges.column.right - edges.todayRight).toBeCloseTo(2, 1);
+
+    await scrollStripBy(page, 2 * 51);
+    const moved = await readStripEdges(page);
+    expect(moved.firstDayLeft).toBeCloseTo(moved.strip.left, 0);
+    expect(moved.monthLeft).toBe(edges.monthLeft);
+    expect(moved.todayRight).toBe(edges.todayRight);
   });
 
   test("the strip comes to rest on whole days, on the nearer one, after a scroll leaves it between them", async ({
