@@ -305,6 +305,76 @@ test.describe("with reduced motion", () => {
     await expectDayAtTop(page, "2026-09-30");
   });
 
+  test("after a night away, the list follows its start day to today once the store says the game it opened on has ended", async ({
+    page,
+  }) => {
+    const app = await openSeasonGames(page);
+    await app.changeSeason((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "live", status: "Q4 0:40", period: 4, clock: "0:40" });
+      return season;
+    });
+    await expect(page.locator('[data-game="1042600132"] .clock')).toHaveText("Q4 0:40");
+    await expectDayAtTop(page, "2026-09-30");
+    const setHidden = (/** @type {boolean} */ hidden) =>
+      page.evaluate((isHidden) => {
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => isHidden });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, hidden);
+
+    await setHidden(true);
+    await page.clock.fastForward("12:00:00");
+    await app.changeSeasonWhileAway((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "final", status: "Final", period: 4, clock: "" });
+      return season;
+    });
+    await setHidden(false);
+    await page.clock.runFor(100);
+
+    await expect(page.locator('[data-game="1042600132"] .game-status')).toContainText("Final");
+    await expectDayAtTop(page, "2026-10-01");
+  });
+
+  test("after a night away, a swipe on the strip before the store catches up keeps the list where it is", async ({
+    page,
+  }) => {
+    const app = await openSeasonGames(page);
+    await app.changeSeason((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "live", status: "Q4 0:40", period: 4, clock: "0:40" });
+      return season;
+    });
+    await expect(page.locator('[data-game="1042600132"] .clock')).toHaveText("Q4 0:40");
+    await expectDayAtTop(page, "2026-09-30");
+    const setHidden = (/** @type {boolean} */ hidden) =>
+      page.evaluate((isHidden) => {
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => isHidden });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, hidden);
+    await setHidden(true);
+    await page.clock.fastForward("12:00:00");
+    await app.changeSeasonWhileAway((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "final", status: "Final", period: 4, clock: "" });
+      return season;
+    });
+    const release = await app.holdStore();
+    await setHidden(false);
+    await page.clock.runFor(100);
+    await expectDayAtTop(page, "2026-09-30");
+
+    await page.locator("#seasonGames .day-strip").evaluate((strip) => {
+      strip.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      strip.scrollLeft -= 200;
+    });
+    release();
+
+    await expect(page.locator('[data-game="1042600132"] .game-status')).toContainText("Final");
+    await page.clock.runFor(100);
+    await expectDayAtTop(page, "2026-09-30");
+  });
+
   test("after two minutes away on another tab, the Games list opens on today once it's shown", async ({
     page,
   }) => {

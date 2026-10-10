@@ -20,7 +20,7 @@ import { endStripSlide, noteStripMissed, slideStripTo } from "./strip-slide.js";
 // No games row, which leaves once it's out of sight, and a tap on Today while the list is already
 // there pulses the date. While a finger moves the strip, the month names the day in its middle.
 // The list opens on its start day, today or the day the app names, and goes back there once
-// someone has been away two minutes. A league hands it each game day's markup, as it draws a day
+// someone has been away two minutes, following it for a few seconds as the store catches up. A league hands it each game day's markup, as it draws a day
 // elsewhere, and a date without games' markup. A league with many games a day can also hand over
 // a stand-in for each day, as tall as its games, which the list draws in place of a day far from
 // its top, so it holds only the games near the screen.
@@ -54,6 +54,10 @@ const NEAR_DAY_COUNT = 4;
 // A tap on Today while the list is already there grows the date this much and back, this fast.
 const PULSE_SCALE = 1.04;
 const PULSE_MS = 290;
+// After a long time away, the list's start day can move as the store catches up, as when a game
+// still under way when the page left has since ended, so for this long, until someone moves the
+// list or the strip, the list follows it.
+const FOLLOW_START_MS = 10 * 1000;
 
 /** @type {HTMLElement | null} */
 let view = null;
@@ -74,6 +78,8 @@ let anchor = null;
 // A date without games that a tap brought into the list, until it's out of sight.
 /** @type {string | null} */
 let quietDay = null;
+// Until when the list held on its start day follows it to a new one.
+let followStartUntil = 0;
 // A finger or wheel moving the strip has the month name the day in its middle, until the list moves.
 let isStripSwiped = false;
 // The strip's dates slide only while a finger or wheel has moved the list, since the list's own
@@ -725,8 +731,8 @@ export function fillDayStrip(fill) {
     shown = fill;
     return;
   }
-  const putBack = !shown && isListShown() ? findList() : null;
-  const putBackTop = putBack ? Number(putBack.dataset.putBackTop ?? putBack.scrollTop) : null;
+  const putBackTop = readPutBackTop();
+  const lastStartDay = shown?.startDay;
   if (isListShown()) noteAnchor();
   const before = dayStripLog.isLogging() ? measureTopDay() : null;
   const drawing = drawFill(fill);
@@ -734,6 +740,37 @@ export function fillDayStrip(fill) {
   fitEndRoom();
   placeList(putBackTop);
   if (dayStripLog.isLogging()) noteFill(drawing, before, measureTopDay());
+  if (lastStartDay) followStartDay(lastStartDay);
+}
+
+/**
+ * Where the page put the list back as it loaded, before the list's first fill, or null when it
+ * didn't or put it back on its start day, as after a long time away, where the fill places it.
+ */
+function readPutBackTop() {
+  const putBack = !shown && isListShown() ? findList() : null;
+  if (!putBack) return null;
+  if (putBack.dataset.putBackStart === "true") {
+    startFollowingStart();
+    return null;
+  }
+  return Number(putBack.dataset.putBackTop ?? putBack.scrollTop);
+}
+
+function startFollowingStart() {
+  followStartUntil = Date.now() + FOLLOW_START_MS;
+}
+
+/**
+ * Moves a list still held on its last start day to its new one.
+ * @param {string} lastStartDay
+ */
+function followStartDay(lastStartDay) {
+  const startDay = shown?.startDay;
+  const isFollowing = Date.now() < followStartUntil && held?.day === lastStartDay;
+  if (!startDay || !isFollowing || startDay === lastStartDay || !isListShown()) return;
+  dayStripLog.noteStep(`the start day moved from ${lastStartDay} to ${startDay}`);
+  showDay(startDay, "instant");
 }
 
 /**
@@ -755,6 +792,7 @@ function noteFill(drawing, before, after) {
 /** @param {Event} event */
 function noteTouch(event) {
   const target = /** @type {Node} */ (event.target);
+  followStartUntil = 0;
   if (findList()?.contains(target)) isListInHand = true;
   if (held && findList()?.contains(target)) {
     dayStripLog.noteStep(`the list's touch takes it over on its way to ${held.day}`);
@@ -816,6 +854,7 @@ function openTappedDay(event) {
 /** @param {number} awayMs */
 function showStartAfterLongAway(awayMs) {
   if (!isAwayLong(awayMs)) return;
+  startFollowingStart();
   if (isListShown()) requestAnimationFrame(() => showStartDay("instant"));
   else startOverDayStrip();
 }
