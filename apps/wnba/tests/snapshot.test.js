@@ -462,6 +462,24 @@ test("polling waits until 15 minutes before the next set start, and runs every 1
   assert.equal(WNBASnapshot.choosePollDelay(live, now), 15 * 1000);
 });
 
+test("the last 5 minutes of the 4th quarter and all of overtime are followed every 5 seconds", () => {
+  const now = Date.parse(AFTERNOON.now);
+  const computePollDelay = (period, clock) =>
+    WNBASnapshot.choosePollDelay({ games: [{ state: "live", period, clock }] }, now);
+  assert.equal(computePollDelay(3, "1:12"), 15 * 1000);
+  assert.equal(computePollDelay(3, "0.0"), 15 * 1000);
+  assert.equal(computePollDelay(4, "10:00"), 15 * 1000);
+  assert.equal(computePollDelay(4, "5:01"), 15 * 1000);
+  assert.equal(computePollDelay(4, "5:00"), 5 * 1000);
+  assert.equal(computePollDelay(4, "45.2"), 5 * 1000);
+  assert.equal(computePollDelay(4, null), 15 * 1000);
+  assert.equal(computePollDelay(5, "5:00"), 5 * 1000);
+  assert.equal(computePollDelay(6, null), 5 * 1000);
+  assert.equal(WNBASnapshot.readClock("PT05M00.00S"), "5:00");
+  const final = { games: [{ state: "final", period: 4, clock: null }] };
+  assert.notEqual(WNBASnapshot.choosePollDelay(final, now), 5 * 1000);
+});
+
 test("polling follows a team's game now as closely as a playoff game", () => {
   const now = Date.parse(AFTERNOON.now);
   const snapshot = buildWithWholeSeason(addToScoreboard(SEATTLE_AT_CHICAGO));
