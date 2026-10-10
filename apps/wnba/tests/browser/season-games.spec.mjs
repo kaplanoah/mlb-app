@@ -588,7 +588,16 @@ test("a scroll the page makes itself, without a finger or wheel on the list, swa
 
   // Each frame comes only as the test moves the clock, so a slide would still be under way.
   await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
-  await findDay(page, dayBefore).evaluate((listed) => listed.scrollIntoView());
+  // The browser sends the list's scroll on its next frame, and the page follows it on a frame the
+  // clock then gives it, so the clock moves only once the scroll has come.
+  await findDay(page, dayBefore).evaluate((listed) => {
+    const list = /** @type {HTMLElement} */ (listed.closest(".day-list"));
+    const scrolled = new Promise((resolve) =>
+      list.addEventListener("scroll", resolve, { once: true }),
+    );
+    listed.scrollIntoView();
+    return scrolled;
+  });
   await page.clock.runFor(100);
 
   const strip = await page.evaluate(() => ({
