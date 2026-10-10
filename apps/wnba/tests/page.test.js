@@ -15,6 +15,7 @@ import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeStampProblem, renderStampLines } from "../page/js/stamp.js";
 import { renderStandings } from "../page/js/standings-view.js";
 import { renderTeamSheet } from "../page/js/team-view.js";
+import { placeOnRange } from "../../../shared/page/rank-curve.js";
 import { TEAMS } from "../page/js/teams.js";
 import { normalizeSpaces } from "../../../tests/text.js";
 import { checkInTimeZone, EASTERN } from "../../../tests/time-zone.js";
@@ -755,16 +756,16 @@ test("a team's Playoffs chip names its round, the same on a game day as any othe
     );
   }));
 
-test("a team's sheet shows its nearest games, its playoffs, then its regular season across from the league's with its record by its name, its leading scorers, and its titles", () =>
+test("a team's sheet shows its nearest games, its playoffs across from the field's with its record by its name, then its regular season ranked among every team's, its leading scorers, and its titles", () =>
   inEastern(() => {
     assert.equal(
       readTeam(SEASON, "ATL").body,
       "Last game Sep 27 W 92-77 vs Mystics Next game Sep 30 7:00 PM @ Mystics " +
         "Playoffs 1st Rd G1 W vs Mystics 1st Rd 92-77 G2 at Mystics 1st Rd Today 7:00 PM " +
-        "Dream 1-0 Playoff field 92.0 PPG 87.7 77.0 Opp PPG 87.7 +15.0 Margin 0.0 " +
-        "1-0 Home 5-1 0-0 Road 1-5 " +
-        "Regular season Dream 30-14 League 91.3 PPG 87.1 84.5 Opp PPG 87.1 +6.9 Margin 0.0 " +
-        "15-7 Home 178-152 15-7 Road 152-178 Last 10 9-1 Streak W 5 " +
+        "Dream 1-0 Playoff field PPG 92.0 87.7 Opp PPG 77.0 87.7 Margin +15.0 0.0 " +
+        "Home 1-0 5-1 Road 0-0 1-5 " +
+        "Regular season 44 games PPG 91.3 3rd of 15 Opp PPG 84.5 4th of 15 Margin +6.9 3rd of 15 " +
+        "Home 15-7 3rd of 15 Road 15-7 3rd of 15 Last 10 9-1 Streak W 5 " +
         "Leading scorers Per game Player Pts Reb Ast FG% Min Allisha Gray 19.0 3.5 2.6 46.2 32.6 " +
         "Rhyne Howard 17.7 3.8 3.7 40.5 34.2 Angel Reese 16.4 12.1 2.8 45.1 31.0 " +
         "Jordin Canada 11.6 3.5 7.3 43.1 31.1 DeWanna Bonner 10.4 6.0 1.6 40.2 26.8 Titles None yet",
@@ -841,33 +842,82 @@ const ATLANTA_SEASON = {
 test("a team's playoff numbers count its finished playoff games: its record, its averages, and its records at home and on the road", () => {
   assert.match(
     readTeam(ATLANTA_SEASON, "ATL").body,
-    / Dream 8-4 Playoff field 86\.7 PPG .* 83\.3 Opp PPG .* \+3\.3 Margin .* 3-3 Home .* 5-1 Road .* Regular season /,
+    / Dream 8-4 Playoff field PPG 86\.7 .* Opp PPG 83\.3 .* Margin \+3\.3 .* Home 3-3 .* Road 5-1 .* Regular season /,
   );
 });
 
 test("the playoff field's side counts every finished playoff game: the points each team scored a game, and how home and road teams did", () => {
   assert.match(
     readTeam(ATLANTA_SEASON, "ATL").body,
-    / PPG 85\.0 .* Opp PPG 85\.0 .* Margin 0\.0 3-3 Home 4-8 5-1 Road 8-4 /,
+    / PPG 86\.7 85\.0 Opp PPG 83\.3 85\.0 Margin \+3\.3 0\.0 Home 3-3 4-8 Road 5-1 8-4 /,
   );
 });
 
-/** @param {string} label @param {string} body markup */
-const findTapeRow = (label, body) =>
-  body.split('<div class="tape-row">').find((row) => row.includes(`>${label}</span>`)) ?? "";
+/**
+ * Where the team's dot and the field's sit on a playoff measure's line, from 0 to 100.
+ * @param {any} season
+ * @param {string} code
+ * @param {string} label
+ */
+function findPlaces(season, code, label) {
+  const { body } = renderTeamSheet(season, code, { year: 2026, now: NOW });
+  const row = body.text
+    .split('<div class="player-rank-row">')
+    .find((each) => each.includes(`>${label}</span>`) && each.includes("placed-line"));
+  const readPlace = (whose) => {
+    const left = row?.match(new RegExp(`<i class="${whose}" style="left: ([\\d.]+)%"`))?.[1];
+    return left == null ? null : Number(left);
+  };
+  return { own: readPlace("own"), other: readPlace("other") };
+}
 
-test("on each measure, the side ahead has the lead bar, and fewer points allowed is ahead", () => {
-  const findLead = (season, code, label) =>
-    findTapeRow(label, renderTeamSheet(season, code, { year: 2026, now: NOW }).body.text)
-      .split('class="tape-side ')
-      .find((side) => side.includes('<i class="lead"'))
-      ?.slice(0, 4);
-  assert.equal(findLead(ATLANTA_SEASON, "ATL", "PPG"), "away");
-  assert.equal(findLead(ATLANTA_SEASON, "ATL", "Opp PPG"), "away");
-  assert.equal(findLead(ATLANTA_SEASON, "ATL", "Road"), "away");
-  assert.equal(findLead(SEASON, "SEA", "PPG"), "home");
-  assert.equal(findLead(SEASON, "SEA", "Opp PPG"), "home");
-  assert.equal(findLead(SEASON, "SEA", "Home"), "home");
+test("each playoff number sits on a line across the range of every team's regular season, its better end on the right, fewer points allowed better, and a record from no wins to all", () => {
+  /** @param {string} key */
+  const readRange = (key) => {
+    const values = SEASON.standings.map((row) => row[key]);
+    return /** @type {[number, number]} */ ([Math.min(...values), Math.max(...values)]);
+  };
+  const points = readRange("pointsFor");
+  const allowed = readRange("pointsAgainst");
+  assert.deepEqual(findPlaces(ATLANTA_SEASON, "ATL", "PPG"), {
+    own: placeOnRange(260 / 3, points),
+    other: placeOnRange(85, points),
+  });
+  assert.deepEqual(findPlaces(ATLANTA_SEASON, "ATL", "Opp PPG"), {
+    own: placeOnRange(250 / 3, allowed, true),
+    other: placeOnRange(85, allowed, true),
+  });
+  assert.ok(placeOnRange(250 / 3, allowed, true) > placeOnRange(85, allowed, true));
+  assert.deepEqual(findPlaces(ATLANTA_SEASON, "ATL", "Home"), { own: 50, other: 33.3 });
+  assert.deepEqual(findPlaces(ATLANTA_SEASON, "ATL", "Road"), { own: 83.3, other: 66.7 });
+});
+
+test("a playoff number past the regular season's range sits at its end, and a record with no games has no dot", () => {
+  assert.deepEqual(findPlaces(SEASON, "ATL", "Margin").own, 100);
+  assert.deepEqual(findPlaces(SEASON, "ATL", "Road"), { own: null, other: 16.7 });
+});
+
+test("the team's dot is drawn over the field's, so the team's shows where the two meet", () => {
+  const { body } = renderTeamSheet(SEASON, "ATL", { year: 2026, now: NOW });
+  const lines = [
+    ...body.text.matchAll(/<span class="placed-line" aria-hidden="true"><span>(.*?)<\/span>/g),
+  ];
+  assert.equal(lines.length, 5);
+  for (const [, line] of lines.slice(0, 4))
+    assert.match(line, /^<i class="other"[^>]*><\/i><i class="own"/);
+});
+
+test("a team's regular season ranks it among every team's, fewest points allowed first and its records by their share of games won, tied teams sharing a rank, beside how many games it played", () => {
+  assert.match(
+    readTeam(SEASON, "ATL").body,
+    / Regular season 44 games PPG 91\.3 3rd of 15 Opp PPG 84\.5 4th of 15 Margin \+6\.9 3rd of 15 Home 15-7 3rd of 15 Road 15-7 3rd of 15 Last 10 /,
+  );
+  assert.match(readTeam(SEASON, "SEA").body, / Opp PPG 88\.9 10th of 15 /);
+  assert.match(readTeam(SEASON, "IND").body, / PPG 96\.0 1st of 15 /);
+  const curves = renderTeamSheet(SEASON, "ATL", { year: 2026, now: NOW }).body.text.match(
+    /<span class="player-curve"/g,
+  );
+  assert.equal(curves?.length, 5);
 });
 
 test("a team's record sits by its name over its numbers, not in a row of its own, since the league has none to measure it against", () => {
@@ -876,9 +926,9 @@ test("a team's record sits by its name over its numbers, not in a row of its own
     [...body.text.matchAll(/<span class="team-record tabular">(.*?)<\/span>/g)].map(
       ([, record]) => record,
     ),
-    ["1-0", "30-14"],
+    ["1-0"],
   );
-  assert.equal(findTapeRow("Record", body.text), "");
+  assert.doesNotMatch(body.text, />Record<\/span>/);
 });
 
 test("Last 10 and Streak show only for the regular season, under its numbers and set like them, with a winning streak marked", () => {
@@ -887,13 +937,12 @@ test("Last 10 and Streak show only for the regular season, under its numbers and
     [...body.text.matchAll(/<span class="streak-won">(.*?)<\/span>/g)].map(([, streak]) => streak),
     ["W 5"],
   );
-  assert.equal(findTapeRow("Last 10", body.text), "");
-  assert.equal(findTapeRow("Streak", body.text), "");
+  assert.doesNotMatch(body.text, /class="player-rank-label">(Last 10|Streak)</);
   assert.match(
     body.text,
     /<dl class="team-form">\s*<dt class="tape-label">Last 10<\/dt><dd class="tape-value tabular">9-1<\/dd><dt class="tape-label">Streak<\/dt>/,
   );
-  assert.match(readTeam(SEASON, "ATL").body, / 152-178 Last 10 9-1 Streak W 5 Leading scorers /);
+  assert.match(readTeam(SEASON, "ATL").body, / 3rd of 15 Last 10 9-1 Streak W 5 Leading scorers /);
   assert.doesNotMatch(
     renderTeamSheet(SEASON, "SEA", { year: 2026, now: NOW }).body.text,
     /streak-won/,
@@ -905,15 +954,18 @@ test("over its numbers, a team is named without its dot, which the sheet's title
   const heads = [...body.text.matchAll(/<div class="tape-teams">([\s\S]*?)<\/div>/g)].map(
     ([, head]) => head,
   );
-  assert.equal(heads.length, 2);
+  assert.equal(heads.length, 1);
   for (const head of heads) assert.doesNotMatch(head, /class="dot"/);
   assert.match(readTeam(SEASON, "ATL").body, / Dream 1-0 Playoff field /);
 });
 
-test("a team's side of its numbers is drawn in its own color on each theme", () => {
+test("a team's marks on its numbers are drawn in its mark color on each theme, as a player's are", () => {
   const { body } = renderTeamSheet(SEASON, "ATL", { year: 2026, now: NOW });
-  const [light, dark] = [TEAMS.ATL.chartColors.light[0], TEAMS.ATL.chartColors.dark[0]];
-  assert.ok(body.text.includes(`style="--team-light: ${light}; --team-dark: ${dark};"`));
+  const [light, dark] = [TEAMS.ATL.markColors.light, TEAMS.ATL.markColors.dark];
+  const styled = body.text.match(/class="player-ranks team-ranks" style="([^"]*)"/g) ?? [];
+  assert.equal(styled.length, 2);
+  for (const each of styled)
+    assert.ok(each.includes(`--mark-light: ${light}; --mark-dark: ${dark};`));
 });
 
 test("a team's next game is in the round it's playing, not one left over from a round it won", () =>
@@ -959,7 +1011,7 @@ test("before the playoffs, a team has no seed or playoff run, and its season sho
   assert.equal(minnesota.note, "West | 33-11");
   assert.equal(
     minnesota.body,
-    "Regular season Lynx 33-11 League Last 10 6-4 Titles 4 | 2017, 2015, 2013, 2011",
+    "Regular season 44 games Last 10 6-4 Titles 4 | 2017, 2015, 2013, 2011",
   );
 });
 

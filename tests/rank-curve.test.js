@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { drawSpread, rankAmong, renderRankRow } from "../shared/page/rank-curve.js";
+import {
+  drawSpread,
+  placeOnRange,
+  rankAmong,
+  renderPlacedRow,
+  renderRankRow,
+} from "../shared/page/rank-curve.js";
 
 test("the curve spreads across from the lowest number to the highest, its peak at the top, with the player's mark on it", () => {
   const { area, edge, left, top } = drawSpread([10, 10, 10, 20], 20);
@@ -55,4 +61,41 @@ test("a row shows the label, the number as written, the curve, and the rank, or 
     }),
   );
   assert.doesNotMatch(unranked, /<svg|player-rank-place/);
+});
+
+test("a number's place on a range is its share of it, the fewest on the right when fewer ranks first, held at either end, and nowhere without a range", () => {
+  assert.equal(placeOnRange(85, [80, 100]), 25);
+  assert.equal(placeOnRange(85, [80, 100], true), 75);
+  assert.equal(placeOnRange(120, [80, 100]), 100);
+  assert.equal(placeOnRange(70, [80, 100]), 0);
+  assert.equal(placeOnRange(2 / 3, [0, 1]), 66.7);
+  assert.equal(placeOnRange(null, [80, 100]), null);
+  assert.equal(placeOnRange(85, null), null);
+  assert.equal(placeOnRange(85, [90, 90]), null);
+});
+
+test("a placed row shows the label, the number, a line with the other's dot under its own, and the other number, leaving out a dot with no place", () => {
+  const row = String(
+    renderPlacedRow({
+      label: "PPG",
+      own: { shown: "89.5", at: 62.1 },
+      other: { shown: "86.5", at: 44.4 },
+    }),
+  );
+  assert.match(row, /player-rank-label">PPG</);
+  assert.match(row, /player-rank-value tabular">89\.5</);
+  assert.match(
+    row,
+    /<span class="placed-line" aria-hidden="true"><span><i class="other" style="left: 44\.4%"><\/i><i class="own" style="left: 62\.1%"><\/i><\/span><\/span>/,
+  );
+  assert.match(row, /placed-other tabular">86\.5</);
+  const unplaced = String(
+    renderPlacedRow({
+      label: "Road",
+      own: { shown: "0-0", at: null },
+      other: { shown: "1-5", at: 16.7 },
+    }),
+  );
+  assert.doesNotMatch(unplaced, /class="own"/);
+  assert.match(unplaced, /class="other"/);
 });

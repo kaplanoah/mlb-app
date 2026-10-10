@@ -28,7 +28,7 @@ export const measureAgainst = (value, most) => (most > 0 ? Math.round((value / m
  * A record like 15-7 as the share of its games won, or null without any.
  * @param {string | null} record
  */
-function readWinShare(record) {
+export function readWinShare(record) {
   const [wins, losses] = String(record ?? "")
     .split("-")
     .map(Number);
