@@ -9,16 +9,20 @@ const readInstalledPlaywright = () =>
   JSON.parse(readRepoFile("package-lock.json")).packages["node_modules/playwright"].version;
 
 /** @param {string} workflow */
-const readPlaywrightImageVersion = (workflow) =>
-  readRepoFile(`.github/workflows/${workflow}`).match(
-    /mcr\.microsoft\.com\/playwright:v([\d.]+)-/,
-  )?.[1];
+const listPlaywrightImageVersions = (workflow) =>
+  [
+    ...readRepoFile(`.github/workflows/${workflow}`).matchAll(
+      /mcr\.microsoft\.com\/playwright:v([\d.]+)-/g,
+    ),
+  ].map(([, version]) => version);
 
 // The image holds only the browsers its own Playwright version runs, so a job in it would find no
 // browser once Dependabot moves Playwright on without it.
 for (const workflow of ["ci.yml", "flaky.yml"]) {
-  test(`${workflow}'s Playwright image is the Playwright version the lockfile installs`, () => {
-    assert.equal(readPlaywrightImageVersion(workflow), readInstalledPlaywright());
+  test(`${workflow}'s Playwright images are the Playwright version the lockfile installs`, () => {
+    const versions = listPlaywrightImageVersions(workflow);
+    assert.ok(versions.length > 0);
+    for (const version of versions) assert.equal(version, readInstalledPlaywright());
   });
 }
 

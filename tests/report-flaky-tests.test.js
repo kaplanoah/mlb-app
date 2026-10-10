@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ISSUE_TITLE,
+  addToTable,
   listFailedTests,
   postReport,
-  renderReport,
+  readTable,
+  renderTable,
 } from "../worker/report-flaky-tests.mjs";
 
 const REPOSITORY = "owner/sports-apps";
@@ -107,60 +109,227 @@ test("a night where every test passed names none", () => {
   assert.deepEqual(listFailedTests([passed]), []);
 });
 
-test("the report lists each failed test with its failures, its first error line, and the run", () => {
-  const report = renderReport(listFailedTests([nightReport]), RUN_URL);
+// Shaped as a pull request's run, where a failed test runs once more.
+const retriedReport = {
+  suites: [
+    {
+      title: "resume.spec.mjs",
+      specs: [
+        {
+          title: "a test its retry passed",
+          file: "resume.spec.mjs",
+          line: 160,
+          tests: [
+            reportTest("wnba", [
+              { status: "failed", message: "Expected: null" },
+              { status: "passed" },
+            ]),
+          ],
+        },
+        {
+          title: "a test that failed both tries",
+          file: "resume.spec.mjs",
+          line: 200,
+          tests: [
+            reportTest("wnba", [
+              { status: "failed", message: "Broken" },
+              { status: "failed", message: "Broken" },
+            ]),
+          ],
+        },
+      ],
+    },
+  ],
+};
 
-  assert.match(report, /failed these 2 tests \(\[the run\]\(https:\/\/github\.com\/owner\//);
-  assert.match(
-    report,
-    /- `\[wnba\] last-drawn\.spec\.mjs:58 > on a phone > a reload shows today after two minutes away`, failed 2 of 3 runs: Test timeout exceeded\./,
+test("where a failed test is retried, only one its retry passed is named, since one that failed both tries fails its pull request", () => {
+  assert.deepEqual(listFailedTests([retriedReport], { isRetried: true }), [
+    {
+      name: "[wnba] resume.spec.mjs:160 > a test its retry passed",
+      runs: 2,
+      failures: 1,
+      message: "Expected: null",
+    },
+  ]);
+});
+
+const AT_REST = "[wnba-webkit] at-rest.spec.mjs:16 > a tab tap leaves the page at rest";
+const LAST_DRAWN =
+  "[wnba] last-drawn.spec.mjs:58 > on a phone > a reload shows today after two minutes away";
+
+/** @param {Partial<import("../worker/report-flaky-tests.mjs").TableRow> & { name: string }} row */
+const tableRow = (row) => ({
+  runs: 3,
+  failures: 1,
+  message: "Error",
+  firstSeen: "2026-10-01",
+  lastSeen: "2026-10-01",
+  lastRun: RUN_URL,
+  ...row,
+});
+
+test("a test already in the table adds its runs and failures, keeps when it was first seen, and takes the run's day and error", () => {
+  const table = [tableRow({ name: AT_REST, message: "Older error" })];
+
+  const [row] = addToTable(table, listFailedTests([nightReport]).slice(1), {
+    day: "2026-10-05",
+    runUrl: "https://example.com/run/2",
+  });
+
+  assert.deepEqual(row, {
+    name: AT_REST,
+    runs: 6,
+    failures: 2,
+    message: "Error: The page kept animating: opacity on span.stamp",
+    firstSeen: "2026-10-01",
+    lastSeen: "2026-10-05",
+    lastRun: "https://example.com/run/2",
+  });
+});
+
+test("a row stays for a week from its test's last failure, then leaves the table", () => {
+  const table = [
+    tableRow({ name: "kept", lastSeen: "2026-10-04" }),
+    tableRow({ name: "gone", lastSeen: "2026-10-03" }),
+  ];
+
+  const kept = addToTable(table, [], { day: "2026-10-10", runUrl: RUN_URL });
+
+  assert.deepEqual(
+    kept.map((row) => row.name),
+    ["kept"],
   );
 });
 
+test("the table reads back from the issue's body as it was written, even an error that would close the comment", () => {
+  const table = [tableRow({ name: AT_REST, message: "Expected <!-- x --> | `y`" })];
+
+  const body = renderTable(table);
+
+  assert.deepEqual(readTable(body), table);
+  assert.match(body, /\| `\[wnba-webkit\] at-rest\.spec\.mjs:16 > a tab tap/);
+  assert.match(body, /\| 1 of 3 runs \| 2026-10-01 \| \[2026-10-01\]\(https:/);
+  assert.equal(body.match(/-->/g)?.length, 1);
+});
+
+test("an issue's body without a table reads as an empty table", () => {
+  assert.deepEqual(readTable(null), []);
+  assert.deepEqual(readTable("Opened by hand"), []);
+});
+
 /**
- * GitHub's API with these open issues, keeping what's posted.
- * @param {{ number: number, title: string, pull_request?: object }[]} issues
+ * GitHub's API with these open issues, keeping what's written.
+ * @param {{ number: number, title: string, body?: string, pull_request?: object }[]} issues
  */
 function createFakeGitHub(issues) {
-  /** @type {{ path: string, body: any }[]} */
-  const posted = [];
+  /** @type {{ method: string, path: string, body: any }[]} */
+  const written = [];
   /** @type {typeof fetch} */
   const fetchImpl = async (url, init) => {
     const { pathname } = new URL(String(url));
-    if (init?.method !== "POST") return Response.json(issues);
-    posted.push({ path: pathname, body: JSON.parse(String(init.body)) });
+    const method = init?.method ?? "GET";
+    if (method === "GET") return Response.json(issues);
+    written.push({ method, path: pathname, body: JSON.parse(String(init?.body)) });
     return Response.json({ number: 7 });
   };
-  return { fetchImpl, posted };
+  return { fetchImpl, written };
 }
 
-const post = (github) =>
+/**
+ * @param {ReturnType<typeof createFakeGitHub>} github
+ * @param {import("../worker/report-flaky-tests.mjs").TestRuns[]} failed
+ */
+const post = (github, failed) =>
   postReport({
     repository: REPOSITORY,
-    body: "report",
+    failed,
+    runUrl: RUN_URL,
+    now: new Date("2026-10-10T07:40:00Z"),
     fetchImpl: github.fetchImpl,
     env: { GH_TOKEN: "token" },
   });
 
-test("a night with failures opens the issue when none is open", async () => {
+test("a run with failures opens the issue, with its table, when none is open", async () => {
   const github = createFakeGitHub([{ number: 3, title: "Something else" }]);
 
-  assert.equal(await post(github), 7);
+  await post(github, listFailedTests([nightReport]));
 
-  assert.deepEqual(github.posted, [
-    { path: `/repos/${REPOSITORY}/issues`, body: { title: ISSUE_TITLE, body: "report" } },
-  ]);
+  assert.equal(github.written.length, 1);
+  const [opened] = github.written;
+  assert.equal(opened.path, `/repos/${REPOSITORY}/issues`);
+  assert.equal(opened.body.title, ISSUE_TITLE);
+  assert.deepEqual(
+    readTable(opened.body.body).map((row) => [row.name, row.lastSeen]),
+    [
+      [LAST_DRAWN, "2026-10-10"],
+      [AT_REST, "2026-10-10"],
+    ],
+  );
 });
 
-test("a night with failures comments on the issue still open, rather than opening another", async () => {
+test("a run with no failures writes nothing when no issue is open", async () => {
+  const github = createFakeGitHub([]);
+
+  await post(github, []);
+
+  assert.deepEqual(github.written, []);
+});
+
+test("a run updates the open issue's table, rather than opening another, and comments only on the tests new to it", async () => {
+  const body = renderTable([tableRow({ name: AT_REST, lastSeen: "2026-10-09" })]);
   const github = createFakeGitHub([
     { number: 4, title: ISSUE_TITLE, pull_request: {} },
-    { number: 5, title: ISSUE_TITLE },
+    { number: 5, title: ISSUE_TITLE, body },
   ]);
 
-  assert.equal(await post(github), 5);
+  await post(github, listFailedTests([nightReport]));
 
-  assert.deepEqual(github.posted, [
-    { path: `/repos/${REPOSITORY}/issues/5/comments`, body: { body: "report" } },
-  ]);
+  const [update, comment] = github.written;
+  assert.equal(github.written.length, 2);
+  assert.equal(update.method, "PATCH");
+  assert.equal(update.path, `/repos/${REPOSITORY}/issues/5`);
+  assert.deepEqual(
+    readTable(update.body.body).map((row) => [row.name, row.failures]),
+    [
+      [AT_REST, 2],
+      [LAST_DRAWN, 2],
+    ],
+  );
+  assert.equal(comment.path, `/repos/${REPOSITORY}/issues/5/comments`);
+  assert.match(comment.body.body, /found a test new to the table:/);
+  assert.match(comment.body.body, /last-drawn\.spec\.mjs:58/);
+  assert.doesNotMatch(comment.body.body, /at-rest/);
+});
+
+test("a run whose failures are all in the table updates it without a comment", async () => {
+  const body = renderTable([tableRow({ name: AT_REST }), tableRow({ name: LAST_DRAWN })]);
+  const github = createFakeGitHub([{ number: 5, title: ISSUE_TITLE, body }]);
+
+  await post(github, listFailedTests([nightReport]));
+
+  assert.deepEqual(
+    github.written.map(({ method, path }) => [method, path]),
+    [["PATCH", `/repos/${REPOSITORY}/issues/5`]],
+  );
+});
+
+test("a run that leaves the table empty closes the issue as completed", async () => {
+  const body = renderTable([tableRow({ name: AT_REST, lastSeen: "2026-10-03" })]);
+  const github = createFakeGitHub([{ number: 5, title: ISSUE_TITLE, body }]);
+
+  await post(github, []);
+
+  assert.equal(github.written.length, 1);
+  assert.equal(github.written[0].body.state, "closed");
+  assert.equal(github.written[0].body.state_reason, "completed");
+});
+
+test("a run with no failures keeps the issue open while a row is under a week old", async () => {
+  const body = renderTable([tableRow({ name: AT_REST, lastSeen: "2026-10-04" })]);
+  const github = createFakeGitHub([{ number: 5, title: ISSUE_TITLE, body }]);
+
+  await post(github, []);
+
+  assert.equal(github.written.length, 1);
+  assert.equal(github.written[0].body.state, undefined);
 });

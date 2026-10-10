@@ -1,12 +1,28 @@
 name: Flaky tests
+run-name: ${{ inputs.tests && format('Repeat {0} on {1}', inputs.tests, inputs.ref) || 'Flaky tests' }}
 
 # Pull requests retry a failed browser test once, so a test that fails only now and then can pass
 # them. Each night, main's browser tests run three times over with no retry, and one open issue
-# names each test that failed in any run (worker/report-flaky-tests.mjs).
+# names each test that failed in any run (worker/report-flaky-tests.mjs). Run by hand, it repeats
+# the tests it's given on any branch, on the machine CI uses, WebKit included, to reproduce a flaky
+# test and to show a fix holds.
 on:
   schedule:
     - cron: "17 7 * * *"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to test
+        default: main
+      tests:
+        description: Tests to run, as paths with an optional :line, split by spaces; every test when empty
+        default: ""
+      project:
+        description: Playwright project to run, like wnba-webkit; every project when empty
+        default: ""
+      repeat:
+        description: How many times to run each test
+        default: "3"
 
 permissions:
   contents: read
@@ -22,6 +38,8 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
       - id: node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -33,20 +51,28 @@ jobs:
           key: node-modules-${{ runner.os }}-${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
       - if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci
-      - name: Run the browser tests three times over
+      - name: Run the browser tests over and over
+        shell: bash
         env:
-          PLAYWRIGHT_JSON_OUTPUT_NAME: report.json
-        run: npm run test:browser -- --repeat-each=3 --retries=0 --reporter=list,json
+          TESTS: ${{ inputs.tests }}
+          PROJECT: ${{ inputs.project }}
+          REPEAT: ${{ inputs.repeat || '3' }}
+        run: |
+          read -ra tests <<< "$TESTS"
+          options=(--repeat-each="$REPEAT" --retries=0)
+          if [ -n "$PROJECT" ]; then options+=(--project="$PROJECT"); fi
+          npm run test:browser -- "${options[@]}" "${tests[@]}"
+      # Only the nightly run of main reports, since a run by hand may test a branch.
       - name: Name each test that failed in the open issue
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && github.event_name == 'schedule' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node worker/report-flaky-tests.mjs report.json
+        run: node worker/report-flaky-tests.mjs test-results/report.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
         with:
-          name: playwright-report-nightly
+          name: playwright-report
           path: |
             playwright-report/
             test-results/
