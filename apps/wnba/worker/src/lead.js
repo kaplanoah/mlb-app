@@ -98,8 +98,11 @@ export function describeLead(summary) {
   };
 }
 
-/** @param {URLSearchParams} searchParams */
-function readGame(searchParams) {
+/**
+ * The game a sheet's read names by its id, teams, and start, or null when it names none.
+ * @param {URLSearchParams} searchParams
+ */
+export function readGame(searchParams) {
   const id = searchParams.get("id") ?? "";
   const away = searchParams.get("away") ?? "";
   const home = searchParams.get("home") ?? "";

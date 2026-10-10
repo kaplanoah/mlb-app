@@ -836,8 +836,22 @@ test("the sheets showing are listed up to the shown one, with where each is scro
   sheets.gameSheet.sheet.scrollTop = 240;
 
   assert.deepEqual(listOpenSheets(), [
-    { id: "gameSheet", scrollTop: 240, subject: { id: "game-1" }, showing: null, backLabel: null },
-    { id: "teamSheet", scrollTop: 0, subject: { team: "NY" }, showing: null, backLabel: "Game" },
+    {
+      id: "gameSheet",
+      scrollTop: 240,
+      section: null,
+      subject: { id: "game-1" },
+      showing: null,
+      backLabel: null,
+    },
+    {
+      id: "teamSheet",
+      scrollTop: 0,
+      section: null,
+      subject: { team: "NY" },
+      showing: null,
+      backLabel: "Game",
+    },
   ]);
 
   dialog.close();

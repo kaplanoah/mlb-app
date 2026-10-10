@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="shared/updates.css" />
   <link rel="stylesheet" href="shared/retry.css" />
   <link rel="stylesheet" href="shared/news.css" />
+  <link rel="stylesheet" href="shared/highlights.css" />
   <link rel="stylesheet" href="styles.css" />
   <script src="shared/open-last-tab.js"></script>
   <script src="shared/show-last-drawn.js"></script>
@@ -335,6 +336,18 @@
               >
                 Matchup
               </button>
+              <button
+                type="button"
+                role="tab"
+                id="gameTabHighlights"
+                data-tab="highlights"
+                aria-controls="highlightsSection"
+                aria-selected="false"
+                tabindex="-1"
+                hidden
+              >
+                Highlights
+              </button>
             </div>
           </div>
         </div>
@@ -349,6 +362,14 @@
             aria-labelledby="gameTabMatchup"
           >
             <div class="matchup-body" id="matchupBody" data-last-drawn></div>
+          </div>
+          <div
+            class="sheet-section"
+            id="highlightsSection"
+            role="tabpanel"
+            aria-labelledby="gameTabHighlights"
+          >
+            <div class="game-sheet-body highlights-body" id="highlightsBody" data-last-drawn></div>
           </div>
         </div>
       </section>

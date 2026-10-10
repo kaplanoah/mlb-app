@@ -4,6 +4,7 @@ import {
   openApp,
   openGameSheet,
   findGameButton,
+  keepHighlights,
   GAMES,
   matchPath,
   formatRgb,
@@ -33,10 +34,12 @@ const SMALLEST_TEXT_PX = 13;
 // title, below By quarter's, and between a tape's rows.
 const FIRST_TITLE_SPACE_PX = 20;
 // How far a game's teams sit under the middle of its score or its time, how far its band ends under
-// Final or under its channels, and how far Bonus hangs under its team's record.
+// a final's pills or a game's channels, and how far Bonus hangs under its team's record.
 const SCORE_TEAMS_DROP_PX = 3;
 const TIME_TEAMS_DROP_PX = 4;
-const ROOM_BELOW_FINAL_PX = 12;
+const ROOM_BELOW_PILLS_PX = 9;
+// The room between a game's title and its teams.
+const UNDER_TITLE_PX = 14;
 const ROOM_BELOW_CHANNELS_PX = 10;
 const BONUS_GAP_PX = 7;
 const TITLE_SPACE_ABOVE_PX = 24;
@@ -264,7 +267,7 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   await app.changeSeason(finishValkyriesAtWings);
   const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
   await expect(sheet.locator(".lead-peak-label")).toHaveCount(2);
-  const layout = await sheet.locator(".game-sheet-body").evaluate((body) => {
+  const layout = await sheet.locator("#gameBody").evaluate((body) => {
     const measure = (/** @type {Element} */ element) => element.getBoundingClientRect();
     const bandBottom = measure(
       /** @type {Element} */ (body.closest(".sheet-page")?.querySelector(".sheet-top")),
@@ -298,7 +301,7 @@ test("a final's sheet spaces its parts' titles evenly, with By quarter's closer 
   for (const space of layout.rowSpaces) expect(space).toBeCloseTo(TAPE_ROW_SPACE_PX, 0);
 });
 
-test("on a phone, a game's teams sit at one height under its title whether it's over or live with a side in the bonus, a little under the score's middle, and a step lower beside a start time, and its band ends a little lower under Final than under its channels", async ({
+test("on a phone, a game's teams sit at one height under its title whether it's over or live with a side in the bonus, a little under the score's middle, and a step lower beside a start time, and its band ends a little under a final's pills or a game's channels", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -311,8 +314,8 @@ test("on a phone, a game's teams sit at one height under its title whether it's 
     const band = await sheet.locator(".sheet-top").evaluate((top) => {
       const measure = (/** @type {string} */ selector) =>
         /** @type {Element} */ (top.querySelector(selector)).getBoundingClientRect();
-      const lines = [...top.querySelectorAll(".faceoff > *")].map((line) =>
-        line.getBoundingClientRect(),
+      const lines = [...top.querySelectorAll(".faceoff > *, .pager-tabs:not([hidden])")].map(
+        (line) => line.getBoundingClientRect(),
       );
       const bandTop = top.getBoundingClientRect().top;
       const club = measure(".faceoff-side.away .club");
@@ -320,6 +323,7 @@ test("on a phone, a game's teams sit at one height under its title whether it's 
       const score = measure(".faceoff-score");
       return {
         title: measure("h2").top - bandTop,
+        underTitle: measure(".faceoff-slot").top - measure(".sheet-head").bottom,
         teams: club.top - bandTop,
         teamsDrop: (club.top + record.bottom) / 2 - (score.top + score.bottom) / 2,
         roomBelow:
@@ -334,12 +338,14 @@ test("on a phone, a game's teams sit at one height under its title whether it's 
   const live = await measureBand(VALKYRIES_AT_WINGS);
   const upcoming = await measureBand(FEVER_AT_ACES);
   for (const band of [live, upcoming]) expect(band.title).toBeCloseTo(final.title, 0);
+  for (const band of [final, live, upcoming])
+    expect(band.underTitle).toBeCloseTo(UNDER_TITLE_PX, 0);
   expect(live.teams).toBeCloseTo(final.teams, 0);
   expect(upcoming.teams - final.teams).toBeCloseTo(TIME_TEAMS_DROP_PX - SCORE_TEAMS_DROP_PX, 0);
   expect(final.teamsDrop).toBeCloseTo(SCORE_TEAMS_DROP_PX, 0);
   expect(live.teamsDrop).toBeCloseTo(SCORE_TEAMS_DROP_PX, 0);
   expect(upcoming.teamsDrop).toBeCloseTo(TIME_TEAMS_DROP_PX, 0);
-  expect(final.roomBelow).toBeCloseTo(ROOM_BELOW_FINAL_PX, 0);
+  expect(final.roomBelow).toBeCloseTo(ROOM_BELOW_PILLS_PX, 0);
   expect(live.roomBelow).toBeCloseTo(ROOM_BELOW_CHANNELS_PX, 0);
   expect(upcoming.roomBelow).toBeCloseTo(ROOM_BELOW_CHANNELS_PX, 0);
 });
@@ -561,11 +567,12 @@ for (const { screen, viewport } of [
   test.describe(`on ${screen}`, () => {
     test.use({ viewport });
 
-    test("every piece of text in a live game's row, its sheet, a final's sheet, and a preview keeps to the type scale", async ({
+    test("every piece of text in a live game's row, its sheet, a final's sheet and its Highlights, and a preview keeps to the type scale", async ({
       page,
     }) => {
       const app = await openApp(page, { league: { boxScores: { 1042600112: liveBoxScore } } });
       await app.changeSeason(startValkyriesAtWings);
+      await keepHighlights(page, app, ACES_AT_FEVER);
       const sheet = await openGameSheet(page, VALKYRIES_AT_WINGS);
       await expect(page.locator(".bonus").first()).toBeAttached();
       await expect(sheet.locator(".line-score th.now")).toBeVisible();
@@ -579,6 +586,11 @@ for (const { screen, viewport } of [
       expect(await listStrayPeriods(page)).toEqual([]);
       const final = await openGameSheet(page, ACES_AT_FEVER);
       await expect(final.locator(".line-score")).toBeVisible();
+      expect(await listOffScaleText(page)).toEqual([]);
+      expect(await listLowContrastText(page)).toEqual([]);
+      expect(await listStrayPeriods(page)).toEqual([]);
+      await final.getByRole("tab", { name: "Highlights" }).click();
+      await expect(final.locator("#highlightsBody .clip-row").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
       expect(await listLowContrastText(page)).toEqual([]);
       expect(await listStrayPeriods(page)).toEqual([]);
@@ -673,7 +685,7 @@ test("a game the league has no box score for says so, and a preview whose meetin
   await expect(sheet.locator(".sheet-message")).toHaveText(
     "The league hasn't posted a box score for this game yet",
   );
-  await expect(sheet.locator("[data-retry]")).toHaveCount(0);
+  await expect(sheet.locator("#gameSection [data-retry]")).toHaveCount(0);
   expect(await listStrayPeriods(page)).toEqual([]);
   await sheet.getByRole("button", { name: "Close" }).click();
 
@@ -888,7 +900,8 @@ test("a reload shows the open sheet where it was scrolled before the page's code
   await openApp(page);
   const sheet = await openGameSheet(page, ACES_AT_FEVER);
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
-  await sheet.evaluate((element) => {
+  const section = sheet.locator("#gameSection");
+  await section.evaluate((element) => {
     element.scrollTop = 200;
   });
   const release = await holdPageCode(page);
@@ -898,11 +911,11 @@ test("a reload shows the open sheet where it was scrolled before the page's code
 
   await expect(sheet.getByRole("heading", { level: 2 })).toHaveText("First Round Game 2");
   await expect(sheet.locator(".foul-chip")).toHaveText(["Fouled out"]);
-  await expectScrolledTo(sheet, 200);
+  await expectScrolledTo(section, 200);
   release();
   await expect.poll(() => reads.count).toBe(1);
   await expect(sheet.locator("#gameWhen")).toHaveText("Fever won to tie 1-1•Yesterday");
-  await expectScrolledTo(sheet, 200);
+  await expectScrolledTo(section, 200);
 
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeHidden();
@@ -1020,18 +1033,20 @@ test.describe("on a phone", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   });
 
-  test("the game sheet's title scrolls away with the rest, and the sheet never scrolls past its ends", async ({
+  test("the game sheet's top holds still while its box score scrolls under it, and the box score never scrolls past its ends", async ({
     page,
   }) => {
     await openApp(page);
     const sheet = await openGameSheet(page, ACES_AT_FEVER);
     await expect(sheet.locator(".tape-row").first()).toBeVisible();
-    await expect(sheet).toHaveCSS("overscroll-behavior-y", "none");
+    const section = sheet.locator("#gameSection");
+    await expect(section).toHaveCSS("overscroll-behavior-y", "none");
 
-    await sheet.evaluate((dialog) => {
-      dialog.scrollTop = dialog.scrollHeight;
+    await section.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
     });
-    await expect(sheet.locator(".sheet-top")).not.toBeInViewport();
+    await expect(sheet.locator(".tape-row").first()).not.toBeInViewport();
+    await expect(sheet.locator(".sheet-top")).toBeInViewport();
   });
 
   test("the game sheet rises with nothing dimming the page behind it, and its close button or Escape slides it down", async ({
@@ -1339,4 +1354,75 @@ test("in a sheet, a square badge is drawn taller than a long wordmark", async ({
   const espn = await sheet.getByRole("img", { name: "ESPN" }).boundingBox();
   expect(abc.height).toBeGreaterThan(espn.height * 1.2);
   expect(espn.height).toBeGreaterThan(10);
+});
+
+test("a final's sheet offers Game and Highlights pills, and its Highlights show ESPN's recap video, its story, and each clip", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await keepHighlights(page, app, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
+  await expect(sheet.getByRole("tab")).toHaveText(["Game", "Highlights"]);
+  await expect(sheet.getByRole("tab", { name: "Game" })).toHaveAttribute("aria-selected", "true");
+
+  await sheet.getByRole("tab", { name: "Highlights" }).click();
+
+  const body = sheet.locator("#highlightsBody");
+  await expect(body.locator(".clip-feature .clip-title")).toHaveText(
+    "Las Vegas Aces vs. Indiana Fever - Game Highlights",
+  );
+  await expect(body.locator(".clip-feature .clip-length")).toHaveText("1:09");
+  await expect(body.getByRole("link", { name: /^Read on ESPN/ })).toHaveAttribute(
+    "href",
+    "https://www.espn.com/wnba/recap?gameId=401918022",
+  );
+  await expect(body.locator(".clip-row")).toHaveCount(13);
+  await expect(body.locator(".clip-row").first().locator(".clip-title")).toHaveText(
+    "Chelsea Gray knocks down the mid-range jumper",
+  );
+  await expect(body.locator(".clip-meta")).toHaveCount(0);
+});
+
+test("a game still to be played, or being played, shows its preview or box score with no pills, even after a final's sheet did", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await app.changeSeason(startValkyriesAtWings);
+  const final = await openGameSheet(page, ACES_AT_FEVER);
+  await expect(final.getByRole("tab", { name: "Highlights" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(final).toBeHidden();
+  for (const name of [FEVER_AT_ACES, VALKYRIES_AT_WINGS]) {
+    const sheet = await openGameSheet(page, name);
+    await expect(sheet.locator(".faceoff-score")).toBeVisible();
+    await expect(sheet.locator(".sheet-top .pager-tabs"), name).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
+});
+
+test("a reload on a final's Highlights shows its pills and its Highlights before the page's code arrives", async ({
+  page,
+}) => {
+  const app = await openApp(page);
+  await keepHighlights(page, app, ACES_AT_FEVER);
+  const sheet = await openGameSheet(page, ACES_AT_FEVER);
+  await sheet.getByRole("tab", { name: "Highlights" }).click();
+  await expect(sheet.locator("#highlightsBody .clip-row")).toHaveCount(13);
+  const release = await holdPageCode(page);
+
+  await page.reload({ waitUntil: "commit" });
+
+  await expect(sheet.getByRole("tab", { name: "Highlights" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(sheet.locator("#highlightsBody .clip-row").first()).toBeVisible();
+  await expect(sheet.locator("#gameBody")).toBeHidden();
+  release();
+  await expect(sheet.locator("#highlightsBody .clip-row")).toHaveCount(13);
+  await expect(sheet.getByRole("tab", { name: "Highlights" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });

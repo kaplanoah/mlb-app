@@ -793,9 +793,11 @@ header.top h1 {
   padding-top: calc(env(safe-area-inset-top) + var(--band-room-above));
   padding-bottom: var(--band-room-below);
 }
-.sheet-page .sheet-top:has(> .pager-tabs) {
-  --band-under-title: 15px;
+.sheet-page .sheet-top:has(> .pager-tabs:not([hidden])) {
   padding-bottom: var(--band-pills-room);
+}
+.sheet-page .sheet-top:has(> .sheet-head + .pager-tabs) {
+  --band-under-title: 15px;
 }
 .sheet-page .sheet-top:has(> .player-facts-slot) {
   --band-under-title: 19px;

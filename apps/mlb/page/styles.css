@@ -2198,6 +2198,17 @@ body.kbd .player-open:focus {
   font-weight: 550;
 }
 
+/* A final's Highlights, as shared/highlights.css lays it out, set in Chivo Mono's lighter
+   weights. */
+.clip-title,
+.clip-length {
+  font-weight: 450;
+}
+.clip-meta b,
+.highlights-story-title {
+  font-weight: 550;
+}
+
 /* A club's sheet, as shared/team-sheet.css lays it out, set in Chivo Mono's lighter weights, its
    parts under gold titles like the Updates box's and its labels in the green of the page's. A club's name or dot opens it wherever it shows,
    and in the standings so does the rest of its row. */

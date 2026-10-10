@@ -19,6 +19,8 @@ import {
 import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listOffScaleText } from "../../../../tests/browser/type-scale.mjs";
 import { listStrayPeriods } from "../../../../tests/browser/stray-periods.mjs";
+import { expectShown } from "../../../../tests/browser/sheet-row.mjs";
+import { drag } from "../../../../tests/browser/touch.mjs";
 
 // The games of the first day after today, which the Games view lists under today's.
 const NEXT_DAY_GAMES = "#seasonGames .listed-day:has(.is-today) + .listed-day .game-open";
@@ -1199,4 +1201,176 @@ test("a starter's name in the matchup opens his sheet", async ({ page }) => {
   await expect(page.locator("#playerSheet #playerTitle")).toContainText(
     (name ?? "").split(" ").at(-1) ?? "",
   );
+});
+
+/**
+ * Opens a final of Oct 6 at its Highlights.
+ * @param {import("@playwright/test").Page} page
+ */
+async function openHighlights(page) {
+  const { app, sheet } = await openOctoberGame(page, "Brewers at Padres, Tue, Oct 6");
+  await sheet.getByRole("tab", { name: "Highlights" }).click();
+  const body = sheet.locator("#highlightsBody");
+  await expect(body.locator(".clip-row")).toHaveCount(15);
+  return { app, sheet, body };
+}
+
+test("a final's Highlights show MLB's recap video, MLB.com's story, and each play with its inning and the score after it", async ({
+  page,
+}) => {
+  const { body } = await openHighlights(page);
+
+  await expect(body.locator(".clip-feature .clip-title")).toHaveText(
+    "Brewers vs. Padres Game 3 Highlights",
+  );
+  await expect(body.locator(".clip-feature .clip-length")).toHaveText("3:01");
+  await expect(body.locator(".highlights-story-title")).toHaveText(
+    "Led by King's all-in relief effort, Padres fight and force Game 4",
+  );
+  await expect(body.getByRole("link", { name: /^Read on MLB\.com/ })).toHaveAttribute(
+    "href",
+    "https://www.mlb.com/news/padres-win-nlds-game-3-2026",
+  );
+  const rows = body.locator(".clip-row");
+  await expect(rows.first().locator(".clip-title")).toHaveText("Jackson Merrill's sliding catch");
+  await expect(rows.first().locator(".clip-meta")).toHaveText("Top 1st");
+  await expect(rows.nth(4).locator(".clip-meta")).toHaveText("Bot 3rd\u2022MIL 0, SD 1");
+  await expect(rows.nth(4).locator(".clip-meta b")).toHaveText("SD 1");
+  await expect(rows.nth(6).locator(".clip-meta b")).toHaveText("MIL 1");
+  expect(await listOffScaleText(page)).toEqual([]);
+  expect(await listLowContrastText(page)).toEqual([]);
+  expect(await listStrayPeriods(page)).toEqual([]);
+});
+
+test("a final's plays sit 13px apart with no line between them, each still 128px wide with its length at 13px and its play button centered", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { body } = await openHighlights(page);
+
+  const rows = await body.locator(".clip-row").evaluateAll((elements) =>
+    elements.slice(0, 3).map((row) => {
+      const box = row.getBoundingClientRect();
+      const style = getComputedStyle(row);
+      const still = /** @type {Element} */ (row.querySelector(".clip-still"));
+      const length = /** @type {Element} */ (row.querySelector(".clip-length"));
+      const play = /** @type {Element} */ (row.querySelector(".clip-play"));
+      const glyph = /** @type {Element} */ (row.querySelector(".clip-play svg"));
+      const playBox = play.getBoundingClientRect();
+      const glyphBox = glyph.getBoundingClientRect();
+      return {
+        top: box.top,
+        bottom: box.bottom,
+        line: style.boxShadow === "none" && style.borderBottomStyle === "none",
+        stillWidth: still.getBoundingClientRect().width,
+        lengthSize: getComputedStyle(length).fontSize,
+        glyphOffset: glyphBox.left + glyphBox.width / 2 - (playBox.left + playBox.width / 2),
+      };
+    }),
+  );
+  for (const [index, row] of rows.entries()) {
+    expect(row.line).toBe(true);
+    expect(row.stillWidth).toBe(128);
+    expect(row.lengthSize).toBe("13px");
+    expect(row.glyphOffset).toBeCloseTo(-0.5, 1);
+    if (index > 0) expect(row.top - rows[index - 1].bottom).toBeCloseTo(13, 0);
+  }
+});
+
+test("a tap anywhere on a play's row plays its clip full screen in the browser's own player", async ({
+  page,
+}) => {
+  const { body } = await openHighlights(page);
+  await page.evaluate(() => {
+    const played = /** @type {any} */ (window);
+    played.clipsPlayed = [];
+    HTMLElement.prototype.requestFullscreen = function () {
+      this.dataset.askedFullscreen = "true";
+      return Promise.resolve();
+    };
+    HTMLMediaElement.prototype.play = function () {
+      played.clipsPlayed.push({ src: this.src, isFullscreen: this.dataset.askedFullscreen });
+      return Promise.resolve();
+    };
+  });
+  const row = body.locator(".clip-row").nth(6);
+  await row.scrollIntoViewIfNeeded();
+  const video = await row.getAttribute("data-video");
+  const title = await row.locator(".clip-title").boundingBox();
+  if (!title) throw new Error("The row's title isn't shown");
+  const center = { x: title.x + title.width / 2, y: title.y + title.height / 2 };
+  const landsOn = await page.evaluate(
+    ({ x, y }) =>
+      /** @type {HTMLElement | null} */ (document.elementFromPoint(x, y)?.closest(".clip-open"))
+        ?.dataset.video ?? null,
+    center,
+  );
+  expect(landsOn).toBe(video);
+
+  await page.mouse.click(center.x, center.y);
+
+  await expect
+    .poll(() => page.evaluate(() => /** @type {any} */ (window).clipsPlayed))
+    .toEqual([{ src: video, isFullscreen: "true" }]);
+});
+
+test("a still that doesn't load leaves its box's plain color, with no broken picture", async ({
+  page,
+}) => {
+  const { body } = await openHighlights(page);
+
+  await expect(body.locator(".clip-feature img")).toBeHidden();
+  await expect(body.locator(".clip-feature .clip-play")).toBeVisible();
+});
+
+test("a game still to be played offers no Highlights, even after a final's sheet did, and a swipe from its Matchup goes nowhere", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { sheet } = await openOctoberGame(page, "Brewers at Padres, Tue, Oct 6");
+  await expect(sheet.getByRole("tab", { name: "Highlights" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await page
+    .locator("#seasonGames")
+    .getByRole("button", { name: /^Game details: Guardians at White Sox, Thu, Oct 8/ })
+    .click();
+  await expect(sheet.getByRole("tab", { name: "Matchup" })).toBeVisible();
+  await expect(sheet.getByRole("tab", { name: "Highlights" })).toBeHidden();
+  await sheet.getByRole("tab", { name: "Matchup" }).click();
+  await expectShown(sheet.locator("#matchupSection"));
+
+  await (
+    await drag(page, { x: 330, y: 500 }, { x: -250 })
+  )();
+
+  await expectShown(sheet.locator("#matchupSection"));
+  await expect(sheet.getByRole("tab", { name: "Matchup" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
+test("a reload on a final's Highlights shows them where they were scrolled before the page's code arrives, and the code keeps them there", async ({
+  page,
+}) => {
+  const { sheet, body } = await openHighlights(page);
+  const section = sheet.locator("#highlightsSection");
+  await section.evaluate((element) => {
+    element.scrollTop = 300;
+  });
+  const reads = { count: 0 };
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/highlights")) reads.count += 1;
+  });
+
+  await page.reload();
+
+  await expect(sheet.getByRole("tab", { name: "Highlights" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(body.locator(".clip-row")).toHaveCount(15);
+  await expect.poll(() => reads.count).toBe(1);
+  await expect.poll(() => section.evaluate((element) => element.scrollTop)).toBe(300);
 });

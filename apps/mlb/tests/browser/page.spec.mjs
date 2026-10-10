@@ -13,6 +13,7 @@ import {
   buildSeasonRecord,
   PITCHER_SIDES,
   PLAYER_DOCS,
+  RECORDED_HIGHLIGHTS,
   ROSTER_DOCS,
 } from "./harness.mjs";
 import { listAnimations } from "../../../../tests/browser/animations.mjs";
@@ -1675,7 +1676,7 @@ async function showDay(page, day) {
 
 /**
  * Opens a game's sheet from today's games, and returns a step that shows each of its sections in
- * turn, the last closing the sheet once it has been checked.
+ * turn, then a final's Highlights, the last closing the sheet once it has been checked.
  * @param {import("@playwright/test").Page} page
  */
 async function showGameSections(page) {
@@ -1699,9 +1700,24 @@ async function showGameSections(page) {
     async () => {
       await page.keyboard.press("Escape");
       await expect(sheet).toBeHidden();
+      await showDay(page, "2026-09-23");
+      await page
+        .getByRole("button", { name: /^Game details: Brewers at Phillies, Wed, Sep 23/ })
+        .click();
+      await showSection("Highlights");
+      await expect(sheet.locator("#highlightsBody .clip-row").first()).toBeVisible();
+    },
+    async () => {
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
     },
   ];
 }
+
+// Highlights for a final on the evening's slate, Brewers at Phillies, as MLB cut them for another.
+const SEP_23_HIGHLIGHTS = {
+  823410: { ...RECORDED_HIGHLIGHTS["849826"], id: "823410" },
+};
 
 /** @param {Record<string, any>} fields */
 const createNewsStory = (fields) => ({
@@ -1741,6 +1757,7 @@ for (const { screen, viewport } of [
         snapshots: { 2026: buildSnapshotWithStarters() },
         store: { ...ROSTER_DOCS, ...PLAYER_DOCS, ...NEWS_DOCS },
         pitchers: PITCHER_SIDES,
+        highlights: SEP_23_HIGHLIGHTS,
       });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listOffScaleText(page)).toEqual([]);
@@ -1802,6 +1819,7 @@ for (const { screen, viewport } of [
         snapshots: { 2026: buildSnapshotWithStarters() },
         store: { ...ROSTER_DOCS, ...PLAYER_DOCS, ...NEWS_DOCS },
         pitchers: PITCHER_SIDES,
+        highlights: SEP_23_HIGHLIGHTS,
       });
       await expect(page.locator("#bracketWrap .card-note").first()).toBeVisible();
       expect(await listTapsOffButtons(page)).toEqual([]);
