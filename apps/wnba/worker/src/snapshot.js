@@ -80,8 +80,10 @@ export function createSnapshotServer({
   /**
    * @param {keyof typeof SLOW_FEEDS} name
    * @param {string} url
+   * @param {(answer: any) => boolean} [isBehind]
    */
-  const readSlowFeed = (name, url) => slowFeeds.readFeed(name, url, () => fetchFeed(name, url));
+  const readSlowFeed = (name, url, isBehind) =>
+    slowFeeds.readFeed(name, url, () => fetchFeed(name, url), { isBehind });
 
   async function fetchEspnJson(url) {
     const response = await fetchUpstream(fetchImpl, url, {
@@ -169,16 +171,19 @@ export function createSnapshotServer({
       () => null,
     );
     await slowFeeds.noteFinalCount(scoreboard ? countFinals(scoreboard) : null);
+    const hasGamesLeftLive = (schedule) =>
+      WNBASnapshot.listGamesLeftLive(schedule, scoreboard, season).size > 0;
     const [schedule, bracket, standings, players] = await Promise.all([
-      readSlowFeed("schedule", WNBASnapshot.REQUESTS.schedule).catch(() => null),
+      readSlowFeed("schedule", WNBASnapshot.REQUESTS.schedule, hasGamesLeftLive).catch(() => null),
       readSlowFeed("bracket", WNBASnapshot.REQUESTS.bracket(season)).catch(() => null),
       readSlowFeed("standings", WNBASnapshot.REQUESTS.standings(season)).catch(() => null),
       readSlowFeed("players", WNBASnapshot.REQUESTS.players(season)).catch(() => null),
     ]);
     if (!scoreboard && !schedule && !bracket)
       throw new Error("None of the WNBA's feeds answered with data");
+    const needsBackup = !scoreboard || hasGamesLeftLive(schedule);
     const [backup, networks] = await Promise.all([
-      scoreboard ? null : fetchBackup().catch(() => null),
+      needsBackup ? fetchBackup().catch(() => null) : null,
       readNetworks(schedule, season),
     ]);
     return { scoreboard, schedule, bracket, standings, players, backup, networks };
