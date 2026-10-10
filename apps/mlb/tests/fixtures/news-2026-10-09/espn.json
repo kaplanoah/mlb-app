@@ -1,0 +1,1371 @@
+{
+  "articles": [
+    {
+      "id": 50129200,
+      "nowId": "1-50129200",
+      "contentKey": "50129200-1-5-1",
+      "dataSourceIdentifier": "0491557754d0d",
+      "type": "HeadlineNews",
+      "headline": "Andy Pages lifts Dodgers past Braves, into third straight NLCS",
+      "description": "For all the stars the Dodgers boast, it was No. 9 hitter Andy Pages who came through with the big hit, sending Los Angeles to a 4-1 win over the Braves that clinched its third straight NLCS appearance.",
+      "lastModified": "2026-10-08T11:40:41Z",
+      "published": "2026-10-08T11:40:41Z",
+      "images": [
+        {
+          "dataSourceIdentifier": "7f05e0e177761",
+          "id": 50130110,
+          "type": "header",
+          "name": "Andy Pages [600x400]",
+          "caption": "Dodgers outfielder Andy Pages reacts after hitting a two-RBI single to break a 1-1 tie with the Braves in the seventh inning.",
+          "credit": "Kevin C. Cox/Getty Images",
+          "height": 400,
+          "width": 600,
+          "url": "https://a.espncdn.com/photo/2026/1008/r1727692_2_600x400_3-2.jpg"
+        },
+        {
+          "dataSourceIdentifier": "01bf3a5a9af03",
+          "id": 50129084,
+          "type": "header",
+          "name": "Max Muncy [600x400]",
+          "credit": "Brett Davis-Imagn Images",
+          "height": 400,
+          "width": 600,
+          "url": "https://a.espncdn.com/photo/2026/1008/r1727654_600x400_3-2.jpg"
+        },
+        {
+          "type": "Media",
+          "name": "Dodgers take down Braves, advance to NLCS for third straight season",
+          "caption": "Dodgers take down Braves, advance to NLCS for third straight season",
+          "height": 324,
+          "width": 576,
+          "url": "https://espnmedia-cdn.akamaized.net/espn/media/common/wsc/2026/1008/40c3cc4f-dcd2-4a1d-9c60-62ec2af2dc3a/40c3cc4f-dcd2-4a1d-9c60-62ec2af2dc3a.jpg"
+        }
+      ],
+      "categories": [
+        {
+          "id": 409224,
+          "type": "topic",
+          "guid": "52313677-19f8-b106-ec91-d8d17e6087fe",
+          "description": "news",
+          "sportId": 0,
+          "topicId": 781
+        },
+        {
+          "id": 80311,
+          "type": "league",
+          "uid": "s:1~l:10",
+          "guid": "b38f959b-7865-31ac-8841-b88355519e10",
+          "description": "MLB",
+          "sportId": 10,
+          "leagueId": 10,
+          "league": {
+            "id": 10,
+            "description": "MLB",
+            "abbreviation": "MLB",
+            "links": {
+              "mobile": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              },
+              "web": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 694,
+          "type": "team",
+          "uid": "s:1~l:10~t:19",
+          "guid": "fb7cf413-5156-9fc2-abe0-2273b89f70db",
+          "description": "Los Angeles Dodgers",
+          "sportId": 10,
+          "teamId": 19,
+          "team": {
+            "id": 19,
+            "description": "Los Angeles Dodgers",
+            "abbreviation": "LAD",
+            "shortDisplayName": "Dodgers",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/lad/los-angeles-dodgers"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/lad/los-angeles-dodgers"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 395,
+          "type": "team",
+          "uid": "s:1~l:10~t:15",
+          "guid": "122673a3-bf06-4432-6950-b8a32e52ac2e",
+          "description": "Atlanta Braves",
+          "sportId": 10,
+          "teamId": 15,
+          "team": {
+            "id": 15,
+            "description": "Atlanta Braves",
+            "abbreviation": "ATL",
+            "shortDisplayName": "Braves",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/atl/atlanta-braves"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/atl/atlanta-braves"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 429870,
+          "type": "athlete",
+          "uid": "s:1~l:10~a:42468",
+          "guid": "4b69afe3-99a2-3385-839d-03c59238daa2",
+          "description": "Andy Pages",
+          "sportId": 10,
+          "athleteId": 42468,
+          "athlete": {
+            "id": 42468,
+            "description": "Andy Pages",
+            "links": {
+              "mobile": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/42468"
+                }
+              },
+              "web": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/42468"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "byline": "Jeff Passan",
+      "links": {
+        "api": {
+          "self": {
+            "href": "https://content.core.api.espn.com/v1/sports/news/50129200"
+          }
+        },
+        "app": {
+          "sportscenter": {
+            "href": "sportscenter://x-callback-url/showStory?uid=50129200"
+          }
+        },
+        "mobile": {
+          "href": "http://m.espn.go.com/mlb/story?storyId=50129200"
+        },
+        "web": {
+          "href": "https://www.espn.com/mlb/story/_/id/50129200/dodgers-dispatch-braves-advance-third-straight-nlcs"
+        }
+      },
+      "premium": false
+    },
+    {
+      "id": 50134346,
+      "nowId": "1-50134346",
+      "contentKey": "50134346-1-5-1",
+      "dataSourceIdentifier": "269a243942bac",
+      "type": "HeadlineNews",
+      "headline": "MLB proposes shorter regular season, best-of-7 division series",
+      "description": "Major League Baseball proposed shortening the regular season to 154 games from 162 starting in 2029 and expanding the division series to best-of-seven in bargaining with players.",
+      "lastModified": "2026-10-08T19:29:49Z",
+      "published": "2026-10-08T19:29:49Z",
+      "images": [
+        {
+          "dataSourceIdentifier": "21e485086315f",
+          "id": 33350082,
+          "type": "header",
+          "name": "MLB Logo [1296x729]",
+          "credit": "Associated Press",
+          "height": 729,
+          "width": 1296,
+          "url": "https://a.espncdn.com/photo/2022/0223/r977995_1296x729_16-9.jpg"
+        },
+        {
+          "type": "Media",
+          "name": "Why Rich Eisen doesn't like MLB teams picking their playoff opponent",
+          "caption": "Why Rich Eisen doesn't like MLB teams picking their playoff opponent",
+          "height": 324,
+          "width": 576,
+          "url": "https://espnmedia-cdn.akamaized.net/espn/media/common/2026/1008/ss_20261008_145805970_3688872913/ss_20261008_145805970_3688872913.jpg"
+        }
+      ],
+      "categories": [
+        {
+          "id": 80311,
+          "type": "league",
+          "uid": "s:1~l:10",
+          "guid": "b38f959b-7865-31ac-8841-b88355519e10",
+          "description": "MLB",
+          "sportId": 10,
+          "leagueId": 10,
+          "league": {
+            "id": 10,
+            "description": "MLB",
+            "abbreviation": "MLB",
+            "links": {
+              "mobile": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              },
+              "web": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 409224,
+          "type": "topic",
+          "guid": "52313677-19f8-b106-ec91-d8d17e6087fe",
+          "description": "news",
+          "sportId": 0,
+          "topicId": 781
+        }
+      ],
+      "byline": "Jesse Rogers",
+      "links": {
+        "api": {
+          "self": {
+            "href": "https://content.core.api.espn.com/v1/sports/news/50134346"
+          }
+        },
+        "app": {
+          "sportscenter": {
+            "href": "sportscenter://x-callback-url/showStory?uid=50134346"
+          }
+        },
+        "mobile": {
+          "href": "http://m.espn.go.com/mlb/story?storyId=50134346"
+        },
+        "web": {
+          "href": "https://www.espn.com/mlb/story/_/id/50134346/mlb-proposes-shorter-regular-season-best-7-division-series"
+        }
+      },
+      "premium": false
+    },
+    {
+      "id": 50138557,
+      "nowId": "1-50138557",
+      "contentKey": "50138557-1-21-1",
+      "dataSourceIdentifier": "aa50d58fa1b87",
+      "type": "Recap",
+      "headline": "Jose Ramirez homers as the Guardians beat the White Sox 9-5 to force a decisive Game 5 in ALDS",
+      "description": "- Jos  Ramirez homered and drove in three runs, and the Cleveland Guardians beat the Chicago White Sox 9-5 on Thursday night to send their AL Division Series to a winner-take-all Game 5.",
+      "lastModified": "2026-10-09T13:55:51Z",
+      "published": "2026-10-09T13:55:51Z",
+      "images": [
+        {
+          "type": "stitcher",
+          "name": "espn.applewatch.awayhome.1",
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.applewatch.awayhome.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.applewatch.homeaway.1",
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.applewatch.homeaway.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.awayhome.16x9.1",
+          "ratio": "16x9",
+          "height": 173,
+          "width": 308,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.awayhome.16x9.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.homeaway.16x9.1",
+          "ratio": "16x9",
+          "height": 173,
+          "width": 308,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.homeaway.16x9.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.awayhome.1x1.1",
+          "ratio": "1x1",
+          "height": 308,
+          "width": 308,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.awayhome.1x1.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.homeaway.1x1.1",
+          "ratio": "1x1",
+          "height": 308,
+          "width": 308,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.homeaway.1x1.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.awayhome.5x2.1",
+          "ratio": "5x2",
+          "height": 124,
+          "width": 308,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.awayhome.5x2.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.homeaway.5x2.1",
+          "ratio": "5x2",
+          "height": 124,
+          "width": 308,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.homeaway.5x2.1"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.awayhome.16x9.2",
+          "ratio": "16x9",
+          "height": 353,
+          "width": 628,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.awayhome.16x9.2"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.homeaway.16x9.2",
+          "ratio": "16x9",
+          "height": 353,
+          "width": 628,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.homeaway.16x9.2"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.awayhome.5x2.2",
+          "ratio": "5x2",
+          "height": 251,
+          "width": 628,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.awayhome.5x2.2"
+        },
+        {
+          "type": "stitcher",
+          "name": "espn.all.homeaway.5x2.2",
+          "ratio": "5x2",
+          "height": 251,
+          "width": 628,
+          "url": "https://s.espncdn.com/stitcher/sports/baseball/mlb/events/401907993.png?templateId=espn.all.homeaway.5x2.2"
+        },
+        {
+          "type": "Media",
+          "name": "Cleveland Guardians vs. Chicago White Sox: Game Highlights",
+          "caption": " Cleveland Guardians vs. Chicago White Sox: Game Highlights",
+          "height": 324,
+          "width": 576,
+          "url": "https://espnmedia-cdn.akamaized.net/espn/media/common/wsc/2026/1009/f3c1bfe8-30cc-4d26-90d3-9890d70132f3/f3c1bfe8-30cc-4d26-90d3-9890d70132f3.jpg"
+        }
+      ],
+      "categories": [
+        {
+          "id": 80311,
+          "type": "league",
+          "uid": "s:1~l:10",
+          "guid": "b38f959b-7865-31ac-8841-b88355519e10",
+          "description": "MLB",
+          "sportId": 10,
+          "leagueId": 10,
+          "league": {
+            "id": 10,
+            "description": "MLB",
+            "abbreviation": "MLB",
+            "links": {
+              "mobile": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              },
+              "web": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 141,
+          "type": "team",
+          "uid": "s:1~l:10~t:4",
+          "guid": "8f4800c6-3c05-b3d5-8186-9750cd72a3c2",
+          "description": "Chicago White Sox",
+          "sportId": 10,
+          "teamId": 4,
+          "team": {
+            "id": 4,
+            "description": "Chicago White Sox",
+            "abbreviation": "CHW",
+            "shortDisplayName": "White Sox",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 166,
+          "type": "team",
+          "uid": "s:1~l:10~t:5",
+          "guid": "6ad8fa03-36bc-baab-c76a-345b6544424d",
+          "description": "Cleveland Guardians",
+          "sportId": 10,
+          "teamId": 5,
+          "team": {
+            "id": 5,
+            "description": "Cleveland Guardians",
+            "abbreviation": "CLE",
+            "shortDisplayName": "Guardians",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "event",
+          "uid": "s:1~l:10~e:401907993",
+          "guid": "d14c6c42-96f9-362c-99f4-f2cb05115233",
+          "description": "Cleveland Guardians @ Chicago White Sox",
+          "eventId": 401907993,
+          "event": {
+            "id": 401907993,
+            "sport": "baseball",
+            "league": "mlb",
+            "description": "Cleveland Guardians @ Chicago White Sox",
+            "links": {
+              "mobile": {
+                "event": {
+                  "href": "https://www.espn.com/mlb/game/_/gameId/401907993"
+                }
+              },
+              "web": {
+                "event": {
+                  "href": "https://www.espn.com/mlb/game/_/gameId/401907993"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "links": {
+        "api": {
+          "self": {
+            "href": "https://content.core.api.espn.com/v1/sports/news/50138557"
+          }
+        },
+        "app": {
+          "sportscenter": {
+            "href": "sportscenter://x-callback-url/showStory?uid=50138557"
+          }
+        },
+        "mobile": {
+          "href": "http://m.espn.go.com/mlb/story?storyId=50138557"
+        },
+        "web": {
+          "href": "http://www.espn.com/mlb/recap?gameId=401907993"
+        }
+      },
+      "premium": false
+    },
+    {
+      "id": 50137745,
+      "nowId": "1-50137745",
+      "contentKey": "50137745-1-293-1",
+      "dataSourceIdentifier": "44d05f4ec08ee",
+      "type": "Media",
+      "headline": "Cleveland Guardians vs. Chicago White Sox: Game Highlights",
+      "description": " Cleveland Guardians vs. Chicago White Sox: Game Highlights",
+      "lastModified": "2026-10-09T04:07:24Z",
+      "published": "2026-10-09T04:07:24Z",
+      "images": [
+        {
+          "name": "Cleveland Guardians vs. Chicago White Sox: Game Highlights",
+          "caption": " Cleveland Guardians vs. Chicago White Sox: Game Highlights",
+          "alt": "",
+          "height": 324,
+          "width": 576,
+          "url": "https://espnmedia-cdn.akamaized.net/espn/media/common/wsc/2026/1009/f3c1bfe8-30cc-4d26-90d3-9890d70132f3/f3c1bfe8-30cc-4d26-90d3-9890d70132f3.jpg"
+        }
+      ],
+      "categories": [
+        {
+          "id": 114017,
+          "type": "athlete",
+          "uid": "s:1~l:10~a:32801",
+          "guid": "ec9ea93f-b7c3-b30e-53a6-694d294e3438",
+          "description": "Jose Ramirez",
+          "sportId": 10,
+          "athleteId": 32801,
+          "athlete": {
+            "id": 32801,
+            "description": "Jose Ramirez",
+            "links": {
+              "mobile": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/32801"
+                }
+              },
+              "web": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/32801"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 80311,
+          "type": "league",
+          "uid": "s:1~l:10",
+          "guid": "b38f959b-7865-31ac-8841-b88355519e10",
+          "description": "MLB",
+          "sportId": 10,
+          "leagueId": 10,
+          "league": {
+            "id": 10,
+            "description": "MLB",
+            "abbreviation": "MLB",
+            "links": {
+              "mobile": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              },
+              "web": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 166,
+          "type": "team",
+          "uid": "s:1~l:10~t:5",
+          "guid": "6ad8fa03-36bc-baab-c76a-345b6544424d",
+          "description": "Cleveland Guardians",
+          "sportId": 10,
+          "teamId": 5,
+          "team": {
+            "id": 5,
+            "description": "Cleveland Guardians",
+            "abbreviation": "CLE",
+            "shortDisplayName": "Guardians",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 448768,
+          "type": "athlete",
+          "uid": "s:1~l:10~a:4345843",
+          "guid": "9f9788a5-5e0e-3a03-bcb4-01585302e586",
+          "description": "Patrick Bailey",
+          "sportId": 10,
+          "athleteId": 4345843,
+          "athlete": {
+            "id": 4345843,
+            "description": "Patrick Bailey",
+            "links": {
+              "mobile": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/4345843"
+                }
+              },
+              "web": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/4345843"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 669121,
+          "type": "athlete",
+          "uid": "s:1~l:10~a:5007707",
+          "guid": "5e10129d-5cfe-3220-8001-9c313ee58e89",
+          "description": "Travis Bazzana",
+          "sportId": 10,
+          "athleteId": 5007707,
+          "athlete": {
+            "id": 5007707,
+            "description": "Travis Bazzana",
+            "links": {
+              "mobile": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/5007707"
+                }
+              },
+              "web": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/5007707"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 757286,
+          "type": "league",
+          "uid": "s:1",
+          "guid": "e364bfcd-493d-3bfb-ac83-bd27d66fedd0",
+          "description": "Baseball",
+          "sportId": 1,
+          "leagueId": 1,
+          "league": {
+            "id": 1,
+            "description": "Baseball"
+          }
+        },
+        {
+          "id": 141,
+          "type": "team",
+          "uid": "s:1~l:10~t:4",
+          "guid": "8f4800c6-3c05-b3d5-8186-9750cd72a3c2",
+          "description": "Chicago White Sox",
+          "sportId": 10,
+          "teamId": 4,
+          "team": {
+            "id": 4,
+            "description": "Chicago White Sox",
+            "abbreviation": "CHW",
+            "shortDisplayName": "White Sox",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 528661,
+          "type": "athlete",
+          "uid": "s:1~l:10~a:41996",
+          "guid": "ac85b3fc-6fa7-c2c2-d53f-9047b5a3e8f4",
+          "description": "Steven Kwan",
+          "sportId": 10,
+          "athleteId": 41996,
+          "athlete": {
+            "id": 41996,
+            "description": "Steven Kwan",
+            "links": {
+              "mobile": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/41996"
+                }
+              },
+              "web": {
+                "athletes": {
+                  "href": "https://www.espn.com/mlb/player/_/id/41996"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 12023,
+          "type": "league",
+          "guid": "486b53e9-9924-4652-82e3-1542a5849276",
+          "description": "Fantasy MLB",
+          "sportId": 0,
+          "leagueId": 3070,
+          "league": {
+            "id": 3070,
+            "description": "Fantasy MLB"
+          }
+        },
+        {
+          "id": 711824,
+          "type": "editorialindicator",
+          "guid": "d348c764-47d9-3e31-bd75-d39dfde52c26",
+          "description": "SC4U  - Eligible"
+        },
+        {
+          "id": 711821,
+          "type": "editorialindicator",
+          "guid": "f3e05446-8d07-3064-a239-c10c32884ea2",
+          "description": "SC4U - Full Highlight"
+        },
+        {
+          "type": "event",
+          "uid": "s:1~l:10~e:401907993",
+          "guid": "d14c6c42-96f9-362c-99f4-f2cb05115233",
+          "description": "Cleveland Guardians @ Chicago White Sox",
+          "eventId": 401907993,
+          "event": {
+            "id": 401907993,
+            "sport": "baseball",
+            "league": "mlb",
+            "description": "Cleveland Guardians @ Chicago White Sox",
+            "links": {
+              "mobile": {
+                "event": {
+                  "href": "https://www.espn.com/mlb/game/_/gameId/401907993"
+                }
+              },
+              "web": {
+                "event": {
+                  "href": "https://www.espn.com/mlb/game/_/gameId/401907993"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "links": {
+        "api": {
+          "artwork": {
+            "href": "https://artwork.api.espn.com/artwork/collections/media/b3c59828-6c5a-4752-97f6-5d40b2191779"
+          },
+          "self": {
+            "href": "https://content.core.api.espn.com/v1/video/clips/50137745"
+          }
+        },
+        "sportscenter": {
+          "href": "sportscenter://x-callback-url/showVideo?videoID=50137745&videoDSI=44d05f4ec08ee"
+        },
+        "web": {
+          "href": "https://www.espn.com/video/clip/_/id/50137745/game-highlights",
+          "self": {
+            "href": "https://www.espn.com/video/clip/_/id/50137745/game-highlights",
+            "dsi": {
+              "href": "https://www.espn.com/video/clip?id=44d05f4ec08ee"
+            }
+          }
+        }
+      },
+      "premium": false
+    },
+    {
+      "id": 46793185,
+      "nowId": "1-46793185",
+      "contentKey": "46793185-1-6-1",
+      "dataSourceIdentifier": "83e89bb4eb703",
+      "type": "Story",
+      "headline": "Every team's odds to win the 2026 World Series: Dodgers still favorites",
+      "description": "Every MLB team's odds to win the 2026 World Series as the playoffs continue.",
+      "lastModified": "2026-10-09T10:45:35Z",
+      "published": "2026-10-09T10:45:35Z",
+      "images": [
+        {
+          "dataSourceIdentifier": "778bda5545530",
+          "id": 46812536,
+          "type": "header",
+          "name": "Los Angeles Dodgers [1296x729]",
+          "caption": "The Dodgers remain the favorites to win the World Series as the ALCS and NLCS matchups take shape.",
+          "credit": "Mark Blinch/Getty Images",
+          "height": 729,
+          "width": 1296,
+          "url": "https://a.espncdn.com/photo/2025/1102/r1569497_1296x729_16-9.jpg"
+        },
+        {
+          "dataSourceIdentifier": "211df0daa15ef",
+          "id": 50109360,
+          "type": "header",
+          "name": "Jackson Chourio [576x324]",
+          "caption": "Jackson Chourio and the Brewers are hoping to dispatch the Padres quickly.",
+          "alt": "Jackson Chourio #11 of the Milwaukee Brewers celebrates his game-winning two-run single against the San Diego Padres during the ninth inning.",
+          "credit": "Patrick McDermott/Getty Images",
+          "height": 324,
+          "width": 576,
+          "url": "https://a.espncdn.com/photo/2026/1005/r1726312_576x324_16-9.jpg"
+        },
+        {
+          "dataSourceIdentifier": "81d9c27412c3e",
+          "id": 49530283,
+          "type": "header",
+          "name": "Tarik Skubal [576x324]",
+          "caption": "With Tarik Skubal now calling Los Angeles home, the Dodgers chances of winning the World Series again become even more likely.",
+          "alt": "Tarik Skubal of the Los Angeles Dodgers looks on in the dugout against the Boston Red Sox during the ninth inning at Dodger Stadium.",
+          "credit": "Luke Hales/Getty Images",
+          "height": 324,
+          "width": 576,
+          "url": "https://a.espncdn.com/photo/2026/0804/r1697591_576x324_16-9.jpg"
+        }
+      ],
+      "categories": [
+        {
+          "id": 611584,
+          "type": "league",
+          "guid": "550a1e9e-377e-3019-bf5e-19c027d50a49",
+          "description": "Sports Betting",
+          "sportId": 22000,
+          "leagueId": 22000,
+          "league": {
+            "id": 22000,
+            "description": "Sports Betting"
+          }
+        },
+        {
+          "id": 137817,
+          "type": "topic",
+          "guid": "14f579db-79ec-a898-9405-8fec63e16063",
+          "description": "news – sports betting",
+          "sportId": 0,
+          "topicId": 179
+        },
+        {
+          "id": 80311,
+          "type": "league",
+          "uid": "s:1~l:10",
+          "guid": "b38f959b-7865-31ac-8841-b88355519e10",
+          "description": "MLB",
+          "sportId": 10,
+          "leagueId": 10,
+          "league": {
+            "id": 10,
+            "description": "MLB",
+            "abbreviation": "MLB",
+            "links": {
+              "mobile": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              },
+              "web": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 129404,
+          "type": "topic",
+          "guid": "7f5ac95b-94a5-72a1-7013-83b7c7e1eeb0",
+          "description": "news - mlb",
+          "sportId": 0,
+          "topicId": 123
+        },
+        {
+          "id": 694,
+          "type": "team",
+          "uid": "s:1~l:10~t:19",
+          "guid": "fb7cf413-5156-9fc2-abe0-2273b89f70db",
+          "description": "Los Angeles Dodgers",
+          "sportId": 10,
+          "teamId": 19,
+          "team": {
+            "id": 19,
+            "description": "Los Angeles Dodgers",
+            "abbreviation": "LAD",
+            "shortDisplayName": "Dodgers",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/lad/los-angeles-dodgers"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/lad/los-angeles-dodgers"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 527,
+          "type": "team",
+          "uid": "s:1~l:10~t:8",
+          "guid": "4750d73d-d92e-b390-758c-2c7b44a810db",
+          "description": "Milwaukee Brewers",
+          "sportId": 10,
+          "teamId": 8,
+          "team": {
+            "id": 8,
+            "description": "Milwaukee Brewers",
+            "abbreviation": "MIL",
+            "shortDisplayName": "Brewers",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/mil/milwaukee-brewers"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/mil/milwaukee-brewers"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 118,
+          "type": "team",
+          "uid": "s:1~l:10~t:30",
+          "guid": "f8a579c6-08b9-7584-141d-317d0645763b",
+          "description": "Tampa Bay Rays",
+          "sportId": 10,
+          "teamId": 30,
+          "team": {
+            "id": 30,
+            "description": "Tampa Bay Rays",
+            "abbreviation": "TB",
+            "shortDisplayName": "Rays",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/tb/tampa-bay-rays"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/tb/tampa-bay-rays"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 166,
+          "type": "team",
+          "uid": "s:1~l:10~t:5",
+          "guid": "6ad8fa03-36bc-baab-c76a-345b6544424d",
+          "description": "Cleveland Guardians",
+          "sportId": 10,
+          "teamId": 5,
+          "team": {
+            "id": 5,
+            "description": "Cleveland Guardians",
+            "abbreviation": "CLE",
+            "shortDisplayName": "Guardians",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 141,
+          "type": "team",
+          "uid": "s:1~l:10~t:4",
+          "guid": "8f4800c6-3c05-b3d5-8186-9750cd72a3c2",
+          "description": "Chicago White Sox",
+          "sportId": 10,
+          "teamId": 4,
+          "team": {
+            "id": 4,
+            "description": "Chicago White Sox",
+            "abbreviation": "CHW",
+            "shortDisplayName": "White Sox",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 696244,
+          "type": "contributor",
+          "guid": "b4b4279f-6f4d-329a-a5c2-1eeceea9f2bb",
+          "description": "Doug Greenberg",
+          "slug": "doug-greenberg",
+          "contributor": {
+            "id": 4050,
+            "description": "Doug Greenberg"
+          }
+        }
+      ],
+      "byline": "Doug Greenberg",
+      "links": {
+        "api": {
+          "self": {
+            "href": "https://content.core.api.espn.com/v1/sports/news/46793185"
+          }
+        },
+        "app": {
+          "sportscenter": {
+            "href": "sportscenter://x-callback-url/showStory?uid=46793185"
+          }
+        },
+        "mobile": {
+          "href": "http://m.espn.go.com/wireless/story?storyId=46793185"
+        },
+        "web": {
+          "href": "https://www.espn.com/espn/betting/story/_/id/46793185/espn-mlb-betting-odds-futures-bets-world-series-american-national-league"
+        }
+      },
+      "premium": false
+    },
+    {
+      "id": 50022544,
+      "nowId": "1-50022544",
+      "contentKey": "50022544-1-6-1",
+      "dataSourceIdentifier": "3b357ca568697",
+      "type": "Story",
+      "headline": "2026 MLB playoffs: Schedule, postseason bracket, standings",
+      "description": "We have your one-stop shop for everything you need to keep up with all the action this October.",
+      "lastModified": "2026-10-09T03:50:08Z",
+      "published": "2026-10-09T03:50:08Z",
+      "images": [
+        {
+          "dataSourceIdentifier": "2af4c3c11f92a",
+          "id": 50044727,
+          "type": "header",
+          "name": "Jose Ramirez, Steven Kwan [608x342]",
+          "caption": "Steven Kwan, Jose Ramirez and the Cleveland Guardians will meet the Chicago White Sox in the ALDS.",
+          "credit": "Jay Biggerstaff/Getty Images",
+          "height": 342,
+          "width": 608,
+          "url": "https://a.espncdn.com/photo/2026/0927/r1722566_608x342_16-9.jpg"
+        },
+        {
+          "dataSourceIdentifier": "5bb0f998d7d3c",
+          "id": 50130438,
+          "type": "header",
+          "name": "Brewers NLCS new [1296x729]",
+          "caption": "Update MLB playoff bracket",
+          "alt": "Update MLB playoff bracket",
+          "credit": "ESPN",
+          "height": 729,
+          "width": 1296,
+          "url": "https://a.espncdn.com/photo/2026/1007/Brewers_NLCS16x9_1296x729.png"
+        },
+        {
+          "type": "Media",
+          "name": "Anthony Volpe's 2-run HR is overturned due to fan interference",
+          "caption": "Anthony Volpe's 2-run HR is overturned due to fan interference",
+          "height": 324,
+          "width": 576,
+          "url": "https://espnmedia-cdn.akamaized.net/espn/media/common/2026/1007/0db08ac5f5e7456fb24ce7d8bf9736ef1418/0db08ac5f5e7456fb24ce7d8bf9736ef1418.jpg"
+        }
+      ],
+      "categories": [
+        {
+          "id": 80311,
+          "type": "league",
+          "uid": "s:1~l:10",
+          "guid": "b38f959b-7865-31ac-8841-b88355519e10",
+          "description": "MLB",
+          "sportId": 10,
+          "leagueId": 10,
+          "league": {
+            "id": 10,
+            "description": "MLB",
+            "abbreviation": "MLB",
+            "links": {
+              "mobile": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              },
+              "web": {
+                "leagues": {
+                  "href": "https://www.espn.com/mlb/"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 694,
+          "type": "team",
+          "uid": "s:1~l:10~t:19",
+          "guid": "fb7cf413-5156-9fc2-abe0-2273b89f70db",
+          "description": "Los Angeles Dodgers",
+          "sportId": 10,
+          "teamId": 19,
+          "team": {
+            "id": 19,
+            "description": "Los Angeles Dodgers",
+            "abbreviation": "LAD",
+            "shortDisplayName": "Dodgers",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/lad/los-angeles-dodgers"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/lad/los-angeles-dodgers"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 527,
+          "type": "team",
+          "uid": "s:1~l:10~t:8",
+          "guid": "4750d73d-d92e-b390-758c-2c7b44a810db",
+          "description": "Milwaukee Brewers",
+          "sportId": 10,
+          "teamId": 8,
+          "team": {
+            "id": 8,
+            "description": "Milwaukee Brewers",
+            "abbreviation": "MIL",
+            "shortDisplayName": "Brewers",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/mil/milwaukee-brewers"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/mil/milwaukee-brewers"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 395,
+          "type": "team",
+          "uid": "s:1~l:10~t:15",
+          "guid": "122673a3-bf06-4432-6950-b8a32e52ac2e",
+          "description": "Atlanta Braves",
+          "sportId": 10,
+          "teamId": 15,
+          "team": {
+            "id": 15,
+            "description": "Atlanta Braves",
+            "abbreviation": "ATL",
+            "shortDisplayName": "Braves",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/atl/atlanta-braves"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/atl/atlanta-braves"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 724,
+          "type": "team",
+          "uid": "s:1~l:10~t:25",
+          "guid": "4dec648c-3eb9-055c-aebc-2711f30975a0",
+          "description": "San Diego Padres",
+          "sportId": 10,
+          "teamId": 25,
+          "team": {
+            "id": 25,
+            "description": "San Diego Padres",
+            "abbreviation": "SD",
+            "shortDisplayName": "Padres",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/sd/san-diego-padres"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/sd/san-diego-padres"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 61,
+          "type": "team",
+          "uid": "s:1~l:10~t:10",
+          "guid": "2b9cedf3-ce60-0bcf-fafe-8cd055255685",
+          "description": "New York Yankees",
+          "sportId": 10,
+          "teamId": 10,
+          "team": {
+            "id": 10,
+            "description": "New York Yankees",
+            "abbreviation": "NYY",
+            "shortDisplayName": "Yankees",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/nyy/new-york-yankees"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/nyy/new-york-yankees"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 118,
+          "type": "team",
+          "uid": "s:1~l:10~t:30",
+          "guid": "f8a579c6-08b9-7584-141d-317d0645763b",
+          "description": "Tampa Bay Rays",
+          "sportId": 10,
+          "teamId": 30,
+          "team": {
+            "id": 30,
+            "description": "Tampa Bay Rays",
+            "abbreviation": "TB",
+            "shortDisplayName": "Rays",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/tb/tampa-bay-rays"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/tb/tampa-bay-rays"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 141,
+          "type": "team",
+          "uid": "s:1~l:10~t:4",
+          "guid": "8f4800c6-3c05-b3d5-8186-9750cd72a3c2",
+          "description": "Chicago White Sox",
+          "sportId": 10,
+          "teamId": 4,
+          "team": {
+            "id": 4,
+            "description": "Chicago White Sox",
+            "abbreviation": "CHW",
+            "shortDisplayName": "White Sox",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/chw/chicago-white-sox"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": 166,
+          "type": "team",
+          "uid": "s:1~l:10~t:5",
+          "guid": "6ad8fa03-36bc-baab-c76a-345b6544424d",
+          "description": "Cleveland Guardians",
+          "sportId": 10,
+          "teamId": 5,
+          "team": {
+            "id": 5,
+            "description": "Cleveland Guardians",
+            "abbreviation": "CLE",
+            "shortDisplayName": "Guardians",
+            "links": {
+              "mobile": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              },
+              "web": {
+                "teams": {
+                  "href": "https://www.espn.com/mlb/team/_/name/cle/cleveland-guardians"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "byline": "ESPN",
+      "links": {
+        "api": {
+          "self": {
+            "href": "https://content.core.api.espn.com/v1/sports/news/50022544"
+          }
+        },
+        "app": {
+          "sportscenter": {
+            "href": "sportscenter://x-callback-url/showStory?uid=50022544"
+          }
+        },
+        "mobile": {
+          "href": "http://m.espn.go.com/mlb/story?storyId=50022544"
+        },
+        "web": {
+          "href": "https://www.espn.com/mlb/story/_/id/50022544/2026-mlb-playoffs-schedule-how-watch-postseason-world-series-bracket-standings"
+        }
+      },
+      "premium": false
+    }
+  ]
+}

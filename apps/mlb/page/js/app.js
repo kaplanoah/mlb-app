@@ -11,6 +11,12 @@ import { showStartDay, startDayStrip, startOverDayStrip } from "#shared/day-stri
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
 import { startNotifications } from "#shared/notifications.js";
+import {
+  drawNews as drawNewsList,
+  readLastSeenNews,
+  startNewsRedraws,
+  watchNews,
+} from "#shared/news.js";
 import { setTabStart, startPageTabs } from "#shared/page-tabs.js";
 import { startGameSheet } from "./game-sheet.js";
 import { REORDER_EVENT } from "./ranking.js";
@@ -18,6 +24,7 @@ import { renderAll } from "./render.js";
 import { reloadIfReplaced, watchReturns } from "#shared/resume.js";
 import { startServiceWorker } from "#shared/service-worker.js";
 import { keepRanking, watchKeptChoices } from "./kept-on-device.js";
+import { NEWS_LEAGUE } from "./news-league.js";
 import {
   applyDeferredSeason,
   loadSeason,
@@ -39,6 +46,13 @@ import { fillSeasonPicker } from "#shared/season-picker.js";
 import { SNAPSHOT_VERSION } from "./snapshot.js";
 
 const CLOCK_REFRESH_MS = 60 * 1000;
+
+const findNewsList = () => /** @type {HTMLElement} */ (document.getElementById("newsList"));
+
+// Until the store or the page's last showing says what the news is, the view keeps what it was.
+function drawNews() {
+  if (session.news !== undefined) drawNewsList(findNewsList(), session.news, NEWS_LEAGUE);
+}
 
 const findYearPicker = () => /** @type {HTMLSelectElement} */ (document.getElementById("yearSel"));
 
@@ -102,6 +116,7 @@ function wireControls() {
   startRosterSection();
   startPlayerSheet();
   startSettings();
+  startNewsRedraws(findNewsList(), drawNews, NEWS_LEAGUE);
   startHomeScreen();
   const picker = findYearPicker();
   picker.addEventListener("change", () => switchYear(Number(picker.value)));
@@ -112,14 +127,15 @@ function wireControls() {
     );
 }
 
-// The stamp's times, which final is fresh, and the bracket's countdowns to first pitch read the
-// clock.
+// The stamp's times, which final is fresh, the bracket's countdowns to first pitch, and the day
+// each story came out read the clock.
 function refreshClockEveryMinute() {
   setInterval(() => {
     try {
       if (session.season) composeState();
       renderStamp();
       renderBracket();
+      drawNews();
     } catch {
       /* try again next minute */
     }
@@ -129,12 +145,20 @@ function refreshClockEveryMinute() {
 /** @param {any} shown */
 const pickShown = ({ season, schedule, trackedTitles }) => ({ season, schedule, trackedTitles });
 
-const readShown = () => session.season && { year: session.activeYear, ...pickShown(session) };
+const readShown = () =>
+  session.season && { year: session.activeYear, ...pickShown(session), news: session.news };
+
+// The news isn't any one season's, so the page's last showing of it is drawn whichever season shows.
+function drawLastSeenNews(lastSeen) {
+  session.news = readLastSeenNews(lastSeen?.news);
+  drawNews();
+}
 
 // What the page last showed is only a stand-in until the store answers, so what can't be drawn is
 // skipped.
 function drawLastSeen() {
   const lastSeen = readLastSeen();
+  drawLastSeenNews(lastSeen);
   const isShowable =
     !!lastSeen?.season &&
     lastSeen.year === session.activeYear &&
@@ -179,7 +203,7 @@ async function boot() {
   trackKeyboardFocus();
   wireControls();
   session.db = createWorkerStore();
-  showJobStatuses(session.db, ["pitchers"]);
+  showJobStatuses(session.db, ["news", "pitchers"]);
   drawLastSeen();
   reopenLastSheets();
   startCatchUpNote(session.db, renderStamp);
@@ -195,6 +219,10 @@ async function boot() {
   const [years] = await Promise.all([listYears(), loadSeason()]);
   fillYearPicker(years);
   redrawEased(drawLoadedSeason);
+  watchNews(session.db, (news) => {
+    session.news = news;
+    redrawEased(drawNews);
+  });
   watchKeptChoices(showChoicesFromOtherTabs);
   watchBracketSpace();
   refreshClockEveryMinute();

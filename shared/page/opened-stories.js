@@ -1,7 +1,7 @@
 // The stories this device has opened from the News view, so each one's Read button shows a check.
 // It forgets a story two weeks after opening it, by when the view no longer shows it.
 
-import { createViewerChoice } from "#shared/device-storage.js";
+import { createViewerChoice } from "./device-storage.js";
 
 const KEEP_MS = 14 * 24 * 60 * 60 * 1000;
 

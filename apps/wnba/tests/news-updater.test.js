@@ -1,7 +1,9 @@
 import test from "node:test";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
-import { NEWS_MODEL, readJsonArray } from "../worker/src/news-claude.js";
-import { createNewsJob } from "../worker/src/news-updater.js";
+import { NEWS_MODEL, readJsonArray } from "../../../shared/worker/news-claude.js";
+import { LABEL_PROMPT } from "../worker/src/news-prompts.js";
+import { createWnbaNewsJob } from "../worker/src/news-updater.js";
 import { createFeedFetch } from "./news-fixtures.js";
 
 const NOW = Date.parse("2026-10-05T16:00:00Z");
@@ -89,7 +91,7 @@ function createFetch({
 function createRun({ env = ENV, now = NOW } = {}) {
   const storage = createJobStorage();
   const docs = createDocs();
-  const job = createNewsJob();
+  const job = createWnbaNewsJob();
   const loadSnapshot = async () => ({});
   const runJob = (fetchImpl) =>
     job.run({ docs, storage, loadSnapshot, env, fetchImpl, now: () => now });
@@ -348,13 +350,13 @@ test("a story older than ten days is forgotten", async () => {
 });
 
 test("the news is read every fifteen minutes by day and hourly overnight, Eastern", () => {
-  const job = createNewsJob();
+  const job = createWnbaNewsJob();
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T14:00:00Z")), 15 * 60 * 1000);
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T07:00:00Z")), 60 * 60 * 1000);
 });
 
 test("an overnight wait ends at 7 a.m. Eastern, in and out of daylight time", () => {
-  const job = createNewsJob();
+  const job = createWnbaNewsJob();
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:30:00Z")), 30 * 60 * 1000);
   assert.equal(job.chooseDelay(Date.parse("2026-10-05T10:45:00Z")), 15 * 60 * 1000);
   assert.equal(job.chooseDelay(Date.parse("2027-01-10T11:40:00Z")), 20 * 60 * 1000);
@@ -363,4 +365,11 @@ test("an overnight wait ends at 7 a.m. Eastern, in and out of daylight time", ()
 test("Claude's answer is read from its JSON array, whatever text is around it", () => {
   assert.deepEqual(readJsonArray('Sure:\n[{"id": 1}]\nDone.'), [{ id: 1 }]);
   assert.throws(() => readJsonArray("No stories."), /no JSON array/);
+});
+
+// Claude judges every story again when its prompt changes, so the prompt changes only on purpose,
+// with this hash.
+test("the WNBA's prompt is the one its stories were last judged by", () => {
+  const hash = createHash("sha256").update(LABEL_PROMPT).digest("hex").slice(0, 16);
+  assert.equal(hash, "4d828de06be0fcde");
 });

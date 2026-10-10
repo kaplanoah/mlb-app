@@ -2196,157 +2196,68 @@ table.standings tr.playoff-line + tr td {
   font-weight: 400;
 }
 
-/* The News view: a card for each topic, its lead's photo across the top, and the story that adds
-   the most under the lead, with its photo small beside it. A story's Read button turns quieter,
-   with a check in place of its arrow, once this device has opened it. */
-/* The columns news-view.js fills, one on a phone and two on a wide screen, each stacking its own
-   cards as far apart as the page's sides. */
-.news-cards {
-  --news-gap: var(--page-gutter);
-  display: grid;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  gap: var(--news-gap);
-  align-items: start;
-}
-.news-column {
-  display: grid;
-  gap: var(--news-gap);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+/* The News view, as shared/news.css lays it out, in Hardwood's raised cards inside an edge. */
 .news-card {
-  overflow: hidden;
   border: 1px solid var(--edge);
-  border-radius: var(--radius-card);
   background: var(--raised);
 }
 .news-photo {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
   background: var(--tile);
 }
 /* The teams' dots sit as far under the photo as in from the card's side. */
 .news-body {
-  display: grid;
   gap: 6px;
   padding: 15px 13px 13px 16px;
 }
-/* The photo's credit sits just under it at the right. The teams beside it wrap before they reach
-   it, and it wraps only once they're down to one a line. */
-.news-top {
-  display: grid;
-  grid-template-columns: minmax(min-content, 1fr) auto;
-  column-gap: 12px;
-  align-items: start;
-}
 .news-photo-credit {
-  grid-column: 2;
   margin: -10px -5px 0 0;
-  text-align: right;
-  font-size: var(--size-small);
-  color: var(--ink-dim);
-}
-.news-photo-credit .credit-part {
-  display: inline-block;
-}
-.news-teams {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px 14px;
-  margin: 0;
 }
 .news-teams .club {
   gap: 7px;
   font-family: var(--text);
-  font-size: var(--size-small);
   font-weight: 600;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
 }
 .news-teams .dot {
   width: 14px;
   height: 14px;
 }
 .news-title {
-  margin: 0;
   font-size: 1.15rem;
   font-weight: 600;
   line-height: 1.28;
-  text-wrap: pretty;
 }
-.news-title a {
-  color: inherit;
-  text-decoration: none;
-}
-.news-meta {
-  margin: 0;
-  font-size: var(--size-glance);
-  color: var(--ink-mid);
-}
-/* The stories under a card's lead, quieter than it: a headline and its outlet each. */
 .news-more {
-  display: grid;
   gap: 8px;
-  margin-top: 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--divider);
 }
 .news-more-label {
-  margin: 0;
-  font-size: var(--size-small);
   font-weight: 500;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
 }
 .news-more-list {
-  display: grid;
   gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 .news-more-title {
   margin: 0 0 2px;
-  font-size: var(--size-glance);
   font-weight: 500;
   line-height: 1.35;
-  text-wrap: pretty;
-}
-.news-more-title a {
-  color: inherit;
-  text-decoration: none;
 }
 /* A step darker than mid ink, since Barlow's Regular reads thin through a few lines. */
 .news-summary {
-  margin: 2px 0 0;
-  font-size: var(--size-read);
   line-height: 1.45;
   color: color-mix(in srgb, var(--ink-dim) 45%, var(--ink));
 }
 .news-foot {
-  display: flex;
-  justify-content: flex-end;
   margin-top: 3px;
 }
 .read-button {
-  display: inline-flex;
-  align-items: center;
   height: var(--control-height);
   padding: 0 calc(var(--control-room) - 5.5px) 0 var(--control-room);
-  border-radius: var(--radius-control);
   background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--edge);
   font-size: var(--size-glance);
   font-weight: var(--control-weight);
   color: var(--ink);
-  text-decoration: none;
-  white-space: nowrap;
 }
 .read-button.opened {
   padding-right: calc(var(--control-room) - 5px);
@@ -2354,16 +2265,10 @@ table.standings tr.playoff-line + tr td {
   box-shadow: inset 0 0 0 1px var(--divider);
   color: var(--ink-mid);
 }
-/* A hidden copy at the unread weight keeps the label as wide once its story is opened. */
 .read-label {
-  display: inline-grid;
   text-box: trim-both cap alphabetic;
 }
 .read-label::after {
-  content: attr(data-label);
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
   font-weight: var(--control-weight);
 }
 .read-button.opened .read-label {
@@ -2381,18 +2286,6 @@ table.standings tr.playoff-line + tr td {
   margin-left: 4.5px;
   translate: 0 -0.5px;
   color: var(--ink-dim);
-}
-@media (hover: hover) {
-  .news-title a,
-  .news-more-title a,
-  .read-button {
-    transition: color 0.15s;
-  }
-  .news-title a:hover,
-  .news-more-title a:hover,
-  .read-button:hover {
-    color: var(--ink-hover);
-  }
 }
 
 /* Try again, raised and outlined like the Read button, its arrow in orange, and filled orange where

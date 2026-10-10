@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { keepRecentOpens } from "../page/js/opened-stories.js";
+import { keepRecentOpens } from "../shared/page/opened-stories.js";
 
 const NOW = Date.parse("2026-10-05T16:00:00Z");
 const DAY_MS = 24 * 60 * 60 * 1000;

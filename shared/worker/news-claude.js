@@ -1,4 +1,4 @@
-import { abortAfter } from "../../../../shared/worker/timeout.js";
+import { abortAfter } from "./timeout.js";
 
 // Asking Claude, with the Worker's own API key, for an answer that is a JSON array. The prompt
 // stays the same from call to call, so it's kept in Claude's cache for an hour, which the news

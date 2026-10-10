@@ -1,0 +1,136 @@
+/* The News view: a card for each piece of news, its lead's photo across the top, and the stories
+   that add to it in a quiet list under the lead. A story's Read button turns quieter, with a check in
+   place of its arrow, once this device has opened it. This lays the view out; each app's own
+   styles set its cards' colors, type, spacing, and Read button. */
+/* The columns news-view.js fills, one on a phone and two on a wide screen, each stacking its own
+   cards as far apart as the page's sides. */
+.news-cards {
+  --news-gap: var(--page-gutter);
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--news-gap);
+  align-items: start;
+}
+.news-column {
+  display: grid;
+  gap: var(--news-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.news-card {
+  overflow: hidden;
+  border-radius: var(--radius-card);
+}
+.news-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.news-body {
+  display: grid;
+}
+/* The photo's credit sits just under it at the right. The teams beside it wrap before they reach
+   it, and it wraps only once they're down to one a line. */
+.news-top {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+}
+.news-photo-credit {
+  grid-column: 2;
+  text-align: right;
+  font-size: var(--size-small);
+  color: var(--ink-dim);
+}
+.news-photo-credit .credit-part {
+  display: inline-block;
+}
+.news-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin: 0;
+}
+.news-teams .club {
+  font-size: var(--size-small);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.news-title {
+  margin: 0;
+  text-wrap: pretty;
+}
+.news-title a,
+.news-more-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.news-meta {
+  margin: 0;
+  font-size: var(--size-glance);
+  color: var(--ink-mid);
+}
+/* The stories under a card's lead, quieter than it: a headline and its outlet each. */
+.news-more {
+  display: grid;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}
+.news-more-label {
+  margin: 0;
+  font-size: var(--size-small);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.news-more-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.news-more-title {
+  font-size: var(--size-glance);
+  text-wrap: pretty;
+}
+.news-summary {
+  margin: 2px 0 0;
+  font-size: var(--size-read);
+}
+.news-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+.read-button {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-control);
+  text-decoration: none;
+  white-space: nowrap;
+}
+/* A hidden copy at the unread weight keeps the label as wide once its story is opened. */
+.read-label {
+  display: inline-grid;
+}
+.read-label::after {
+  content: attr(data-label);
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+@media (hover: hover) {
+  .news-title a,
+  .news-more-title a,
+  .read-button {
+    transition: color 0.15s;
+  }
+  .news-title a:hover,
+  .news-more-title a:hover,
+  .read-button:hover {
+    color: var(--ink-hover);
+  }
+}

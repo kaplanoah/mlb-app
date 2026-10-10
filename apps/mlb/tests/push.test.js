@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as MLBSnapshot from "../page/js/snapshot.js";
 import worker from "../worker/src/index.js";
+import { NEWS_FEEDS } from "../worker/src/news-feeds.js";
 import { SeasonStore } from "../worker/src/store.js";
 import { decodeBase64Url } from "../../../shared/worker/web-push.js";
 import {
@@ -21,13 +22,17 @@ const EVENING = JSON.parse(
 const NOW = Date.parse(EVENING.now);
 const SNAPSHOT = MLBSnapshot.buildSnapshot(EVENING.responses, { season: 2026, now: NOW });
 
+/** @param {string} url */
+const isNewsFeed = (url) => NEWS_FEEDS.some((feed) => feed.url === url);
+
 function createPushStore({ pushStatus = 201 } = {}) {
   const context = createDurableObjectContext();
   const harness = { snapshot: SNAPSHOT, pushStatus, isPushServiceAnswering: true, pushes: [] };
   const clock = { now: NOW };
-  // MLB, whose pitchers the store also keeps, isn't what these tests follow.
+  // MLB, whose pitchers the store also keeps, and the news outlets aren't what these tests follow.
   const fetchImpl = async (url, init) => {
-    if (url.startsWith(MLBSnapshot.MLB_API)) return new Response(null, { status: 404 });
+    if (url.startsWith(MLBSnapshot.MLB_API) || isNewsFeed(url))
+      return new Response(null, { status: 404 });
     harness.pushes.push({ url, init });
     if (!harness.isPushServiceAnswering)
       throw new DOMException("The push service didn't answer", "TimeoutError");

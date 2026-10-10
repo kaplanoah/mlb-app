@@ -34,6 +34,14 @@ page each new score. Saved to an iPhone's home screen, the page opens full
 screen like an app, and can send a notification
 when something happens to a team in your ranking.
 
+It also reads the news from ESPN, The Athletic, MLB Trade Rumors, Baseball
+Prospectus, and Joe Posnanski, and, for the Mets, NY Post, The Athletic, MLB.com,
+SNY, the Daily News, Amazin' Avenue, and MLB Trade Rumors, every 15 minutes by day
+and hourly overnight, and has Claude keep the Mets' news and the news that
+matters across baseball, and group the stories by topic. The News tab shows them
+as the WNBA's does. Settings can leave out the Mets' own beat writers and The
+Athletic; each device keeps its own.
+
 ### WNBA
 
 A private web page that follows the WNBA season. It shows the playoff bracket,
@@ -163,7 +171,7 @@ opens, and each phone types it once. Case, spaces, and hyphens don't count.
 Running it again with a new code signs every phone out until it types the new
 one, and `--remove` stops asking. Never commit or post the code.
 
-The WNBA's news needs an Anthropic API key, as the Worker's `ANTHROPIC_API_KEY`
+Each app's news needs an Anthropic API key, as its Worker's `ANTHROPIC_API_KEY`
 secret. Have the user add it themselves in the Cloudflare dashboard (the Worker's
 **Settings**, then **Variables and Secrets**, as a **Secret**), never in chat.
 Without it, the Worker still reads the feeds but keeps no story.

@@ -29,6 +29,10 @@ export const session = {
   standings: null,
   trackedTitles: {},
   isReordering: false,
+  // The news cards the Worker keeps, null when it keeps none, and undefined until the store or the
+  // page's last showing says.
+  /** @type {{ cards: import("#shared/news-picks.js").NewsCard[] } | null | undefined} */
+  news: undefined,
 };
 
 export const readSeasonYear = () => session.currentSeason;

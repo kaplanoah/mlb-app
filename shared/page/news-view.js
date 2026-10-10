@@ -1,17 +1,25 @@
-import { formatShortDate, formatShortWeekday, nameDay } from "#shared/days.js";
-import { html, joinWithSeparator } from "#shared/html.js";
-import { renderClub } from "./clubs.js";
+import { formatShortDate, formatShortWeekday, nameDay } from "./days.js";
+import { html, joinWithSeparator } from "./html.js";
 import { isWebAddress, pickReadCards } from "./news-picks.js";
-import { TEAMS } from "./teams.js";
 
 // The News view: a card for each piece of news, newest first, led by the story that tells it best,
 // with the others that add to it in a quiet list under it. A story shows only its headline, a short
 // summary, and who wrote it; the whole story is on its outlet's site, which opens apart from the
-// page and is never told the page's address.
+// page and is never told the page's address. A league hands it how to draw its teams and which of
+// its outlets need a subscription.
 
 /** @typedef {import("./news-picks.js").NewsStory} NewsStory */
 /** @typedef {import("./news-picks.js").NewsCard} NewsCard */
 /** @typedef {import("./opened-stories.js").OpenedStories} OpenedStories */
+
+/**
+ * What a league hands the News view.
+ * @typedef {object} NewsLeague
+ * @property {(team: string) => import("./html.js").Markup | null} renderTeam a team's dot and name,
+ *   or null for a code that isn't the league's
+ * @property {import("./news-picks.js").OutletSwitches} outletSwitches the league's switches for
+ *   outlets a device can leave out, like ones whose stories mostly need a subscription
+ */
 
 const WEEK_DAYS = 7;
 // A story can be about more teams than a card has room to name.
@@ -105,12 +113,13 @@ const renderMeta = (story, now) =>
 const renderSummary = (story) =>
   story.summary && html`<p class="news-summary" data-quoted>${story.summary}</p>`;
 
-/** @param {string[]} teams */
-function renderTeams(teams) {
-  const known = teams.filter((code) => code in TEAMS);
-  return (
-    known.length > 0 && html`<p class="news-teams">${known.map((code) => renderClub(code))}</p>`
-  );
+/**
+ * @param {string[]} teams
+ * @param {NewsLeague["renderTeam"]} renderTeam
+ */
+function renderTeams(teams, renderTeam) {
+  const known = teams.map(renderTeam).filter((team) => team !== null);
+  return known.length > 0 && html`<p class="news-teams">${known}</p>`;
 }
 
 /** @param {NewsStory["photo"]} photo */
@@ -126,10 +135,11 @@ function renderPhoto(photo) {
  * The story's teams, with its photo's credit across from them, under the photo.
  * @param {string[]} teams
  * @param {NewsStory["photo"]} photo
+ * @param {NewsLeague["renderTeam"]} renderTeam
  */
-function renderCardTop(teams, photo) {
+function renderCardTop(teams, photo, renderTeam) {
   const credit = findPhotoUrl(photo) && photo?.credit;
-  const teamLine = renderTeams(teams);
+  const teamLine = renderTeams(teams, renderTeam);
   if (!credit) return teamLine;
   return html`<div class="news-top">
     ${teamLine}
@@ -165,12 +175,13 @@ const renderMore = (more, now) =>
  * @param {NewsCard} card
  * @param {number} now
  * @param {OpenedStories} opened
+ * @param {NewsLeague["renderTeam"]} renderTeam
  */
-function renderCard({ lead, more }, now, opened) {
+function renderCard({ lead, more }, now, opened, renderTeam) {
   return html`<article class="news-card">
     ${renderPhoto(lead.photo)}
     <div class="news-body">
-      ${renderCardTop(lead.teams.slice(0, MAX_CARD_TEAMS), lead.photo)}
+      ${renderCardTop(lead.teams.slice(0, MAX_CARD_TEAMS), lead.photo, renderTeam)}
       <h3 class="news-title" data-quoted>${renderStoryLink(lead, lead.title)}</h3>
       ${renderMeta(lead, now)} ${renderSummary(lead)} ${renderReadButton(lead, opened)}
       ${renderMore(more, now)}
@@ -216,17 +227,23 @@ function placeInColumns(cards, columnCount) {
  * @param {NewsCard[]} cards
  * @param {import("./news-picks.js").NewsChoices} choices
  * @param {number} now
- * @param {{ columnCount?: number, opened?: OpenedStories }} [options]
+ * @param {NewsLeague & { columnCount?: number, opened?: OpenedStories }} options
  */
-export function renderNews(cards, choices, now, { columnCount = 1, opened = {} } = {}) {
-  const read = pickReadCards(cards, choices);
+export function renderNews(
+  cards,
+  choices,
+  now,
+  { renderTeam, outletSwitches, columnCount = 1, opened = {} },
+) {
+  const read = pickReadCards(cards, choices, outletSwitches);
   if (!read.length) return html`<p class="empty-note">No news yet</p>`;
   return html`<div class="news-cards">
       ${placeInColumns(read, columnCount).map(
         (column) =>
           html`<ul class="news-column">
             ${column.map(
-              (card) => html`<li data-key="${card.lead.id}">${renderCard(card, now, opened)}</li>`,
+              (card) =>
+                html`<li data-key="${card.lead.id}">${renderCard(card, now, opened, renderTeam)}</li>`,
             )}
           </ul>`,
       )}

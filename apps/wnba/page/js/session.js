@@ -13,7 +13,7 @@ export const session = {
   schedule: null,
   // The news cards, null when the store has none, and undefined until the store or the page's
   // last showing says.
-  /** @type {{ cards: import("./news-picks.js").NewsCard[] } | null | undefined} */
+  /** @type {{ cards: import("#shared/news-picks.js").NewsCard[] } | null | undefined} */
   news: undefined,
   /** @type {{ error?: string, detail?: string } | null} */
   status: null,
