@@ -231,6 +231,21 @@ test("the season's games are saved again only as a game ends, not while one is p
   assert.deepEqual([final.away.score, final.home.score], [84, 79]);
 });
 
+test("a saved final stays final when a later read has the game under way again", async () => {
+  const docs = createDocs();
+  await saveSnapshot(docs, buildTonight(3, [84, 79]));
+
+  await saveSnapshot(docs, buildTonight(2));
+
+  const tonight = findTonight(await readUpdates(docs, 2026));
+  const scheduled = findScheduledTonight(await readSchedule(docs, 2026));
+  assert.deepEqual([tonight.state, tonight.away.score, tonight.home.score], ["final", 84, 79]);
+  assert.deepEqual(
+    [scheduled.state, scheduled.away.score, scheduled.home.score],
+    ["final", 84, 79],
+  );
+});
+
 test("the season's games stay as they were unless both the scoreboard and the schedule answered", async () => {
   const docs = createDocs();
   await saveSnapshot(docs, buildTonight(3, [84, 79]));

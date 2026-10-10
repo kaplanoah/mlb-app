@@ -35,13 +35,24 @@ export async function loadCurrentSnapshot(loadSnapshot, now) {
 
 const STATE_ORDER = { pre: 0, live: 1, final: 2 };
 
-// ESPN may not have every one of today's games, and one it lacks falls back to the schedule's
-// copy, so while it stands in, no saved game goes back to an earlier state.
-function keepFurtherGames(savedGames, games) {
+// A saved final never goes back to an earlier state, since the schedule can still hold a game as
+// under way once the scoreboard has dropped it. ESPN may not have every one of today's games, and
+// one it lacks falls back to the schedule's copy, so while it stands in, a saved live game doesn't
+// go back either.
+/**
+ * @param {any[] | undefined} savedGames
+ * @param {any[]} games
+ * @param {boolean} isStandIn
+ */
+function keepFurtherGames(savedGames, games, isStandIn) {
   const savedById = new Map((savedGames ?? []).map((game) => [game.id, game]));
+  const firstKeptState = STATE_ORDER[isStandIn ? "live" : "final"];
+  const isKept = (saved, game) =>
+    STATE_ORDER[saved.state] >= firstKeptState &&
+    STATE_ORDER[saved.state] > STATE_ORDER[game.state];
   return games.map((game) => {
     const saved = savedById.get(game.id);
-    return saved && STATE_ORDER[saved.state] > STATE_ORDER[game.state] ? saved : game;
+    return saved && isKept(saved, game) ? saved : game;
   });
 }
 
@@ -65,8 +76,7 @@ function addEndTimes(savedGames, games, asOf) {
  * @param {{ isStandIn: boolean, asOf: string }} update
  */
 function prepareGames(savedGames, games, { isStandIn, asOf }) {
-  const kept = isStandIn ? keepFurtherGames(savedGames, games) : games;
-  return addEndTimes(savedGames, kept, asOf);
+  return addEndTimes(savedGames, keepFurtherGames(savedGames, games, isStandIn), asOf);
 }
 
 // A feed that didn't answer leaves what it feeds as it was.
@@ -103,7 +113,7 @@ async function saveSchedule(docs, snapshot) {
   if (!hasGames) return;
   const key = nameScheduleKey(snapshot.season);
   const doc = await docs.read(key);
-  const games = isStandIn ? keepFurtherGames(doc?.games, snapshot.schedule) : snapshot.schedule;
+  const games = keepFurtherGames(doc?.games, snapshot.schedule, isStandIn);
   if (doc?.version === snapshot.version && isSameJson(doc.games, games)) return;
   await docs.write(key, {
     version: snapshot.version,
