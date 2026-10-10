@@ -1,4 +1,5 @@
 import { test, expect, expectDayAtTop, openApp } from "./harness.mjs";
+import { readStripEdges, scrollStripBy } from "../../../../tests/browser/day-strip-edges.mjs";
 
 // The Games view as one season: a strip of its days over every game day, opening on today.
 
@@ -462,6 +463,62 @@ test.describe("with reduced motion", () => {
   });
 });
 
+test.describe("on a wide screen, with reduced motion", () => {
+  test.use({
+    viewport: { width: 1280, height: 900 },
+    hasTouch: false,
+    isMobile: false,
+    contextOptions: { reducedMotion: "reduce" },
+  });
+
+  test("the strip and its line stop at the column's edges, eleven whole days filling it, with the month and Today 2px in from its edges, whatever days are at the strip's ends", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+
+    const edges = await readStripEdges(page);
+    for (const part of [edges.line, edges.strip]) {
+      expect(part.left).toBeCloseTo(edges.column.left, 1);
+      expect(part.right).toBeCloseTo(edges.column.right, 1);
+    }
+    expect(edges.wholeDays).toBe(11);
+    expect(edges.firstDayLeft).toBeCloseTo(edges.strip.left, 0);
+    expect(edges.lastDayRight).toBeCloseTo(edges.strip.right, 0);
+    expect(edges.monthLeft - edges.column.left).toBeCloseTo(2, 1);
+    expect(edges.column.right - edges.todayRight).toBeCloseTo(2, 1);
+
+    await scrollStripBy(page, 2 * 51);
+    const moved = await readStripEdges(page);
+    expect(moved.firstDayLeft).toBeCloseTo(moved.strip.left, 0);
+    expect(moved.monthLeft).toBe(edges.monthLeft);
+    expect(moved.todayRight).toBe(edges.todayRight);
+  });
+
+  test("the strip comes to rest on whole days, on the nearer one, after a scroll leaves it between them", async ({
+    page,
+  }) => {
+    await openSeasonGames(page);
+    await expectDayAtTop(page, "2026-09-30");
+    const strip = page.locator("#seasonGames .day-strip");
+    const start = await strip.evaluate((element) => element.scrollLeft);
+    const step = await findCell(page, "2026-09-30").evaluate(
+      (cell) =>
+        /** @type {Element} */ (cell.nextElementSibling).getBoundingClientRect().left -
+        cell.getBoundingClientRect().left,
+    );
+
+    await scrollStripBy(page, step * 0.6);
+
+    await expect
+      .poll(() => strip.evaluate((element) => element.scrollLeft))
+      .toBeCloseTo(start + step, 0);
+    const edges = await readStripEdges(page);
+    expect(edges.wholeDays).toBe(11);
+    expect(edges.firstDayLeft).toBeCloseTo(edges.strip.left, 0);
+  });
+});
+
 test("a tap on Today flies the list there on a spring, never stepping back, and lands on today", async ({
   page,
 }) => {
@@ -496,72 +553,104 @@ test("a tap on Today flies the list there on a spring, never stepping back, and 
   await expectDayAtTop(page, "2026-09-30");
 });
 
-test("scrolling the games slides the dates behind the chosen day's box, which holds still, on a spring that never steps back, and settles with the top day in the box", async ({
-  page,
-}) => {
-  await openSeasonGames(page);
-  await page.clock.runFor(1000);
-  await expectDayAtTop(page, "2026-09-30");
-  const [dayBefore, twoBefore] = await findDay(page, "2026-09-30").evaluate((today) => {
-    const before = /** @type {HTMLElement} */ (today.previousElementSibling);
-    const earlier = /** @type {HTMLElement} */ (before.previousElementSibling);
-    return [before.dataset.day, earlier.dataset.day];
-  });
-  // Each frame comes only as the test moves the clock, however slow the machine draws.
-  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
-  await page.evaluate(() => {
-    const frames = /** @type {{ box: number[] | null, left: number }[]} */ ([]);
-    const strip = /** @type {HTMLElement} */ (document.querySelector("#seasonGames .day-strip"));
-    const note = () => {
-      const boxes = [
-        ...document.querySelectorAll("#seasonGames .strip-lens"),
-        ...document.querySelectorAll("#seasonGames .day-strip:not(.is-sliding) > .is-chosen"),
-      ].map((box) => {
-        const { left, width } = box.getBoundingClientRect();
-        return [left, width];
+for (const { screen, viewport } of [
+  { screen: "a phone", viewport: { width: 390, height: 844 } },
+  { screen: "a wide screen", viewport: { width: 1280, height: 900 } },
+]) {
+  test.describe(`on ${screen}`, () => {
+    test.use({ viewport, hasTouch: screen === "a phone", isMobile: screen === "a phone" });
+
+    test("scrolling the games slides the dates behind the chosen day's box, which holds still, on a spring that never steps back, and settles with the top day in the box", async ({
+      page,
+    }) => {
+      await openSeasonGames(page);
+      await page.clock.runFor(1000);
+      await expectDayAtTop(page, "2026-09-30");
+      const [dayBefore, twoBefore] = await findDay(page, "2026-09-30").evaluate((today) => {
+        const before = /** @type {HTMLElement} */ (today.previousElementSibling);
+        const earlier = /** @type {HTMLElement} */ (before.previousElementSibling);
+        return [before.dataset.day, earlier.dataset.day];
       });
-      frames.push({ box: boxes.length === 1 ? boxes[0] : null, left: strip.scrollLeft });
-      if (frames.length < 90) requestAnimationFrame(note);
-    };
-    requestAnimationFrame(note);
-    Object.assign(window, { stripFrames: frames });
-  });
-  // A wheel's turn that moves nothing puts the list in hand, as a finger does.
-  /** @param {string} day */
-  const bringToTop = (day) =>
-    findList(page).evaluate((list, shown) => {
-      list.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
-      const listed = /** @type {HTMLElement} */ (list.querySelector(`[data-day="${shown}"]`));
-      list.scrollTop = listed.offsetTop - Number.parseFloat(getComputedStyle(list).paddingTop);
-    }, day);
+      // Each frame comes only as the test moves the clock, however slow the machine draws.
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+      await page.evaluate(() => {
+        const frames =
+          /** @type {{ box: number[] | null, left: number, copyOff: number | null }[]} */ ([]);
+        const strip = /** @type {HTMLElement} */ (
+          document.querySelector("#seasonGames .day-strip")
+        );
+        // A day's width and the step to the next, which the box's copy of the dates keeps.
+        const readSpacing = (/** @type {Element} */ day) => {
+          const { left, width } = day.getBoundingClientRect();
+          const next = /** @type {Element} */ (day.nextElementSibling).getBoundingClientRect();
+          return [width, next.left - left];
+        };
+        const daySpacing = readSpacing(/** @type {Element} */ (strip.firstElementChild));
+        const note = () => {
+          const boxes = [
+            ...document.querySelectorAll("#seasonGames .strip-lens"),
+            ...document.querySelectorAll("#seasonGames .day-strip:not(.is-sliding) > .is-chosen"),
+          ].map((box) => {
+            const { left, width } = box.getBoundingClientRect();
+            return [left, width];
+          });
+          const copy = document.querySelector("#seasonGames .strip-lens-track > .day-cell");
+          frames.push({
+            box: boxes.length === 1 ? boxes[0] : null,
+            left: strip.scrollLeft,
+            copyOff: copy
+              ? Math.max(
+                  ...readSpacing(copy).map((size, index) => Math.abs(size - daySpacing[index])),
+                )
+              : null,
+          });
+          if (frames.length < 90) requestAnimationFrame(note);
+        };
+        requestAnimationFrame(note);
+        Object.assign(window, { stripFrames: frames });
+      });
+      // A wheel's turn that moves nothing puts the list in hand, as a finger does.
+      /** @param {string} day */
+      const bringToTop = (day) =>
+        findList(page).evaluate((list, shown) => {
+          list.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+          const listed = /** @type {HTMLElement} */ (list.querySelector(`[data-day="${shown}"]`));
+          list.scrollTop = listed.offsetTop - Number.parseFloat(getComputedStyle(list).paddingTop);
+        }, day);
 
-  await bringToTop(dayBefore);
-  await page.clock.runFor(100);
-  await bringToTop(twoBefore);
-  await page.clock.runFor(1400);
+      await bringToTop(dayBefore);
+      await page.clock.runFor(100);
+      await bringToTop(twoBefore);
+      await page.clock.runFor(1400);
 
-  const frames = /** @type {{ box: number[] | null, left: number }[]} */ (
-    await page.evaluate(() => Reflect.get(window, "stripFrames"))
-  );
-  expect(frames.every((frame) => frame.box)).toBe(true);
-  for (const frame of frames) {
-    expect(frame.box?.[0]).toBeCloseTo(/** @type {number[]} */ (frames[0].box)[0], 1);
-    expect(frame.box?.[1]).toBeCloseTo(/** @type {number[]} */ (frames[0].box)[1], 1);
-  }
-  const lefts = frames.map((frame) => frame.left);
-  expect(new Set(lefts).size).toBeGreaterThan(4);
-  for (let index = 1; index < lefts.length; index += 1)
-    expect(lefts[index]).toBeLessThanOrEqual(lefts[index - 1]);
-  await expect(page.locator("#seasonGames .strip-lens")).toHaveCount(0);
-  await expect(findCell(page, twoBefore)).toHaveClass(/is-chosen/);
-  const offCenter = await findCell(page, twoBefore).evaluate((cell) => {
-    const strip = /** @type {HTMLElement} */ (cell.parentElement);
-    const { left, width } = cell.getBoundingClientRect();
-    const box = strip.getBoundingClientRect();
-    return left + width / 2 - (box.left + box.width / 2);
+      const frames =
+        /** @type {{ box: number[] | null, left: number, copyOff: number | null }[]} */ (
+          await page.evaluate(() => Reflect.get(window, "stripFrames"))
+        );
+      expect(frames.every((frame) => frame.box)).toBe(true);
+      const copyOffs = frames.flatMap((frame) => (frame.copyOff === null ? [] : [frame.copyOff]));
+      expect(copyOffs.length).toBeGreaterThan(4);
+      for (const copyOff of copyOffs) expect(copyOff).toBeCloseTo(0, 1);
+      for (const frame of frames) {
+        expect(frame.box?.[0]).toBeCloseTo(/** @type {number[]} */ (frames[0].box)[0], 1);
+        expect(frame.box?.[1]).toBeCloseTo(/** @type {number[]} */ (frames[0].box)[1], 1);
+      }
+      const lefts = frames.map((frame) => frame.left);
+      expect(new Set(lefts).size).toBeGreaterThan(4);
+      for (let index = 1; index < lefts.length; index += 1)
+        expect(lefts[index]).toBeLessThanOrEqual(lefts[index - 1]);
+      await expect(page.locator("#seasonGames .strip-lens")).toHaveCount(0);
+      await expect(findCell(page, twoBefore)).toHaveClass(/is-chosen/);
+      const offCenter = await findCell(page, twoBefore).evaluate((cell) => {
+        const strip = /** @type {HTMLElement} */ (cell.parentElement);
+        const { left, width } = cell.getBoundingClientRect();
+        const box = strip.getBoundingClientRect();
+        return left + width / 2 - (box.left + box.width / 2);
+      });
+      expect(Math.abs(offCenter)).toBeLessThan(1);
+    });
   });
-  expect(Math.abs(offCenter)).toBeLessThan(1);
-});
+}
 
 test("a scroll the page makes itself, without a finger or wheel on the list, swaps the strip's chosen day at once, without sliding its dates", async ({
   page,

@@ -26,6 +26,7 @@ import {
   listTouchHoverRules,
 } from "../../../../tests/browser/tap-states.mjs";
 import { keepInOtherTab } from "../../../../tests/browser/other-tab.mjs";
+import { readStripEdges } from "../../../../tests/browser/day-strip-edges.mjs";
 
 test.use({ contextOptions: { reducedMotion: "reduce" } });
 
@@ -1018,6 +1019,34 @@ test("on a wide screen, the Games strip and list sit in the middle of the page",
     const box = await locator.boundingBox();
     expect(Math.abs(box.x + box.width / 2 - pageMiddle)).toBeLessThanOrEqual(1);
   }
+});
+
+test("on a wide screen, the strip, its line, and a held day's line stop at the column's edges, eleven whole days filling it, with the month and Today 0.5px in from its edges", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize(WIDE_SCREEN);
+  await openApp(page, { isWholeSeason: true });
+  await page.getByRole("tab", { name: "Games" }).click();
+  await expect(page.locator("#seasonGames")).toHaveAttribute("data-held-arrived", "true");
+
+  const edges = await readStripEdges(page);
+  const heading = await page
+    .locator("#seasonGames .day-heading")
+    .first()
+    .evaluate((element) => {
+      const { left, right } = element.getBoundingClientRect();
+      return { left, right };
+    });
+  for (const part of [edges.line, edges.strip, heading]) {
+    expect(part.left).toBeCloseTo(edges.column.left, 1);
+    expect(part.right).toBeCloseTo(edges.column.right, 1);
+  }
+  expect(edges.wholeDays).toBe(11);
+  expect(edges.firstDayLeft).toBeCloseTo(edges.strip.left, 0);
+  expect(edges.lastDayRight).toBeCloseTo(edges.strip.right, 0);
+  expect(edges.monthLeft - edges.column.left).toBeCloseTo(0.5, 1);
+  expect(edges.column.right - edges.todayRight).toBeCloseTo(0.5, 1);
 });
 
 test("on a wide screen, the AL and NL face each other across the World Series", async ({
