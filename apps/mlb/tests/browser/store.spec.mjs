@@ -23,18 +23,19 @@ test("loading the page reads which season is current and its record once each, a
   const app = await openApp(page);
   await expect(page.locator("#bracketWrap .matchup-row")).toHaveCount(22);
   await expect.poll(() => app.countOpenSockets()).toBe(1);
-  await page.waitForLoadState("networkidle");
 
-  expect(app.listStoreReads().sort()).toEqual([
-    "/store/live/current",
-    "/store/live/current",
-    "/store/live/status",
-    "/store/news/cards",
-    "/store/schedules-2026?limit=12",
-    "/store/seasons/2026",
-    "/store/seasons/2026",
-    "/store/seasons?limit=50",
-  ]);
+  await expect
+    .poll(() => app.listStoreReads().sort())
+    .toEqual([
+      "/store/live/current",
+      "/store/live/current",
+      "/store/live/status",
+      "/store/news/cards",
+      "/store/schedules-2026?limit=12",
+      "/store/seasons/2026",
+      "/store/seasons/2026",
+      "/store/seasons?limit=50",
+    ]);
 });
 
 test("a store answer the page can't read says the page's server can't be reached", async ({

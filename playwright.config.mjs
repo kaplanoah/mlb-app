@@ -29,7 +29,16 @@ export default defineConfig({
   // default of one per two.
   workers: process.env.CI ? "100%" : undefined,
   forbidOnly: !!process.env.CI,
-  reporter: process.env.CI ? [["list"], ["github"], ["html", { open: "never" }]] : "list",
+  // CI's JSON report names each test that failed only some of the time in the issue Flaky browser
+  // tests (worker/report-flaky-tests.mjs).
+  reporter: process.env.CI
+    ? [
+        ["list"],
+        ["github"],
+        ["html", { open: "never" }],
+        ["json", { outputFile: "test-results/report.json" }],
+      ]
+    : "list",
   use: {
     // Tests expect Eastern times unless they pick another zone with test.use({ timezoneId }).
     timezoneId: "America/New_York",
