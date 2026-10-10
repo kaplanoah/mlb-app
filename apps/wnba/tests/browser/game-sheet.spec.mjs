@@ -473,50 +473,35 @@ test("the side behind on a measure gets a paler bar of its own team's hue, on ea
   }
 });
 
-/**
- * Opens a team's sheet from the standings and finds its regular season's PPG row.
- * @param {import("@playwright/test").Page} page
- * @param {string} code
- */
-async function openRegularSeasonPoints(page, code) {
-  await page.getByRole("tab", { name: "Standings" }).click();
-  await page.locator(`#standings-league tr[data-team="${code}"] .team-open`).click();
-  return page
-    .locator("#teamSheet .tape-row")
-    .filter({ has: page.locator(".tape-label", { hasText: /^PPG$/ }) })
-    .last();
-}
-
-test("a team's sheet draws the team's side in its color on each theme, across from the league's in gray, the side behind paler", async ({
+test("a team's sheet marks the team in its mark color on each theme, on its curves and its playoff lines, with the playoff field's dot paler than the line's gray", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openApp(page);
-  const liberty = await openRegularSeasonPoints(page, "NYL");
-  await expect(liberty.locator(".away .tape-bar i")).toHaveClass("lead");
+  await page.getByRole("tab", { name: "Standings" }).click();
+  await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
+  const sheet = page.locator("#teamSheet");
+  const ownDot = sheet.locator(".placed-line .own").first();
+  const fieldDot = sheet.locator(".placed-line .other").first();
+  const curveMark = sheet.locator(".team-ranks .player-curve b").first();
+  await expect(curveMark).toBeVisible();
   for (const theme of /** @type {const} */ (["light", "dark"])) {
     await page.emulateMedia({ colorScheme: theme });
-    await expect(liberty.locator(".away .tape-bar i")).toHaveCSS(
-      "background-color",
-      formatRgb(TEAMS.NYL.chartColors[theme][0]),
-    );
-  }
-  await page.keyboard.press("Escape");
-
-  await page.emulateMedia({ colorScheme: "light" });
-  const storm = await openRegularSeasonPoints(page, "SEA");
-  await expect(storm.locator(".home .tape-bar i")).toHaveClass("lead");
-  for (const theme of /** @type {const} */ (["light", "dark"])) {
-    await page.emulateMedia({ colorScheme: theme });
-    const gray = await storm.evaluate((row) =>
-      getComputedStyle(row).getPropertyValue("--ink-dim").trim(),
-    );
-    await expect(storm.locator(".home .tape-bar i")).toHaveCSS("background-color", formatRgb(gray));
-    const teamColor = TEAMS.SEA.chartColors[theme][0];
-    const behind = storm.locator(".away .tape-bar i");
-    await expect(behind).not.toHaveCSS("background-color", formatRgb(teamColor));
-    const turn = Math.abs(measureHue(await readPaintedBackground(behind)) - measureHue(teamColor));
-    expect(Math.min(turn, 360 - turn)).toBeLessThan(LARGEST_HUE_TURN);
+    const markColor = formatRgb(TEAMS.NYL.markColors[theme]);
+    await expect(ownDot).toHaveCSS("background-color", markColor);
+    await expect(curveMark).toHaveCSS("background-color", markColor);
+    const [gray, sheetColor] = await fieldDot.evaluate((dot) => {
+      const style = getComputedStyle(dot);
+      return [style.getPropertyValue("--ink-dim").trim(), style.getPropertyValue("--sheet").trim()];
+    });
+    const [lightness, grayLightness, sheetLightness] = [
+      await readPaintedBackground(fieldDot),
+      gray,
+      sheetColor,
+    ].map((hex) => readOklab(hex)[0]);
+    expect(Math.abs(lightness - grayLightness)).toBeGreaterThan(0.05);
+    expect(Math.abs(lightness - sheetLightness)).toBeGreaterThan(0.05);
+    expect((lightness - grayLightness) * (lightness - sheetLightness)).toBeLessThan(0);
   }
 });
 
