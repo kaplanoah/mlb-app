@@ -95,6 +95,37 @@ test.describe("on a phone", () => {
     release();
   });
 
+  test("a reload after a night away follows the Games list's start day to today once the store says the game it opened on has ended", async ({
+    page,
+  }) => {
+    await storeBeforeLoad(page, { lastTab: "games" });
+    const app = await openApp(page, { isWholeSeason: true });
+    await app.changeSeason((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "live", status: "Q4 0:40", period: 4, clock: "0:40" });
+      return season;
+    });
+    const chosen = page.locator("#seasonGames .day-cell.is-chosen");
+    await expect(page.locator('[data-game="1042600132"] .clock')).toHaveText("Q4 0:40");
+    await expect(chosen).toHaveAttribute("data-day", "2026-09-30");
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.clock.fastForward("12:00:00");
+    await app.changeSeasonWhileAway((season) => {
+      const game = season.games.find((each) => each.id === "1042600132");
+      Object.assign(game, { state: "final", status: "Final", period: 4, clock: "" });
+      return season;
+    });
+
+    await page.reload();
+
+    await expect(page.locator('[data-game="1042600132"] .game-status')).toContainText("Final");
+    await expect(chosen).toHaveAttribute("data-day", "2026-10-01");
+    await expect(page.locator('#seasonGames .listed-day[data-day="2026-10-01"]')).toBeInViewport();
+  });
+
   test("the standings sit as far under their pill before the page's code arrives as after", async ({
     page,
   }) => {

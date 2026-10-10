@@ -3,13 +3,15 @@ import { describeError } from "./responses.js";
 // A league's slower feeds, each read again only when it may have changed: as a game ends, for a
 // feed that changes with games, or once its answer is older than the feed's own limit. A game's
 // end reaches a league's stats a little after its scoreboard, so a feed is read as a game ends
-// and once more a few minutes later. Each keeps its last good answer to stand in when a read
-// fails, and one that didn't answer isn't asked again for a while, since a hung read holds up
-// each update until it times out. What it keeps goes in `storage`, since a Durable Object leaves
-// memory between updates.
+// and once more a few minutes later, and again every few minutes while another feed shows its
+// answer is still behind. Each keeps its last good answer to stand in when a read fails, and one
+// that didn't answer isn't asked again for a while, since a hung read holds up each update until
+// it times out. What it keeps goes in `storage`, since a Durable Object leaves memory between
+// updates.
 
 export const SETTLE_MS = 10 * 60 * 1000;
 const FAILED_FEED_WAIT_MS = 5 * 60 * 1000;
+const BEHIND_FEED_WAIT_MS = 5 * 60 * 1000;
 const FINALS_KEY = "finals";
 
 /**
@@ -77,14 +79,23 @@ export function createFeedKeeper({ feeds, leagueName, now, storage = createMemor
     readAt < lastFinalAt || (readAt < lastFinalAt + SETTLE_MS && now() >= lastFinalAt + SETTLE_MS);
 
   /**
+   * @param {{ at: number, data: any }} answer
+   * @param {(data: any) => boolean} isBehind
+   */
+  const isBehindLong = (answer, isBehind) =>
+    now() - answer.at >= BEHIND_FEED_WAIT_MS && isBehind(answer.data);
+
+  /**
    * @param {string} name
    * @param {any} record
+   * @param {(data: any) => boolean} isBehind
    */
-  async function isDue(name, record) {
+  async function isDue(name, record, isBehind) {
     if (record?.failedAt !== undefined && now() - record.failedAt < FAILED_FEED_WAIT_MS)
       return false;
     const { maxAgeMs, changesWithGames } = feeds[name];
     if (!record?.answer || now() - record.answer.at >= maxAgeMs) return true;
+    if (isBehindLong(record.answer, isBehind)) return true;
     if (!changesWithGames) return false;
     const finals = await readRecord(FINALS_KEY);
     return isReadBeforeFinalSettled(record.answer.at, finals?.at ?? -Infinity);
@@ -109,11 +120,14 @@ export function createFeedKeeper({ feeds, leagueName, now, storage = createMemor
      * @param {string} name which feed's limit applies
      * @param {string} key the request, so that each season's answers are kept apart
      * @param {() => Promise<any>} load
+     * @param {object} [options]
+     * @param {(data: any) => boolean} [options.isBehind] whether a kept answer is behind what
+     *   another feed already says
      */
-    async readFeed(name, key, load) {
+    async readFeed(name, key, load, { isBehind = () => false } = {}) {
       const record = await readRecord(`${name} ${key}`);
       const answer = record?.answer;
-      if (!(await isDue(name, record))) {
+      if (!(await isDue(name, record, isBehind))) {
         if (answer) return answer.data;
         throw new Error(`${leagueName} didn't answer ${name} a moment ago`);
       }

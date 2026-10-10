@@ -57,12 +57,15 @@ function restoreScrolls(part, scrolls, savedAt) {
     const element = Array.isArray(path) ? findByPath(part, path) : null;
     if (!element) continue;
     element.scrollLeft = Number(left) || 0;
-    const shownTop = Number(isLongAway && startTop !== undefined ? startTop : top) || 0;
+    const isOnStart = isLongAway && startTop !== undefined;
+    const shownTop = Number(isOnStart ? startTop : top) || 0;
     element.scrollTop = shownTop;
+    if (!(element instanceof HTMLElement)) continue;
+    // A list put back on its start day goes to the start day its code finds, which can have moved.
+    if (isOnStart) element.dataset.putBackStart = "true";
     // The page around a list can settle a little shorter or taller once its code draws it, which
     // can stop a scroll near the list's end short, so the list's code can take it again.
-    if (element instanceof HTMLElement && shownTop > 0)
-      element.dataset.putBackTop = String(shownTop);
+    else if (shownTop > 0) element.dataset.putBackTop = String(shownTop);
   }
 }
 

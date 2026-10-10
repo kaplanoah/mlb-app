@@ -92,6 +92,14 @@ export function easeClosed(element, hide) {
   );
 }
 
+// A part that scrolls already keeps what overflows it inside, and clipping it would drop where it
+// was scrolled to while it eases, which a phone doesn't give back.
+/** @param {Element} element */
+function isScroller(element) {
+  const { overflowX, overflowY } = getComputedStyle(element);
+  return [overflowX, overflowY].some((overflow) => overflow === "auto" || overflow === "scroll");
+}
+
 /**
  * @param {{ element: Element, from: number, to: number }} size
  */
@@ -101,10 +109,11 @@ function easeHeight({ element, from, to }) {
     easeOpen(element);
     return;
   }
+  const clip = isScroller(element) ? {} : { overflow: "clip" };
   const resize = element.animate(
     [
-      { height: `${from}px`, overflow: "clip" },
-      { height: `${to}px`, overflow: "clip" },
+      { height: `${from}px`, ...clip },
+      { height: `${to}px`, ...clip },
     ],
     { duration: EASE_MS, easing: EASING },
   );

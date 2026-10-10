@@ -1,7 +1,8 @@
 // Runs in both the browser page and the Worker, so it uses no DOM and no globals.
 // The league's own feeds: today's scoreboard and the season's schedule from its CDN, and the
 // playoff bracket, the standings, and the players' season averages from its stats site. When the
-// scoreboard doesn't answer, ESPN's stands in for today's scores and clocks. The league's feeds
+// scoreboard doesn't answer, ESPN's stands in for today's scores and clocks, and for a game the
+// schedule still holds as under way once the scoreboard no longer lists it. The league's feeds
 // don't say where a game is on, so ESPN's scoreboard does, and it says when a game starts while the
 // league's schedule still has its time to be decided.
 
@@ -347,12 +348,15 @@ function readScheduledGame(game) {
 const sortByStart = (games) =>
   games.sort((first, second) => Date.parse(first.start) - Date.parse(second.start));
 
-// The scoreboard is the freshest word on today's games, so it replaces the schedule's copy.
-function mergeGames(schedule, scoreboard, season) {
-  const scheduled = listSeasonGames(
+const listScheduleGames = (schedule, season) =>
+  listSeasonGames(
     (schedule?.leagueSchedule?.gameDates ?? []).flatMap((day) => day.games),
     season,
-  ).map(normalizeGame);
+  );
+
+// The scoreboard is the freshest word on today's games, so it replaces the schedule's copy.
+function mergeGames(schedule, scoreboard, season) {
+  const scheduled = listScheduleGames(schedule, season).map(normalizeGame);
   const today = listSeasonGames(scoreboard?.scoreboard?.games ?? [], season).map(normalizeGame);
   const byId = new Map(scheduled.map((game) => [game.id, game]));
   for (const game of today) byId.set(game.id, game);
@@ -465,6 +469,34 @@ function findEspnGame(game, espnGames) {
     .filter((espnGame) => measureStartGap(game, espnGame) < MATCH_WINDOW_MS)
     .sort((first, second) => measureStartGap(game, first) - measureStartGap(game, second));
   return nearest ?? null;
+}
+
+/**
+ * The IDs of the games the schedule holds as under way that the scoreboard, which answered, doesn't
+ * list. The league's schedule catches up on a game only now and then, so once the scoreboard moves
+ * on to the next day, it can still hold the night before's last game as under way.
+ * @param {any} schedule
+ * @param {any} scoreboard
+ * @param {number} season
+ * @returns {Set<string>}
+ */
+export function listGamesLeftLive(schedule, scoreboard, season) {
+  if (!scoreboard) return new Set();
+  const listed = new Set((scoreboard.scoreboard?.games ?? []).map((game) => String(game.gameId)));
+  return new Set(
+    listScheduleGames(schedule, season)
+      .filter((game) => readGameState(game.gameStatus) === "live")
+      .map((game) => String(game.gameId))
+      .filter((id) => !listed.has(id)),
+  );
+}
+
+// ESPN stands in for every game while the scoreboard doesn't answer, and otherwise only for those
+// the schedule has left under way.
+function listGamesForBackup(games, responses, season) {
+  if (!responses.scoreboard) return games;
+  const leftLive = listGamesLeftLive(responses.schedule, responses.scoreboard, season);
+  return games.filter((game) => leftLive.has(game.id));
 }
 
 // Each league game a started ESPN game stands for, by the league's game ID. A game ESPN hasn't
@@ -584,10 +616,12 @@ export function listScheduledStarts(schedule, season) {
  * @param {{ season: number, now?: number }} options
  */
 export function buildSnapshot(responses, { season, now = Date.now() }) {
-  const backupGames =
-    !responses.scoreboard && responses.backup ? responses.backup.games.map(readBackupGame) : [];
+  const backupGames = (responses.backup?.games ?? []).map(readBackupGame);
   const leagueGames = mergeGames(responses.schedule, responses.scoreboard, season);
-  const standIns = matchBackupGames(leagueGames, backupGames);
+  const standIns = matchBackupGames(
+    listGamesForBackup(leagueGames, responses, season),
+    backupGames,
+  );
   const seasonGames = addEspnListings(
     leagueGames.map((game) =>
       standIns.has(game.id) ? applyBackupGame(game, standIns.get(game.id)) : game,
