@@ -214,6 +214,60 @@ test("while the scoreboard answers, ESPN's game-by-game feeds aren't read", asyn
   assert.equal(snapshot.standIn, null);
 });
 
+// The next morning: the scoreboard has moved on to the new day, and the schedule still holds the
+// night's last game, which ended in overtime, as under way, as the league's schedule can for hours.
+function readNextMorning() {
+  const schedule = structuredClone(AFTERNOON.responses.schedule);
+  const games = schedule.leagueSchedule.gameDates.flatMap((day) => day.games);
+  const findGame = (id) => games.find((game) => game.gameId === id);
+  Object.assign(findGame("1042600132"), { gameStatus: 3, gameStatusText: "Final" });
+  Object.assign(findGame("1042600112"), { gameStatus: 2, gameStatusText: "1st OT" });
+  const scoreboard = structuredClone(AFTERNOON.responses.scoreboard);
+  Object.assign(scoreboard.scoreboard, { gameDate: "2026-10-01", games: [] });
+  return { schedule, scoreboard };
+}
+
+test("ESPN stands in for a game the schedule holds as under way once the scoreboard has moved on", async () => {
+  const league = createLeague({ answers: readNextMorning(), espn: ESPN.answers });
+  const server = createSnapshotServer({
+    fetchImpl: league.fetchImpl,
+    now: () => Date.parse(ESPN.now),
+  });
+
+  const snapshot = await server.loadSnapshot(2026);
+
+  const game = snapshot.games.find((candidate) => candidate.id === "1042600112");
+  assert.deepEqual(
+    [game.state, game.status, game.period, game.away.score, game.home.score],
+    ["final", "Final/OT", 5, 100, 108],
+  );
+  assert.deepEqual([snapshot.missing, snapshot.standIn], [[], "espn"]);
+});
+
+test("a schedule that holds a game as under way once the scoreboard has moved on is read again every five minutes until it catches up", async () => {
+  const answers = readNextMorning();
+  const league = createLeague({ answers, espn: ESPN.answers });
+  let now = Date.parse(ESPN.now);
+  const server = createSnapshotServer({ fetchImpl: league.fetchImpl, now: () => now });
+  await server.loadSnapshot(2026);
+
+  now += 4 * 60 * 1000;
+  await server.loadSnapshot(2026);
+  assert.equal(league.countReads("schedule"), 1);
+
+  now += 60 * 1000;
+  await server.loadSnapshot(2026);
+  assert.equal(league.countReads("schedule"), 2);
+
+  answers.schedule = RESPONSES.schedule;
+  now += 5 * 60 * 1000;
+  await server.loadSnapshot(2026);
+  const espnReads = league.countReads("espn");
+  now += 5 * 60 * 1000;
+  await server.loadSnapshot(2026);
+  assert.deepEqual([league.countReads("schedule"), league.countReads("espn")], [3, espnReads]);
+});
+
 test("a feed that answers JSON without its data counts as missing", async () => {
   const league = createLeague({ answers: { scoreboard: { meta: { code: 200 } } } });
   const server = createSnapshotServer({ fetchImpl: league.fetchImpl, now: () => NOW });

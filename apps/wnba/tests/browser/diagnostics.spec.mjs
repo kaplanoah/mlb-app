@@ -280,6 +280,47 @@ for (const [moved, moveViewport] of [
   });
 }
 
+test("with Diagnostics on, the viewport is logged each time the page leaves the screen and comes back, though nothing changed", async ({
+  page,
+}) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await reloadAndRecord(page);
+
+  await setHidden(page, true);
+  await setHidden(page, false);
+  await page.clock.runFor(100);
+  await openSettings(page);
+
+  const lines = findViewportLog(page).locator("li");
+  await expect(lines.first()).toContainText(/sheet ends \d+/);
+  await expect(lines.nth(1)).toContainText(/Back: screen \d+, layout 844, /);
+  await expect(lines.nth(2)).toContainText(/Left: screen \d+, layout 844, /);
+  await expect(lines.nth(3)).toContainText(/Opened: screen \d+, layout 844, /);
+});
+
+test("with Diagnostics on, a bounce past the page's top isn't logged", async ({ page }) => {
+  await openApp(page);
+  await turnOnDiagnostics(page);
+  await reloadAndRecord(page);
+
+  await page.evaluate(() => {
+    Object.defineProperty(window, "scrollY", { configurable: true, get: () => -40 });
+    Object.defineProperty(visualViewport, "offsetTop", { configurable: true, get: () => -40 });
+    visualViewport?.dispatchEvent(new Event("scroll"));
+  });
+  await page.clock.runFor(100);
+  await page.evaluate(() => {
+    Object.defineProperty(window, "scrollY", { configurable: true, get: () => 0 });
+    Object.defineProperty(visualViewport, "offsetTop", { configurable: true, get: () => 0 });
+  });
+  await openSettings(page);
+
+  const log = findViewportLog(page);
+  await expect(log.locator("li").filter({ hasText: "sheet ends" })).toHaveCount(1);
+  await expect(log.locator("li", { hasText: "from -40" })).toHaveCount(0);
+});
+
 test("with Diagnostics on, a tap that opens a team's sheet from a game's, the row's steps, and going back are logged", async ({
   page,
 }) => {
