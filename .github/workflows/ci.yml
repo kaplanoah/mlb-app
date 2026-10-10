@@ -144,10 +144,16 @@ jobs:
         if: steps.browsers.outputs.cache-hit != 'true'
         run: npx playwright install --only-shell chromium
       - run: npm run test:browser -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+      - &find-flaky
+        id: flaky
+        if: ${{ !cancelled() && hashFiles('test-results/report.json') != '' }}
+        run: echo "found=$(node -p 'require("./test-results/report.json").stats.flaky > 0')" >> "$GITHUB_OUTPUT"
+      # A test that passed only on its retry keeps its failed try's trace, and the check job names
+      # it in the issue Flaky browser tests.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: failure()
+        if: failure() || steps.flaky.outputs.found == 'true'
         with:
-          name: playwright-report-${{ matrix.shard }}
+          name: browser-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
@@ -156,11 +162,14 @@ jobs:
   # that passes only some of the time fails on the pull request that brings it, rather than on
   # later ones. The merge commit's first parent is the base branch. Ten runs of every spec a large
   # pull request changes take longer than one machine's limit, so they're split across machines
-  # too, and a machine whose share holds no test passes.
+  # too, and a machine whose share holds no test passes. It runs in Playwright's own image, as the
+  # webkit job does, so the at-rest specs repeat in WebKit too, where they've failed most.
   burn-in:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
     strategy:
       fail-fast: false
       matrix:
@@ -172,12 +181,6 @@ jobs:
       - *setup-node
       - *restore-modules
       - *install-modules
-      - id: browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: *browsers-key
-      - *install-browsers
       - name: Repeat each browser spec this pull request changes
         shell: bash
         run: |
@@ -213,10 +216,11 @@ jobs:
       - *restore-modules
       - *install-modules
       - run: npm run test:browser -- --project '*-webkit'
+      - *find-flaky
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: failure()
+        if: failure() || steps.flaky.outputs.found == 'true'
         with:
-          name: playwright-report-webkit
+          name: browser-report-webkit
           path: |
             playwright-report/
             test-results/
@@ -374,6 +378,9 @@ jobs:
     needs: [passed, gate, checks, browser, burn-in, webkit, review]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
     steps:
       # passed runs only on main, which skips the checks when it found a run that passed.
       - name: Require every job to pass
@@ -385,10 +392,11 @@ jobs:
           needs.browser.result != 'success' || needs.webkit.result != 'success' ||
           needs.review.result != 'success'))
         run: exit 1
+      # Checks out even when a job failed, to name the tests its retry passed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: ${{ always() && github.event_name == 'pull_request' }}
       # Records the code this pull request's checks passed on, so that once it merges, main deploys
       # at once if it has exactly that code (worker/find-passed-ci.mjs).
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        if: github.event_name == 'pull_request'
       - name: Record the code the checks passed on
         id: passed
         if: github.event_name == 'pull_request'
@@ -401,3 +409,27 @@ jobs:
           name: ci-passed-${{ steps.passed.outputs.tree }}
           path: passed-commit.txt
           retention-days: 14
+      # The browser jobs' reports go to the issue from this one job, so two of them can't both
+      # rewrite its table at once. Naming a flaky test never fails the pull request, whose own
+      # token may not write issues, as Dependabot's can't.
+      - id: node
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        with:
+          pattern: browser-report-*
+          path: browser-reports/
+      - name: Name each test its retry passed in the issue Flaky browser tests
+        if: ${{ always() && github.event_name == 'pull_request' && hashFiles('browser-reports/**/report.json') != '' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          shopt -s globstar
+          node worker/report-flaky-tests.mjs --retried browser-reports/**/report.json
