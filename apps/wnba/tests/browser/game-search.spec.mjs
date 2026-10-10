@@ -141,7 +141,7 @@ test("an example tapped runs its search and puts the keyboard away", async ({ pa
 
   await expect(findInput(page)).toHaveValue("Liberty at Dream");
   await expect(findInput(page)).not.toBeFocused();
-  await expect(findLine(page)).toHaveText("Liberty @ Dream•1 game");
+  await expect(findLine(page)).toHaveText("Liberty @ Dream\u20221 game");
   await expect(page.locator("#gameSearch .listed-day")).toHaveCount(1);
 });
 
@@ -162,7 +162,7 @@ test("while words are typed, suggestions sit over the games from today, a half-t
   await expect(page.locator("#gameSearch .search-suggestion .search-typed").first()).toHaveText(
     "Lib",
   );
-  await expect(findLine(page)).toHaveText("Liberty•52 games");
+  await expect(findLine(page)).toHaveText("Liberty\u202252 games");
   await expect(page.locator("#gameSearch .search-head")).toHaveText("Games");
   await expect(page.locator("#gameSearch .listed-day").first()).toHaveAttribute(
     "data-day",
@@ -174,7 +174,7 @@ test("while words are typed, suggestions sit over the games from today, a half-t
   await expect(findInput(page)).toHaveValue("Liberty next game");
   await expect(findInput(page)).not.toBeFocused();
   await expect(page.locator("#gameSearch .search-suggestion")).toHaveCount(0);
-  await expect(findLine(page)).toHaveText("Liberty•Next game");
+  await expect(findLine(page)).toHaveText("Liberty\u2022Next game");
 });
 
 test("a sent search opens its list on its first game from today, and one whose games are all past rests at its end", async ({
@@ -186,13 +186,13 @@ test("a sent search opens its list on its first game from today, and one whose g
   await sendSearch(page, "Liberty");
 
   await expect(findInput(page)).not.toBeFocused();
-  await expect(findLine(page)).toHaveText("Liberty•52 games");
+  await expect(findLine(page)).toHaveText("Liberty\u202252 games");
   await expect.poll(() => readTopDay(page)).toBe("2026-10-04");
   await expect(page.locator("#gameSearch .search-bar")).toHaveClass(/stuck/);
 
   await sendSearch(page, "Liberty Dream");
 
-  await expect(findLine(page)).toHaveText("Liberty vs Dream•3 games");
+  await expect(findLine(page)).toHaveText("Liberty vs Dream\u20223 games");
   await expect(page.locator('#gameSearch .listed-day[data-day="2026-06-11"]')).toBeInViewport();
   await expect(page.locator('#gameSearch .listed-day[data-day="2026-09-23"]')).toBeInViewport();
 });
@@ -203,13 +203,13 @@ test("a search that finds nothing says so, and a word it can't use is named", as
 
   await sendSearch(page, "Liberty in March");
 
-  await expect(findLine(page)).toHaveText("Liberty•March•No games");
+  await expect(findLine(page)).toHaveText("Liberty\u2022March\u2022No games");
   await expect(page.locator("#gameSearch .empty-note")).toHaveText("No Liberty games in March");
 
   await sendSearch(page, "Liberty fireworks");
 
   await expect(findLine(page)).toHaveText(
-    "Liberty•52 games•'fireworks' unrecognized, skipped",
+    "Liberty\u202252 games\u2022'fireworks' unrecognized, skipped",
   );
 });
 
@@ -316,7 +316,7 @@ test("a reload shows the search as it was before the page's code arrives, and th
 
   await expect(findSearch(page)).toBeVisible();
   await expect(findInput(page)).toHaveValue("Liberty");
-  await expect(findLine(page)).toHaveText("Liberty•52 games");
+  await expect(findLine(page)).toHaveText("Liberty\u202252 games");
   await expect.poll(() => readTopDay(page)).toBe("2026-10-04");
   release();
   await page.waitForLoadState("domcontentloaded");

@@ -624,7 +624,7 @@ const hasTeam = (game, code) => game.away === code || game.home === code;
  * @param {Search} search
  * @returns {{ how: "one" | "at" | "vs" | "or", codes: string[] } | null}
  */
-export function readTeamsAsked({ teams }) {
+function readTeamsAsked({ teams }) {
   if (!teams.length) return null;
   const codes = [...new Set(teams.map((team) => team.code))];
   if (codes.length === 1) {

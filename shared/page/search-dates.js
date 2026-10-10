@@ -23,7 +23,7 @@ import {
  * @typedef {{ from: number, to: number, label: string }} TimeOfDay
  */
 
-export const WEEKEND_FRIDAY_FROM = 17 * 60;
+const WEEKEND_FRIDAY_FROM = 17 * 60;
 const MINUTES_PER_DAY = 24 * 60;
 const FRIDAY = 5;
 

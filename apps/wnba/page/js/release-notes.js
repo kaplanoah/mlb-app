@@ -6,6 +6,10 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
+    at: "2026-10-10T19:49:00Z",
+    text: html`Game highlights for finished games, including recap videos and big play clips. Tap a game, then tap <b>Highlights</b> or swipe left.`,
+  },
+  {
     at: "2026-10-09T12:19:00Z",
     text: "The Games tab now shows the whole season, from opening night to the Finals",
   },

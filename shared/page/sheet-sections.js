@@ -5,7 +5,8 @@ import { wireTabs } from "./tabs.js";
 // A sheet's sections under the pills in its top, like a WNBA team's Team and Roster, one shown at a
 // time, side by side, as slide-panels.js moves them: a tap on a pill slides to its section, and a
 // swipe drags the shown section with its neighbor beside it. Each section scrolls up and down on
-// its own under the sheet's still top.
+// its own under the sheet's still top. A section whose pill is hidden, like a game's Highlights
+// before it ends, is neither shown nor swiped to.
 
 /**
  * Wires a sheet's pills to its sections, which it shows from the first.
@@ -22,11 +23,13 @@ export function wireSheetSections(sheet) {
       /** @type {HTMLElement} */ (document.getElementById(tab.getAttribute("aria-controls") ?? "")),
   );
   const findShownSection = () => sections[panels.readShown()];
+  /** @param {number} index */
+  const isOffered = (index) => Boolean(tabs[index] && !tabs[index].hidden);
 
   const panels = createSlidePanels(row, {
     listPanels: () => sections,
     place: (index, position) => index - position,
-    canGo: (direction) => keys[panels.readShown() + direction] !== undefined,
+    canGo: (direction) => isOffered(panels.readShown() + direction),
     onShow: (index, isSliding) => showPillName(tabList, keys[index], { isHandoff: isSliding }),
   });
 
@@ -37,7 +40,7 @@ export function wireSheetSections(sheet) {
    */
   function showSection(key, isInstant = false) {
     const index = keys.indexOf(key);
-    if (index < 0) return;
+    if (!isOffered(index)) return;
     if (isInstant) panels.jumpTo(index);
     else panels.slideTo(index);
   }

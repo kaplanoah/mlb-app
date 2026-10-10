@@ -1,4 +1,4 @@
-import { test, expect, openApp } from "./harness.mjs";
+import { test, expect, openApp, openGameSheet, keepHighlights } from "./harness.mjs";
 import { listLowContrastText } from "../../../../tests/browser/contrast.mjs";
 import { listLayoutChanges, readLayout } from "../../../../tests/browser/theme-layout.mjs";
 
@@ -41,6 +41,8 @@ async function listThemeLayoutChanges(page) {
   await showTheme(page, "light");
   return listLayoutChanges(maple, walnut);
 }
+
+const FINAL_WITH_HIGHLIGHTS = "Game details: Aces at Fever, First Round Game 2";
 
 /** Each view, opened from the last, and what shows once it's drawn. */
 const VIEWS = [
@@ -111,6 +113,15 @@ const VIEWS = [
     close: (page) => page.keyboard.press("Escape"),
   },
   {
+    name: "a final's Highlights",
+    open: async (page) => {
+      const sheet = await openGameSheet(page, FINAL_WITH_HIGHLIGHTS);
+      await sheet.getByRole("tab", { name: "Highlights" }).click();
+    },
+    shown: (page) => page.locator("#highlightsBody .clip-row").first(),
+    close: (page) => page.keyboard.press("Escape"),
+  },
+  {
     name: "News",
     open: (page) => page.getByRole("tab", { name: "News" }).click(),
     shown: (page) => page.locator(".news-more").first(),
@@ -124,7 +135,7 @@ const VIEWS = [
 ];
 
 /**
- * Opens the page in Maple with a week of news.
+ * Opens the page in Maple with a week of news and a final's highlights.
  * @param {import("@playwright/test").Page} page
  */
 async function openWithNews(page) {
@@ -137,6 +148,7 @@ async function openWithNews(page) {
       { lead: { ...withoutPhoto, id: "alone" }, more: [] },
     ],
   });
+  await keepHighlights(page, app, FINAL_WITH_HIGHLIGHTS);
 }
 
 /**
