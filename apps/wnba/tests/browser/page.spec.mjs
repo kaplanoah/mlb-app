@@ -1069,16 +1069,15 @@ test.describe("a team's sheet", () => {
         };
       };
       return {
-        measure: read(".team-tape .tape-label"),
+        measure: read(".team-ranks .player-rank-label"),
         formName: read(".team-form dt"),
-        number: read(".team-tape .tape-value"),
+        number: read(".team-ranks .player-rank-value"),
         formNumber: read(".team-form dd"),
-        side: read(".team-tape .tape-teams .club"),
       };
     });
     expect(styles.formName).toEqual(styles.measure);
     expect(styles.formNumber).toEqual(styles.number);
-    await expect(sheet.locator(".team-tape .tape-teams .club").first()).toHaveCSS(
+    await expect(sheet.locator(".team-numbers .tape-teams .club").first()).toHaveCSS(
       "font-size",
       "16px",
     );
@@ -1101,7 +1100,7 @@ test.describe("a team's sheet", () => {
     await expect(icon).toHaveCSS("color", when);
   });
 
-  test("a team's playoff games sit 25px apart, a final's score or not, with the team and field names 13px under them and right over their first measure", async ({
+  test("a team's playoff games sit 25px apart, a final's score or not, with the team and field names 13px under them and 10px over their first measure", async ({
     page,
   }) => {
     await openApp(page);
@@ -1111,9 +1110,9 @@ test.describe("a team's sheet", () => {
     const rows = await sheet
       .locator(".team-game")
       .evaluateAll((games) => games.map((game) => game.getBoundingClientRect().toJSON()));
-    const names = await sheet.locator(".team-playoffs + .team-tape .tape-teams").boundingBox();
+    const names = await sheet.locator(".team-playoffs + .team-numbers .tape-teams").boundingBox();
     const firstMeasure = await sheet
-      .locator(".team-playoffs + .team-tape .tape-row")
+      .locator(".team-playoffs + .team-numbers .player-rank-row")
       .first()
       .boundingBox();
 
@@ -1122,7 +1121,7 @@ test.describe("a team's sheet", () => {
       25, 25,
     ]);
     expect(Math.round(names.y - rows[2].bottom)).toBe(13);
-    expect(Math.round(firstMeasure.y - (names.y + names.height))).toBe(0);
+    expect(Math.round(firstMeasure.y - (names.y + names.height))).toBe(10);
   });
 
   test("a team's record sits 5px after its name over its numbers, 1px below the middle of the name, in the dim small type of the game sheet's records", async ({
@@ -1131,7 +1130,7 @@ test.describe("a team's sheet", () => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
-    const club = page.locator("#teamSheet .team-tape .tape-teams .club").first();
+    const club = page.locator("#teamSheet .team-numbers .tape-teams .club").first();
     const record = club.locator(".team-record");
     await expect(record).toHaveText("2-0");
 
@@ -1151,14 +1150,14 @@ test.describe("a team's sheet", () => {
     await expect(record).toHaveCSS("font-weight", "500");
   });
 
-  test("Last 10 sits 20px under the regular season's numbers, and Streak 14px under Last 10", async ({
+  test("Last 10 sits 20px under the regular season's ranks, and Streak 14px under Last 10", async ({
     page,
   }) => {
     await openApp(page);
     await page.getByRole("tab", { name: "Standings" }).click();
     await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
     const sheet = page.locator("#teamSheet");
-    const numbers = await sheet.locator(".team-tape").last().boundingBox();
+    const numbers = await sheet.locator(".team-ranks").last().boundingBox();
     const form = await sheet.locator(".team-form").boundingBox();
     const [lastTen, streak] = await sheet
       .locator(".team-form dd")
@@ -1166,6 +1165,54 @@ test.describe("a team's sheet", () => {
 
     expect(Math.round(form.y - (numbers.y + numbers.height))).toBe(20);
     expect(Math.round(streak.top - lastTen.bottom)).toBe(14);
+  });
+
+  test("a team's playoff lines and regular-season curves start and end together, 7.5px past their column, with every dot 7.5px, one at a line's end half a pixel past it, and the field's numbers 33px into theirs", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole("tab", { name: "Standings" }).click();
+    await page.locator('#standings-league tr[data-team="NYL"] .team-open').click();
+    const sheet = page.locator("#teamSheet");
+    await expect(sheet.locator(".team-ranks .player-curve svg").first()).toBeVisible();
+
+    const layout = await sheet.evaluate((dialog) => {
+      const edges = (selector) =>
+        [...dialog.querySelectorAll(selector)].map((element) => {
+          const box = element.getBoundingClientRect();
+          const next = /** @type {Element} */ (element.nextElementSibling).getBoundingClientRect();
+          return { left: box.left, right: box.right, pastColumn: box.right - (next.left - 10) };
+        });
+      const others = [...dialog.querySelectorAll(".placed-other")].map((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return range.getBoundingClientRect().left - element.getBoundingClientRect().left;
+      });
+      const dots = [...dialog.querySelectorAll(".placed-line i")].map((dot) => {
+        const box = dot.getBoundingClientRect();
+        return [box.width, box.height];
+      });
+      const lineEnd = dialog.querySelector(".placed-line").getBoundingClientRect().right;
+      const endDots = [...dialog.querySelectorAll('.placed-line i[style="left: 100%"]')].map(
+        (dot) => dot.getBoundingClientRect().right - lineEnd,
+      );
+      return {
+        lines: edges(".placed-line"),
+        curves: edges(".team-ranks .player-curve"),
+        others,
+        dots,
+        endDots,
+      };
+    });
+    const ends = [...layout.lines, ...layout.curves];
+    expect(ends).toHaveLength(10);
+    expect(new Set(ends.map((end) => end.left.toFixed(1))).size).toBe(1);
+    expect(new Set(ends.map((end) => end.right.toFixed(1))).size).toBe(1);
+    for (const end of ends) expect(end.pastColumn).toBeCloseTo(7.5, 1);
+    for (const inset of layout.others) expect(inset).toBeCloseTo(33, 1);
+    for (const dot of layout.dots) expect(dot).toEqual([7.5, 7.5]);
+    expect(layout.endDots).toHaveLength(4);
+    for (const past of layout.endDots) expect(past).toBeCloseTo(0.5, 1);
   });
 
   test("a team's sheet is titled with its name, set like every other team's", async ({ page }) => {

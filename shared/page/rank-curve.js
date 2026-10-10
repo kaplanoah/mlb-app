@@ -1,8 +1,10 @@
 // A player's number in a stat beside where it ranks, on a curve of every ranked player's number in
 // it, smoothed, with the player's mark on it, as a player's sheet shows each ranked stat, or with
-// several players' marks on one curve, as MLB's pitching matchup shows its two starters. A stat
-// where fewer is better runs from the most to the fewest, so a better rank always sits further
-// right. Each app colors the curve and the mark from its own stylesheet.
+// several players' marks on one curve, as MLB's pitching matchup shows its two starters, or a number
+// beside another to measure it against, each a dot on a line across a range, as a WNBA team's sheet
+// shows its playoffs against the playoff field's. A stat where fewer is better runs from the most to
+// the fewest, so a better rank always sits further right. Each app colors the curve, the line, and
+// the marks from its own stylesheet.
 
 import { html } from "./html.js";
 import { formatOrdinal } from "./ordinal.js";
@@ -147,3 +149,44 @@ export function rankAmong(values, value, { isRanked, isFewestFirst = false }) {
   const better = sorted.filter((each) => (isFewestFirst ? each < value : each > value)).length;
   return { value, rank: better + 1, count: sorted.length, values: sorted };
 }
+
+/**
+ * Where a number sits on a range, as a share of it from 0 to 100, its better end on the right: the
+ * highest, or the lowest when the fewest ranks first. A number past either end sits at that end,
+ * and one without a range to sit on has no place.
+ * @param {number | null} value
+ * @param {[number, number] | null} range its lowest and highest
+ * @param {boolean} [isFewestFirst]
+ * @returns {number | null}
+ */
+export function placeOnRange(value, range, isFewestFirst = false) {
+  if (value == null || !range || !(range[1] > range[0])) return null;
+  const share = Math.min(1, Math.max(0, (value - range[0]) / (range[1] - range[0])));
+  return Math.round((isFewestFirst ? 1 - share : share) * 1000) / 10;
+}
+
+/**
+ * A number as written and where it sits on a range, or null where it has no place.
+ * @typedef {{ shown: string, at: number | null }} PlacedNumber
+ */
+
+/**
+ * @param {number | null} at
+ * @param {"own" | "other"} whose
+ */
+const renderPlace = (at, whose) =>
+  at != null && html`<i class="${whose}" style="left: ${at}%"></i>`;
+
+/**
+ * One stat's row of a number measured against another: its label, the number, a line with a dot
+ * where each sits, the number's own drawn over the other's, and the other number. The dots sit in
+ * a box inside the line, so each app sets how far a dot at either end reaches past it.
+ * @param {{ label: string, own: PlacedNumber, other: PlacedNumber }} row
+ */
+export const renderPlacedRow = ({ label, own, other }) =>
+  html`<div class="player-rank-row">
+    <span class="player-rank-label">${label}</span>
+    <span class="player-rank-value tabular">${own.shown}</span>
+    <span class="placed-line" aria-hidden="true"><span>${renderPlace(other.at, "other")}${renderPlace(own.at, "own")}</span></span>
+    <span class="placed-other tabular">${other.shown}</span>
+  </div>`;
