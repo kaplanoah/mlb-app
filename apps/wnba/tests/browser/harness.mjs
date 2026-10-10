@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { buildSnapshot, REQUESTS } from "../../page/js/snapshot.js";
 import { createBoxScoreServer, nameBoxScoreRequest } from "../../worker/src/box-score.js";
+import { createHighlightsServer, describeHighlights } from "../../worker/src/highlights.js";
 import {
   createLeadServer,
   nameScoreboardRequest,
@@ -264,6 +265,7 @@ export async function openApp(
   const boxScores = createBoxScoreServer({ fetchImpl });
   const previews = createPreviewServer({ fetchImpl, now: () => Date.parse(NOW) });
   const leads = createLeadServer({ fetchImpl });
+  const highlights = createHighlightsServer({ fetchImpl });
   const rosters = createRosterServer({ fetchImpl, now: () => Date.parse(NOW) });
   const players = createPlayerServer({
     loadRoster: rosters.loadRoster,
@@ -276,6 +278,9 @@ export async function openApp(
   );
   await page.route(matchPath("/box-score"), (route) =>
     answerFromWorker(route, (url) => boxScores.serveBoxScore(url, readDoc)),
+  );
+  await page.route(matchPath("/highlights"), (route) =>
+    answerFromWorker(route, (url) => highlights.serveHighlights(url, readDoc)),
   );
   await page.route(matchPath("/preview"), (route) =>
     answerFromWorker(route, (url) => previews.servePreview(url, readDoc)),
@@ -359,6 +364,27 @@ export async function findGameButton(page, name) {
   const button = page.locator("#seasonGames").getByRole("button", { name });
   await button.scrollIntoViewIfNeeded();
   return button;
+}
+
+// ESPN's highlights of Fever at Aces, Game 3 of the first round.
+const RECORDED_HIGHLIGHTS = JSON.parse(
+  readFileSync(new URL("../fixtures/2026-10-01-espn-highlights.json", import.meta.url), "utf8"),
+);
+
+/**
+ * Has the store keep ESPN's recorded highlights for the game a button names, as its job would.
+ * @param {import("@playwright/test").Page} page
+ * @param {{ writeDocument: (path: string, data: any) => Promise<unknown> }} app
+ * @param {string} name
+ */
+export async function keepHighlights(page, app, name) {
+  const id = await (
+    await findGameButton(page, name)
+  ).evaluate(
+    (button) => /** @type {HTMLElement | null} */ (button.closest("[data-game]"))?.dataset.game,
+  );
+  if (!id) throw new Error(`No game is named ${name}`);
+  await app.writeDocument(`highlights/${id}`, describeHighlights(id, RECORDED_HIGHLIGHTS.summary));
 }
 
 /**

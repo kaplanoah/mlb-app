@@ -1,6 +1,7 @@
 import PAGE_FILES from "#page-files/wnba";
 import { createAppWorker } from "../../../../shared/worker/app-worker.js";
 import { createBoxScoreServer } from "./box-score.js";
+import { createHighlightsServer } from "./highlights.js";
 import { createLeadServer } from "./lead.js";
 import { createPlayerServer } from "./player.js";
 import { LEAGUE_READS_COUNT, PLAYER_JOB } from "./player-updater.js";
@@ -11,6 +12,7 @@ import { SeasonStore, addToJobCount, forwardToStore, readStoreDoc } from "./stor
 
 const snapshots = createSnapshotServer();
 const boxScores = createBoxScoreServer();
+const highlights = createHighlightsServer();
 const leads = createLeadServer();
 const previews = createPreviewServer();
 const rosters = createRosterServer();
@@ -22,6 +24,7 @@ export default createAppWorker({
   forwardToStore,
   reads: {
     "/box-score": (url, env) => boxScores.serveBoxScore(url, (key) => readStoreDoc(env, key)),
+    "/highlights": (url, env) => highlights.serveHighlights(url, (key) => readStoreDoc(env, key)),
     "/lead": (url, env) => leads.serveLead(url, (key) => readStoreDoc(env, key)),
     "/player": (url, env) =>
       players.servePlayer(

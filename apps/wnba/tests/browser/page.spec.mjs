@@ -1,4 +1,12 @@
-import { test, expect, expectDayAtTop, openApp, matchPath } from "./harness.mjs";
+import {
+  test,
+  expect,
+  expectDayAtTop,
+  keepHighlights,
+  openApp,
+  openGameSheet,
+  matchPath,
+} from "./harness.mjs";
 import { listFontsNotPreloaded } from "../../../../tests/browser/font-loads.mjs";
 import {
   listTapFlashes,
@@ -2072,7 +2080,7 @@ test.describe("on a phone", () => {
   });
 
   test("every spot that looks tappable lands on a button, in every view", async ({ page }) => {
-    await openApp(page);
+    const app = await openApp(page);
     await expect(page.locator('[data-series="1-0"] .team-line').first()).toBeVisible();
     expect(await listTapsOffButtons(page)).toEqual([]);
 
@@ -2097,6 +2105,16 @@ test.describe("on a phone", () => {
     expect(await listTapsOffButtons(page)).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(page.locator("#teamSheet")).toBeHidden();
+
+    await keepHighlights(page, app, "Game details: Aces at Fever, First Round Game 2");
+    const gameSheet = await openGameSheet(page, "Game details: Aces at Fever, First Round Game 2");
+    await expect(gameSheet.locator(".line-score")).toBeVisible();
+    expect(await listTapsOffButtons(page)).toEqual([]);
+    await gameSheet.getByRole("tab", { name: "Highlights" }).click();
+    await expect(gameSheet.locator("#highlightsBody .clip-row").first()).toBeVisible();
+    expect(await listTapsOffButtons(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(gameSheet).toBeHidden();
 
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await expect(page.locator("#settingsDialog")).toBeVisible();

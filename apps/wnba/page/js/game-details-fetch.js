@@ -1,6 +1,7 @@
 // A game's details for its sheet, from the Worker, which answers from the store, or reads the
 // league for what the store doesn't keep: the box score of a game that has started and the score
-// through it for its lead chart, and the meetings that preview one that hasn't.
+// through it for its lead chart, the meetings that preview one that hasn't, and the highlights of
+// one that's over.
 
 import { fetchFromWorker } from "#shared/worker-fetch.js";
 
@@ -9,6 +10,8 @@ const FETCH_TIMEOUT_MS = 15 * 1000;
 const BOX_SCORE_REUSE_MS = 5 * 1000;
 // The meetings change at most a few times a day, so a sheet opened again soon reuses them.
 const PREVIEW_REUSE_MS = 10 * 60 * 1000;
+// Highlights post over hours, so a sheet opened again in the next minute reuses them.
+const HIGHLIGHTS_REUSE_MS = 60 * 1000;
 
 /** @param {string} id */
 export const fetchBoxScore = (id) =>
@@ -35,5 +38,15 @@ export function fetchLead({ id, away, home, start }) {
     reuseMs: BOX_SCORE_REUSE_MS,
     timeoutMs: FETCH_TIMEOUT_MS,
     isExpected: (body) => body.away === away && body.home === home && body.start === start,
+  });
+}
+
+/** @param {{ id: string, away: string, home: string, start: string }} game */
+export function fetchHighlights({ id, away, home, start }) {
+  const query = new URLSearchParams({ id, away, home, start });
+  return fetchFromWorker(`highlights?${query}`, {
+    reuseMs: HIGHLIGHTS_REUSE_MS,
+    timeoutMs: FETCH_TIMEOUT_MS,
+    isExpected: (body) => body.id === id && Array.isArray(body.plays),
   });
 }

@@ -1,13 +1,16 @@
 // The sheet every game opens, from its row, an update about it, or its card on a club's sheet, in
-// two sections under pills: Game, the game's row with its score and status as the store updates
+// sections under pills: Game, the game's row with its score and status as the store updates
 // them, where to watch it, its starters on one line that slides to Matchup, which sets the two face
-// to face (matchup.js), and its box score (box-score-view.js), which the store pushes as it changes.
+// to face (matchup.js), and its box score (box-score-view.js), which the store pushes as it changes,
+// and, once the game is final, Highlights, its recap and each play's clip (highlights-section.js).
 // Phones show it over the whole screen, wider screens as a modal, like Settings.
 
 import { fetchBoxScore } from "./box-score-fetch.js";
 import { renderBoxScore } from "./box-score-view.js";
 import { renderTeamDot } from "./clubs.js";
+import { fetchHighlights } from "./highlights-fetch.js";
 import {
+  describeInning,
   groupShownSeriesFinals,
   listSeasonGames,
   nameGame,
@@ -17,6 +20,7 @@ import {
 } from "./games-view.js";
 import { describeDay, readCalendarDate } from "#shared/days.js";
 import { watchGameOpens } from "#shared/game-row.js";
+import { createHighlightsSection } from "#shared/highlights-section.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { isLoadingSide, listSides, loadSide, renderMatchupBody, updateSides } from "./matchup.js";
 import { renderNetworks } from "#shared/network-logos.js";
@@ -46,6 +50,8 @@ let shown = null;
 let unwatchBoxScore = null;
 /** @type {ReturnType<typeof wireSheetSections> | null} */
 let sections = null;
+/** @type {ReturnType<typeof createHighlightsSection> | null} */
+let highlights = null;
 
 const findSheet = () => /** @type {HTMLElement} */ (document.getElementById("gameSheet"));
 const findElement = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -149,9 +155,47 @@ export function isEarlierBoxScore(pushed, current) {
 const hasBoxScore = (game) =>
   game.state === "live" || game.state === "final" || (game.state === "pre" && !!game.today);
 
+/**
+ * The score after a play that scored, the club that scored it in bold.
+ * @param {MatchupGame} game
+ * @param {any} clip
+ */
+const renderPlayScore = (game, clip) =>
+  html`${SIDES.map(
+    (side, index) =>
+      html`${index > 0 && ", "}${
+        clip.scorer === side
+          ? html`<b>${game[side]} ${clip.score[index]}</b>`
+          : `${game[side]} ${clip.score[index]}`
+      }`,
+  )}`;
+
+/**
+ * Where in the game a play came, and the score after it when it scored.
+ * @param {any} clip
+ */
+function describePlay(clip) {
+  const game = shown && readCurrentGame(shown.game);
+  return [describeInning(clip), game && clip.score ? renderPlayScore(game, clip) : ""];
+}
+
+/** @param {string} id */
+const loadHighlights = (id) => () => fetchHighlights(id);
+
+// A final offers its highlights, and any other game hides their pill, leaving the section if it
+// showed.
+/** @param {MatchupGame} game */
+function offerHighlights(game) {
+  const isFinal = game.state === "final" && Boolean(game.id);
+  findElement("gameTabHighlights").hidden = !isFinal;
+  if (isFinal) highlights?.show(game.id, loadHighlights(game.id));
+  else if (sections?.readShown() === "highlights") sections.showSection("game", true);
+}
+
 function renderSheet() {
   if (!shown) return;
   const game = readCurrentGame(shown.game);
+  offerHighlights(game);
   setHtml(findElement("gameTitle"), titleGame(game));
   setHtml(findElement("gameWhen"), renderWhen(game));
   setHtml(findElement("gameBody"), renderGameBody(game, shown.sides, shown.boxScore));
@@ -259,18 +303,27 @@ function openGameSheet(game) {
   openSheet(findSheet(), {
     key: nameGameKey(game),
     show: () => {
+      highlights?.forget();
       showGame(game, listSides(game));
       sections?.showFirstSection();
     },
   });
 }
 
-const readShownGame = () => shown && { ...shown, section: sections?.readShown() ?? null };
+const readShownGame = () =>
+  shown && {
+    ...shown,
+    section: sections?.readShown() ?? null,
+    highlights: highlights?.read() ?? null,
+  };
 
-// What each side and the box score showed stays until they load again.
-/** @param {(ShownGame & { section?: unknown }) | null} saved */
+// What each side, the box score, and the highlights showed stays until they load again.
+/** @param {(ShownGame & { section?: unknown, highlights?: any }) | null} saved */
 function reopenGameSheet(saved) {
   if (!saved?.game || !Array.isArray(saved.sides)) return false;
+  const kept = saved.highlights;
+  if (kept?.id === saved.game.id && kept.highlights)
+    highlights?.show(kept.id, loadHighlights(kept.id), kept.highlights);
   showGame(saved.game, saved.sides, saved.boxScore ?? null);
   if (typeof saved.section === "string") sections?.showSection(saved.section, true);
   return true;
@@ -315,10 +368,14 @@ function showMatchupOnTap(event) {
 export function startGameSheet() {
   const sheet = findSheet();
   sections = wireSheetSections(sheet);
+  highlights = createHighlightsSection(findElement("highlightsBody"), describePlay);
   for (const holder of ["seasonGames", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromButton, prepare: prepareFromButton });
   findElement("gameBody").addEventListener("click", showMatchupOnTap);
-  watchRetries(sheet, retryFailedSides);
+  watchRetries(sheet, () => {
+    retryFailedSides();
+    if (shown?.game.id) highlights?.retry(loadHighlights(shown.game.id));
+  });
   wireSheet(sheet, {
     closeButton: findElement("gameCloseBtn"),
     backButton: findElement("gameBackBtn"),
@@ -327,6 +384,7 @@ export function startGameSheet() {
     name: "Game",
     forget: () => {
       stopWatchingBoxScore();
+      highlights?.forget();
       shown = null;
     },
   });

@@ -104,6 +104,32 @@ function labelBackButton(sheet, backLabel) {
 }
 
 /**
+ * Shows the section a sheet showed, under the pills it offered, scrolled where it was, as
+ * sheet-sections.js shows one: the rest inert, which hides them.
+ * @param {HTMLElement} sheet
+ * @param {any} section
+ */
+function showLastSection(sheet, section) {
+  const shown = typeof section?.id === "string" ? document.getElementById(section.id) : null;
+  const tabList = /** @type {HTMLElement | null} */ (
+    sheet.querySelector(".sheet-top [role=tablist]")
+  );
+  if (!shown || !tabList || !sheet.contains(shown) || !Array.isArray(section.tabs)) return;
+  for (const each of sheet.querySelectorAll(".sheet-sections > .sheet-section"))
+    /** @type {HTMLElement} */ (each).inert = each !== shown;
+  tabList.hidden = section.tabs.length === 0;
+  for (const tab of /** @type {NodeListOf<HTMLElement>} */ (
+    tabList.querySelectorAll("[role=tab]")
+  )) {
+    const isShown = tab.getAttribute("aria-controls") === shown.id;
+    tab.hidden = !section.tabs.includes(tab.id);
+    tab.setAttribute("aria-selected", String(isShown));
+    tab.classList.toggle("active", isShown);
+  }
+  shown.scrollTop = Number(section.top) || 0;
+}
+
+/**
  * Puts a dialog's sheets back in its row, one over another in the order they opened, and shows
  * the last of them, as sheet.js places them.
  * @param {HTMLDialogElement} dialog
@@ -120,7 +146,10 @@ function showLastDialog(dialog, sheets) {
   });
   dialog.setAttribute("data-reopened", "");
   dialog.showModal();
-  for (const { sheet, saved } of sheets) sheet.scrollTop = Number(saved.scrollTop) || 0;
+  for (const { sheet, saved } of sheets) {
+    sheet.scrollTop = Number(saved.scrollTop) || 0;
+    showLastSection(sheet, saved.section);
+  }
 }
 
 // A sheet that was showing is still there when the page comes back, so it shows without rising
