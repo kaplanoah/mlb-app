@@ -19,13 +19,8 @@ import {
   renderStatusChip,
   renderTeamDot,
 } from "./clubs.js";
-import {
-  describeGameLabel,
-  describeInning,
-  describeStart,
-  nameGameKey,
-  nameRound,
-} from "./games-view.js";
+import { describeGameLabel, describeInning, describeStart, nameGameKey } from "./games-view.js";
+import { nameRound } from "./series-games.js";
 import { session } from "./session.js";
 import { listSlateGames } from "./slate.js";
 import { SEASON_GAMES } from "./snapshot.js";
@@ -131,7 +126,7 @@ function renderSeriesRow(series, id) {
   const opponent = series.teamA === id ? series.teamB : series.teamA;
   const result = describeSeriesResult(series, id);
   return html`<li class="series-row">
-    <span class="series-round">${nameRound(series)}</span>
+    <span class="series-round">${nameRound(series.id)}</span>
     <span class="series-opp">${opponent ? renderClub(opponent) : html`<span class="tbd">TBD</span>`}</span>
     <span class="series-result ${result.kind} tabular">${result.text}</span>
   </li>`;

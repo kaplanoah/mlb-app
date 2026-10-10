@@ -275,16 +275,16 @@ test("a game still to come shows its start time centered in its row", async ({ p
   expect(Math.abs(findCenterX(timeBox) - findCenterX(rowBox))).toBeLessThan(1);
 });
 
-// A series' teamA is its higher seed or its first feeder's winner, not the game's away club.
-const openPostseasonDay = async (page, series, games) => {
+// Today's postseason games, each naming its series and its game in it, after the series' earlier
+// games, the day before.
+const openPostseasonDay = async (page, games, earlierGames) => {
   const snapshot = buildFixtureSnapshot(EVENING_FIXTURE);
-  const start = "2026-09-24T18:08:00Z";
-  Object.assign(snapshot.series, series);
-  snapshot.slate.today.games = games.map((game) => ({
-    state: "pre",
-    start,
-    postseason: true,
-    ...game,
+  /** @param {string} start */
+  const describeGame = (start) => (game) => ({ state: "pre", start, postseason: true, ...game });
+  snapshot.slate.today.games = games.map(describeGame("2026-09-24T18:08:00Z"));
+  snapshot.slate.previous = earlierGames.map((game) => ({
+    date: "2026-09-23",
+    ...describeGame("2026-09-23T18:08:00Z")({ state: "final", number: 1, ...game }),
   }));
   await openApp(page, { snapshots: { [EVENING_FIXTURE.season]: snapshot } });
   await page.getByRole("tab", { name: "Games" }).click();
@@ -293,17 +293,26 @@ const openPostseasonDay = async (page, series, games) => {
 const openWildCardDay = (page) =>
   openPostseasonDay(
     page,
-    {
-      NL_WC1: { winsA: 1, winsB: 0 },
-      AL_WC1: { winsA: 0, winsB: 1 },
-      AL_WC2: { winsA: 1, winsB: 1 },
-      NL_WC2: { winsA: 0, winsB: 2 },
-    },
     [
-      { away: "PHI", home: "ATL" },
-      { away: "CWS", home: "TEX", state: "live", score: [3, 1], inning: 5, half: "top" },
-      { away: "BOS", home: "NYY", state: "final", score: [4, 6] },
-      { away: "CHC", home: "SD", state: "final", score: [5, 2] },
+      { away: "PHI", home: "ATL", series: "NL_WC1", number: 2 },
+      {
+        away: "CWS",
+        home: "TEX",
+        series: "AL_WC1",
+        number: 2,
+        state: "live",
+        score: [3, 1],
+        inning: 5,
+        half: "top",
+      },
+      { away: "BOS", home: "NYY", series: "AL_WC2", number: 2, state: "final", score: [4, 6] },
+      { away: "CHC", home: "SD", series: "NL_WC2", number: 2, state: "final", score: [5, 2] },
+    ],
+    [
+      { away: "PHI", home: "ATL", series: "NL_WC1", score: [3, 5] },
+      { away: "CWS", home: "TEX", series: "AL_WC1", score: [4, 2] },
+      { away: "BOS", home: "NYY", series: "AL_WC2", score: [7, 1] },
+      { away: "CHC", home: "SD", series: "NL_WC2", score: [6, 0] },
     ],
   );
 
@@ -442,6 +451,35 @@ test("every game is one height, with each piece at its own offset from the row's
   expect((await measureOffsets(upcoming, [".game-time"]))[0]).toBeCloseTo(headline, 1);
 });
 
+test("a game MLB may not need says IF NECESSARY under its time, in capitals, lower than any other status", async ({
+  page,
+}) => {
+  await page.setViewportSize(PHONE);
+  await openPostseasonDay(
+    page,
+    [{ away: "PHI", home: "ATL", series: "NL_WC1", number: 3, ifNecessary: true }],
+    [
+      { away: "PHI", home: "ATL", series: "NL_WC1", score: [3, 5], date: "2026-09-22" },
+      { away: "PHI", home: "ATL", series: "NL_WC1", number: 2, score: [4, 3] },
+    ],
+  );
+  const row = page.locator("#seasonGames .game-day.is-today .game-row");
+  await expect(row.locator(".series-label")).toHaveText("NL WC 1-1");
+  const status = row.locator(".if-necessary");
+  await expect(status).toHaveText("If necessary");
+  await expect(status).toHaveCSS("text-transform", "uppercase");
+  await expect(status).toHaveCSS("color", await readColor(page, "--ink-dim"));
+  const [label, time, ifNecessary] = await measureOffsets(row, [
+    ".series-label",
+    ".game-time",
+    ".if-necessary",
+  ]);
+  expect(label).toBeCloseTo(await readToken(page, "--game-label-offset"), 1);
+  expect(time).toBeCloseTo(await readToken(page, "--game-headline-offset"), 1);
+  expect(ifNecessary).toBeCloseTo(await readToken(page, "--game-if-necessary-offset"), 1);
+  expect(ifNecessary).toBeGreaterThan(await readToken(page, "--game-status-offset"));
+});
+
 test("without a series line, a time centers in its row, and a score and its status center as a pair", async ({
   page,
 }) => {
@@ -469,11 +507,12 @@ const WIDE_SCREEN = { width: 1800, height: 900 };
 const LAPTOP = { width: 1280, height: 800 };
 
 const CREAM = "rgb(241, 234, 212)";
-const GREEN = "rgb(127, 168, 143)";
 const TAUPE = "rgb(153, 139, 125)";
 const GOLD = "rgb(244, 193, 92)";
 
-test("the Games tab bolds each winner and dims only the clubs that are out", async ({ page }) => {
+test("the Games tab bolds each winner, and shows a club that's out as any other", async ({
+  page,
+}) => {
   await openApp(page);
   await page.getByRole("tab", { name: "Games" }).click();
   const findSide = (away, home, side) =>
@@ -493,9 +532,9 @@ test("the Games tab bolds each winner and dims only the clubs that are out", asy
   await expect(loserStillIn).toHaveCSS("font-weight", "400");
   await expect(loserStillIn).toHaveCSS("color", CREAM);
   await expect(winnerOut).toHaveCSS("font-weight", "550");
-  await expect(winnerOut).toHaveCSS("color", GREEN);
-  await expect(loserOut.locator(".team-name")).toHaveCSS("color", GREEN);
-  await expect(loserOut.locator(".dot")).toHaveCSS("opacity", "0.55");
+  await expect(winnerOut).toHaveCSS("color", CREAM);
+  await expect(loserOut.locator(".team-name")).toHaveCSS("color", CREAM);
+  await expect(loserOut.locator(".dot")).toHaveCSS("opacity", "1");
 });
 
 test("the bracket shows an eliminated club in taupe, without a line through its name", async ({

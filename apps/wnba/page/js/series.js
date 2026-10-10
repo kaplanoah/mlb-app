@@ -1,3 +1,4 @@
+import { describeSeriesLead } from "#shared/series-text.js";
 import { TEAMS } from "./teams.js";
 
 /** @typedef {{ team: string, seed: number | null, wins: number }} SeriesSide */
@@ -35,24 +36,12 @@ export const orderBySeriesWins = (top, bottom) =>
 export function describeSeriesStanding(series) {
   if (!series?.top || !series.bottom) return "";
   const [ahead, behind] = orderBySeriesWins(series.top, series.bottom);
-  const score = `${ahead.wins}-${behind.wins}`;
-  if (series.winner) return `${nameTeam(series.winner)} win ${score}`;
-  if (ahead.wins === behind.wins) return `Tied ${score}`;
-  return `${nameTeam(ahead.team)} lead ${score}`;
-}
-
-/**
- * Where a series stood after a game, as its winner tells it: "Dream won to lead 2-0", "Dream won
- * to tie 1-1", "Dream won but trail 1-2", or "Dream won the series 2-0".
- * @param {{ winner: string, wins: number, losses: number, winsNeeded: number }} result
- */
-export function describeSeriesAfterWin({ winner, wins, losses, winsNeeded }) {
-  const score = `${wins}-${losses}`;
-  const name = nameTeam(winner);
-  if (wins === winsNeeded) return `${name} won the series ${score}`;
-  if (wins === losses) return `${name} won to tie ${score}`;
-  if (wins < losses) return `${name} won but trail ${score}`;
-  return `${name} won to lead ${score}`;
+  return describeSeriesLead({
+    leader: nameTeam(ahead.team),
+    wins: ahead.wins,
+    losses: behind.wins,
+    isOver: !!series.winner,
+  });
 }
 
 const FINALS_ROUND = 3;

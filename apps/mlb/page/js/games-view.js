@@ -1,4 +1,3 @@
-import { findSeriesBetween, isEliminated } from "./bracket.js";
 import { nameTeam, renderClub, renderPlainClub } from "./clubs.js";
 import { renderAllStarMark } from "#shared/all-star.js";
 import { fillDayStrip } from "#shared/day-strip.js";
@@ -13,6 +12,14 @@ import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
 import { listSeasonDays as listDayStripDays, renderHeadingLabel } from "#shared/season-days.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
+import {
+  countSeriesWins,
+  groupSeriesFinals,
+  isSeriesDecided,
+  isSeriesGame,
+  nameRound,
+  nameSeriesGame,
+} from "./series-games.js";
 import { session } from "./session.js";
 import { listSlateGames } from "./slate.js";
 
@@ -35,7 +42,7 @@ const ARMS = { L: "Throws left-handed", R: "Throws right-handed" };
 const formattedDays = new Map();
 
 /** @param {string} date "YYYY-MM-DD" */
-export function formatGameDay(date) {
+function formatGameDay(date) {
   if (!formattedDays.has(date))
     formattedDays.set(date, formatWeekdayAndDate(readCalendarDate(date)));
   return /** @type {string} */ (formattedDays.get(date));
@@ -61,9 +68,11 @@ export function renderOutLights(game) {
   return html`<span class="out-lights" role="img" aria-label="${label}">${lights}</span>`;
 }
 
+// A final that went extra innings, or was called short, says in which inning it ended, as MLB's
+// own scoreboard does.
 function describeStatus(game) {
   if (game.delay) return game.delay;
-  if (game.state === "final") return "Final";
+  if (game.state === "final") return game.innings ? `Final/${game.innings}` : "Final";
   if (game.state === "live") return describeInning(game);
   return "";
 }
@@ -116,25 +125,6 @@ export const renderArm = (hand) =>
 const renderStarter = (starter, side) =>
   html`<span class="starter ${side}" title="Starting pitcher"><span class="starter-name">${starter.name}</span>${renderArm(starter.hand)}</span>`;
 
-// Each club is checked against the bracket once for each season's state the page draws, rather
-// than once for every row it shows on.
-/** @type {WeakMap<object, Map<string, boolean>>} */
-const eliminatedByState = new WeakMap();
-
-/** @param {string} id */
-function isOutOfPostseason(id) {
-  const { state } = session;
-  if (!state || !state.teams) return false;
-  if (!eliminatedByState.has(state)) eliminatedByState.set(state, new Map());
-  const eliminated = /** @type {Map<string, boolean>} */ (eliminatedByState.get(state));
-  if (!eliminated.has(id)) eliminated.set(id, isEliminated(state, id));
-  return /** @type {boolean} */ (eliminated.get(id));
-}
-
-function isOut(id) {
-  return isOutOfPostseason(id) || describeRace(findStandingsRow(id))?.standing === "out";
-}
-
 const renderPendingStarter = (side) =>
   html`<span class="starter ${side} pending" title="Starting pitcher"><span class="starter-name">Still TBD</span></span>`;
 
@@ -146,7 +136,7 @@ function renderStarterLine(starter, place, isPending) {
 function describeSide(id, place, starter, hasWon, isPending, renderClubLine, facts) {
   return {
     lines: html`${id ? renderClubLine(id) : renderSideClub(id)}${facts}`,
-    classes: [hasWon && "won", isOut(id) && "out"],
+    classes: [hasWon && "won"],
     extra: renderStarterLine(starter, place, isPending),
   };
 }
@@ -156,26 +146,18 @@ function renderScore(game, awayLost, homeLost) {
   return html`<span class="game-score tabular"><span class="${awayLost ? "lost" : ""}">${awayScore}</span><span class="score-dash">-</span><span class="${homeLost ? "lost" : ""}">${homeScore}</span></span>`;
 }
 
-function findGameSeries(game) {
-  const { state } = session;
-  if (!game.postseason || !state || !state.teams || !state.series) return null;
-  return findSeriesBetween(state, game.away, game.home);
-}
-
-// Short names, since the label shares the row's middle with the time or score.
-export function nameRound(series) {
-  const [league] = series.id.split("_");
-  if (series.round === "WC") return `${league} WC`;
-  if (series.round === "WS") return "WS";
-  return `${league}${series.round}`;
-}
-
-// The saved series counts only finished games, so a game under way shows the series as it stood
-// at first pitch. Wins run away-home, like the clubs on either side.
-function renderSeriesLabel(game, series) {
-  const [awayWins, homeWins] =
-    series.teamA === game.away ? [series.winsA, series.winsB] : [series.winsB, series.winsA];
-  return html`<span class="series-label ${series.winner ? "decided" : ""}">${nameRound(series)} <span class="series-count tabular">${awayWins}-${homeWins}</span></span>`;
+// A game's series as it stood at the game, or, until both its clubs are known, its game in the
+// series.
+/**
+ * @param {any} game
+ * @param {Map<string, any[]>} seriesFinals
+ */
+function renderSeriesLabel(game, seriesFinals) {
+  const round = nameRound(game.series);
+  if (!game.away || !game.home)
+    return html`<span class="series-label">${round} G${game.number}</span>`;
+  const wins = countSeriesWins(game, seriesFinals);
+  return html`<span class="series-label ${isSeriesDecided(game.series, wins) ? "decided" : ""}">${round} <span class="series-count tabular">${wins.join("-")}</span></span>`;
 }
 
 function renderHeadline(game, awayLost, homeLost) {
@@ -185,6 +167,8 @@ function renderHeadline(game, awayLost, homeLost) {
 }
 
 function renderStatus(game) {
+  if (game.state === "pre" && game.ifNecessary)
+    return html`<span class="if-necessary">If necessary</span>`;
   const status = describeStatus(game);
   return Boolean(status) && html`${status}${renderOutLights(game)}`;
 }
@@ -199,9 +183,12 @@ export const nameGame = (game) => `${nameSide(game.away)} @ ${nameSide(game.home
 export const nameGameKey = (game) =>
   `${game.date} ${game.away ?? ""} ${game.home ?? ""} ${game.doubleheader || 1}`;
 
-/** @param {{ date: string, away?: string, home?: string }} game */
-export const describeGameLabel = (game) =>
-  `${nameSide(game.away)} at ${nameSide(game.home)}, ${formatGameDay(game.date)}`;
+/** @param {{ date: string, away?: string, home?: string, series?: string, number?: number }} game */
+export function describeGameLabel(game) {
+  const clubs = `${nameSide(game.away)} at ${nameSide(game.home)}`;
+  const day = formatGameDay(game.date);
+  return isSeriesGame(game) ? `${clubs}, ${nameSeriesGame(game)}, ${day}` : `${clubs}, ${day}`;
+}
 
 // The whole row, or an update about the game, opens the game's sheet.
 export const renderGameButton = (game) =>
@@ -211,12 +198,12 @@ const isAwaitingStarter = (game, id, starter) => game.state === "pre" && Boolean
 
 /**
  * @param {any} game
- * @param {object | null} series the postseason series the game belongs to, when it's labeled
+ * @param {Map<string, any[]>} seriesFinals each postseason series' finals, which its label counts
  * @param {{ isToday: boolean, isAwaitingStarters: boolean }} when whether the game is today's, and
  *   whether a club yet to name its starter says so
  * @param {(id: string) => any} renderClubLine
  */
-function describeGameRow(game, series, { isToday, isAwaitingStarters }, renderClubLine) {
+function describeGameRow(game, seriesFinals, { isToday, isAwaitingStarters }, renderClubLine) {
   const [awayScore, homeScore] = game.score || [];
   const isFinal = game.state === "final";
   const awayLost = isFinal && awayScore < homeScore;
@@ -247,15 +234,25 @@ function describeGameRow(game, series, { isToday, isAwaitingStarters }, renderCl
       renderClubLine,
       homeFacts,
     ),
-    label: Boolean(series) && renderSeriesLabel(game, series),
+    label: isSeriesGame(game) && renderSeriesLabel(game, seriesFinals),
     headline: renderHeadline(game, awayLost, homeLost),
     status: renderStatus(game),
   };
 }
 
-function renderGame(game, series, isToday) {
+/**
+ * @param {any} game
+ * @param {Map<string, any[]>} seriesFinals
+ * @param {boolean} isToday
+ */
+function renderGame(game, seriesFinals, isToday) {
   return renderGameRow({
-    ...describeGameRow(game, series, { isToday, isAwaitingStarters: isToday }, renderSideClub),
+    ...describeGameRow(
+      game,
+      seriesFinals,
+      { isToday, isAwaitingStarters: isToday },
+      renderSideClub,
+    ),
     action: renderGameButton(game),
   });
 }
@@ -301,18 +298,24 @@ function renderAllStarGame(game) {
 
 /**
  * @param {any} game
+ * @param {Map<string, any[]>} seriesFinals
  * @param {boolean} isToday
  */
-function renderListedGame(game, isToday) {
+function renderListedGame(game, seriesFinals, isToday) {
   if (game.allStar) return renderAllStarGame(game);
-  return renderGame(game, isToday ? findGameSeries(game) : null, isToday);
+  return renderGame(game, seriesFinals, isToday);
 }
+
+/** Each postseason series' finals among the season's games the page has. */
+export const groupShownSeriesFinals = () =>
+  groupSeriesFinals(listSeasonGames(session.state?.slate, session.schedule));
 
 // A game's sheet heads its Game section with the game's row, whose clubs each open their own
 // sheet, and leaves its starters to the line under it.
 export function renderGameFaceOff(game) {
   const when = { isToday: !!game.today, isAwaitingStarters: false };
-  const row = describeGameRow({ ...game, starters: [] }, findGameSeries(game), when, renderClub);
+  const seriesFinals = groupShownSeriesFinals();
+  const row = describeGameRow({ ...game, starters: [] }, seriesFinals, when, renderClub);
   return html`<ul class="game-list game-faceoff">${renderGameRow(row)}</ul>`;
 }
 
@@ -382,13 +385,14 @@ function describeEmptySeason(slate) {
  */
 export function listSeasonDays(slate, schedule, now) {
   const games = listSeasonGames(slate, schedule);
+  const seriesFinals = groupSeriesFinals(games);
   const today = slate?.today.date ?? readEasternDay(now).date;
   return listDayStripDays({
     gameDays: groupByDay(games).map((day) => ({
       day: day.date,
       count: day.games.length,
       games: html`<ul class="game-list">
-        ${day.games.map((game) => renderListedGame(game, day.date === today))}
+        ${day.games.map((game) => renderListedGame(game, seriesFinals, day.date === today))}
       </ul>`,
     })),
     today,

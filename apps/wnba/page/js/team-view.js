@@ -1,11 +1,11 @@
-import { countDaysBetween, formatClockTime, formatShortDate } from "#shared/days.js";
+import { countDaysBetween, describeDay, formatClockTime, formatShortDate } from "#shared/days.js";
 import { renderGameCards } from "#shared/game-cards.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderTapeRow } from "#shared/tape.js";
 import { renderTitles } from "#shared/team-sheet.js";
 import { renderDot, renderTeamName } from "./clubs.js";
-import { describeDay, readGameDay } from "./days.js";
+import { readGameDay } from "./days.js";
 import { describeLiveClock, describeStartTime } from "./games-view.js";
 import { findTeamNearestGames } from "./nearest-games.js";
 import { nameTeam, readPlayoffRuns } from "./series.js";

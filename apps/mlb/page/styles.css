@@ -97,9 +97,10 @@
   --strip-action: var(--gold);
   --day-gap: 18px;
   --game-side-offset: 0px;
-  --game-label-offset: -21px;
+  --game-label-offset: -26.5px;
   --game-headline-offset: -1px;
-  --game-status-offset: 19.5px;
+  --game-status-offset: 20.5px;
+  --game-if-necessary-offset: 26.5px;
   /* Pitch colors run by family: fastballs warm, breaking balls blue, changeups pink. */
   --pitch-four-seam: var(--gold);
   --pitch-sinker: var(--copper);
@@ -527,12 +528,6 @@ table.st .seed-cell {
 .game-side.won .club {
   font-weight: 550;
 }
-.game-side.out .team-name {
-  color: var(--ink-dim);
-}
-.game-side.out .dot {
-  opacity: 0.55;
-}
 /* One line, so a club's race letter stays with its record even if it nears the time. */
 .game-facts {
   display: flex;
@@ -609,13 +604,20 @@ table.st .seed-cell {
   font-weight: 400;
 }
 .game-time {
-  font-size: var(--size-glance);
+  font-size: var(--size-read);
   line-height: 20px;
 }
 .game-status {
   font-weight: 450;
   font-size: var(--size-small);
   color: var(--ink-dim);
+}
+.if-necessary {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+.game-middle:has(> .game-status > .if-necessary) {
+  --status-offset: var(--game-if-necessary-offset);
 }
 .series-label {
   font-weight: 450;

@@ -4,6 +4,7 @@
 // from the cards of the team's nearest games. Details that didn't load read again on a tap on Try
 // again, as the phone comes back online, or as the page comes back.
 
+import { describeDay } from "#shared/days.js";
 import { html, joinWithSeparator, setHtml } from "#shared/html.js";
 import { watchGameOpens } from "#shared/game-row.js";
 import { renderNetworks } from "#shared/network-logos.js";
@@ -11,7 +12,7 @@ import { renderRetryBlock, watchRetries } from "#shared/retry.js";
 import { openSheet, wireSheet } from "#shared/sheet.js";
 import { renderBoxScore, renderPendingBoxScore } from "./box-score-view.js";
 import { renderClub } from "./clubs.js";
-import { describeDay, readGameDay } from "./days.js";
+import { readGameDay } from "./days.js";
 import { fetchBoxScore, fetchLead, fetchPreview } from "./game-details-fetch.js";
 import {
   describeFinalInSeries,

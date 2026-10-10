@@ -702,6 +702,15 @@ test("what to fetch: a past season skips the schedule", () => {
   );
 });
 
+test("what to fetch: the postseason and the season's whole schedule ask for each game's inning, so a final says in which it ended", () => {
+  const requests = MLBSnapshot.listMlbRequests(2026, Date.parse("2026-10-10T16:00:00Z"));
+  for (const request of [requests.postseason, requests.seasonGames]) {
+    const params = new URL(request, MLBSnapshot.MLB_API).searchParams;
+    assert.ok(params.get("hydrate")?.split(",").includes("linescore"), request);
+    assert.ok(params.get("fields")?.split(",").includes("currentInning"), request);
+  }
+});
+
 test("what to fetch: in October the schedule reaches back to the regular season's last days", () => {
   const now = Date.parse("2026-10-20T16:00:00Z");
   assert.match(
@@ -1275,7 +1284,7 @@ test("without the season's whole schedule, there's no schedule to save", () => {
   assert.deepEqual(snapshot.missing, []);
 });
 
-test("a postseason final shows its starters but not its series record, which MLB lists as the clubs' records", () => {
+test("a postseason final names its series and its game in it, and shows its starters but not its series record, which MLB lists as the clubs' records", () => {
   const games = listScheduled(buildSnapshot(SEASON_GAMES));
   assert.deepEqual(
     games.find((game) => game.id === "849845"),
@@ -1288,12 +1297,72 @@ test("a postseason final shows its starters but not its series record, which MLB
       start: "2026-09-29T18:00:00Z",
       score: [3, 5],
       postseason: true,
+      series: "NL_WC1",
+      number: 1,
       starters: [
         { id: 666200, name: "Luzardo", hand: "L" },
         { id: 519242, name: "Sale", hand: "L" },
       ],
     },
   );
+});
+
+test("a postseason game names its series and its game before both its clubs are known", () => {
+  const games = listScheduled(buildSnapshot(SEASON_GAMES));
+  const opener = games.find((game) => game.date === "2026-10-12" && game.home === "TB");
+  assert.equal(opener.away, null);
+  assert.equal(opener.series, "AL_CS");
+  assert.equal(opener.number, 1);
+  const worldSeries = games.filter((game) => game.date >= "2026-10-23");
+  assert.deepEqual(
+    worldSeries.map((game) => `${game.series} ${game.number}`),
+    ["WS 1", "WS 2", "WS 3", "WS 4", "WS 5", "WS 6", "WS 7"],
+  );
+});
+
+test("a postseason game MLB marks If Necessary says so until it's played", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  const { postseason, schedule } = fixture.responses;
+  /** @param {number} gamePk @param {string} flag */
+  const markGame = (gamePk, flag) => {
+    for (const listing of [findListing(postseason, gamePk), findListing(schedule, gamePk)])
+      if (listing) listing.ifNecessary = flag;
+  };
+  markGame(849831, "Y");
+  markGame(849845, "Y");
+  const games = listScheduled(buildSnapshot(fixture));
+  const findGame = (id) => games.find((game) => game.id === id);
+  assert.equal(findGame("849831").state, "pre");
+  assert.equal(findGame("849831").ifNecessary, true);
+  assert.equal(findGame("849845").state, "final");
+  assert.equal(findGame("849845").ifNecessary, undefined);
+
+  markGame(849831, "N");
+  const needed = listScheduled(buildSnapshot(fixture)).find((game) => game.id === "849831");
+  assert.equal(needed.ifNecessary, undefined);
+});
+
+test("a final that went extra innings, or was called short, says in which inning it ended", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  const { seasonGames, postseason, schedule } = fixture.responses;
+  /** @param {any} listing @param {number} inning */
+  const endIn = (listing, inning) => (listing.linescore = { currentInning: inning });
+  const regular = seasonGames.dates
+    .flatMap((day) => day.games)
+    .filter((game) => game.gameType === "R");
+  const [extra, short, regulation] = regular.filter(
+    (game) => game.status.abstractGameState === "Final",
+  );
+  endIn(extra, 10);
+  endIn(short, 7);
+  endIn(regulation, 9);
+  for (const feed of [seasonGames, postseason, schedule]) endIn(findListing(feed, 849845), 11);
+  const games = listScheduled(buildSnapshot(fixture));
+  const findInnings = (listing) => games.find((game) => game.id === String(listing.gamePk)).innings;
+  assert.equal(findInnings(extra), 10);
+  assert.equal(findInnings(short), 7);
+  assert.equal(findInnings(regulation), undefined);
+  assert.equal(findInnings(findListing(postseason, 849845)), 11);
 });
 
 test("a game still to play lists each club's probable starter once MLB names him, with his arm, named by whichever read describes him", () => {

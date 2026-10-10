@@ -996,92 +996,107 @@ const eveningSnapshot = buildSnapshot(eveningFixture.responses, {
   season: eveningFixture.season,
   now: Date.parse(eveningFixture.now),
 });
-const WILD_CARDS_WON_BY_HIGHER_SEEDS = {
-  AL_WC1: { winsA: 2, winsB: 0 },
-  AL_WC2: { winsA: 2, winsB: 0 },
-  NL_WC1: { winsA: 2, winsB: 0 },
-  NL_WC2: { winsA: 2, winsB: 0 },
-};
+const SEASON_FIXTURE = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-09-season.json`, "utf8"),
+);
+const SEASON_FIXTURE_NOW = Date.parse(SEASON_FIXTURE.now);
+const seasonSnapshot = buildSnapshot(SEASON_FIXTURE.responses, {
+  season: SEASON_FIXTURE.season,
+  now: SEASON_FIXTURE_NOW,
+});
+const seasonSchedule = Object.values(seasonSnapshot.schedule).flat();
+
+/** @param {string} row @param {RegExp} pattern */
+const readRowText = (row, pattern) => normalizeSpaces(stripTags(pattern.exec(row)?.[1] ?? ""));
 
 /**
- * Each series label in one of the Games lists, with the evening's field and these series counts.
- * @param {Record<string, { winsA: number, winsB: number }>} series
- * @param {any} slate
- * @param {string} [day]
+ * Each game's label over its time or score, and status under it, on a day of MLB's 2026
+ * postseason as the store kept it on Oct 9, with any of its games changed.
+ * @param {string} day
+ * @param {(game: any) => any} [change]
  */
-function readSeriesLabels(series, slate, day) {
-  session.state = {
-    teams: eveningSnapshot.teams,
-    series: { ...eveningSnapshot.series, ...series },
-  };
-  const labels = String(renderGameDay(slate, day)).match(
-    /<span class="series-label.*?<\/span><\/span>/g,
-  );
-  return (labels || []).map((label) => normalizeSpaces(stripTags(label)));
+function readPostseasonDay(day, change = (game) => game) {
+  session.state = seasonSnapshot;
+  const schedule = seasonSchedule.map(change);
+  const { days } = listSeasonDays(seasonSnapshot.slate, schedule, SEASON_FIXTURE_NOW);
+  const markup = String(days.find((listed) => listed.day === day)?.markup ?? "");
+  return markup
+    .split("<li")
+    .slice(1)
+    .map((row) => ({
+      label: readRowText(
+        row,
+        /<span class="game-label">([\s\S]*?)<\/span><span class="game-headline">/,
+      ),
+      status: readRowText(row, /<span class="game-status">([\s\S]*?)<\/span><\/span/),
+      isDecided: row.includes('class="series-label decided"'),
+    }));
 }
 
-/** @param {{ away: string, home: string }[]} games */
-const buildPostseasonToday = (games) => ({
-  today: {
-    date: "2026-09-24",
-    games: games.map((game) => ({
-      state: "pre",
-      start: "2026-09-24T18:08:00Z",
-      postseason: true,
-      ...game,
-    })),
-  },
-});
-
-test("games list: a later round's label names it DS, CS, or WS, away wins first", () => {
-  const leagueSeries = buildPostseasonToday([
-    { away: "NYY", home: "TB" },
-    { away: "LAD", home: "MIL" },
+test("games list: every postseason game says its series as it stood after it, away wins first, gold once it's decided", () => {
+  assert.deepEqual(readPostseasonDay("2026-09-30"), [
+    { label: "NL WC 1-1", status: "Final/10", isDecided: false },
+    { label: "AL WC 2-0", status: "Final", isDecided: true },
+    { label: "AL WC 0-2", status: "Final", isDecided: true },
+    { label: "NL WC 0-2", status: "Final", isDecided: true },
   ]);
   assert.deepEqual(
-    readSeriesLabels(
-      {
-        ...WILD_CARDS_WON_BY_HIGHER_SEEDS,
-        AL_DS1: { winsA: 1, winsB: 0 },
-        NL_DS1: { winsA: 3, winsB: 0 },
-        NL_DS2: { winsA: 3, winsB: 1 },
-        NL_CS: { winsA: 2, winsB: 1 },
-      },
-      leagueSeries,
-    ),
-    ["ALDS 0-1", "NLCS 1-2"],
-  );
-
-  const worldSeries = buildPostseasonToday([{ away: "MIL", home: "TB" }]);
-  assert.deepEqual(
-    readSeriesLabels(
-      {
-        ...WILD_CARDS_WON_BY_HIGHER_SEEDS,
-        AL_DS1: { winsA: 3, winsB: 0 },
-        AL_DS2: { winsA: 3, winsB: 0 },
-        AL_CS: { winsA: 4, winsB: 2 },
-        NL_DS1: { winsA: 3, winsB: 0 },
-        NL_DS2: { winsA: 3, winsB: 0 },
-        NL_CS: { winsA: 4, winsB: 1 },
-        WS: { winsA: 2, winsB: 2 },
-      },
-      worldSeries,
-    ),
-    ["WS 2-2"],
+    readPostseasonDay("2026-10-07").map(({ label }) => label),
+    ["ALDS 1-2", "NLDS 3-1", "ALDS 3-0", "NLDS 3-1"],
   );
 });
 
-test("games list: only today's postseason games carry a series label", () => {
-  const wildCards = { NL_WC1: { winsA: 1, winsB: 0 } };
-  const game = { away: "PHI", home: "ATL", state: "final", score: [3, 1], postseason: true };
-  const slate = {
-    ...buildPostseasonToday([{ away: "PHI", home: "ATL" }]),
-    previous: [{ ...game, date: "2026-09-23", start: "2026-09-23T18:08:00Z" }],
-    next: [{ ...game, date: "2026-09-25", start: "2026-09-25T18:08:00Z", state: "pre" }],
-  };
-  assert.deepEqual(readSeriesLabels(wildCards, slate), ["NL WC 0-1"]);
-  assert.deepEqual(readSeriesLabels(wildCards, slate, "2026-09-23"), []);
-  assert.deepEqual(readSeriesLabels(wildCards, slate, "2026-09-25"), []);
+test("games list: a game still to play says its series as it stands, or its game until both clubs are known", () => {
+  assert.deepEqual(readPostseasonDay("2026-10-10"), [
+    { label: "ALDS 2-2", status: "", isDecided: false },
+  ]);
+  assert.deepEqual(readPostseasonDay("2026-10-12"), [
+    { label: "NLCS 0-0", status: "", isDecided: false },
+    { label: "ALCS G1", status: "", isDecided: false },
+  ]);
+  assert.equal(readPostseasonDay("2026-10-23")[0].label, "WS G1");
+});
+
+test("games list: a game under way says its series as it stood at first pitch", () => {
+  const isGameTwo = (game) => game.date === "2026-10-05" && game.away === "CWS";
+  const [final] = readPostseasonDay("2026-10-05");
+  assert.deepEqual(final, { label: "ALDS 2-0", status: "Final", isDecided: false });
+  const [live] = readPostseasonDay("2026-10-05", (game) =>
+    isGameTwo(game) ? { ...game, state: "live", inning: 5, half: "top" } : game,
+  );
+  assert.deepEqual(live, { label: "ALDS 1-0", status: "Top 5th", isDecided: false });
+});
+
+test("games list: a game MLB marks If Necessary says so under its time until it's played", () => {
+  const isGameFive = (game) => game.series === "NL_CS" && game.number === 5;
+  const rows = readPostseasonDay("2026-10-16", (game) =>
+    isGameFive(game) ? { ...game, ifNecessary: true } : game,
+  );
+  const gameFive = rows.find((row) => row.label === "NLCS 0-0");
+  assert.equal(gameFive?.status, "If necessary");
+  const markup = String(
+    listSeasonDays(seasonSnapshot.slate, seasonSchedule, SEASON_FIXTURE_NOW).days.find(
+      (listed) => listed.day === "2026-10-16",
+    )?.markup,
+  );
+  assert.doesNotMatch(markup, /If necessary/);
+});
+
+test("games list: a regular season final that went extra innings, or was called short, says in which inning it ended", () => {
+  const countStatuses = (day, change) =>
+    readPostseasonDay(day, change).reduce(
+      (counts, { status }) => counts.set(status, (counts.get(status) ?? 0) + 1),
+      new Map(),
+    );
+  const lastDay = countStatuses("2026-09-27");
+  assert.equal(lastDay.get("Final/10"), 1);
+  assert.equal(lastDay.get("Final"), 13);
+
+  const [called] = seasonSchedule.filter((game) => game.date === "2026-07-01");
+  const july = countStatuses("2026-07-01", (game) =>
+    game === called ? { ...game, innings: 7 } : game,
+  );
+  assert.equal(july.get("Final/7"), 1);
 });
 
 test("games list: a game still to play names its starters with their arm, leaving the ERA to the matchup", () => {
@@ -1328,7 +1343,7 @@ test("games list: a finished game marks its winner and dims only the losing scor
   assert.match(String(rendered), /<span class="lost">3<\/span>/);
 });
 
-test("games list: a club out of the race or knocked out of the postseason shows as out", () => {
+test("games list: a club out of the race or knocked out of the postseason shows as any other club", () => {
   session.state = buildPostseasonState();
   session.standings = {
     divisions: {
@@ -1347,9 +1362,9 @@ test("games list: a club out of the race or knocked out of the postseason shows 
     },
   };
   assert.deepEqual(listSideClasses(renderGameDay(slate)), [
-    ["away", "out"],
+    ["away"],
     ["home", "won"],
-    ["away", "out"],
+    ["away"],
     ["home"],
   ]);
 });

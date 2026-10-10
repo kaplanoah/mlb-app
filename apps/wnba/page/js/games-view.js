@@ -5,7 +5,8 @@ import { listSeasonDays as listDayStripDays } from "#shared/season-days.js";
 import { renderAllStarClub, renderClub, renderPlainClub } from "./clubs.js";
 import { readGameDay } from "./days.js";
 import { renderScoreboard } from "./scoreboard.js";
-import { describeSeriesAfterWin, nameTeam } from "./series.js";
+import { describeSeriesAfterWin } from "#shared/series-text.js";
+import { nameTeam } from "./series.js";
 import { countWinsNeeded, ROUNDS } from "./snapshot.js";
 
 /** @typedef {import("./series.js").Series} Series */
@@ -102,7 +103,7 @@ export function describeFinalInSeries(game, games) {
   const [awayWins, homeWins] = countSeriesWins(game, games);
   const isAwayWinner = findLoser(game) === "home";
   return describeSeriesAfterWin({
-    winner: /** @type {string} */ (findWinningTeam(game)),
+    winner: nameTeam(findWinningTeam(game)),
     wins: isAwayWinner ? awayWins : homeWins,
     losses: isAwayWinner ? homeWins : awayWins,
     winsNeeded: countWinsNeeded(game.round),

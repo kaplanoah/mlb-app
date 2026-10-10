@@ -3,7 +3,7 @@
 // where her regular season's averages rank in the WNBA, each on a small curve of how every ranked
 // player's numbers spread.
 
-import { readCalendarDate } from "#shared/days.js";
+import { describeDay, readCalendarDate } from "#shared/days.js";
 import { html, joinWithSeparator } from "#shared/html.js";
 import { renderPlaceholder } from "#shared/placeholder.js";
 import { renderRankRow } from "#shared/rank-curve.js";
@@ -11,7 +11,6 @@ import { renderRetryBlock } from "#shared/retry.js";
 import { renderSheetPart } from "#shared/sheet-part.js";
 import { renderTeamDetail } from "#shared/team-sheet.js";
 import { renderDot, renderTeamName } from "./clubs.js";
-import { describeDay } from "./days.js";
 import { formatMarkColors } from "./sheet-colors.js";
 import { renderSheetMessage } from "./sheet-parts.js";
 import { readTeamPlayoffs, renderChip, renderFinishedGame, renderNextGame } from "./team-view.js";

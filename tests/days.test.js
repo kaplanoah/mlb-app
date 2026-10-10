@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import {
   addDays,
   countDaysBetween,
+  describeDay,
   formatClockTime,
   formatClockTimeWithoutMeridiem,
   formatShortDate,
@@ -139,6 +140,16 @@ test("a day near now is yesterday, today, or tomorrow, then its weekday, then it
     assert.equal(nameDay(new Date(2026, 9, 7, 20), now), "Wednesday");
     assert.equal(nameDay(new Date(2026, 8, 24, 20), now), "Sep 24");
     assert.equal(nameDay(new Date(2026, 9, 8, 20), now), "Oct 8");
+  }));
+
+test("a game's day starts a line as Yesterday, Today, or Tomorrow, and further off as its weekday and date", () =>
+  checkInTimeZone(EASTERN, () => {
+    const now = new Date(2026, 9, 10, 12).getTime();
+    assert.equal(describeDay(new Date(2026, 9, 9), now), "Yesterday");
+    assert.equal(describeDay(new Date(2026, 9, 10), now), "Today");
+    assert.equal(describeDay(new Date(2026, 9, 11), now), "Tomorrow");
+    assert.equal(describeDay(new Date(2026, 9, 8), now), "Thu, Oct 8");
+    assert.equal(describeDay(new Date(2026, 9, 16), now), "Fri, Oct 16");
   }));
 
 test("a day's name says only the near days asked for, in the form asked for", () =>

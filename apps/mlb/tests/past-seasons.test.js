@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildSnapshot } from "../page/js/snapshot.js";
+import { SCHEDULE_EDITION, buildSnapshot } from "../page/js/snapshot.js";
 import { createPastSeasonsJob } from "../worker/src/past-seasons.js";
 
 const FINAL_2025 = JSON.parse(
@@ -24,12 +24,16 @@ const SNAPSHOT_2025 = {
         start: "2025-11-02T00:00:00Z",
         score: [5, 4],
         postseason: true,
+        series: "WS",
+        number: 7,
+        innings: 11,
       },
     ],
   },
 };
 const SCHEDULE_2025 = {
   version: SNAPSHOT_2025.version,
+  edition: SCHEDULE_EDITION,
   year: 2025,
   month: "2025-11",
   games: SNAPSHOT_2025.schedule["2025-11"],
@@ -136,6 +140,22 @@ test("a past season saved before the store kept its games is read again for its 
 
   assert.deepEqual(loads, [2025]);
   assert.deepEqual(documents.get("schedules-2025/2025-11"), SCHEDULE_2025);
+});
+
+test("a past season saved before its games held what they hold now is read once more for them", async () => {
+  const whole = { ...FOLLOWED_2025, standings: SNAPSHOT_2025.standings };
+  const { edition, ...earlier } = SCHEDULE_2025;
+  const { documents, loads } = await runJob({
+    "live/current": { season: 2026 },
+    "seasons/2025": whole,
+    "schedules-2025/2025-11": earlier,
+  });
+
+  assert.deepEqual(loads, [2025]);
+  assert.deepEqual(documents.get("schedules-2025/2025-11"), SCHEDULE_2025);
+
+  const again = await runJob(Object.fromEntries(documents));
+  assert.deepEqual(again.loads, []);
 });
 
 test("past seasons are filled one a run, newest first", async () => {

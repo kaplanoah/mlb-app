@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { convertToText } from "#shared/html.js";
 import { describeAsNotification } from "../shared/worker/notifications.js";
-import { describeSeriesGame, describeSeriesWin } from "#shared/series-text.js";
+import {
+  describeSeriesAfterWin,
+  describeSeriesGame,
+  describeSeriesLead,
+  describeSeriesWin,
+} from "#shared/series-text.js";
 
 const readGame = (own, theirs) =>
   convertToText(
@@ -58,4 +63,22 @@ test("a game that wins its series says so, and its wins stay on one line", () =>
     markup,
     'Dodgers beat the Blue Jays 5-4 to win the World Series <span class="series-score">4&ndash;3</span>',
   );
+});
+
+test("a series reads as tied, who leads, or who won it", () => {
+  const readLead = (wins, losses, isOver = false) =>
+    describeSeriesLead({ leader: "Guardians", wins, losses, isOver });
+  assert.equal(readLead(2, 2), "Tied 2-2");
+  assert.equal(readLead(0, 0), "Tied 0-0");
+  assert.equal(readLead(3, 1), "Guardians lead 3-1");
+  assert.equal(readLead(4, 1, true), "Guardians win 4-1");
+});
+
+test("a game's winner tells where the series stood after it: ahead, level, behind, or through", () => {
+  const readAfterWin = (wins, losses) =>
+    describeSeriesAfterWin({ winner: "Guardians", wins, losses, winsNeeded: 3 });
+  assert.equal(readAfterWin(2, 1), "Guardians won to lead 2-1");
+  assert.equal(readAfterWin(2, 2), "Guardians won to tie 2-2");
+  assert.equal(readAfterWin(1, 2), "Guardians won but trail 1-2");
+  assert.equal(readAfterWin(3, 2), "Guardians won the series 3-2");
 });

@@ -172,3 +172,12 @@ export function nameDay(
     : nameOtherDay(date, daysAway);
   return isCapitalized ? capitalize(name) : name;
 }
+
+/**
+ * A game's day at the start of a line: Yesterday, Today, or Tomorrow, and its weekday and date
+ * further off, as in "Sat, Oct 10".
+ * @param {Date} day
+ * @param {number} now
+ */
+export const describeDay = (day, now) =>
+  nameDay(day, new Date(now), { nameOtherDay: formatWeekdayAndDate, isCapitalized: true });

@@ -436,5 +436,5 @@ export async function loadSide(side, game, season) {
 }
 
 /**
- * @typedef {{ id?: string, date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters?: object[], networks?: string[], today: boolean }} MatchupGame
+ * @typedef {{ id?: string, date: string, start: string, state: string, tbd?: boolean, doubleheader?: number, away: string, home: string, starters?: object[], networks?: string[], today: boolean, series?: string, number?: number }} MatchupGame
  */

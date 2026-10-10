@@ -6,11 +6,7 @@ import { renderDot } from "../page/js/clubs.js";
 import { readGameDay } from "../page/js/days.js";
 import { describeFinalInSeries, listSeasonDays, renderHeadline } from "../page/js/games-view.js";
 import { renderScoreboard } from "../page/js/scoreboard.js";
-import {
-  describeSeriesAfterWin,
-  describeSeriesStanding,
-  isPlayoffsOver,
-} from "../page/js/series.js";
+import { describeSeriesStanding, isPlayoffsOver } from "../page/js/series.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
 import { describeStampProblem, renderStampLines } from "../page/js/stamp.js";
 import { renderStandings } from "../page/js/standings-view.js";
@@ -147,10 +143,6 @@ test("a final reads as how its winner left the series: ahead, level, behind, or 
   assert.equal(readFinal("1042600101"), "Liberty won to lead 1-0");
   assert.equal(readFinal("1042600122"), "Fever won to tie 1-1");
   assert.equal(readFinal("1042600102"), "Liberty won the series 2-0");
-  assert.equal(
-    describeSeriesAfterWin({ winner: "NYL", wins: 1, losses: 2, winsNeeded: 3 }),
-    "Liberty won but trail 1-2",
-  );
 });
 
 test("the Games list runs day by day from the season's first game to its last, each day's games in order, and opens on today", () =>

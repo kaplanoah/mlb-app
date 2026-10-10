@@ -1,5 +1,5 @@
-// How a playoff game reads in every league's Updates box and notifications: its result, then
-// where its series stands. A notification breaks its title from its body at a spaced dash, so
+// How a playoff game reads in every league's Updates box, notifications, and game sheet: its
+// result, then where its series stands. A notification breaks its title from its body at a spaced dash, so
 // the comma keeps the game and its series in one title.
 
 import { html } from "./html.js";
@@ -27,6 +27,32 @@ export const renderSeriesWins = (own, theirs) =>
 export function describeSeriesGame({ result, number, series, own, theirs }) {
   const standing = describeSeriesStanding(own, theirs);
   return html`${result} in Game&nbsp;${number}, ${standing} the ${series} ${renderSeriesWins(own, theirs)}`;
+}
+
+/**
+ * Where a series stands, as "Tied 2-2", "Guardians lead 3-1", or, once it's over, "Guardians win
+ * 4-1". `leader` names the side with more wins, the one `wins` counts.
+ * @param {{ leader: string, wins: number, losses: number, isOver: boolean }} series
+ */
+export function describeSeriesLead({ leader, wins, losses, isOver }) {
+  const score = `${wins}-${losses}`;
+  if (isOver) return `${leader} win ${score}`;
+  if (wins === losses) return `Tied ${score}`;
+  return `${leader} lead ${score}`;
+}
+
+/**
+ * Where a series stood after a game, as its winner tells it: "Dream won to lead 2-0", "Dream won
+ * to tie 1-1", "Dream won but trail 1-2", or "Dream won the series 2-0".
+ * @param {{ winner: string, wins: number, losses: number, winsNeeded: number }} result `winner`
+ *   names the side that won the game, whose series `wins` and `losses` count
+ */
+export function describeSeriesAfterWin({ winner, wins, losses, winsNeeded }) {
+  const score = `${wins}-${losses}`;
+  if (wins === winsNeeded) return `${winner} won the series ${score}`;
+  if (wins === losses) return `${winner} won to tie ${score}`;
+  if (wins < losses) return `${winner} won but trail ${score}`;
+  return `${winner} won to lead ${score}`;
 }
 
 /**

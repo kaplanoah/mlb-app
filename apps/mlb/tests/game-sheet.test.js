@@ -1,10 +1,12 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renderBoxScore } from "../page/js/box-score-view.js";
-import { isEarlierBoxScore, renderGameBody } from "../page/js/game-sheet.js";
+import { isEarlierBoxScore, renderGameBody, renderWhen, titleGame } from "../page/js/game-sheet.js";
 import { listSides, renderMatchupBody } from "../page/js/matchup.js";
+import { session } from "../page/js/session.js";
 import { buildSnapshot } from "../page/js/snapshot.js";
+import { convertToText } from "#shared/html.js";
 import { describeBoxScore } from "../worker/src/box-score.js";
 import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
 
@@ -191,4 +193,72 @@ test("each named starter's name in the matchup opens his sheet with his club", (
         `class="player-open pitcher-name" data-player="${side.starter.id}" data-player-club="${side.club}"`,
       ),
     );
+});
+
+const SEASON = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-09-season.json`, "utf8"),
+);
+
+/**
+ * A game of MLB's 2026 season, as the store kept it on Oct 9, by its day and visiting club.
+ * @param {string} date
+ * @param {string} away
+ */
+function findSeasonGame(date, away) {
+  const snapshot = buildSnapshot(SEASON.responses, {
+    season: SEASON.season,
+    now: Date.parse(SEASON.now),
+  });
+  session.state = snapshot;
+  session.schedule = Object.values(snapshot.schedule).flat();
+  return session.schedule.find((game) => game.date === date && game.away === away);
+}
+
+/** @param {any} game */
+function readWhen(game) {
+  mock.timers.enable({ apis: ["Date"], now: Date.parse(SEASON.now) });
+  try {
+    return convertToText(renderWhen(game)).replace(/&bull;/g, " \u2022 ");
+  } finally {
+    mock.timers.reset();
+  }
+}
+
+test("a postseason game's sheet is titled with its round and game, and any other with its clubs", () => {
+  assert.equal(titleGame(findSeasonGame("2026-10-10", "CWS")), "ALDS Game 5");
+  assert.equal(titleGame(findSeasonGame("2026-09-30", "PHI")), "NL Wild Card Series Game 2");
+  assert.equal(titleGame(findSeasonGame("2026-10-11", "LAD")), "NLCS Game 1");
+  assert.equal(titleGame(findSeasonGame("2026-09-27", "LAD")), "Dodgers @ Giants");
+});
+
+test("a postseason game's sheet says where its series stood at the game, then its day, and leaves the time to its row", () => {
+  assert.equal(readWhen(findSeasonGame("2026-10-10", "CWS")), "Tied 2-2 \u2022 Tomorrow");
+  assert.equal(
+    readWhen(findSeasonGame("2026-10-08", "CLE")),
+    "Guardians won to tie 2-2 \u2022 Yesterday",
+  );
+  assert.equal(
+    readWhen(findSeasonGame("2026-09-30", "PHI")),
+    "Phillies won to tie 1-1 \u2022 Wed, Sep 30",
+  );
+  assert.equal(
+    readWhen(findSeasonGame("2026-09-30", "CWS")),
+    "White Sox won the series 2-0 \u2022 Wed, Sep 30",
+  );
+  assert.equal(readWhen(findSeasonGame("2026-10-11", "LAD")), "Tied 0-0 \u2022 Sun, Oct 11");
+  assert.equal(
+    readWhen(findSeasonGame("2026-10-07", "TB")),
+    "Rays won the series 3-0 \u2022 Wed, Oct 7",
+  );
+});
+
+test("a regular season game's sheet says only its day under its title", () => {
+  assert.equal(readWhen(findSeasonGame("2026-09-27", "LAD")), "Sun, Sep 27");
+});
+
+test("a postseason game's sheet heads its Game section with its series as it stood at the game", () => {
+  const game = { ...findSeasonGame("2026-09-30", "PHI"), today: false };
+  const row = String(renderGameBody(game, []));
+  assert.match(row, /NL WC <span class="series-count tabular">1-1<\/span>/);
+  assert.match(row, /Final\/10/);
 });
