@@ -30,6 +30,16 @@ export async function listResizeLoops(page) {
         const madeAt = pageFrames[0]?.trim() ?? "somewhere";
         super((entries, observer) => {
           const targets = entries.map((entry) => nameTarget(entry.target)).join(", ");
+          const probe = /** @type {any} */ (window);
+          probe.resizeCallbacks ??= [];
+          probe.resizeCallbacks.push(
+            `${new Date().toISOString()} ${madeAt.split("/").pop()} on ${entries
+              .map(
+                (entry) =>
+                  `${nameTarget(entry.target)} ${entry.contentRect.width}x${entry.contentRect.height}`,
+              )
+              .join(", ")}`,
+          );
           recentCallbacks.push(`${madeAt} on ${targets}`);
           recentCallbacks.splice(0, recentCallbacks.length - RECENT_CALLBACKS);
           callback(entries, observer);
@@ -88,6 +98,7 @@ async function readFrameRequestsAcross(page, durationMs) {
       });
     }
     counted.countStart = { at: Date.now(), height: document.body.getBoundingClientRect().height };
+    counted.resizeCallbacks = [];
     /** @type {Set<string>} */
     const changed = new Set();
     counted.changedElements = changed;
@@ -106,6 +117,7 @@ async function readFrameRequestsAcross(page, durationMs) {
       subtree: true,
       childList: true,
       characterData: true,
+      attributes: true,
     });
     window.requestAnimationFrame = (callback) => {
       const pageFrames = (new Error().stack ?? "")
@@ -125,6 +137,7 @@ async function readFrameRequestsAcross(page, durationMs) {
       `page clock ${new Date(at).toISOString()} to ${new Date().toISOString()}`,
       `body ${height}px to ${document.body.getBoundingClientRect().height}px`,
       `changed: ${[...counted.changedElements].join(", ") || "nothing"}`,
+      ...(counted.resizeCallbacks ?? []).map((/** @type {string} */ call) => `observer ${call}`),
       ...counted.fontsArrived,
     ];
     return { requests: [...counted.frameRequests], notes };
