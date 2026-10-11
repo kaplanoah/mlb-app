@@ -1934,3 +1934,15 @@ test("a past game's sheet heads its Game section with each club's record as of t
     /Yankees93-68/,
   );
 });
+
+test("games list: a game away from its home club's own ballpark names the city in its label, and one at home names nothing", () => {
+  const [abroad, atHome] = seasonSchedule.filter((game) => game.date === "2026-06-14");
+  const london = { name: "London Stadium", city: "London", state: "", timeZone: "Europe/London" };
+  const labels = readPostseasonDay("2026-06-14", (game) => {
+    if (game === abroad) return { ...game, ballpark: london, neutral: true };
+    if (game === atHome) return { ...game, ballpark: london };
+    return game;
+  }).map((row) => row.label);
+  assert.equal(labels.filter((label) => label === "In London").length, 1);
+  assert.equal(labels.filter(Boolean).length, 1);
+});

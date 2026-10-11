@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="shared/game-row.css" />
   <link rel="stylesheet" href="shared/pager.css" />
   <link rel="stylesheet" href="shared/day-strip.css" />
+  <link rel="stylesheet" href="shared/game-search.css" />
   <link rel="stylesheet" href="shared/sheet.css" />
   <link rel="stylesheet" href="shared/team-sheet.css" />
   <link rel="stylesheet" href="shared/game-cards.css" />
@@ -157,6 +158,13 @@
   </section>
 
   <section id="view-games" role="tabpanel" aria-labelledby="tab-games" class="view">
+    <div
+      id="gameSearch"
+      class="day-view search-view"
+      hidden
+      data-last-drawn
+      data-start-hidden
+    ></div>
     <div id="seasonGames" class="day-view" data-last-drawn></div>
   </section>
 

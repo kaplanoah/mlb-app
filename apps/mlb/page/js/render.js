@@ -7,6 +7,7 @@ import { renderRanking } from "./ranking.js";
 import { session } from "./session.js";
 import { renderStamp } from "./stamp-view.js";
 import { renderStandings } from "./standings.js";
+import { refreshGameSearch } from "#shared/game-search-view.js";
 import { refreshTeamSheet } from "#shared/team-sheet.js";
 import { renderUpdates } from "./updates.js";
 
@@ -28,6 +29,7 @@ export function renderAll() {
   renderUpdates();
   renderBracket();
   renderGames();
+  refreshGameSearch();
   renderStandings();
   renderRanking();
   renderTitleYear();

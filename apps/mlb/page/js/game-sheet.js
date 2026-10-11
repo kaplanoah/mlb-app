@@ -369,7 +369,7 @@ export function startGameSheet() {
   const sheet = findSheet();
   sections = wireSheetSections(sheet);
   highlights = createHighlightsSection(findElement("highlightsBody"), describePlay);
-  for (const holder of ["seasonGames", "updates", "teamBody"])
+  for (const holder of ["seasonGames", "gameSearch", "updates", "teamBody"])
     watchGameOpens(findElement(holder), { open: openFromButton, prepare: prepareFromButton });
   findElement("gameBody").addEventListener("click", showMatchupOnTap);
   watchRetries(sheet, () => {

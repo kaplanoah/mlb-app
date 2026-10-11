@@ -1166,7 +1166,7 @@ test("the season's whole schedule lists every game by month, from Opening Day to
     score: [7, 0],
     records: ["1-0", "0-1"],
     starters: [
-      { id: 608331, name: "Fried", hand: "L" },
+      { id: 608331, name: "Fried", hand: "L", firstName: "Max" },
       { id: 657277, name: "Webb", hand: "R" },
     ],
   });
@@ -1215,12 +1215,59 @@ test("a postponed game is listed on the day it was to be played and on the day i
         score: [10, 6],
         records: ["54-49", "52-50"],
         starters: [
-          { id: 694297, name: "Pfaadt", hand: "R" },
-          { id: 700241, name: "McGreevy", hand: "R" },
+          { id: 694297, name: "Pfaadt", hand: "R", firstName: "Brandon" },
+          { id: 700241, name: "McGreevy", hand: "R", firstName: "Michael" },
         ],
       },
     ],
   );
+});
+
+/**
+ * MLB's listing of a ballpark.
+ * @param {number} id
+ * @param {string} name
+ * @param {string} city
+ * @param {string} [state]
+ */
+const makeVenue = (id, name, city, state) => ({
+  id,
+  name,
+  location: { city, ...(state && { stateAbbrev: state }) },
+  timeZone: { id: "America/New_York", tz: "EDT" },
+});
+
+test("each listed game says where it's played, and a game away from its home club's own ballpark is at a neutral site", () => {
+  const fixture = structuredClone(SEASON_GAMES);
+  for (const day of fixture.responses.seasonGames.dates)
+    for (const game of day.games) {
+      const home = game.teams.home.team.id;
+      game.venue = makeVenue(home, `Park ${home}`, `City ${home}`, "ST");
+    }
+  findListing(fixture.responses.seasonGames, 823244).venue = {
+    ...makeVenue(9999, "London Stadium", "London"),
+    timeZone: { id: "Europe/London", tz: "BST" },
+  };
+  delete findListing(fixture.responses.seasonGames, 824059).venue;
+  const games = listScheduled(buildSnapshot(fixture));
+  const findGame = (/** @type {string} */ id) => games.find((game) => game.id === id);
+
+  assert.deepEqual(findGame("823244").ballpark, {
+    name: "London Stadium",
+    city: "London",
+    state: "",
+    timeZone: "Europe/London",
+  });
+  assert.equal(findGame("823244").neutral, true);
+  assert.deepEqual(findGame("823326").ballpark, {
+    name: "Park 134",
+    city: "City 134",
+    state: "ST",
+    timeZone: "America/New_York",
+  });
+  assert.equal(findGame("823326").neutral, undefined);
+  assert.equal(findGame("824059").ballpark, undefined);
+  assert.equal(findGame("824059").neutral, undefined);
 });
 
 test("the days around today count over the season's schedule, and a game under way is listed as before it started", () => {
