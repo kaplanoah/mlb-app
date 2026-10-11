@@ -1,0 +1,245 @@
+/*
+ * The Games view's search, as game-search-view.js draws it in a .search-view beside the season's
+ * .day-view, whose layout it shares, and which it takes the place of while it's open. Apps link it
+ * after day-strip.css, before their own styles.css.
+ *
+ * Beside type.css's sizes, chrome.css's --ink, --ink-dim, --divider, and --radius-control, and
+ * day-strip.css's --reach-left and --reach-right, an app's :root defines these tokens:
+ *   --raised       the field's fill, as a card's
+ *   --edge         the line inside the field's edge
+ *   --action       Cancel and the field's caret, where to tap
+ *   --structure    the Games heading under the suggestions
+ *   --ink-hover    an example or suggestion under the mouse
+ *   --text         the field's and the suggestions' face
+ */
+
+.search-view[hidden],
+.search-view:not([hidden]) + .day-view {
+  display: none;
+}
+
+/* The bar holds the field, and the line under it once there's a search, without the strip. */
+.search-bar {
+  padding-bottom: 10px;
+}
+.search-bar.is-empty {
+  padding-bottom: 0;
+}
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding-inline: var(--reach-left) var(--reach-right);
+}
+.search-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 9px 0 10px;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--edge);
+  color: var(--ink-dim);
+}
+.search-field > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font-family: var(--text);
+  font-size: var(--size-read);
+  color: var(--ink);
+  caret-color: var(--action);
+  appearance: none;
+}
+.search-input::-webkit-search-cancel-button,
+.search-input::-webkit-search-decoration {
+  appearance: none;
+}
+.search-input::placeholder {
+  color: var(--ink-dim);
+  opacity: 1;
+}
+.search-clear {
+  flex: none;
+  display: flex;
+  margin: -6px;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.search-clear[hidden] {
+  display: none;
+}
+.search-clear svg {
+  width: 17px;
+  height: 17px;
+}
+.search-cancel {
+  flex: none;
+  margin-block: -7px;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  font-family: var(--text);
+  font-size: var(--size-read);
+  font-weight: 500;
+  color: var(--action);
+  cursor: pointer;
+}
+.search-read {
+  margin: 9px 0 0;
+  padding-inline: var(--reach-left) var(--reach-right);
+  font-size: var(--size-glance);
+  color: var(--ink-dim);
+}
+.search-read:empty {
+  display: none;
+}
+.search-read b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Before anything is typed, the examples sit 4.5px under the field and inside its width, as room
+   as wide as Cancel keeps them from it: their words 39.5px in from its left edge, a step above the
+   middle of their rows, and their lines from 39px in to 0.5px short of its right edge. */
+.search-bar.is-empty + .search-list {
+  padding-top: 0;
+}
+.search-examples {
+  display: flex;
+  gap: 14px;
+  padding-top: 4.5px;
+}
+.search-examples ul {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.search-examples li {
+  position: relative;
+}
+.search-examples li::after {
+  content: "";
+  position: absolute;
+  left: 39px;
+  right: 0.5px;
+  bottom: 0;
+  height: 1px;
+  background: var(--divider);
+}
+.search-example {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 0 0 3px 39.5px;
+  border: 0;
+  background: none;
+  font-family: var(--text);
+  font-size: var(--size-glance);
+  color: var(--ink-dim);
+  text-align: left;
+  cursor: pointer;
+}
+.search-cancel-room {
+  visibility: hidden;
+}
+
+/* While words are typed, up to four suggestions over the games already found, each marked by its
+   kind, with the part typed dimmer. */
+.search-suggestions {
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+}
+.search-suggestions li {
+  border-bottom: 1px solid var(--divider);
+}
+.search-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--text);
+  font-size: var(--size-read);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.search-mark {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 16px;
+  color: var(--ink-dim);
+}
+.search-mark svg {
+  width: 16px;
+  height: 16px;
+}
+.search-mark .dot {
+  width: 12px;
+  height: 12px;
+}
+.search-words {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-typed {
+  color: var(--ink-dim);
+}
+.search-detail {
+  flex: none;
+  font-size: var(--size-glance);
+  color: var(--ink-dim);
+}
+.search-head {
+  margin: 14px 0 2px;
+  font-size: var(--size-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--structure);
+}
+
+@media (hover: hover) {
+  .search-example:hover,
+  .search-suggestion:hover .search-words,
+  .search-cancel:hover {
+    color: var(--ink-hover);
+  }
+}
+
+/* On a wide screen the bar runs to the view's edges, as the list's days do. */
+@media (min-width: 780px) {
+  .search-row,
+  .search-read {
+    padding-inline: 0;
+  }
+}

@@ -1,7 +1,7 @@
 import { formatCalendarDate, formatClockTime } from "#shared/days.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { html } from "#shared/html.js";
-import { listSeasonDays as listDayStripDays } from "#shared/season-days.js";
+import { listFoundDays, listSeasonDays as listDayStripDays } from "#shared/season-days.js";
 import { renderAllStarClub, renderClub, renderPlainClub } from "./clubs.js";
 import { readGameDay } from "./days.js";
 import { renderScoreboard } from "./scoreboard.js";
@@ -11,7 +11,7 @@ import { countWinsNeeded, ROUNDS } from "./snapshot.js";
 
 /** @typedef {import("./series.js").Series} Series */
 /** @typedef {{ team: string | null, seed: number | null, score: number | null, isInBonus: boolean }} GameSide */
-/** @typedef {{ id: string, round: number | null, series: string | null, number: number | null, start: string | null, state: string, status: string, isTimeSet: boolean, period: number | null, clock: string | null, isIfNeeded: boolean, away: GameSide, home: GameSide, end?: string, networks?: string[], allStar?: { away: string, home: string } }} Game */
+/** @typedef {{ id: string, round: number | null, series: string | null, number: number | null, start: string | null, state: string, status: string, isTimeSet: boolean, period: number | null, clock: string | null, isIfNeeded: boolean, away: GameSide, home: GameSide, end?: string, networks?: string[], allStar?: { away: string, home: string }, arena?: { name: string, city: string, state: string }, isNeutral?: boolean }} Game */
 
 // Once a series is decided, the games it no longer needs never happen.
 /**
@@ -86,7 +86,7 @@ function countSeriesWins(game, games) {
   const isCounted = (other) =>
     other.series === game.series &&
     other.state === "final" &&
-    (other === game || other.number < game.number);
+    (other.id === game.id || other.number < game.number);
   const winners = games.filter(isCounted).map(findWinningTeam);
   const countWins = (team) => winners.filter((winner) => winner === team).length;
   return [countWins(game.away.team), countWins(game.home.team)];
@@ -110,6 +110,11 @@ export function describeFinalInSeries(game, games) {
   });
 }
 
+// A game the league plays at a neutral site, away from its home team's arena, says where.
+/** @param {Game} game */
+const renderElsewhereLabel = (game) =>
+  !!game.isNeutral && !!game.arena && html`<span class="series-label">In ${game.arena.city}</span>`;
+
 // Short names, since the label shares the row's middle with the time or score. Until both teams
 // are known, the game's number tells the series' games apart instead.
 /**
@@ -118,7 +123,7 @@ export function describeFinalInSeries(game, games) {
  */
 function renderSeriesLabel(game, games) {
   if (game.allStar) return html`<span class="series-label">All-Star Game</span>`;
-  if (!game.round) return false;
+  if (!game.round) return renderElsewhereLabel(game);
   const round = ROUNDS[game.round];
   if (!game.away.team || !game.home.team)
     return html`<span class="series-label">${round.shortName} G${game.number}</span>`;
@@ -239,7 +244,7 @@ const readStart = (game) => Date.parse(game.start ?? "");
 export function listSeasonGames(season, schedule) {
   const byId = new Map((schedule?.games ?? []).map((game) => [game.id, game]));
   for (const game of [...(season?.nearestGames ?? []), ...(season?.games ?? [])])
-    byId.set(game.id, game);
+    byId.set(game.id, { ...byId.get(game.id), ...game });
   return [...byId.values()].sort((first, second) => readStart(first) - readStart(second));
 }
 
@@ -255,6 +260,33 @@ function findLiveDay(games) {
 }
 
 /**
+ * Every game of the season the Games view lists, which leaves out a game a decided series won't need.
+ * @param {{ games?: Game[], nearestGames?: Game[], series?: Series[] } | null} season
+ * @param {{ games?: Game[] } | null} schedule
+ */
+export function listListedGames(season, schedule) {
+  const seriesById = new Map((season?.series ?? []).map((series) => [series.id, series]));
+  return listSeasonGames(season, schedule).filter((game) => !isCalledOff(game, seriesById));
+}
+
+/**
+ * The days of some of the season's games, as a search lists them, each drawn as the Games view
+ * draws it.
+ * @param {Game[]} games the games found, in order of start
+ * @param {Game[]} allGames every game the Games view lists, which the series labels count from
+ * @param {number} now
+ */
+export const listFoundGameDays = (games, allGames, now) =>
+  listFoundDays({
+    gameDays: groupByDay(games).map((gameDay) => ({
+      day: formatCalendarDate(gameDay.day),
+      count: gameDay.games.length,
+      games: renderGameList(gameDay.games, allGames),
+    })),
+    today: formatCalendarDate(new Date(now)),
+  });
+
+/**
  * Each game day of the season as the Games view lists it, from its first to its last, with a day
  * saying there are no games today when today falls between them, and the day the list opens on.
  * @param {{ games?: Game[], nearestGames?: Game[], series?: Series[] } | null} season
@@ -262,8 +294,7 @@ function findLiveDay(games) {
  * @param {number} now
  */
 export function listSeasonDays(season, schedule, now) {
-  const seriesById = new Map((season?.series ?? []).map((series) => [series.id, series]));
-  const games = listSeasonGames(season, schedule).filter((game) => !isCalledOff(game, seriesById));
+  const games = listListedGames(season, schedule);
   const today = formatCalendarDate(new Date(now));
   return listDayStripDays({
     gameDays: groupByDay(games).map((gameDay) => ({

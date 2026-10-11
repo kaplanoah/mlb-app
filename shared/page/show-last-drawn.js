@@ -42,8 +42,11 @@ function findByPath(part, path) {
 }
 
 // After two minutes away, a list goes back to where it starts, as the Games view's list does
-// (long-away.js).
+// (long-away.js), and a part that starts hidden, like the Games view's search, is hidden again.
 const START_AFTER_AWAY_MS = 2 * 60 * 1000;
+
+/** @param {unknown} savedAt */
+const isLongAwayFrom = (savedAt) => !(Date.now() - Number(savedAt) < START_AFTER_AWAY_MS);
 
 /**
  * @param {Element} part
@@ -52,7 +55,7 @@ const START_AFTER_AWAY_MS = 2 * 60 * 1000;
  */
 function restoreScrolls(part, scrolls, savedAt) {
   if (!Array.isArray(scrolls)) return;
-  const isLongAway = !(Date.now() - Number(savedAt) < START_AFTER_AWAY_MS);
+  const isLongAway = isLongAwayFrom(savedAt);
   for (const { path, left, top, startTop } of scrolls) {
     const element = Array.isArray(path) ? findByPath(part, path) : null;
     if (!element) continue;
@@ -76,7 +79,8 @@ function restoreScrolls(part, scrolls, savedAt) {
 function showPart(id, { markup, hidden, classes, style, scrolls, savedAt }) {
   const element = /** @type {HTMLElement} */ (document.getElementById(id));
   element.innerHTML = markup;
-  element.hidden = hidden === true;
+  const isBackToStart = element.hasAttribute("data-start-hidden") && isLongAwayFrom(savedAt);
+  element.hidden = hidden === true || isBackToStart;
   if (typeof classes === "string") element.classList.add(...classes.split(" ").filter(Boolean));
   if (typeof style === "string") element.setAttribute("style", style);
   restoreScrolls(element, scrolls, savedAt);

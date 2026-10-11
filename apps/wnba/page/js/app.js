@@ -11,7 +11,19 @@ import {
 } from "#shared/news.js";
 import { showJobStatuses, startDiagnostics } from "#shared/diagnostics.js";
 import { redrawEased } from "#shared/eased-redraw.js";
-import { fillDayStrip, showStartDay, startDayStrip, startOverDayStrip } from "#shared/day-strip.js";
+import {
+  fillDayStrip,
+  showStartDay,
+  showStartDayOnReturn,
+  startDayStrip,
+  startOverDayStrip,
+} from "#shared/day-strip.js";
+import {
+  closeGameSearch,
+  openGameSearch,
+  refreshGameSearch,
+  startGameSearch,
+} from "#shared/game-search-view.js";
 import { trackKeyboardFocus } from "#shared/keyboard-focus.js";
 import { keepLastSeen, readLastSeen, reopenLastSheets } from "#shared/last-seen.js";
 import { endLoadNote } from "#shared/load-note.js";
@@ -30,7 +42,8 @@ import { startAppearance } from "./appearance.js";
 import { placeBracket, readBracketScroll, startBracket } from "./bracket-tree.js";
 import { renderBracket } from "./bracket-view.js";
 import { refreshGameSheet, startGameSheet } from "./game-sheet.js";
-import { listSeasonDays } from "./games-view.js";
+import { renderDot } from "./clubs.js";
+import { listFoundGameDays, listListedGames, listSeasonDays } from "./games-view.js";
 import { NEWS_LEAGUE } from "./news-league.js";
 import { refreshPlayerSheet, startPlayerSheet } from "./player-sheet.js";
 import { fillRoster, readShownRoster, reopenRoster, startRosterSection } from "./roster-section.js";
@@ -40,6 +53,7 @@ import { SNAPSHOT_VERSION } from "./snapshot.js";
 import { isPlayoffsOver } from "./series.js";
 import { describeStampProblem, renderStampLines } from "./stamp.js";
 import { drawStandings, startStandings } from "./standings-view.js";
+import { createSearchTerms, readSearchGame } from "./search-terms.js";
 import { renderTeamSheet } from "./team-view.js";
 import { TEAMS } from "./teams.js";
 import { drawUpdates, watchDismissals } from "./updates.js";
@@ -75,6 +89,7 @@ function renderAll() {
   setHtml(findElement("bracketWrap"), renderBracket(session.season, now));
   placeBracket(keptLeft);
   fillDayStrip(listSeasonDays(session.season, session.schedule, now));
+  refreshGameSearch();
   drawStandings(session.season);
   drawNews();
   drawUpdates();
@@ -163,11 +178,41 @@ async function showNewCurrentYear() {
   fillSeasonList(await listSeasonYears());
 }
 
-// As on iPhone, choosing the Games tab while it shows goes back to where it starts: today.
+// As on iPhone, choosing the Games tab while it shows goes back to where it starts: today, closing
+// a search that's open.
 function returnGamesToToday() {
-  showStartDay();
+  if (!closeGameSearch()) showStartDay();
   return true;
 }
+
+// The season a search reads, its words read again only for another season or schedule.
+/** @type {{ season: any, schedule: any, terms: import("#shared/game-search.js").SearchTerms } | null} */
+let searchTerms = null;
+
+function readSearchSeason() {
+  const { season, schedule } = session;
+  if (!season) return null;
+  const games = listListedGames(season, schedule);
+  if (searchTerms?.season !== season || searchTerms?.schedule !== schedule)
+    searchTerms = {
+      season,
+      schedule,
+      terms: createSearchTerms({ games, standings: season.standings }),
+    };
+  return { terms: searchTerms.terms, games: games.map(readSearchGame).filter(Boolean) };
+}
+
+/**
+ * The days of the games a search found, drawn as the Games view draws them.
+ * @param {import("#shared/game-search.js").SearchGame[]} found
+ * @param {number} now
+ */
+const listSearchDays = (found, now) =>
+  listFoundGameDays(
+    found.map((game) => game.game),
+    listListedGames(session.season, session.schedule),
+    now,
+  );
 
 async function reloadSeason() {
   await loadSeason();
@@ -188,7 +233,13 @@ async function boot() {
   trackKeyboardFocus();
   startPageTabs();
   setTabStart("games", returnGamesToToday);
-  startDayStrip(findElement("seasonGames"));
+  startDayStrip(findElement("seasonGames"), { search: openGameSearch });
+  startGameSearch(findElement("gameSearch"), {
+    readSeason: readSearchSeason,
+    listDays: listSearchDays,
+    renderTeamMark: renderDot,
+    close: showStartDayOnReturn,
+  });
   startGameSheet();
   startTeamSheet({
     isTeam: (team) => team in TEAMS,

@@ -503,3 +503,33 @@ test("a game that hasn't started is followed closely at first, then less, and th
   assert.equal(WNBASnapshot.choosePollDelay(snapshot, start + 4 * HOUR_MS), 5 * 60 * 1000);
   assert.equal(WNBASnapshot.choosePollDelay(snapshot, start + 9 * HOUR_MS), 24 * HOUR_MS);
 });
+
+test("each game keeps the arena the schedule names, through the scoreboard's copy of today's games, and none while the league hasn't set it", () => {
+  const { schedule, games } = buildAfternoon();
+  const findArena = (list, id) => list.find((game) => game.id === id)?.arena;
+  const barclays = { name: "Barclays Center", city: "Brooklyn", state: "NY" };
+  assert.deepEqual(findArena(schedule, "1042600102"), barclays);
+  assert.deepEqual(findArena(games, "1042600132"), {
+    name: "CareFirst Arena",
+    city: "Washington",
+    state: "DC",
+  });
+  assert.equal(findArena(schedule, "1042600201"), undefined);
+  assert.ok(schedule.every((game) => !game.isNeutral));
+});
+
+test("a game the league plays at a neutral site says so", () => {
+  const neutralSchedule = structuredClone(RESPONSES.schedule);
+  const game = neutralSchedule.leagueSchedule.gameDates
+    .flatMap((day) => day.games)
+    .find((each) => each.gameId === "1042600102");
+  Object.assign(game, {
+    isNeutral: true,
+    arenaName: "Rogers Arena",
+    arenaCity: "Vancouver",
+    arenaState: "BC",
+  });
+  const { schedule } = buildAfternoon({ ...RESPONSES, schedule: neutralSchedule });
+  const neutral = schedule.find((each) => each.id === "1042600102");
+  assert.deepEqual([neutral.isNeutral, neutral.arena.city], [true, "Vancouver"]);
+});

@@ -1,0 +1,185 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import {
+  createSearchContext,
+  createSearchDictionary,
+  describeNoGames,
+  describeSearch,
+  findSearchGames,
+  readSearch,
+} from "#shared/game-search.js";
+import { listExamples, listSuggestions } from "#shared/search-suggestions.js";
+import { EASTERN, useTimeZone } from "../../../tests/time-zone.js";
+import { listSeasonGames } from "../page/js/games-view.js";
+import { createSearchTerms, readSearchGame } from "../page/js/search-terms.js";
+import { buildSnapshot } from "../page/js/snapshot.js";
+
+useTimeZone(EASTERN);
+
+const AFTERNOON = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-09-30-afternoon.json`, "utf8"),
+);
+// The whole season's schedule, from the next day's recording.
+const GAMES = JSON.parse(
+  readFileSync(`${import.meta.dirname}/fixtures/2026-10-01-games.json`, "utf8"),
+);
+const NOW = Date.parse(AFTERNOON.now);
+
+// The afternoon's season, with the whole season's games as the Games list has them.
+const SEASON = buildSnapshot(AFTERNOON.responses, { season: 2026, now: NOW });
+const SCHEDULE = buildSnapshot(
+  { ...AFTERNOON.responses, schedule: GAMES.preview.schedule },
+  { season: 2026, now: NOW },
+).schedule;
+const SEASON_GAMES = listSeasonGames(SEASON, { games: SCHEDULE });
+const TERMS = createSearchTerms({ games: SEASON_GAMES, standings: SEASON.standings });
+const CONTEXT = createSearchContext({
+  terms: TERMS,
+  dictionary: createSearchDictionary(TERMS),
+  games: SEASON_GAMES.map(readSearchGame).filter(Boolean),
+  now: NOW,
+});
+
+/**
+ * Each game a search finds, as its day and its teams, and the line under the field.
+ * @param {string} text
+ */
+function search(text) {
+  const asked = readSearch(text, CONTEXT);
+  const found = findSearchGames(asked, CONTEXT);
+  const { lead, facts } = describeSearch(asked, found, CONTEXT);
+  return {
+    games: found.games.map((game) => `${game.day} ${game.away ?? "TBD"} at ${game.home ?? "TBD"}`),
+    line: [lead, ...facts].join(" | "),
+    empty: describeNoGames(asked, CONTEXT),
+  };
+}
+
+test("two teams find every game between them, and at only those in the second's arena", () => {
+  assert.deepEqual(search("Liberty Dream"), {
+    games: ["2026-06-11 NYL at ATL", "2026-09-21 ATL at NYL", "2026-09-23 ATL at NYL"],
+    line: "Liberty vs Dream | 3 games",
+    empty: "No Liberty vs Dream games",
+  });
+  assert.deepEqual(search("Liberty @ Dream").games, ["2026-06-11 NYL at ATL"]);
+  assert.deepEqual(search("Liberty at Dream").games, ["2026-06-11 NYL at ATL"]);
+  assert.equal(search("Liberty at Dream").line, "Liberty @ Dream | 1 game");
+});
+
+test("in a city, as its team's arena or a nickname for it names it", () => {
+  assert.deepEqual(search("Liberty in San Francisco").games, ["2026-06-28 NYL at GSV"]);
+  assert.deepEqual(search("Dream in NY").games, ["2026-09-21 ATL at NYL", "2026-09-23 ATL at NYL"]);
+  assert.equal(search("Dream in NY").line, "Dream | In New York | 2 games");
+  assert.deepEqual(search("Dream in Brooklyn").games, search("Dream in NY").games);
+  assert.equal(search("Barclays").line, "In Barclays Center | 26 games");
+});
+
+test("a month the season isn't played in finds nothing, and says so", () => {
+  assert.equal(search("Liberty in March").line, "Liberty | March | No games");
+  assert.equal(search("Liberty in March").empty, "No Liberty games in March");
+});
+
+test("next game is the one on now or next, even before its opponent is known", () => {
+  assert.deepEqual(search("Liberty next game"), {
+    games: ["2026-10-04 NYL at TBD"],
+    line: "Liberty | Next game",
+    empty: "No Liberty games",
+  });
+});
+
+test("nicknames, cities, and filler words read as a fan would mean them", () => {
+  assert.equal(search("When do the Libs play Vegas?").line, "Liberty vs Aces | 4 games");
+  assert.deepEqual(search("New York Valks").games, search("Liberty Valkyries").games);
+  assert.equal(search("Liberyt").line, "Liberty | 52 games");
+});
+
+test("dates relative to now read as the days they cover, a weekend from Friday evening", () => {
+  assert.deepEqual(search("Liberty this weekend"), {
+    games: ["2026-10-04 NYL at TBD"],
+    line: "Liberty | Oct 2\u20134 | 1 game",
+    empty: "No Liberty games Oct 2\u20134",
+  });
+  assert.equal(search("Games this weekend").line, "Oct 2\u20134 | 4 games");
+  assert.equal(search("Games tomorrow").line, "Thu, Oct 1 | 1 game");
+  assert.equal(search("Liberty June 11").line, "Liberty | Thu, Jun 11 | 1 game");
+  assert.equal(search("Liberty in June").line, "Liberty | June | 12 games");
+});
+
+test("a time of day counts this week's games without a time yet apart, listing them by date", () => {
+  const late = search("Games after 8 PM this week");
+  assert.equal(late.line, "After 8 PM | Sep 27\u2013Oct 3 | 4 games | 2 with no time yet");
+  assert.deepEqual(late.games, [
+    "2026-09-27 DAL at GSV",
+    "2026-09-29 MIN at NYL",
+    "2026-09-30 GSV at DAL",
+    "2026-10-01 IND at LVA",
+    "2026-10-02 DAL at GSV",
+    "2026-10-02 WAS at ATL",
+  ]);
+});
+
+test("a word it can't use is named on the line", () => {
+  assert.equal(
+    search("Liberty fireworks").line,
+    "Liberty | 52 games | 'fireworks' unrecognized, skipped",
+  );
+});
+
+test("every team has its arena's city and its conference from the standings, and a playoff round its league name", () => {
+  assert.ok(TERMS.teams.every((team) => team.homeCity && team.conference));
+  assert.deepEqual(
+    TERMS.teams
+      .filter((team) => team.conference === "East")
+      .map((team) => team.code)
+      .sort(),
+    ["ATL", "CHI", "CON", "IND", "NYL", "TOR", "WAS"],
+  );
+  assert.equal(search("semis").line, "Semifinals | 10 games");
+  assert.equal(search("all-star").line, "All-Star Game | 1 game");
+});
+
+test("an arena city no place covers becomes a place of its own", () => {
+  const neutral = SEASON_GAMES.map((game) =>
+    game.id === "1042600102"
+      ? {
+          ...game,
+          isNeutral: true,
+          arena: { name: "Rogers Arena", city: "Vancouver", state: "BC" },
+        }
+      : game,
+  );
+  const terms = createSearchTerms({ games: neutral, standings: SEASON.standings });
+  assert.ok(terms.places.some((place) => place.name === "Vancouver" && !place.isArena));
+  assert.ok(terms.places.some((place) => place.name === "Rogers Arena" && place.isArena));
+});
+
+test("the examples before typing and the suggestions as you type each find games", () => {
+  assert.deepEqual(listExamples(CONTEXT), [
+    "Dream at Valkyries",
+    "Aces in New York",
+    "Games this weekend",
+    "Finals",
+    "Liberty last game",
+  ]);
+  const texts = (/** @type {string} */ text) =>
+    listSuggestions(text, CONTEXT).map((row) => row.text);
+  assert.deepEqual(texts("Lib"), [
+    "Liberty",
+    "Liberty next game",
+    "Liberty playoffs",
+    "Liberty at home",
+  ]);
+  assert.deepEqual(texts("Liberty th"), [
+    "Liberty this week",
+    "Liberty this weekend",
+    "Liberty this month",
+    "Liberty the past week",
+  ]);
+  assert.deepEqual(texts("Dream in"), [
+    "Dream in Washington",
+    "Dream in New York",
+    "Dream in September",
+    "Dream in October",
+  ]);
+});

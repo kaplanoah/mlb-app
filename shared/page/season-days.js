@@ -116,6 +116,20 @@ const renderQuietDay = (day, today, renderLabel) =>
   </section>`;
 
 /**
+ * Some of a season's game days, each under its label, as a search lists the games it finds.
+ * @param {object} options
+ * @param {{ day: string, count: number, games: Markup }[]} options.gameDays in order
+ * @param {string} options.today
+ * @param {RenderLabel} [options.renderLabel]
+ * @returns {import("./day-strip.js").ListedDay[]}
+ */
+export const listFoundDays = ({ gameDays, today, renderLabel = renderCalendarLabel }) =>
+  gameDays.map((gameDay) => ({
+    day: gameDay.day,
+    markup: renderGameDay(gameDay, today, renderLabel),
+  }));
+
+/**
  * Each game day of the season as the day strip lists it, from its first to its last, with a day
  * saying there are no games today when today falls between them, and the day the list opens on:
  * today, or `openDay` when a game still under way began before it.
