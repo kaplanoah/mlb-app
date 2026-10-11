@@ -6,6 +6,10 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
+    at: "2026-10-11T00:45:00Z",
+    text: html`Freeform search for games. Tap <b>Search</b> on the games page and type a team, city, date range, or things like "games this weekend" or "Aces in New York".`,
+  },
+  {
     at: "2026-10-10T19:49:00Z",
     text: html`Game highlights for finished games, including recap videos and big play clips. Tap a game, then tap <b>Highlights</b> or swipe left.`,
   },
