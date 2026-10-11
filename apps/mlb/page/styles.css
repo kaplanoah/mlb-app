@@ -923,6 +923,7 @@ table.st .seed-cell {
   border-bottom: 1px solid var(--divider);
 }
 .matchup-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -933,6 +934,14 @@ table.st .seed-cell {
 }
 .matchup-row + .matchup-row {
   border-top: 1px solid var(--divider);
+}
+/* A tap anywhere on a club's row lands on its name's button, stretched over the row, so the phone
+   treats the whole row as one tap target. Nothing after it in the row is positioned, so it covers
+   the row without a z-index, which would give each card's rows a layer of their own. */
+.matchup-row .team-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 .matchup-row.winner {
   background: color-mix(in srgb, var(--gold) 8%, transparent);
@@ -992,8 +1001,8 @@ table.st td.team .team-name {
   padding: 3.5px 6px 0.5px;
   border-radius: 3px;
   background: var(--divider);
-  position: relative;
-  top: -0.5px;
+  /* Centered on its row, half a pixel up. */
+  margin-bottom: 1px;
   box-shadow:
     inset 0 2px 3px rgba(0, 0, 0, 0.44),
     0 1px 0 rgba(241, 234, 212, 0.13);
