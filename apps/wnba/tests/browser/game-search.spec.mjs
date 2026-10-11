@@ -98,11 +98,11 @@ test("Search beside Today opens an empty field ready to type, with the season's 
   await expect(findInput(page)).toHaveValue("");
   await expect(findLine(page)).toBeHidden();
   await expect(page.locator("#gameSearch .search-example")).toHaveText([
-    "Liberty next game",
-    "Liberty at Dream",
-    "Dream in New York",
+    "Dream at Valkyries",
+    "Aces in New York",
     "Games this weekend",
-    "Playoffs",
+    "Finals",
+    "Liberty last game",
   ]);
 });
 
@@ -137,12 +137,12 @@ test("an example tapped runs its search and puts the keyboard away", async ({ pa
   await openSeasonGames(page);
   await tapSearch(page);
 
-  await page.locator("#gameSearch .search-example", { hasText: "Liberty at Dream" }).tap();
+  await page.locator("#gameSearch .search-example", { hasText: "Dream at Valkyries" }).tap();
 
-  await expect(findInput(page)).toHaveValue("Liberty at Dream");
+  await expect(findInput(page)).toHaveValue("Dream at Valkyries");
   await expect(findInput(page)).not.toBeFocused();
-  await expect(findLine(page)).toHaveText("Liberty @ Dream\u20221 game");
-  await expect(page.locator("#gameSearch .listed-day")).toHaveCount(1);
+  await expect(findLine(page)).toHaveText("Dream @ Valkyries\u20222 games");
+  await expect(page.locator("#gameSearch .listed-day")).toHaveCount(2);
 });
 
 test("while words are typed, suggestions sit over the games from today, a half-typed team reads as the team, and one tapped runs its search", async ({

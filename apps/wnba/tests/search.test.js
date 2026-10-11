@@ -156,11 +156,11 @@ test("an arena city no place covers becomes a place of its own", () => {
 
 test("the examples before typing and the suggestions as you type each find games", () => {
   assert.deepEqual(listExamples(CONTEXT), [
-    "Liberty next game",
-    "Liberty at Dream",
-    "Dream in New York",
+    "Dream at Valkyries",
+    "Aces in New York",
     "Games this weekend",
-    "Playoffs",
+    "Finals",
+    "Liberty last game",
   ]);
   const texts = (/** @type {string} */ text) =>
     listSuggestions(text, CONTEXT).map((row) => row.text);

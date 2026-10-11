@@ -80,13 +80,13 @@ const ROUND_WORDS = {
 
 // Searches to tap before anything is typed, each offered only when it finds a game.
 const EXAMPLES = [
-  "Liberty next game",
-  "Liberty at Dream",
-  "Dream in New York",
+  "Dream at Valkyries",
+  "Aces in New York",
   "Games this weekend",
-  "Playoffs",
+  "Finals",
   "Liberty last game",
-  "Games in June",
+  "Liberty next game",
+  "Playoffs",
 ];
 
 // An arena's name without the word every arena has, when what's left still names it.
