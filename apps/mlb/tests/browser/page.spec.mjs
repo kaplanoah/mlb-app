@@ -1704,6 +1704,26 @@ async function showDay(page, day) {
 }
 
 /**
+ * Each state of the Games view's search, shown in turn: its examples, its suggestions as a club's
+ * name is typed, and a club's games.
+ * @param {import("@playwright/test").Page} page
+ */
+const listSearchStates = (page) => [
+  async () => {
+    await page.locator("#seasonGames .go-search").click();
+    await expect(page.locator("#gameSearch .search-example").first()).toBeVisible();
+  },
+  async () => {
+    await page.locator("#gameSearch .search-input").pressSequentially("Met");
+    await expect(page.locator("#gameSearch .search-suggestion").first()).toBeVisible();
+  },
+  async () => {
+    await page.locator("#gameSearch .search-input").press("Enter");
+    await expect(page.locator("#gameSearch .game-row").first()).toBeVisible();
+  },
+];
+
+/**
  * Opens a game's sheet from today's games, and returns a step that shows each of its sections in
  * turn, then a final's Highlights, the last closing the sheet once it has been checked.
  * @param {import("@playwright/test").Page} page
@@ -1799,6 +1819,13 @@ for (const { screen, viewport } of [
         expect(await listLowContrastText(page)).toEqual([]);
         expect(await listStrayPeriods(page)).toEqual([]);
       }
+      for (const state of listSearchStates(page)) {
+        await state();
+        expect(await listOffScaleText(page)).toEqual([]);
+        expect(await listLowContrastText(page)).toEqual([]);
+        expect(await listStrayPeriods(page)).toEqual([]);
+      }
+      await page.locator("#gameSearch button.search-cancel").click();
       for (const section of await showGameSections(page)) {
         await section();
         expect(await listOffScaleText(page)).toEqual([]);
@@ -1857,6 +1884,11 @@ for (const { screen, viewport } of [
         await showDay(page, day);
         expect(await listTapsOffButtons(page)).toEqual([]);
       }
+      for (const state of listSearchStates(page)) {
+        await state();
+        expect(await listTapsOffButtons(page)).toEqual([]);
+      }
+      await page.locator("#gameSearch button.search-cancel").click();
       for (const section of await showGameSections(page)) {
         await section();
         expect(await listTapsOffButtons(page)).toEqual([]);

@@ -1,7 +1,7 @@
 // Reading a search of a season's games, like "Liberty at Dream", "Dream in NY", or "Liberty this
 // weekend", into what each word asks of a game, finding the games that ask fits, and saying how it
 // read the words. A league hands it what differs: its teams, places, rounds, and example searches,
-// and how to read one of its games. Everything runs on the phone, from the season the page already
+// any groups of teams and starters it has, and how to read one of its games. Everything runs on the phone, from the season the page already
 // holds, so a search never waits on the network. Runs in the page and in Node, so it uses no DOM.
 //
 // Joining words decide roles: "A at B" and "A @ B" have A visiting B, while "A B", "A vs B", and
@@ -10,6 +10,8 @@
 // at a neutral site is left out and named. Every condition must hold, and "next" and "last" then
 // pick from what's left. A game whose time isn't set yet counts in a search of its day, and in a
 // search for a time of day it's listed by date with the rest and counted apart, since it may yet fit.
+// A word two teams share, like "Sox", finds either's games, and a starter's name finds the games he's
+// named to start, his next only once it's announced.
 
 import { addDays, formatCalendarDate } from "./days.js";
 import {
@@ -52,6 +54,11 @@ import { createDictionary, readTokens } from "./search-words.js";
  * @property {boolean} isIfNeeded
  * @property {{ name: string, city: string, state: string } | null} arena
  * @property {boolean} isNeutral
+ * @property {string | null} [conference] the conference a playoff game's series is in, for a league
+ *   whose rounds are each conference's own
+ * @property {{ id: string, name: string }[]} [starters] the starters it names, once announced
+ * @property {number | null} [localMinutes] its start in minutes on the clock where it's played
+ * @property {boolean} [isDoubleheader]
  * @property {any} game the league's own game
  */
 /**
@@ -64,13 +71,29 @@ import { createDictionary, readTokens } from "./search-words.js";
  * @typedef {{ name: string, words: string[], cities: string[], states?: string[], isArena?: boolean }} SearchPlace
  */
 /**
- * What a league hands a search.
+ * Teams a search can name together, like a conference or a division, and the words that name them.
+ * @typedef {{ name: string, words: string[], codes: string[] }} SearchGroup
+ */
+/**
+ * A playoff round, the words that name it, and, when it's one conference's own, which.
+ * @typedef {{ round: number, name: string, words: string[], conference?: string }} SearchRound
+ */
+/**
+ * A player who starts games, like a starting pitcher, and the words that name him.
+ * @typedef {{ id: string, name: string, words: string[] }} SearchStarter
+ */
+/**
+ * What a league hands a search. Without groups, its teams' conferences are its groups.
  * @typedef {object} SearchTerms
  * @property {SearchTeam[]} teams
  * @property {SearchPlace[]} places
- * @property {{ round: number, name: string, words: string[] }[]} rounds
+ * @property {SearchRound[]} rounds
  * @property {{ cup: string, allStar: string }} kindNames what the league calls its cup and All-Star Game
  * @property {string[]} examples whole searches to offer before anything is typed
+ * @property {SearchGroup[]} [groups]
+ * @property {{ name: string, words: string[] }} [crossConference] what the league calls a game
+ *   between its conferences, like MLB's interleague
+ * @property {SearchStarter[]} [starters]
  */
 /**
  * @typedef {object} SearchContext
@@ -86,17 +109,21 @@ import { createDictionary, readTokens } from "./search-words.js";
 /**
  * What a search asks of a game.
  * @typedef {object} Search
- * @property {{ code: string, join: string | null }[]} teams each team, with the joining word before it
- * @property {string | null} conference
+ * @property {{ codes: string[], join: string | null }[]} teams each team, or the teams one word names,
+ *   like "Sox", with the joining word before it
+ * @property {{ ids: string[], name: string }[]} starters each starter, or the starters one name names
+ * @property {SearchGroup | null} group
+ * @property {boolean} isCrossConference
  * @property {"home" | "away" | null} side
  * @property {SearchPlace[]} places
  * @property {DayRange[]} ranges
  * @property {{ value: number[], label: string } | null} weekdays
  * @property {TimeOfDay[]} times
  * @property {string[]} kinds
- * @property {number[]} rounds
+ * @property {SearchRound[]} rounds
  * @property {number | null} gameNumber
  * @property {boolean} isIfNeeded
+ * @property {boolean} isDoubleheader
  * @property {string[]} states
  * @property {"win" | "loss" | null} outcome
  * @property {{ which: "next" | "last", count: number } | null} pick
@@ -152,6 +179,14 @@ const FILLER = [
   "this",
   "season",
   "s",
+  "start",
+  "starts",
+  "starting",
+  "starter",
+  "starters",
+  "pitch",
+  "pitches",
+  "pitching",
   "?",
 ];
 
@@ -221,6 +256,10 @@ const GENERAL_ENTRIES = [
     phrase,
     meaning: { kind: "kind", value: "all-star", display: "All-Star" },
   })),
+  ...["doubleheader", "doubleheaders", "double header", "twin bill", "twinbill"].map((phrase) => ({
+    phrase,
+    meaning: { kind: "doubleheader", display: "doubleheaders" },
+  })),
   ...["if needed", "if necessary"].map((phrase) => ({
     phrase,
     meaning: { kind: "if-needed", display: "if needed" },
@@ -256,19 +295,77 @@ const STATE_LABELS = { live: "Live", pre: "Upcoming", final: "Results" };
 const OUTCOME_LABELS = { win: "Wins", loss: "Losses" };
 
 // When a phrase can mean several things, the word before it decides: after "in", a place or a date
-// comes before a team, as in "Dream in New York", and otherwise a team comes first.
+// comes before a team, as in "Dream in New York", and otherwise a team comes first. A phrase that
+// names more than one team and a place, as MLB's "New York" does, reads as the place.
 const PREFERRED_AFTER = {
   in: ["place", "month", "range", "weekday", "team"],
   at: ["team", "place", "side"],
-  none: ["team", "conference", "place", "month", "range", "weekday"],
+  none: ["team", "starter", "group", "place", "month", "range", "weekday"],
 };
+
+/**
+ * A league's groups of teams: its own, or each of its teams' conferences.
+ * @param {SearchTerms} terms
+ * @returns {SearchGroup[]}
+ */
+function listGroups(terms) {
+  if (terms.groups) return terms.groups;
+  const conferences = [...new Set(terms.teams.map((team) => team.conference))];
+  return conferences.map((conference) => ({
+    name: conference,
+    words: [conference, `${conference}ern`, `${conference}ern conference`, `${conference} teams`],
+    codes: terms.teams.filter((team) => team.conference === conference).map((team) => team.code),
+  }));
+}
+
+// A venue's short name drops the word every venue has, when what's left still names it, as
+// "Barclays" does, and one named for a sponsor "at" another place goes by that place too, as
+// "Dodger Stadium" does.
+const SHORT_VENUE_NAME_LENGTH = 5;
+
+/**
+ * The words that name a venue.
+ * @param {string} name
+ * @param {RegExp} venueWord the word ending a venue's name that every venue shares, like "Arena"
+ */
+function listVenueWords(name, venueWord) {
+  const names = [name, ...name.split(/\s+at\s+/i).slice(1)];
+  const shorts = names
+    .map((each) => each.replace(venueWord, ""))
+    .filter((short) => short.length >= SHORT_VENUE_NAME_LENGTH);
+  return [...new Set([...names, ...shorts].map((word) => word.toLowerCase()))];
+}
+
+/**
+ * A place for each city a season's venues are in that a league's own places don't cover, like a
+ * neutral site's, and one for each venue by its own name, like "Barclays" or "Fenway".
+ * @param {{ name: string, city: string }[]} venues
+ * @param {SearchPlace[]} places the league's own
+ * @param {RegExp} venueWord the word ending a venue's name that every venue shares, like "Arena"
+ * @returns {SearchPlace[]}
+ */
+export function listVenuePlaces(venues, places, venueWord) {
+  const byName = new Map(venues.map((venue) => [venue.name, venue]));
+  const known = new Set(places.flatMap((place) => place.cities));
+  const cities = [...new Set([...byName.values()].map((venue) => venue.city))].filter(
+    (city) => !known.has(city),
+  );
+  return [
+    ...cities.map((city) => ({ name: city, words: [city.toLowerCase()], cities: [city] })),
+    ...[...byName.values()].map(({ name, city }) => ({
+      name,
+      words: listVenueWords(name, venueWord),
+      cities: [city],
+      isArena: true,
+    })),
+  ];
+}
 
 /**
  * Every phrase a league's searches know, its own words and the calendar's.
  * @param {SearchTerms} terms
  */
 export function createSearchDictionary(terms) {
-  const conferences = [...new Set(terms.teams.map((team) => team.conference))];
   return createDictionary([
     ...GENERAL_ENTRIES,
     ...CALENDAR_ENTRIES,
@@ -284,16 +381,27 @@ export function createSearchDictionary(terms) {
         meaning: { kind: "place", value: place, display: place.name },
       })),
     ),
-    ...terms.rounds.flatMap(({ round, name, words }) =>
-      words.map((phrase) => ({ phrase, meaning: { kind: "round", value: round, display: name } })),
+    ...terms.rounds.flatMap((round) =>
+      round.words.map((phrase) => ({
+        phrase,
+        meaning: { kind: "round", value: round, display: round.name },
+      })),
     ),
-    ...conferences.flatMap((conference) =>
-      [conference, `${conference}ern`, `${conference}ern conference`, `${conference} teams`].map(
-        (phrase) => ({
-          phrase,
-          meaning: { kind: "conference", value: conference, display: conference },
-        }),
-      ),
+    ...listGroups(terms).flatMap((group) =>
+      group.words.map((phrase) => ({
+        phrase,
+        meaning: { kind: "group", value: group, display: group.name },
+      })),
+    ),
+    ...(terms.crossConference?.words ?? []).map((phrase) => ({
+      phrase,
+      meaning: { kind: "cross", display: terms.crossConference?.name },
+    })),
+    ...(terms.starters ?? []).flatMap((starter) =>
+      starter.words.map((phrase) => ({
+        phrase,
+        meaning: { kind: "starter", value: starter.id, display: starter.name },
+      })),
     ),
     {
       phrase: "commissioners cup",
@@ -327,7 +435,9 @@ export function createSearchContext({ terms, dictionary, games, now }) {
 /** @returns {Search} */
 const createEmptySearch = () => ({
   teams: [],
-  conference: null,
+  starters: [],
+  group: null,
+  isCrossConference: false,
   side: null,
   places: [],
   ranges: [],
@@ -337,6 +447,7 @@ const createEmptySearch = () => ({
   rounds: [],
   gameNumber: null,
   isIfNeeded: false,
+  isDoubleheader: false,
   states: [],
   outcome: null,
   pick: null,
@@ -351,6 +462,8 @@ const createEmptySearch = () => ({
  */
 function chooseMeaning(meanings, before) {
   if (meanings.length < 2) return meanings[0] ?? null;
+  const place = meanings.find((meaning) => meaning.kind === "place");
+  if (place && meanings.filter((meaning) => meaning.kind === "team").length > 1) return place;
   const order = PREFERRED_AFTER[before ?? "none"] ?? PREFERRED_AFTER.none;
   const rank = (/** @type {Meaning} */ meaning) => {
     const index = order.indexOf(meaning.kind);
@@ -529,6 +642,28 @@ function readGameNumberAt(state) {
 }
 
 /**
+ * The values of every meaning of one kind the token where a reader stands has, as "Sox" names two
+ * teams.
+ * @param {ReadState} state
+ * @param {string} kind
+ */
+const listValuesAt = (state, kind) =>
+  state.tokens[state.at].meanings
+    .filter((meaning) => meaning.kind === kind)
+    .map((meaning) => meaning.value);
+
+/**
+ * The starters a name names, by the names they go by.
+ * @param {ReadState} state
+ */
+function readStartersAt(state) {
+  const names = state.tokens[state.at].meanings
+    .filter((meaning) => meaning.kind === "starter")
+    .map((meaning) => /** @type {string} */ (meaning.display));
+  return { ids: listValuesAt(state, "starter"), name: joinNames([...new Set(names)]) };
+}
+
+/**
  * What one meaning asks of a game, from where it stands.
  * @param {ReadState} state
  * @param {Meaning} meaning
@@ -548,11 +683,13 @@ function readMeaningAt(state, meaning) {
     in: () => ((state.before = "in"), 1),
     on: () => ((state.before = "on"), 1),
     team: () => {
-      search.teams.push({ code: meaning.value, join: state.join });
+      search.teams.push({ codes: listValuesAt(state, "team"), join: state.join });
       state.join = null;
       return 1;
     },
-    conference: () => ((search.conference = meaning.value), 1),
+    starter: () => (search.starters.push(readStartersAt(state)), 1),
+    group: () => ((search.group = meaning.value), 1),
+    cross: () => ((search.isCrossConference = true), 1),
     place: () => (search.places.push(meaning.value), 1),
     side: () => ((search.side = meaning.value), 1),
     month: () => readMonthAt(state, meaning.value),
@@ -576,6 +713,7 @@ function readMeaningAt(state, meaning) {
     kind: () => (search.kinds.push(meaning.value), 1),
     round: () => (search.rounds.push(meaning.value), 1),
     "if-needed": () => ((search.isIfNeeded = true), 1),
+    doubleheader: () => ((search.isDoubleheader = true), 1),
     outcome: () => ((search.outcome = meaning.value), 1),
     landmark: () => {
       if (meaning.value === "break") return 0;
@@ -612,60 +750,61 @@ export function readSearch(text, context) {
 }
 
 /**
- * Whether a game has a team in it.
+ * Whether a game has a team in it, or one of the teams one word names.
  * @param {SearchGame} game
- * @param {string} code
+ * @param {string[]} codes
  */
-const hasTeam = (game, code) => game.away === code || game.home === code;
+const hasTeam = (game, codes) =>
+  (!!game.away && codes.includes(game.away)) || (!!game.home && codes.includes(game.home));
 
 /**
  * Who a search's teams are and how they're joined: one, one visiting another, both either way, or
- * any of them.
+ * any of them. Each is the teams one word names, as "Sox" names two.
  * @param {Search} search
- * @returns {{ how: "one" | "at" | "vs" | "or", codes: string[] } | null}
+ * @returns {{ how: "one" | "at" | "vs" | "or", slots: (string[] | null)[] } | null}
  */
 function readTeamsAsked({ teams }) {
   if (!teams.length) return null;
-  const codes = [...new Set(teams.map((team) => team.code))];
-  if (codes.length === 1) {
+  const slots = [...new Map(teams.map((team) => [team.codes.join(), team.codes])).values()];
+  if (slots.length === 1) {
     const isHostOnly = teams[0].join === "at";
-    return { how: isHostOnly ? "at" : "one", codes: isHostOnly ? [null, codes[0]] : codes };
+    return { how: isHostOnly ? "at" : "one", slots: isHostOnly ? [null, slots[0]] : slots };
   }
-  if (teams.some((team) => team.join === "or") || codes.length > 2) return { how: "or", codes };
-  return { how: teams[1].join === "at" ? "at" : "vs", codes };
+  if (teams.some((team) => team.join === "or") || slots.length > 2) return { how: "or", slots };
+  return { how: teams[1].join === "at" ? "at" : "vs", slots };
 }
-
-/**
- * The teams in a conference.
- * @param {SearchContext} context
- * @param {string} conference
- */
-const listConferenceTeams = (context, conference) =>
-  context.terms.teams.filter((team) => team.conference === conference).map((team) => team.code);
 
 /**
  * Whether a game has the teams a search asks for, on the side it asks, leaving aside a home game
  * at a neutral site, which `isHomeElsewhere` names.
  * @param {Search} search
- * @param {SearchContext} context
  * @param {SearchGame} game
  */
-function hasTeamsAsked(search, context, game) {
+function hasTeamsAsked(search, game) {
   const asked = readTeamsAsked(search);
-  const rivals = search.conference ? listConferenceTeams(context, search.conference) : null;
-  if (!asked) return !rivals || rivals.some((code) => hasTeam(game, code));
-  const [first, second] = asked.codes;
+  const rivals = search.group?.codes ?? null;
+  if (!asked) return !rivals || hasTeam(game, rivals);
+  const [first, second] = asked.slots;
+  const isIn = (/** @type {string | null} */ code, /** @type {string[] | null} */ slot) =>
+    !!code && !!slot?.includes(code);
   const checks = {
     one: () =>
-      hasTeam(game, first) &&
-      (!rivals || rivals.some((code) => code !== first && hasTeam(game, code))),
-    at: () => (first === null || game.away === first) && game.home === second && !game.isNeutral,
-    vs: () => hasTeam(game, first) && hasTeam(game, second),
-    or: () => asked.codes.some((code) => hasTeam(game, code)),
+      hasTeam(game, /** @type {string[]} */ (first)) &&
+      (!rivals ||
+        hasTeam(
+          game,
+          rivals.filter((code) => !first?.includes(code)),
+        )),
+    at: () =>
+      (first === null || isIn(game.away, first)) && isIn(game.home, second) && !game.isNeutral,
+    vs: () =>
+      hasTeam(game, /** @type {string[]} */ (first)) &&
+      hasTeam(game, /** @type {string[]} */ (second)),
+    or: () => asked.slots.some((slot) => hasTeam(game, /** @type {string[]} */ (slot))),
   };
   if (!checks[asked.how]()) return false;
-  if (search.side === "home") return game.home === first && !game.isNeutral;
-  if (search.side === "away") return game.away === first;
+  if (search.side === "home") return isIn(game.home, first) && !game.isNeutral;
+  if (search.side === "away") return isIn(game.away, first);
   return true;
 }
 
@@ -677,12 +816,14 @@ function hasTeamsAsked(search, context, game) {
 function isHomeElsewhere(search, game) {
   const asked = readTeamsAsked(search);
   if (!asked || !game.isNeutral) return false;
-  const host = asked.how === "at" ? asked.codes[1] : asked.codes[0];
+  const [first, second] = asked.slots;
+  const host = asked.how === "at" ? second : first;
   const isHomeAsked = search.side === "home" || asked.how === "at";
   return (
     isHomeAsked &&
-    game.home === host &&
-    (asked.how !== "at" || asked.codes[0] === null || game.away === asked.codes[0])
+    !!game.home &&
+    !!host?.includes(game.home) &&
+    (asked.how !== "at" || first === null || (!!game.away && first.includes(game.away)))
   );
 }
 
@@ -734,6 +875,38 @@ function isAtLandmark(context, name, game) {
 }
 
 /**
+ * Whether a playoff game is in one of the rounds a search asks for, in its conference when the
+ * round is one conference's own.
+ * @param {Search} search
+ * @param {SearchGame} game
+ */
+const isInRoundAsked = (search, game) =>
+  game.kind === "playoffs" &&
+  search.rounds.some(
+    (round) =>
+      round.round === game.round && (!round.conference || round.conference === game.conference),
+  );
+
+/**
+ * Whether a game is between teams of different conferences, as MLB's interleague games are.
+ * @param {SearchContext} context
+ * @param {SearchGame} game
+ */
+function isCrossConference(context, game) {
+  const away = game.away && context.teamsByCode.get(game.away);
+  const home = game.home && context.teamsByCode.get(game.home);
+  return !!away && !!home && away.conference !== home.conference;
+}
+
+/**
+ * Whether each starter a search names starts a game.
+ * @param {Search} search
+ * @param {SearchGame} game
+ */
+const hasStartersAsked = (search, game) =>
+  search.starters.every(({ ids }) => !!game.starters?.some((starter) => ids.includes(starter.id)));
+
+/**
  * Whether a game fits every condition but for the time of day.
  * @param {Search} search
  * @param {SearchContext} context
@@ -743,18 +916,18 @@ function fitsAllButTime(search, context, game) {
   const range = search.ranges.length
     ? search.ranges.reduce((all, each) => all && overlapRanges(all, each))
     : null;
-  const isPlayoffs = (/** @type {SearchGame} */ each) => each.kind === "playoffs";
   const checks = [
     () => search.ranges.length === 0 || (!!range && isInRange(range, game.day, game.minutes)),
     () => !search.weekdays || isOnWeekdays(search.weekdays.value, game.day, game.minutes),
     () =>
       !search.places.length || search.places.some((place) => isGameInPlace(place, game, context)),
     () => !search.kinds.length || search.kinds.some((kind) => game.kind === kind),
-    () =>
-      !search.rounds.length ||
-      (isPlayoffs(game) && search.rounds.includes(/** @type {number} */ (game.round))),
+    () => !search.rounds.length || isInRoundAsked(search, game),
+    () => !search.isCrossConference || isCrossConference(context, game),
+    () => hasStartersAsked(search, game),
     () => search.gameNumber === null || game.number === search.gameNumber,
     () => !search.isIfNeeded || game.isIfNeeded,
+    () => !search.isDoubleheader || !!game.isDoubleheader,
     () => !search.states.length || search.states.includes(game.state),
     () => !search.outcome || isOutcome(search, game),
     () => !search.landmark || isAtLandmark(context, search.landmark.name, game),
@@ -768,9 +941,9 @@ function fitsAllButTime(search, context, game) {
  * @param {SearchGame} game
  */
 function isOutcome(search, game) {
-  const team = search.teams[0]?.code;
-  if (!team || game.state !== "final" || !game.winner) return false;
-  return (game.winner === team) === (search.outcome === "win");
+  const teams = search.teams[0]?.codes;
+  if (!teams || game.state !== "final" || !game.winner) return false;
+  return teams.includes(game.winner) === (search.outcome === "win");
 }
 
 /**
@@ -781,7 +954,10 @@ function isOutcome(search, game) {
 function fitsTime(search, game) {
   if (!search.times.length) return true;
   if (game.minutes === null) return null;
-  return search.times.every(({ from, to }) => game.minutes >= from && game.minutes < to);
+  return search.times.every(({ from, to, isLocal }) => {
+    const minutes = isLocal ? (game.localMinutes ?? game.minutes) : game.minutes;
+    return minutes >= from && minutes < to;
+  });
 }
 
 /**
@@ -803,7 +979,7 @@ function pickGames({ which, count }, games) {
 export function findSearchGames(search, context) {
   const fitting = context.games.filter((game) => fitsAllButTime(search, context, game));
   const found = fitting.filter(
-    (game) => hasTeamsAsked(search, context, game) && fitsTime(search, game) !== false,
+    (game) => hasTeamsAsked(search, game) && fitsTime(search, game) !== false,
   );
   const picked = search.pick ? pickGames(search.pick, found) : found;
   const timeUnset = search.times.length ? picked.filter((game) => game.minutes === null) : [];
@@ -818,6 +994,13 @@ export function findSearchGames(search, context) {
  * @param {string} code
  */
 const nameTeam = (context, code) => context.teamsByCode.get(code)?.name ?? code;
+
+/**
+ * The teams one word names, as the line says them: "Red Sox or White Sox".
+ * @param {SearchContext} context
+ * @param {string[]} codes
+ */
+const nameTeams = (context, codes) => joinNames(codes.map((code) => nameTeam(context, code)));
 
 /**
  * Names joined as a sentence does: "A", "A or B", "A, B, or C".
@@ -836,12 +1019,12 @@ function joinNames(names) {
  */
 function describeTeams(search, context) {
   const asked = readTeamsAsked(search);
-  if (!asked) return search.conference ? `${search.conference} teams` : null;
-  const names = asked.codes.map((code) => (code ? nameTeam(context, code) : null));
+  if (!asked) return search.group ? `${search.group.name} teams` : null;
+  const names = asked.slots.map((slot) => (slot ? nameTeams(context, slot) : null));
   const sides = { home: " at home", away: " away" };
   const labels = {
     one: () =>
-      `${names[0]}${search.conference ? ` vs ${search.conference}` : ""}${sides[search.side] ?? ""}`,
+      `${names[0]}${search.group ? ` vs ${search.group.name}` : ""}${sides[search.side] ?? ""}`,
     at: () => (names[0] ? `${names[0]} @ ${names[1]}` : `${names[1]} at home`),
     vs: () => `${names[0]} vs ${names[1]}`,
     or: () => joinNames(names),
@@ -858,9 +1041,6 @@ function listConditionLabels(search, context) {
   const range = search.ranges.length
     ? search.ranges.reduce((all, each) => all && overlapRanges(all, each))
     : null;
-  const roundNames = search.rounds.map(
-    (round) => context.terms.rounds.find((each) => each.round === round)?.name,
-  );
   const kindNames = {
     ...KIND_LABELS,
     cup: context.terms.kindNames.cup,
@@ -868,9 +1048,11 @@ function listConditionLabels(search, context) {
   };
   return [
     ...search.kinds.map((kind) => kindNames[kind]),
-    ...roundNames,
+    ...search.rounds.map((round) => round.name),
+    search.isCrossConference && context.terms.crossConference?.name,
     search.gameNumber !== null && `Game ${search.gameNumber}`,
     search.isIfNeeded && "If needed",
+    search.isDoubleheader && "Doubleheaders",
     ...search.places.map((place) => `In ${place.name}`),
     ...search.times.map((time) => time.label),
     search.ranges.length &&
@@ -882,15 +1064,36 @@ function listConditionLabels(search, context) {
   ].filter(Boolean);
 }
 
-/** @param {{ which: "next" | "last", count: number }} pick */
-function describePick({ which, count }) {
+/**
+ * @param {{ which: "next" | "last", count: number }} pick
+ * @param {string} noun "game", or "start" for a starter's
+ */
+function describePick({ which, count }, noun) {
   const first = which === "next" ? "Next" : "Last";
-  return count === 1 ? `${first} game` : `${first} ${count} games`;
+  return count === 1 ? `${first} ${noun}` : `${first} ${count} ${noun}s`;
 }
 
-/** @param {number} count */
-export const countGames = (count) =>
-  count ? `${count} game${count === 1 ? "" : "s"}` : "No games";
+/**
+ * @param {number} count
+ * @param {string} [noun]
+ */
+export const countGames = (count, noun = "game") =>
+  count ? `${count} ${noun}${count === 1 ? "" : "s"}` : `No ${noun}s`;
+
+/**
+ * The starters a search names, as the line says them: "Paul Skenes".
+ * @param {Search} search
+ */
+const describeStarters = (search) =>
+  search.starters.length ? search.starters.map((starter) => starter.name).join(" and ") : null;
+
+/**
+ * Whether a search asks for a starter's next start before it's announced.
+ * @param {Search} search
+ * @param {ReturnType<typeof findSearchGames>} found
+ */
+const isStartUnannounced = (search, found) =>
+  search.starters.length > 0 && search.pick?.which === "next" && !found.games.length;
 
 /**
  * The line's note on home games at a neutral site: "1 in Vancouver left out".
@@ -919,15 +1122,19 @@ function describeSkipped(skipped) {
  * @returns {{ lead: string, facts: string[] }}
  */
 export function describeSearch(search, found, context) {
+  const starters = describeStarters(search);
   const teams = describeTeams(search, context);
   const conditions = listConditionLabels(search, context);
-  const lead = teams ?? conditions.shift() ?? (search.pick ? null : "All games");
-  const pick = search.pick && describePick(search.pick);
+  const lead = starters ?? teams ?? conditions.shift() ?? (search.pick ? null : "All games");
+  const noun = starters ? "start" : "game";
+  const pick = search.pick && describePick(search.pick, noun);
   const sure = found.games.length - found.timeUnset.length;
   const facts = [
+    starters && teams && `vs ${teams}`,
     ...conditions,
     ...(lead === null ? [] : [pick]),
-    !search.pick && countGames(sure),
+    isStartUnannounced(search, found) && "Not yet announced",
+    !search.pick && countGames(sure, noun),
     found.timeUnset.length && `${found.timeUnset.length} with no time yet`,
     describeLeftOut(found.leftOut),
     describeSkipped(search.skipped),
@@ -956,9 +1163,14 @@ export function describeNoGames(search, context) {
   const asked = readTeamsAsked(search);
   const sides = { home: " home", away: " away" };
   const teams =
-    asked?.how === "one" && !search.conference
-      ? `${nameTeam(context, asked.codes[0])}${sides[search.side] ?? ""}`
+    asked?.how === "one" && !search.group
+      ? `${nameTeams(context, /** @type {string[]} */ (asked.slots[0]))}${sides[search.side] ?? ""}`
       : describeTeams(search, context);
   const where = search.places.length ? ` in ${search.places[0].name}` : "";
+  const starters = describeStarters(search);
+  if (starters && search.pick?.which === "next")
+    return `${starters}'s next start isn't announced yet`;
+  if (starters)
+    return `No ${starters} starts${teams ? ` vs ${teams}` : ""}${where}${describeWhen(search)}`;
   return `No ${teams ? `${teams} ` : ""}games${where}${describeWhen(search)}`;
 }

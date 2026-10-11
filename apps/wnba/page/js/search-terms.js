@@ -3,6 +3,7 @@
 // its games. Runs in the page and in Node, so it uses no DOM.
 
 import { formatCalendarDate } from "#shared/days.js";
+import { listVenuePlaces } from "#shared/game-search.js";
 import { readGameDay } from "./days.js";
 import { ROUNDS } from "./snapshot.js";
 import { TEAMS } from "./teams.js";
@@ -89,10 +90,6 @@ const EXAMPLES = [
   "Playoffs",
 ];
 
-// An arena's name without the word every arena has, when what's left still names it.
-const ARENA_WORD = /\s+(center|arena|fieldhouse|coliseum|garden)$/i;
-const SHORT_ARENA_NAME_LENGTH = 6;
-
 /** @param {string} code */
 function listTeamWords(code) {
   const { city, name } = TEAMS[code];
@@ -101,37 +98,11 @@ function listTeamWords(code) {
   );
 }
 
-/**
- * A place for each arena the season's games are played in that no place above covers, like a
- * neutral site's city, and for each arena by its own name, like "Barclays".
- * @param {Game[]} games
- * @returns {SearchPlace[]}
- */
-function listArenaPlaces(games) {
-  const arenas = new Map(
-    games.filter((game) => game.arena).map((game) => [game.arena.name, game.arena]),
-  );
-  const known = new Set(PLACES.flatMap((place) => place.cities));
-  const cities = [...new Set([...arenas.values()].map((arena) => arena.city))].filter(
-    (city) => !known.has(city),
-  );
-  return [
-    ...cities.map((city) => ({ name: city, words: [city.toLowerCase()], cities: [city] })),
-    ...[...arenas.values()].map(({ name, city }) => {
-      const short = name.replace(ARENA_WORD, "");
-      const words = [
-        name,
-        ...(short !== name && short.length >= SHORT_ARENA_NAME_LENGTH ? [short] : []),
-      ];
-      return {
-        name,
-        words: words.map((word) => word.toLowerCase()),
-        cities: [city],
-        isArena: true,
-      };
-    }),
-  ];
-}
+// The word ending an arena's name that every arena has.
+const ARENA_WORD = /\s+(center|arena|fieldhouse|coliseum|garden)$/i;
+
+/** @param {Game[]} games */
+const listArenas = (games) => games.flatMap((game) => (game.arena ? [game.arena] : []));
 
 /**
  * The WNBA's terms for a season's search, with each team's conference from its standings.
@@ -148,7 +119,7 @@ export function createSearchTerms({ games, standings = [] }) {
       homeCity: HOME_CITIES[code],
       conference: conferences.get(code) ?? "",
     })),
-    places: [...PLACES, ...listArenaPlaces(games)],
+    places: [...PLACES, ...listVenuePlaces(listArenas(games), PLACES, ARENA_WORD)],
     rounds: Object.entries(ROUNDS).map(([round, { name }]) => ({
       round: Number(round),
       name,

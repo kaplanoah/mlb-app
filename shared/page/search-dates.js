@@ -18,9 +18,9 @@ import {
  * @typedef {{ from: string, to: string, label: string, isFromFridayEvening?: boolean }} DayRange
  */
 /**
- * Minutes after midnight a game starts from and before, on the viewer's clock, and what the line
- * calls it.
- * @typedef {{ from: number, to: number, label: string }} TimeOfDay
+ * Minutes after midnight a game starts from and before, on the viewer's clock or, `isLocal`, on the
+ * clock where it's played, and what the line calls it.
+ * @typedef {{ from: number, to: number, label: string, isLocal?: boolean }} TimeOfDay
  */
 
 const WEEKEND_FRIDAY_FROM = 17 * 60;
@@ -74,17 +74,27 @@ const RANGES = {
   "rest-of-season": ["rest of the season", "rest of season", "rest of the year"],
 };
 
-// Parts of a day, on the viewer's clock.
+// Parts of a day, on the viewer's clock, but for day and night games, which go by the clock where
+// they're played, as baseball's do: a day game starts before 5 PM there.
 const TIMES_OF_DAY = {
   morning: { words: ["morning"], from: 0, to: 12 * 60, label: "Morning" },
-  afternoon: { words: ["afternoon", "day games"], from: 12 * 60, to: 17 * 60, label: "Afternoon" },
-  night: {
-    words: ["night", "evening", "night games"],
+  afternoon: { words: ["afternoon"], from: 12 * 60, to: 17 * 60, label: "Afternoon" },
+  night: { words: ["night", "evening"], from: 17 * 60, to: MINUTES_PER_DAY, label: "Night" },
+  late: { words: ["late games"], from: 21 * 60, to: MINUTES_PER_DAY, label: "Late" },
+  "day-games": {
+    words: ["day games", "day game", "daytime", "matinee", "matinees"],
+    from: 0,
+    to: 17 * 60,
+    label: "Day games",
+    isLocal: true,
+  },
+  "night-games": {
+    words: ["night games", "night game"],
     from: 17 * 60,
     to: MINUTES_PER_DAY,
-    label: "Night",
+    label: "Night games",
+    isLocal: true,
   },
-  late: { words: ["late games"], from: 21 * 60, to: MINUTES_PER_DAY, label: "Late" },
 };
 
 const PARTS_OF_MONTH = { early: [1, 10], mid: [11, 20], middle: [11, 20], late: [21, 31] };
@@ -275,8 +285,8 @@ export const readNextDays = (count, today) => createRange(today, addDays(today, 
  * @returns {TimeOfDay}
  */
 export function readTimeOfDay(name) {
-  const { from, to, label } = TIMES_OF_DAY[name];
-  return { from, to, label };
+  const { from, to, label, isLocal } = TIMES_OF_DAY[name];
+  return { from, to, label, ...(isLocal && { isLocal }) };
 }
 
 /**

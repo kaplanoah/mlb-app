@@ -10,7 +10,11 @@ import {
 import { html } from "#shared/html.js";
 import { renderGameRow } from "#shared/game-row.js";
 import { formatOrdinal } from "#shared/ordinal.js";
-import { listSeasonDays as listDayStripDays, renderHeadingLabel } from "#shared/season-days.js";
+import {
+  listFoundDays,
+  listSeasonDays as listDayStripDays,
+  renderHeadingLabel,
+} from "#shared/season-days.js";
 import { describeRace, findStandingsRow, isSeedFinal } from "./race.js";
 import {
   countSeriesWins,
@@ -160,6 +164,13 @@ function renderSeriesLabel(game, seriesFinals) {
   return html`<span class="series-label ${isSeriesDecided(game.series, wins) ? "decided" : ""}">${round} <span class="series-count tabular">${wins.join("-")}</span></span>`;
 }
 
+// A game MLB plays away from its home club's own ballpark, like the London Series, says where.
+/** @param {{ neutral?: boolean, ballpark?: { city: string } }} game */
+const renderElsewhereLabel = (game) =>
+  !!game.neutral &&
+  !!game.ballpark &&
+  html`<span class="series-label">In ${game.ballpark.city}</span>`;
+
 function renderHeadline(game, awayLost, homeLost) {
   if (game.score) return renderScore(game, awayLost, homeLost);
   const time = game.state === "off" ? game.detail || "Postponed" : describeStart(game);
@@ -234,7 +245,7 @@ function describeGameRow(game, seriesFinals, { isToday, isAwaitingStarters }, re
       renderClubLine,
       homeFacts,
     ),
-    label: isSeriesGame(game) && renderSeriesLabel(game, seriesFinals),
+    label: isSeriesGame(game) ? renderSeriesLabel(game, seriesFinals) : renderElsewhereLabel(game),
     headline: renderHeadline(game, awayLost, homeLost),
     status: renderStatus(game),
   };
@@ -377,6 +388,21 @@ function describeEmptySeason(slate) {
 }
 
 /**
+ * Each day of some games, its games drawn as the Games view draws them.
+ * @param {any[]} games
+ * @param {Map<string, any[]>} seriesFinals each postseason series' finals, which its label counts
+ * @param {string} today
+ */
+const listGameDays = (games, seriesFinals, today) =>
+  groupByDay(games).map((day) => ({
+    day: day.date,
+    count: day.games.length,
+    games: html`<ul class="game-list">
+      ${day.games.map((game) => renderListedGame(game, seriesFinals, day.date === today))}
+    </ul>`,
+  }));
+
+/**
  * Each game day of the season as the Games view lists it, from its first to its last, opening on
  * MLB's day: today, or last night until its games are over.
  * @param {any} slate
@@ -385,21 +411,30 @@ function describeEmptySeason(slate) {
  */
 export function listSeasonDays(slate, schedule, now) {
   const games = listSeasonGames(slate, schedule);
-  const seriesFinals = groupSeriesFinals(games);
   const today = slate?.today.date ?? readEasternDay(now).date;
   return listDayStripDays({
-    gameDays: groupByDay(games).map((day) => ({
-      day: day.date,
-      count: day.games.length,
-      games: html`<ul class="game-list">
-        ${day.games.map((game) => renderListedGame(game, seriesFinals, day.date === today))}
-      </ul>`,
-    })),
+    gameDays: listGameDays(games, groupSeriesFinals(games), today),
     today,
     openDay: findLiveDay(games),
     emptyNote: describeEmptySeason(slate),
     renderLabel: renderHeadingLabel,
     standsIn: true,
+  });
+}
+
+/**
+ * The days of some of the season's games, as a search lists them, each drawn as the Games view
+ * draws it.
+ * @param {any[]} found the games found, in order of start
+ * @param {any[]} allGames every game the Games view lists, which the series labels count from
+ * @param {number} now
+ */
+export function listFoundGameDays(found, allGames, now) {
+  const today = session.state?.slate?.today.date ?? readEasternDay(now).date;
+  return listFoundDays({
+    gameDays: listGameDays(found, groupSeriesFinals(allGames), today),
+    today,
+    renderLabel: renderHeadingLabel,
   });
 }
 

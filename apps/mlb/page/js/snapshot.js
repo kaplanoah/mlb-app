@@ -105,8 +105,8 @@ const GAME_FIELDS = [
   "isNational",
   "homeAway",
 ].join(",");
-// The season's whole schedule, which only the Games view lists, needs only who plays when, each
-// club's record and starter with the game, and how it ended, in which inning.
+// The season's whole schedule, which only the Games view lists, needs only who plays when and where,
+// each club's record and starter with the game, and how it ended, in which inning.
 const SEASON_GAME_FIELDS = [
   "dates",
   "date",
@@ -132,11 +132,18 @@ const SEASON_GAME_FIELDS = [
   "wins",
   "losses",
   "probablePitcher",
+  "useName",
   "useLastName",
   "pitchHand",
   "code",
   "linescore",
   "currentInning",
+  "venue",
+  "name",
+  "location",
+  "city",
+  "stateAbbrev",
+  "timeZone",
 ].join(",");
 const SEASON_FIELDS = ["seasons", "springStartDate", "regularSeasonEndDate"].join(",");
 const PITCHER_FIELDS = [
@@ -314,6 +321,12 @@ export const CHECKED_FIELDS = [
   "language",
   "isNational",
   "homeAway",
+  // A game MLB names no ballpark for is found by its home club's city.
+  "venue",
+  "location",
+  "city",
+  "stateAbbrev",
+  "timeZone",
 ];
 
 const readPath = (object, path) =>
@@ -466,7 +479,8 @@ export function listMlbRequests(season, now, regularSeasonEnd = null) {
     schedule: null,
     seasonGames:
       `/api/v1/schedule?sportId=1&season=${season}` +
-      `&gameType=${[...LISTED_GAME_TYPES].join(",")}&hydrate=linescore,probablePitcher,person` +
+      `&gameType=${[...LISTED_GAME_TYPES].join(",")}` +
+      `&hydrate=linescore,probablePitcher,person,venue(location,timezone)` +
       `&fields=${SEASON_GAME_FIELDS}`,
   };
   if (season === today.year) {
@@ -724,16 +738,62 @@ export const nameScheduleKey = (year, month) => `${nameScheduleCollection(year)}
 // A postponed or suspended game is listed on the day it was to be played and again on the day it's
 // played, and the later of two listings of the same day counts. MLB gives both listings the day
 // it's played as their official date, so each takes the day it's listed on.
+// Only the season's whole schedule names each game's ballpark, which a later listing keeps.
 function listSeasonListings(...responses) {
   const listings = new Map();
   for (const day of responses.flatMap((response) => response?.dates ?? [])) {
     for (const game of day.games ?? []) {
+      const key = `${game.gamePk} ${day.date}`;
+      const venue = game.venue ?? listings.get(key)?.venue;
       if (LISTED_GAME_TYPES.has(game.gameType))
-        listings.set(`${game.gamePk} ${day.date}`, { ...game, officialDate: day.date });
+        listings.set(key, { ...game, officialDate: day.date, ...(venue && { venue }) });
     }
   }
   return [...listings.values()];
 }
+
+/**
+ * Where a game is played, as the Games view and its search read it.
+ * @param {any} venue MLB's
+ */
+const describeBallpark = (venue) =>
+  venue?.name && venue.location?.city
+    ? {
+        name: venue.name,
+        city: venue.location.city,
+        state: venue.location.stateAbbrev ?? "",
+        timeZone: venue.timeZone?.id ?? null,
+      }
+    : null;
+
+// A club's own ballpark is the one it hosts most of its regular season games in, so a game it hosts
+// anywhere else, like London or the Little League Classic, is at a neutral site.
+function findHomeBallparks(listings) {
+  const counts = new Map();
+  for (const listing of listings) {
+    const club = listing.teams?.home?.team?.id;
+    const park = listing.venue?.id;
+    if (listing.gameType !== "R" || !club || !park) continue;
+    const parks = counts.get(club) ?? new Map();
+    parks.set(park, (parks.get(park) ?? 0) + 1);
+    counts.set(club, parks);
+  }
+  return new Map(
+    [...counts].map(([club, parks]) => [
+      club,
+      [...parks].sort((first, second) => second[1] - first[1])[0][0],
+    ]),
+  );
+}
+
+/**
+ * @param {any} listing
+ * @param {Map<number, number>} homeBallparks
+ */
+const isAtNeutralSite = (listing, homeBallparks) => {
+  const home = homeBallparks.get(listing.teams?.home?.team?.id);
+  return !!home && !!listing.venue?.id && listing.venue.id !== home;
+};
 
 /** @param {{ wins?: number, losses?: number } | undefined} record */
 const formatRecord = (record) =>
@@ -748,10 +808,18 @@ function listRecords(game) {
   return records.some(Boolean) ? records : null;
 }
 
-// Only what the row shows of each starter: his name and his arm.
+// Only what the row shows of each starter, his name and his arm, and his first name, which a search
+// for him shows.
 function listListedStarters(game, people) {
   const starters = listStarters(game, people)?.map((starter) =>
-    starter?.name ? { id: starter.id, name: starter.name, hand: starter.hand } : null,
+    starter?.name
+      ? {
+          id: starter.id,
+          name: starter.name,
+          hand: starter.hand,
+          ...(starter.firstName && { firstName: starter.firstName }),
+        }
+      : null,
   );
   return starters?.some(Boolean) ? starters : null;
 }
@@ -775,8 +843,9 @@ function describeSeriesPlace(game, seriesIds) {
  * @param {any} listing MLB's listing of a game
  * @param {Map<number, any>} people each starter MLB describes, by id
  * @param {Map<string, string>} seriesIds each postseason game's series, by the game's id
+ * @param {Map<number, number>} homeBallparks each club's own ballpark, by the club's MLB id
  */
-function describeListedGame(listing, people, seriesIds) {
+function describeListedGame(listing, people, seriesIds, homeBallparks) {
   const isAllStar = listing.gameType === "A";
   const game = isAllStar ? normalizeAllStarGame(listing) : normalizeGame(listing);
   const { starters, networks, inning, half, outs, end, delay, postseason, score, ...summary } =
@@ -784,6 +853,7 @@ function describeListedGame(listing, people, seriesIds) {
   const records = listRecords(game);
   const listedStarters = isAllStar ? null : listListedStarters(game, people);
   const seriesPlace = postseason && !isAllStar ? describeSeriesPlace(game, seriesIds) : null;
+  const ballpark = describeBallpark(listing.venue);
   return {
     date: game.date,
     ...summary,
@@ -794,6 +864,8 @@ function describeListedGame(listing, people, seriesIds) {
     ...(isAllStar && { allStar: true }),
     ...(records && { records }),
     ...(listedStarters && { starters: listedStarters }),
+    ...(ballpark && { ballpark }),
+    ...(!isAllStar && isAtNeutralSite(listing, homeBallparks) && { neutral: true }),
   };
 }
 
@@ -841,10 +913,12 @@ const listSeriesIds = (gamesBySeries) =>
 // and the postseason count over it.
 function buildSchedule(responses, gamesBySeries, calledOff) {
   if (!responses.seasonGames) return null;
-  const people = listScheduledPeople(responses, listSeasonListings(responses.seasonGames));
+  const seasonListings = listSeasonListings(responses.seasonGames);
+  const people = listScheduledPeople(responses, seasonListings);
   const seriesIds = listSeriesIds(gamesBySeries);
+  const homeBallparks = findHomeBallparks(seasonListings);
   const games = listSeasonListings(responses.seasonGames, responses.postseason, responses.schedule)
-    .map((listing) => describeListedGame(listing, people, seriesIds))
+    .map((listing) => describeListedGame(listing, people, seriesIds, homeBallparks))
     .filter((game) => !calledOff.has(game.id))
     .sort(compareScheduleOrder);
   return groupByMonth(games);

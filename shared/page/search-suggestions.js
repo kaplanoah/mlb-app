@@ -26,12 +26,13 @@ const EXAMPLE_COUNT = 5;
 // The kinds of word a typed one can finish into, in the order they're offered.
 const FINISHED_KINDS = [
   "team",
+  "starter",
   "place",
   "range",
   "month",
   "weekday",
   "weekdays",
-  "conference",
+  "group",
   "round",
   "kind",
   "state",
@@ -43,7 +44,7 @@ const FINISHED_KINDS = [
 // After "in", only a place or a month fits, and after "at" or "vs", a team, or home.
 const KINDS_AFTER = { in: ["place", "month"], at: ["team", "side"], vs: ["team"] };
 const DATE_KINDS = new Set(["range", "month", "weekday", "weekdays", "time", "landmark"]);
-const NAME_KINDS = new Set(["team", "place", "month", "weekday", "round", "conference"]);
+const NAME_KINDS = new Set(["team", "starter", "place", "month", "weekday", "round", "group"]);
 
 /**
  * The search's own words as typed, each with where it starts.
@@ -271,14 +272,54 @@ function findOnlyTeam(text, context) {
   const search = readSearch(text, context);
   const asksMore = [
     search.skipped,
+    search.starters,
     search.places,
     search.ranges,
     search.times,
     search.kinds,
     search.states,
   ].some((list) => list.length);
-  const isOnlyTeam = search.teams.length === 1 && !asksMore && !search.pick && !search.side;
-  return isOnlyTeam ? search.teams[0].code : null;
+  const [team] = search.teams;
+  const isOnlyTeam =
+    search.teams.length === 1 &&
+    team.codes.length === 1 &&
+    !asksMore &&
+    !search.pick &&
+    !search.side;
+  return isOnlyTeam ? team.codes[0] : null;
+}
+
+/**
+ * The one starter a search names and nothing else, or null.
+ * @param {string} text
+ * @param {SearchContext} context
+ */
+function findOnlyStarter(text, context) {
+  const search = readSearch(text, context);
+  const [starter] = search.starters;
+  const isOnly =
+    search.starters.length === 1 &&
+    !search.teams.length &&
+    !search.skipped.length &&
+    !search.pick &&
+    !search.ranges.length;
+  return isOnly ? starter : null;
+}
+
+/**
+ * Whole searches about the one starter a search names: his next start, once it's announced, and
+ * his last.
+ * @param {string} text
+ * @param {SearchContext} context
+ * @returns {Candidate[]}
+ */
+function listStarterSearchCandidates(text, context) {
+  const starter = findOnlyStarter(text, context);
+  if (!starter) return [];
+  return [`${starter.name} next start`, `${starter.name} last start`].map((search) => ({
+    text: search,
+    meaning: null,
+  }));
 }
 
 /**
@@ -358,7 +399,10 @@ export function listSuggestions(text, context) {
     ...listFinishingCandidates(text, context),
     ...listFollowingCandidates(text, context),
   ];
-  const searches = listTeamSearchCandidates(first?.text ?? text, context);
+  const searches = [
+    ...listTeamSearchCandidates(first?.text ?? text, context),
+    ...listStarterSearchCandidates(first?.text ?? text, context),
+  ];
   return listUseful([first, ...searches, ...others].filter(Boolean), text, context);
 }
 
