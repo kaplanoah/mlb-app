@@ -6,7 +6,7 @@ import { html } from "#shared/html.js";
 /** @type {import("#shared/updates.js").ReleaseNote[]} */
 export const RELEASE_NOTES = [
   {
-    at: "2026-10-11T00:45:00Z",
+    at: "2026-10-11T00:40:00Z",
     text: html`Freeform search for games. Tap <b>Search</b> on the games page and type a team, city, date range, or things like "games this weekend" or "Aces in New York".`,
   },
   {
