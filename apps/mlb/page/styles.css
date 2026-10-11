@@ -923,6 +923,7 @@ table.st .seed-cell {
   border-bottom: 1px solid var(--divider);
 }
 .matchup-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -933,6 +934,14 @@ table.st .seed-cell {
 }
 .matchup-row + .matchup-row {
   border-top: 1px solid var(--divider);
+}
+/* A tap anywhere on a club's row lands on its name's button, stretched over the row, so the phone
+   treats the whole row as one tap target. */
+.matchup-row .team-open::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
 }
 .matchup-row.winner {
   background: color-mix(in srgb, var(--gold) 8%, transparent);

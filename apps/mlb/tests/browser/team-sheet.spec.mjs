@@ -209,6 +209,39 @@ test("a club in the bracket opens its sheet", async ({ page }) => {
   await expect(page.locator("#teamSheet #teamTitle")).toHaveText(new RegExp(name));
 });
 
+test.describe("on a phone's touchscreen", () => {
+  test.use(ON_A_PHONE);
+
+  test("a tap anywhere on a club's row in the bracket, beside its name or on its wins, lands on the club's button and opens its sheet", async ({
+    page,
+  }) => {
+    await openApp(page, { store: { "seasons/2025": SEASON_2025 } });
+    await chooseSeason(page, "2025");
+    const row = page
+      .locator("#bracketWrap .series")
+      .filter({ hasText: "Reds" })
+      .locator(".matchup-row")
+      .filter({ hasText: "Dodgers" });
+    await expect(row).toBeVisible();
+    await row.scrollIntoViewIfNeeded();
+    const [name, wins] = await Promise.all(
+      [row.locator(".team-name"), row.locator(".nscore")].map((part) => part.boundingBox()),
+    );
+    const besideName = { x: (name.x + name.width + wins.x) / 2, y: name.y + name.height / 2 };
+    const onWins = { x: wins.x + wins.width / 2, y: wins.y + wins.height / 2 };
+    for (const spot of [besideName, onWins]) {
+      const target = await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.team,
+        spot,
+      );
+      expect(target).toBe("LAD");
+    }
+
+    await page.touchscreen.tap(besideName.x, besideName.y);
+    await expect(page.locator("#teamSheet #teamTitle")).toHaveText(/Dodgers/);
+  });
+});
+
 test("a club in the ranking stays a handle to drag, not a way to its sheet", async ({ page }) => {
   await openApp(page);
   await openSettings(page);
